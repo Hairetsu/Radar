@@ -27,8 +27,6 @@ let mainWindow;
 let targetBrowserWindow;
 let chromeProcess;
 let proxyServer;
-const chromeCdpTargets = new Map();
-let cdpMessageId = 1;
 let allowlist = [...defaultAllowlist];
 const captured = new Map();
 const attachedContents = new Set();
@@ -226,54 +224,74 @@ function syncBrowserState() {
   return browserState;
 }
 
-function chromeCandidates() {
-  if (process.platform === "darwin") {
-    return [
-      "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-      path.join(app.getPath("home"), "Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"),
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      path.join(app.getPath("home"), "Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-    ];
-  }
-
-  if (process.platform === "win32") {
-    const roots = [
-      process.env.LOCALAPPDATA,
-      process.env.PROGRAMFILES,
-      process.env["PROGRAMFILES(X86)"]
-    ].filter(Boolean);
-    return roots.flatMap((root) => [
-      path.join(root, "Google", "Chrome SxS", "Application", "chrome.exe"),
-      path.join(root, "Google", "Chrome", "Application", "chrome.exe")
-    ]);
-  }
-
-  return [
-    "/usr/bin/google-chrome-unstable",
-    "/usr/bin/google-chrome-beta",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/snap/bin/chromium"
-  ];
-}
-
-function findChromeExecutable() {
-  return chromeCandidates().find((candidate) => fs.existsSync(candidate));
-}
-
 function chromeProfileDir() {
-  const profileDir = path.join(app.getPath("userData"), "chrome-profile");
+  const profileDir = path.join(app.getPath("userData"), "isolated-chrome-profile");
   fs.mkdirSync(profileDir, { recursive: true });
   return profileDir;
 }
 
-async function openRealChrome(urlString) {
-  const chromePath = findChromeExecutable();
-  if (!chromePath) {
-    throw new Error("Google Chrome or Chrome Canary was not found.");
+function isolatedChromeCacheDir() {
+  const cacheDir = path.join(app.getPath("userData"), "radar-browser");
+  fs.mkdirSync(cacheDir, { recursive: true });
+  return cacheDir;
+}
+
+async function ensureIsolatedChrome() {
+  const cacheDir = isolatedChromeCacheDir();
+  const platform = detectBrowserPlatform();
+  if (!platform) {
+    throw new Error("Cannot resolve a Radar Browser build for this platform.");
   }
 
+  const buildId = await resolveBuildId(Browser.CHROMIUM, platform, BrowserTag.LATEST);
+  const installed = await getInstalledBrowsers({ cacheDir });
+  const existing = installed.find(
+    (browser) =>
+      browser.browser === Browser.CHROMIUM &&
+      browser.platform === platform &&
+      browser.buildId === buildId &&
+      fs.existsSync(browser.executablePath)
+  );
+
+  if (existing) {
+    return {
+      executablePath: existing.executablePath,
+      buildId,
+      cacheDir
+    };
+  }
+
+  const installOptions = {
+    browser: Browser.CHROMIUM,
+    buildId,
+    buildIdAlias: "radar",
+    cacheDir,
+    platform
+  };
+
+  let downloaded;
+  try {
+    downloaded = await install(installOptions);
+  } catch {
+    fs.rmSync(path.join(cacheDir, Browser.CHROMIUM, `${platform}-${buildId}`), {
+      recursive: true,
+      force: true
+    });
+    downloaded = await install(installOptions);
+  }
+
+  return {
+    executablePath: downloaded.executablePath,
+    buildId,
+    cacheDir,
+    channel: "radar-browser",
+    managedByRadar: true
+  };
+}
+
+async function openRealChrome(urlString) {
   const nextUrl = normalizeBrowserUrl(urlString);
+  const chrome = await ensureIsolatedChrome();
   const proxy = await startMitmProxy(proxyState.port);
   const remoteDebuggingPort = 9223;
   const args = [
@@ -284,11 +302,16 @@ async function openRealChrome(urlString) {
     "--disable-features=Translate",
     `--proxy-server=${proxy.proxyUrl}`,
     "--proxy-bypass-list=<-loopback>",
+    `--ignore-certificate-errors-spki-list=${proxy.caFingerprint}`,
     "--new-window",
     nextUrl
   ];
 
-  chromeProcess = spawn(chromePath, args, {
+  if (process.platform === "darwin") {
+    args.splice(4, 0, "--use-mock-keychain");
+  }
+
+  chromeProcess = spawn(chrome.executablePath, args, {
     detached: true,
     stdio: "ignore"
   });
@@ -304,11 +327,14 @@ async function openRealChrome(urlString) {
   browserState = {
     open: true,
     url: nextUrl,
-    title: "Radar Chrome",
+    title: "Radar Browser",
     loading: false,
     engine: "chrome",
     remoteDebuggingUrl: `http://127.0.0.1:${remoteDebuggingPort}`,
-    profileDir: chromeProfileDir()
+    profileDir: chromeProfileDir(),
+    executablePath: chrome.executablePath,
+    buildId: chrome.buildId,
+    channel: chrome.channel
   };
 
   return browserState;

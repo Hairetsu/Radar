@@ -46,6 +46,9 @@ export type BrowserState = {
   engine: "none" | "electron" | "chrome";
   remoteDebuggingUrl?: string;
   profileDir?: string;
+  executablePath?: string;
+  buildId?: string;
+  channel?: string;
 };
 
 export type ProxyState = {

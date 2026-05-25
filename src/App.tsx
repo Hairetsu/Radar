@@ -2,8 +2,10 @@ import {
   Activity,
   Bot,
   CircleDot,
+  Crosshair,
   Eraser,
   ExternalLink,
+  FileLock2,
   Globe2,
   LockKeyhole,
   Play,
@@ -11,6 +13,7 @@ import {
   Repeat2,
   Send,
   ShieldCheck,
+  Square,
   Target,
   Zap
 } from "lucide-react";
@@ -52,6 +55,13 @@ const defaultProxyState: ProxyState = {
   caCertPath: "",
   caKeyPath: "",
   caFingerprint: ""
+};
+
+const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: string; title: string }> = {
+  traffic: { num: "01", label: "Traffic", eyebrow: "Capture // Live wire", title: "Traffic" },
+  repeater: { num: "02", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
+  scope: { num: "03", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "04", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 function normalizeUrl(value: string) {
@@ -104,7 +114,7 @@ function statusTone(status: number | null) {
 }
 
 function elapsed(value: number | null | undefined) {
-  return typeof value === "number" ? `${value}ms` : "-";
+  return typeof value === "number" ? `${value}ms` : "—";
 }
 
 function bodyPreview(value: string) {
@@ -143,11 +153,14 @@ export function App() {
   const [delayMs, setDelayMs] = useState(250);
   const [busy, setBusy] = useState<"send" | "burst" | "">("");
   const [notice, setNotice] = useState("");
+  const [clock, setClock] = useState(() => new Date());
 
   const selected = useMemo(
     () => captures.find((capture) => capture.id === selectedId) || captures[0] || null,
     [captures, selectedId]
   );
+
+  const meta = viewMeta[activeView];
 
   useEffect(() => {
     window.radar?.getTargets().then((items) => {
@@ -182,6 +195,11 @@ export function App() {
       cancelled = true;
       clearInterval(timer);
     };
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(id);
   }, []);
 
   async function openBrowser(event?: FormEvent) {
@@ -320,81 +338,153 @@ export function App() {
     setNotice("Proxy stopped");
   }
 
+  const utc = clock.toISOString().replace("T", " ").slice(0, 19) + "Z";
+  const lat = "40.7128°N // 74.0060°W";
+
   return (
     <main className="shell">
       <div className="atmosphere" />
-      <header className="topbar reveal delay-1">
-        <div className="brand">
-          <span className="brand-mark">
-            <RadarIcon size={22} />
+
+      <aside className="rail reveal delay-1">
+        <span className="rail-mark">
+          R<span>·</span>
+        </span>
+        <span className="rail-vertical">
+          Radar <strong>// Bureau</strong> — Operational Surface Intelligence
+        </span>
+        <div className="rail-numerals">
+          {(["traffic", "repeater", "scope", "ssl"] as WorkView[]).map((view) => (
+            <span key={view} className={activeView === view ? "live" : ""}>
+              {viewMeta[view].num}
+            </span>
+          ))}
+        </div>
+      </aside>
+
+      <section className="main">
+        <div className="classification reveal delay-1">
+          <span>
+            <em>Confidential</em> // Operational
           </span>
-          <div>
-            <h1>Radar</h1>
-            <p>local hardening console</p>
-          </div>
+          <span className="dotline" />
+          <span>Dossier No. R-{clock.getUTCFullYear()}-0481</span>
+          <span className="dotline" />
+          <span>{utc}</span>
         </div>
 
-        <form className="address" onSubmit={openBrowser}>
-          <Globe2 size={17} />
-          <input value={address} onChange={(event) => setAddress(event.target.value)} spellCheck={false} />
-          <button type="submit" className="solid-button">
-            <ExternalLink size={15} />
-            Open Chrome
-          </button>
-          <button type="button" className="line-button" onClick={() => addTarget(address)}>
-            <Target size={15} />
-            Trust
-          </button>
-        </form>
-
-        <div className="status-rail">
-          <span className={`status-pill ${browserState.open ? "accent" : ""}`}>
-            <CircleDot size={13} />
-            {browserState.open ? browserState.engine : "idle"}
-          </span>
-          <span className="status-pill">
-            <Activity size={13} />
-            {captures.length}
-          </span>
-          <span className="status-pill accent">
-            <LockKeyhole size={13} />
-            {sslEvents.length}
-          </span>
-          <span className={`status-pill ${proxyState.running ? "accent" : ""}`}>
-            <ShieldCheck size={13} />
-            {proxyState.running ? "proxy" : "off"}
-          </span>
-        </div>
-      </header>
-
-      <nav className="view-switch reveal delay-2">
-        {(["traffic", "repeater", "scope", "ssl"] as WorkView[]).map((view) => (
-          <button key={view} className={activeView === view ? "active" : ""} onClick={() => setActiveView(view)}>
-            {view}
-          </button>
-        ))}
-              <span>{browserState.remoteDebuggingUrl || browserState.url || notice}</span>
-      </nav>
-
-      <section className="workspace-simple panel reveal delay-3">
-        {activeView === "traffic" && (
-          <>
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">Capture</span>
-                <h2>Traffic</h2>
-              </div>
-              <button className="icon-button" onClick={clearCaptures} title="Clear">
-                <Eraser size={16} />
-              </button>
+        <header className="topbar reveal delay-2">
+          <div className="brand">
+            <span className="brand-mark">
+              <RadarIcon size={22} strokeWidth={1.6} />
+            </span>
+            <h1>
+              Rad<span className="accent">a</span>r
+            </h1>
+            <div className="brand-meta">
+              <span className="tag">
+                <em>Field</em> — Attack Surface Workbench
+              </span>
+              <span className="lat">{lat}</span>
             </div>
+          </div>
 
+          <form className="address" onSubmit={openBrowser}>
+            <Globe2 size={15} strokeWidth={1.6} />
+            <input
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              spellCheck={false}
+              placeholder="https://"
+            />
+            <button type="submit" className="solid-button">
+              <ExternalLink size={14} strokeWidth={2} />
+              Deploy
+            </button>
+            <button type="button" className="line-button" onClick={() => addTarget(address)}>
+              <Crosshair size={14} strokeWidth={1.7} />
+              Mark
+            </button>
+          </form>
+
+          <div className="status-rail">
+            <span className={`status-pill ${browserState.open ? "live" : ""}`}>
+              <span className="dot" />
+              <CircleDot size={11} strokeWidth={1.8} />
+              <strong>{browserState.open ? browserState.engine : "idle"}</strong>
+            </span>
+            <span className="status-pill cool">
+              <Activity size={11} strokeWidth={1.8} />
+              <strong>{captures.length}</strong> req
+            </span>
+            <span className="status-pill cool">
+              <FileLock2 size={11} strokeWidth={1.8} />
+              <strong>{sslEvents.length}</strong> tls
+            </span>
+            <span className={`status-pill ${proxyState.running ? "live" : ""}`}>
+              <span className="dot" />
+              <ShieldCheck size={11} strokeWidth={1.8} />
+              <strong>{proxyState.running ? "proxy" : "off"}</strong>
+            </span>
+          </div>
+        </header>
+
+        <nav className="view-switch reveal delay-3">
+          {(["traffic", "repeater", "scope", "ssl"] as WorkView[]).map((view) => (
+            <button
+              key={view}
+              className={activeView === view ? "active" : ""}
+              onClick={() => setActiveView(view)}
+            >
+              <span className="num">{viewMeta[view].num}</span>
+              {viewMeta[view].label}
+            </button>
+          ))}
+          <span className="telemetry">
+            <span className="blip" />
+            <span>{browserState.remoteDebuggingUrl || browserState.url || notice || "Awaiting target acquisition"}</span>
+          </span>
+        </nav>
+
+        <section className="workspace reveal delay-4">
+          <div className="panel-head">
+            <div className="head-left">
+              <span className="display-num">
+                {meta.num.replace(/(\d)$/, "")}
+                <em>{meta.num.slice(-1)}</em>
+              </span>
+              <div>
+                <span className="eyebrow">{meta.eyebrow}</span>
+                <h2>{meta.title}</h2>
+              </div>
+            </div>
+            <div className="head-right">
+              {activeView === "traffic" && (
+                <button className="icon-button" onClick={clearCaptures} title="Clear log">
+                  <Eraser size={15} strokeWidth={1.7} />
+                </button>
+              )}
+              {activeView === "repeater" && (
+                <button className="line-button" onClick={() => addTarget(draft.url)}>
+                  <Target size={14} strokeWidth={1.7} />
+                  Trust Origin
+                </button>
+              )}
+              {activeView === "scope" && (
+                <button className="solid-button compact" onClick={() => saveTargets()}>
+                  Commit
+                </button>
+              )}
+              {activeView === "ssl" && <span className="notice">{notice}</span>}
+            </div>
+          </div>
+
+          {activeView === "traffic" && (
             <div className="traffic-grid">
               <div className="traffic-list">
                 {captures.length === 0 && (
                   <div className="empty-state">
-                    <Activity size={20} />
-                    <span>Waiting</span>
+                    <Activity size={18} strokeWidth={1.4} />
+                    <span>No transmissions intercepted</span>
                   </div>
                 )}
                 {captures.map((capture) => (
@@ -404,7 +494,7 @@ export function App() {
                     onClick={() => setSelectedId(capture.id)}
                   >
                     <span className="method">{capture.method}</span>
-                    <span className={`status ${statusTone(capture.status)}`}>{capture.status || "..."}</span>
+                    <span className={`status ${statusTone(capture.status)}`}>{capture.status || "···"}</span>
                     <span className="host">{capture.host}</span>
                     <span className="path">{capture.path}</span>
                     <span className="type">{capture.tls ? capture.tls.protocol : capture.type}</span>
@@ -419,17 +509,19 @@ export function App() {
                     className={activeDetail === "request" ? "active" : ""}
                     onClick={() => setActiveDetail("request")}
                   >
+                    <Square size={9} strokeWidth={2} />
                     Request
                   </button>
                   <button
                     className={activeDetail === "response" ? "active" : ""}
                     onClick={() => setActiveDetail("response")}
                   >
+                    <Square size={9} strokeWidth={2} />
                     Response
                   </button>
                   <button onClick={() => cloneToRepeater(selected)}>
-                    <Repeat2 size={14} />
-                    Repeater
+                    <Repeat2 size={13} strokeWidth={1.7} />
+                    To Repeater
                   </button>
                 </div>
                 <pre>
@@ -445,22 +537,9 @@ export function App() {
                 </pre>
               </div>
             </div>
-          </>
-        )}
+          )}
 
-        {activeView === "repeater" && (
-          <>
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">Replay</span>
-                <h2>Repeater</h2>
-              </div>
-              <button className="line-button" onClick={() => addTarget(draft.url)}>
-                <ShieldCheck size={15} />
-                Trust Origin
-              </button>
-            </div>
-
+          {activeView === "repeater" && (
             <div className="repeater-view">
               <div className="request-editor">
                 <div className="repeater-grid">
@@ -500,8 +579,8 @@ export function App() {
 
                 <div className="action-row">
                   <button className="solid-button" onClick={sendReplay} disabled={busy !== ""}>
-                    <Send size={15} />
-                    {busy === "send" ? "Sending" : "Send"}
+                    <Send size={14} strokeWidth={1.8} />
+                    {busy === "send" ? "Transmitting" : "Transmit"}
                   </button>
                 </div>
               </div>
@@ -540,15 +619,17 @@ export function App() {
                     />
                   </div>
                   <button className="zap-button" onClick={runBurst} disabled={busy !== ""}>
-                    <Zap size={15} />
-                    {busy === "burst" ? "Running" : "Burst"}
+                    <Zap size={14} strokeWidth={1.8} />
+                    {busy === "burst" ? "Saturating" : "Saturate"}
                   </button>
                 </div>
 
                 <div className="response-well">
                   <div className="response-meta">
                     <span className={`status-dot ${statusTone(lastResponse?.status || null)}`} />
-                    <strong>{lastResponse ? `${lastResponse.status} ${lastResponse.statusText}` : "No response"}</strong>
+                    <strong>
+                      {lastResponse ? `${lastResponse.status} ${lastResponse.statusText}` : "No response"}
+                    </strong>
                     <span>{elapsed(lastResponse?.durationMs)}</span>
                     {lastBurst && <span>{lastBurst.failures} flagged</span>}
                   </div>
@@ -556,71 +637,54 @@ export function App() {
                 </div>
               </div>
             </div>
-          </>
-        )}
+          )}
 
-        {activeView === "scope" && (
-          <>
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">Scope</span>
-                <h2>Targets</h2>
-              </div>
-              <button className="solid-button compact" onClick={() => saveTargets()}>
-                Save
-              </button>
-            </div>
+          {activeView === "scope" && (
             <div className="scope-view">
               <textarea
                 className="target-list"
                 value={targetText}
                 onChange={(event) => setTargetText(event.target.value)}
                 spellCheck={false}
+                placeholder="https://your-target.example"
               />
               <div className="agent-rack">
-                <Bot size={17} />
-                <span>Agent dock reserved</span>
+                <Bot size={15} strokeWidth={1.7} />
+                <span>Agent dock — reserved channel</span>
               </div>
             </div>
-          </>
-        )}
+          )}
 
-        {activeView === "ssl" && (
-          <>
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">SSL</span>
-                <h2>Proxy</h2>
-              </div>
-              <span className="notice">{notice}</span>
-            </div>
+          {activeView === "ssl" && (
             <div className="ssl-view">
               <div className="ssl-summary">
-                <LockKeyhole size={22} />
+                <LockKeyhole size={20} strokeWidth={1.6} />
                 <strong>{proxyState.running ? proxyState.proxyUrl : "proxy stopped"}</strong>
                 <span>CA: {proxyState.caCertPath || "not generated"}</span>
-                <span>Chrome profile: {browserState.profileDir || "opens on demand"}</span>
+                <span>Profile: {browserState.profileDir || "opens on demand"}</span>
               </div>
 
               <div className="proxy-card">
                 <div className="proxy-actions">
                   <button className="solid-button" onClick={startProxy}>
-                    <Play size={15} />
-                    Start Proxy
+                    <Play size={14} strokeWidth={1.8} />
+                    Engage Proxy
                   </button>
                   <button className="line-button" onClick={stopProxy}>
-                    Stop
+                    Disengage
                   </button>
                   <button className="line-button" onClick={ensureProxyCa}>
-                    <LockKeyhole size={15} />
-                    Create CA
+                    <LockKeyhole size={13} strokeWidth={1.7} />
+                    Forge CA
                   </button>
                 </div>
                 <div className="proxy-lines">
                   <span>HTTP proxy: {proxyState.proxyUrl}</span>
-                  <span>CA cert: {proxyState.caCertPath || "-"}</span>
-                  <span>SPKI: {proxyState.caFingerprint || "-"}</span>
+                  <span>CA cert: {proxyState.caCertPath || "—"}</span>
+                  <span>SPKI: {proxyState.caFingerprint || "—"}</span>
                   <span>Chrome CDP: {browserState.remoteDebuggingUrl || "launch Chrome from Radar"}</span>
+                  <span>Browser: {browserState.channel || "Radar-managed Chromium"}</span>
+                  <span>Build: {browserState.buildId || "installs on first launch"}</span>
                 </div>
               </div>
 
@@ -629,7 +693,7 @@ export function App() {
                 {sslEvents.map((event) => (
                   <div key={event.id} className="ssl-event">
                     <span className={event.trusted ? "good-text" : "danger-text"}>
-                      {event.trusted ? "trusted" : "blocked"}
+                      {event.trusted ? "TRUSTED" : "BLOCKED"}
                     </span>
                     <strong>{event.error}</strong>
                     <span>{event.url}</span>
@@ -639,9 +703,38 @@ export function App() {
               </div>
               <pre>{selected ? `${selected.url}\n${tlsLine(selected)}` : ""}</pre>
             </div>
-          </>
-        )}
+          )}
+        </section>
       </section>
+
+      <footer className="ticker reveal delay-5">
+        <div className="left">
+          <span className="item signal">
+            <span className="blip" />
+            Radar Online
+          </span>
+          <span className="item">
+            UTC <em>{utc}</em>
+          </span>
+          <span className="item">
+            Sector <em>03</em>
+          </span>
+        </div>
+        <div className="right">
+          <span className="item">
+            View <em>{meta.num}</em> · {meta.label}
+          </span>
+          <span className="item">
+            Captures <em>{captures.length}</em>
+          </span>
+          <span className="item">
+            TLS <em>{sslEvents.length}</em>
+          </span>
+          <span className="item">
+            Proxy <em>{proxyState.running ? "engaged" : "standby"}</em>
+          </span>
+        </div>
+      </footer>
     </main>
   );
 }
