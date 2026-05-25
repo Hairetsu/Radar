@@ -2,6 +2,7 @@
   "name": "radar",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Open defensive web security workbench with an embedded Chromium browser, capture history, and controlled request repeater.",
   "main": "electron/main.cjs",
   "type": "module",
