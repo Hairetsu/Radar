@@ -139,6 +139,7 @@ The interface is a "bureau / operator console" aesthetic:
 ## Development Conventions
 
 See [docs/CODE_CONVENTIONS.md](docs/CODE_CONVENTIONS.md) for the repo-specific code style guide used for future development.
+See [docs/BRANCHING.md](docs/BRANCHING.md) for the protected branch and promotion workflow.
 
 ## Project Layout
 
@@ -155,6 +156,7 @@ src/
   types.ts        Shared types between main and renderer
   main.tsx        React entry
 docs/
+  BRANCHING.md
   CODE_CONVENTIONS.md
   AI_V1_SPEC.md   AI boundaries, tasks, IPC
   screens/        Screenshots used in this README
