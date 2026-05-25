@@ -38,7 +38,7 @@ The renderer is a four-view operator console. Persistent across all views: a lef
 
 ![Radar Traffic view](docs/screens/radar-01-traffic.png)
 
-Live capture log. Each row shows method, status, host, path, transport (TLS protocol or resource type), and round-trip duration. Selecting a row reveals request/response detail with TLS info on the right; a one-click **To Repeater** action clones the selected request into view 02. Empty state reads *"No transmissions intercepted"* until traffic flows in.
+Live capture log. Each row shows method, status, host, path, transport (TLS protocol or resource type), and round-trip duration. Selecting a row reveals request/response detail with TLS info on the right; a one-click **To Repeater** action clones the selected request into view 02. Empty state reads _"No transmissions intercepted"_ until traffic flows in.
 
 ### 02 — Repeater
 
@@ -80,8 +80,6 @@ Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. Se
 **Providers:** OpenAI, Anthropic, OpenAI-compatible endpoints.
 
 **Guardrails:** raw headers/bodies require explicit checkbox confirmation; scope/replay gates stay authoritative; session audit trail only — no cross-session memory or cloud storage of captures.
-
-See [docs/AI_V1_SPEC.md](docs/AI_V1_SPEC.md) for the full spec.
 
 ## Scope Model
 
