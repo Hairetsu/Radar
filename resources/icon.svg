@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="sweep" x1="512" y1="512" x2="760" y2="264" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF5733" stop-opacity="0.95" />
+      <stop offset="1" stop-color="#FF5733" stop-opacity="0.15" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="512" cy="512" r="392" fill="#07110F" />
+  <circle cx="512" cy="512" r="392" stroke="#FF5733" stroke-opacity="0.18" stroke-width="6" />
+
+  <circle cx="512" cy="512" r="300" stroke="#FF5733" stroke-opacity="0.28" stroke-width="10" />
+  <circle cx="512" cy="512" r="210" stroke="#FF5733" stroke-opacity="0.52" stroke-width="10" />
+  <circle cx="512" cy="512" r="120" stroke="#FF5733" stroke-opacity="0.82" stroke-width="10" />
+
+  <path
+    d="M512 512 L512 120 A392 392 0 0 1 789.2 234.8 Z"
+    fill="url(#sweep)"
+    opacity="0.92"
+  />
+
+  <circle cx="512" cy="512" r="22" fill="#FF5733" />
+  <circle cx="512" cy="512" r="10" fill="#07110F" />
+</svg>

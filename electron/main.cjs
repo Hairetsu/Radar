@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, webContents } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, webContents, nativeImage } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -56,13 +56,43 @@ let proxyState = {
   caFingerprint: ""
 };
 
+function loadAppIcon() {
+  const base = path.join(__dirname, "..", "resources");
+  const candidates =
+    process.platform === "darwin"
+      ? [path.join(base, "icon.icns"), path.join(base, "icon.png")]
+      : [path.join(base, "icon.png")];
+
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+    const image = nativeImage.createFromPath(candidate);
+    if (!image.isEmpty()) {
+      return image;
+    }
+  }
+
+  return null;
+}
+
+function applyAppIcon() {
+  const icon = loadAppIcon();
+  if (!icon || process.platform !== "darwin" || !app.dock) {
+    return;
+  }
+  app.dock.setIcon(icon);
+}
+
 function createWindow() {
+  const icon = loadAppIcon();
   mainWindow = new BrowserWindow({
     width: 1480,
     height: 940,
     minWidth: 1120,
     minHeight: 760,
     title: "Radar",
+    ...(icon ? { icon } : {}),
     backgroundColor: "#07110f",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -88,6 +118,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  applyAppIcon();
   createWindow();
 
   app.on("activate", () => {
