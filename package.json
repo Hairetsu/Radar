@@ -1,6 +1,6 @@
 {
   "name": "radar",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "license": "MIT",
   "description": "Open defensive web security workbench with an embedded Chromium browser, capture history, and controlled request repeater.",
