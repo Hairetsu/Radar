@@ -30,7 +30,17 @@ type CommandPaletteProps = {
 
 type PaletteStep = "task" | "preview" | "result";
 
-export function CommandPalette(props: CommandPaletteProps) {
+export function CommandPalette({
+  open,
+  onClose,
+  captureIds,
+  captures,
+  targets,
+  browserUrl,
+  onApplyDraft,
+  onPrepareNavigate,
+  onNotice
+}: CommandPaletteProps) {
   const [step, setStep] = useState<PaletteStep>("task");
   const [task, setTask] = useState<AiTaskType>("capture_summary");
   const [includeRaw, setIncludeRaw] = useState(false);
@@ -66,12 +76,12 @@ export function CommandPalette(props: CommandPaletteProps) {
           setError(next.probe.message);
           return;
         }
-        props.onNotice(`${next.meta.label} connected`);
+        onNotice(`${next.meta.label} connected`);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Connect failed");
       }
     },
-    [props.onNotice]
+    [onNotice]
   );
 
   const buildPreviewAction = useCallback(async () => {
@@ -83,7 +93,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       setError("");
       const next = await window.radar.previewAiContext({
         task,
-        captureIds: props.captureIds,
+        captureIds,
         includeRaw,
         userPrompt
       });
@@ -95,7 +105,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Preview failed");
     }
-  }, [props.captureIds, includeRaw, task, userPrompt]);
+  }, [captureIds, includeRaw, task, userPrompt]);
 
   const runTaskAction = useCallback(async () => {
     if (!window.radar) {
@@ -111,7 +121,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       await persistSettings(settings);
       const next = await window.radar.runAiTask({
         task,
-        captureIds: props.captureIds,
+        captureIds,
         includeRaw,
         userPrompt
       });
@@ -125,7 +135,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "AI request failed");
     }
-  }, [includeRaw, persistSettings, props.captureIds, settings, task, userPrompt]);
+  }, [includeRaw, persistSettings, captureIds, settings, task, userPrompt]);
 
   const connectMutation = useAsyncAction(connectPresetAction);
   const previewMutation = useAsyncAction(buildPreviewAction);
@@ -146,74 +156,74 @@ export function CommandPalette(props: CommandPaletteProps) {
     if (result.output.task === "repeater_drafts") {
       const first = result.output.data.drafts[0];
       if (!first) {
-        props.onNotice("No drafts returned.");
+        onNotice("No drafts returned.");
         return;
       }
-      props.onApplyDraft(first.draft);
-      props.onNotice(`Loaded draft: ${first.label}`);
-      props.onClose();
+      onApplyDraft(first.draft);
+      onNotice(`Loaded draft: ${first.label}`);
+      onClose();
       return;
     }
     if (result.output.task === "browser_helper") {
       const navigate = result.output.data.steps.find((stepItem) => stepItem.action === "navigate" && stepItem.url);
       if (!navigate?.url) {
-        props.onNotice("No navigate step to prepare.");
+        onNotice("No navigate step to prepare.");
         return;
       }
-      props.onPrepareNavigate(navigate.url);
-      props.onNotice(`Prepared navigation: ${navigate.label}`);
-      props.onClose();
+      onPrepareNavigate(navigate.url);
+      onNotice(`Prepared navigation: ${navigate.label}`);
+      onClose();
     }
-  }, [props.onApplyDraft, props.onClose, props.onNotice, props.onPrepareNavigate, result]);
+  }, [onApplyDraft, onClose, onNotice, onPrepareNavigate, result]);
 
   const captureLabel = useMemo(() => {
-    if (props.captureIds.length === 0) {
+    if (captureIds.length === 0) {
       return "No capture selected";
     }
-    const selected = props.captures.filter((item) => props.captureIds.includes(item.id));
+    const selected = captures.filter((item) => captureIds.includes(item.id));
     if (selected.length === 1) {
       return `${selected[0].method} ${selected[0].host}${selected[0].path}`;
     }
     return `${selected.length} captures selected`;
-  }, [props.captureIds, props.captures]);
+  }, [captureIds, captures]);
 
   useEffect(() => {
-    if (!props.open) {
+    if (!open) {
       return;
     }
     window.radar?.getAiSettings().then((next) => setSettings(next));
     window.radar?.getAiAudit().then((items) => setAudit(items));
-  }, [props.open]);
+  }, [open]);
 
   useEffect(() => {
-    if (!props.open) {
+    if (!open) {
       reset();
     }
-  }, [props.open, reset]);
+  }, [open, reset]);
 
   useEffect(() => {
-    if (!props.open) {
+    if (!open) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        props.onClose();
+        onClose();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [props.onClose, props.open]);
+  }, [onClose, open]);
 
   const actionPending = connectMutation.isPending || previewMutation.isPending || runMutation.isPending;
 
-  if (!props.open) {
+  if (!open) {
     return null;
   }
 
   return (
     <div
       className="ai-palette-backdrop"
-      onClick={props.onClose}
+      onClick={onClose}
       data-testid="commandPaletteBackdrop"
       data-component="commandPaletteBackdrop"
     >
@@ -234,7 +244,7 @@ export function CommandPalette(props: CommandPaletteProps) {
           <button
             type="button"
             className="icon-button"
-            onClick={props.onClose}
+            onClick={onClose}
             title="Close"
             data-testid="commandPaletteClose"
             data-component="commandPaletteClose"
@@ -363,8 +373,8 @@ export function CommandPalette(props: CommandPaletteProps) {
             )}
 
             <div className="ai-meta">
-              <span>Scope: {props.targets.length} origins</span>
-              <span>Browser: {props.browserUrl || "—"}</span>
+              <span>Scope: {targets.length} origins</span>
+              <span>Browser: {browserUrl || "—"}</span>
             </div>
 
             <div className="ai-actions">
