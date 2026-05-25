@@ -63,6 +63,7 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "resources/icon.icns",
+      "identity": null,
       "target": [
         "dmg"
       ]
