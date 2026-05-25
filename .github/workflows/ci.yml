@@ -4,17 +4,9 @@ on:
   push:
     branches:
       - develop
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
   pull_request:
     branches:
       - develop
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -56,6 +48,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    concurrency:
+      group: promote-master
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -63,6 +58,20 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Configure git
         run: |
@@ -72,6 +81,14 @@ jobs:
       - name: Merge develop into master
         run: |
           git fetch origin master develop
-          git checkout master
+          git checkout -B master origin/master
           git merge --no-ff origin/develop -m "chore: merge develop into master"
-          git push origin master
+
+      - name: Verify merge result
+        run: |
+          pnpm test:unit
+          pnpm lint
+          pnpm build
+
+      - name: Push master
+        run: git push origin HEAD:master
