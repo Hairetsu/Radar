@@ -109,6 +109,18 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  mainWindow.webContents.on("before-input-event", (_event, input) => {
+    if (input.type !== "keyDown") return;
+    const key = input.key?.toLowerCase();
+    const toggleCombo =
+      (process.platform === "darwin" && input.meta && input.alt && key === "i") ||
+      (process.platform !== "darwin" && input.control && input.shift && key === "i") ||
+      key === "f12";
+    if (toggleCombo) {
+      mainWindow.webContents.toggleDevTools();
+    }
+  });
+
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
     mainWindow.loadURL(devUrl);
@@ -351,12 +363,31 @@ async function openRealChrome(urlString) {
     args.splice(4, 0, "--use-mock-keychain");
   }
 
+  if (!fs.existsSync(chrome.executablePath)) {
+    throw new Error(`Radar Browser binary not found at ${chrome.executablePath}`);
+  }
+  try {
+    fs.accessSync(chrome.executablePath, fs.constants.X_OK);
+  } catch {
+    try {
+      fs.chmodSync(chrome.executablePath, 0o755);
+    } catch (chmodErr) {
+      throw new Error(`Radar Browser binary is not executable: ${chmodErr.message}`);
+    }
+  }
+
   chromeProcess = spawn(chrome.executablePath, args, {
     detached: true,
     stdio: "ignore"
   });
   chromeProcess.unref();
-  chromeProcess.once("exit", () => {
+  chromeProcess.once("error", (err) => {
+    console.error("[radar] chrome spawn error:", err);
+  });
+  chromeProcess.once("exit", (code, signal) => {
+    if (code && code !== 0) {
+      console.error(`[radar] chrome exited code=${code} signal=${signal}`);
+    }
     browserState = {
       ...browserState,
       open: false,

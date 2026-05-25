@@ -60,6 +60,16 @@
       "resources/icon.icns",
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/mockttp/**/*",
+      "node_modules/@puppeteer/browsers/**/*",
+      "node_modules/httpolyglot/**/*",
+      "node_modules/node-forge/**/*",
+      "node_modules/http-encoding/**/*",
+      "node_modules/brotli-wasm/**/*",
+      "node_modules/zstd-codec/**/*",
+      "node_modules/portfinder/**/*"
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "resources/icon.icns",
