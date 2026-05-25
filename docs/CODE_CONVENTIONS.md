@@ -30,7 +30,10 @@ When adding a feature, start with the shared types and pure helpers, then wire E
 
 ## TypeScript And Modules
 
-- Write strict TypeScript. Avoid `any`; prefer `unknown`, `Record<string, unknown>`, explicit unions, and type guards.
+- Write strict TypeScript. Do not use `: any`; use `unknown`, `Record<string, unknown>`, explicit unions, and type guards instead.
+- Treat `unknown` as the default for untrusted external data: IPC payloads, JSON parsing, provider responses, filesystem data, and network data.
+- Narrow `unknown` at the boundary with validation, type guards, or normalization before passing values deeper into the app.
+- If a dependency forces an unsafe type escape, keep it local, document why, and convert back to a safe typed shape immediately.
 - Use named exports for app code. Default exports are only used where framework config expects them.
 - Use `import type` for type-only imports.
 - Keep domain types serializable. IPC payloads and return values should be plain objects, arrays, strings, numbers, booleans, and nulls.
@@ -207,6 +210,7 @@ Before considering a change complete:
 
 - Shared contracts are updated first if data crosses renderer/main boundaries.
 - Core behavior is expressed as small, functional helpers instead of class-based abstractions.
+- No new `: any` annotations are introduced; untrusted values use `unknown` and are narrowed before use.
 - Electron handlers validate, clamp, normalize, and enforce scope.
 - Renderer code remains Electron-free except for `window.radar`.
 - User actions are explicit and reversible where practical.
