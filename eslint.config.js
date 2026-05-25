@@ -39,7 +39,7 @@ export default [
     }
   },
   {
-    files: ["electron/**/*.cjs"],
+    files: ["electron/**/*.cjs", "shared/**/*.cjs"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "commonjs",
@@ -54,6 +54,23 @@ export default [
         process: "readonly",
         require: "readonly",
         setTimeout: "readonly",
+        URL: "readonly"
+      }
+    }
+  },
+  {
+    files: ["**/*.test.cjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        AbortController: "readonly",
+        AbortSignal: "readonly",
+        Buffer: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        process: "readonly",
+        require: "readonly",
         URL: "readonly"
       }
     }

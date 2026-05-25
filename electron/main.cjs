@@ -12,6 +12,16 @@ const {
 } = require("@puppeteer/browsers");
 const { generateCACertificate, generateSPKIFingerprint, getLocal } = require("mockttp");
 const {
+  DEFAULT_ALLOWLIST,
+  isAllowedTarget,
+  shouldTrustLocalCertificate
+} = require("../shared/allowlist.cjs");
+const { normalizeDraft, MAX_REPLAY_BODY } = require("../shared/draft.cjs");
+const { normalizeUrl: normalizeBrowserUrl } = require("../shared/url.cjs");
+const { safeJsonHeaders } = require("../shared/headers.cjs");
+const { MAX_CAPTURED_BODY, truncateText } = require("../shared/text.cjs");
+const { toCaptureEntry, proxyRequestToCapture } = require("../shared/capture.cjs");
+const {
   loadSettings: loadAiSettings,
   saveSettings: saveAiSettings,
   previewContext: previewAiContext,
@@ -21,16 +31,10 @@ const {
   probeSettings: probeAiSettings
 } = require("./ai/index.cjs");
 
-const MAX_CAPTURED_BODY = 120_000;
-const MAX_REPLAY_BODY = 500_000;
 const MAX_BURST_COUNT = 50;
 const MAX_BURST_CONCURRENCY = 5;
 
-const defaultAllowlist = [
-  "http://localhost:*",
-  "http://127.0.0.1:*",
-  "http://[::1]:*"
-];
+const defaultAllowlist = DEFAULT_ALLOWLIST;
 
 let mainWindow;
 let targetBrowserWindow;
@@ -167,85 +171,6 @@ app.on("certificate-error", (event, _contents, url, error, certificate, callback
 
   callback(false);
 });
-
-function truncateText(value, limit = MAX_CAPTURED_BODY) {
-  if (!value) {
-    return "";
-  }
-  const text = String(value);
-  return text.length > limit ? `${text.slice(0, limit)}\n\n[truncated]` : text;
-}
-
-function normalizeBrowserUrl(value) {
-  const trimmed = String(value || "").trim();
-  if (!trimmed) {
-    return "http://localhost:3000";
-  }
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-}
-
-function safeJsonHeaders(headers = {}) {
-  return Object.fromEntries(
-    Object.entries(headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(", ") : String(value)])
-  );
-}
-
-function isLocalHost(hostname) {
-  return hostname === "localhost" || hostname === "::1" || /^127\./.test(hostname);
-}
-
-function wildcardToRegExp(pattern) {
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`, "i");
-}
-
-function ruleAllows(url, rule) {
-  const trimmed = String(rule || "").trim();
-  if (!trimmed) {
-    return false;
-  }
-
-  if (trimmed === "local") {
-    return isLocalHost(url.hostname);
-  }
-
-  const target = `${url.protocol}//${url.host}`;
-  if (trimmed.includes("*")) {
-    return wildcardToRegExp(trimmed).test(target) || wildcardToRegExp(trimmed).test(url.href);
-  }
-
-  try {
-    const parsedRule = new URL(trimmed);
-    return parsedRule.origin === url.origin;
-  } catch {
-    return trimmed.toLowerCase() === url.hostname.toLowerCase();
-  }
-}
-
-function isAllowedTarget(urlString, rules = allowlist) {
-  let parsed;
-  try {
-    parsed = new URL(urlString);
-  } catch {
-    return false;
-  }
-
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    return false;
-  }
-
-  const activeRules = Array.isArray(rules) && rules.length > 0 ? rules : defaultAllowlist;
-  return activeRules.some((rule) => ruleAllows(parsed, rule));
-}
-
-function shouldTrustLocalCertificate(urlString) {
-  try {
-    const parsed = new URL(urlString);
-    return parsed.protocol === "https:" && isLocalHost(parsed.hostname);
-  } catch {
-    return false;
-  }
-}
 
 function currentBrowserState() {
   if (browserState.engine === "chrome" && browserState.open) {
@@ -500,27 +425,6 @@ async function ensureProxyCa() {
   return proxyState;
 }
 
-function proxyRequestToCapture(req, bodyText) {
-  const entry = toCaptureEntry(req.id, {
-    method: req.method,
-    url: req.url,
-    headers: req.headers || {},
-    postData: bodyText || ""
-  });
-  entry.startedAt = new Date(req.timingEvents?.startTime || Date.now()).toISOString();
-  entry.source = "proxy";
-  entry.tls = req.url.startsWith("https:")
-    ? {
-        protocol: req.protocol || "https",
-        issuer: "Radar Local Proxy CA",
-        subjectName: req.destination?.hostname || "",
-        validFrom: 0,
-        validTo: 0
-      }
-    : null;
-  return entry;
-}
-
 async function startMitmProxy(port = 8088) {
   if (proxyServer) {
     return proxyState;
@@ -543,7 +447,7 @@ async function startMitmProxy(port = 8088) {
 
   await proxyServer.on("request", async (req) => {
     const text = await req.body.getText().catch(() => "");
-    captured.set(req.id, proxyRequestToCapture(req, truncateText(text)));
+    captured.set(req.id, proxyRequestToCapture(req, truncateText(text), allowlist));
   });
 
   await proxyServer.on("response", async (res) => {
@@ -598,58 +502,6 @@ async function stopMitmProxy() {
   return proxyState;
 }
 
-function normalizeDraft(input = {}) {
-  const method = String(input.method || "GET").toUpperCase();
-  const headers = safeJsonHeaders(input.headers || {});
-  const body = typeof input.body === "string" ? input.body : "";
-
-  for (const header of ["host", "content-length", "connection", "upgrade", "proxy-connection"]) {
-    delete headers[header];
-    delete headers[header.toUpperCase()];
-  }
-
-  return {
-    method,
-    url: String(input.url || ""),
-    headers,
-    body: ["GET", "HEAD"].includes(method) ? "" : body.slice(0, MAX_REPLAY_BODY)
-  };
-}
-
-function toCaptureEntry(requestId, request) {
-  const url = request.url || "";
-  let host = "";
-  let pathName = "";
-  try {
-    const parsed = new URL(url);
-    host = parsed.host;
-    pathName = `${parsed.pathname}${parsed.search}`;
-  } catch {
-    host = url;
-    pathName = "/";
-  }
-
-  return {
-    id: requestId,
-    startedAt: new Date().toISOString(),
-    method: request.method || "GET",
-    url,
-    host,
-    path: pathName,
-    requestHeaders: safeJsonHeaders(request.headers || {}),
-    requestBody: truncateText(request.postData || ""),
-    status: null,
-    statusText: "",
-    mimeType: "",
-    type: "Other",
-    responseHeaders: {},
-    responseBody: "",
-    durationMs: null,
-    allowed: isAllowedTarget(url),
-    source: "browser"
-  };
-}
-
 async function captureResponseBody(debuggerApi, requestId) {
   try {
     const bodyResult = await debuggerApi.sendCommand("Network.getResponseBody", { requestId });
@@ -682,7 +534,7 @@ function attachDebugger(contentsId) {
 
   target.debugger.on("message", async (_event, method, params) => {
     if (method === "Network.requestWillBeSent") {
-      const next = toCaptureEntry(params.requestId, params.request || {});
+      const next = toCaptureEntry(params.requestId, params.request || {}, allowlist);
       captured.set(params.requestId, next);
       return;
     }

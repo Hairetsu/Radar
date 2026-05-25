@@ -41,8 +41,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test
-        run: pnpm test
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
 
   promote:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
