@@ -46,6 +46,7 @@ export default [
       globals: {
         __dirname: "readonly",
         AbortController: "readonly",
+        AbortSignal: "readonly",
         Buffer: "readonly",
         clearTimeout: "readonly",
         console: "readonly",

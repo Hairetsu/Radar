@@ -11,8 +11,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
+    "test": "pnpm lint && pnpm build",
     "screenshots": "pnpm build && electron electron/screenshot.cjs",
-    "icons": "bash scripts/build-icon.sh"
+    "icons": "bash scripts/build-icon.sh",
+    "pack": "pnpm build && electron-builder --dir",
+    "dist": "pnpm build && electron-builder"
   },
   "dependencies": {
     "@puppeteer/browsers": "^2.13.2",
@@ -31,11 +34,53 @@
     "concurrently": "^9.1.0",
     "cross-env": "^10.1.0",
     "electron": "^42.2.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.15.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.1",
     "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.radar.workbench",
+    "productName": "Radar",
+    "copyright": "Copyright © Radar contributors",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "resources/icon.png",
+      "resources/icon.icns",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "resources/icon.icns",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "icon": "resources/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "resources/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    }
   }
 }
