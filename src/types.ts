@@ -85,6 +85,32 @@ export type BurstResult = {
   results: Array<ReplayResult & { index: number }>;
 };
 
+import type {
+  AiAuditEntry,
+  AiConnectResult,
+  AiContextPreview,
+  AiRunRequest,
+  AiRunResult,
+  AiSettings
+} from "./ai/types";
+
+export type {
+  AiAuditEntry,
+  AiContextPreview,
+  AiProviderId,
+  AiRunRequest,
+  AiRunResult,
+  AiSettings,
+  AiTaskOutput,
+  AiTaskType,
+  AiBrowserHelperOutput,
+  AiCaptureSummaryOutput,
+  AiRepeaterDraftItem,
+  AiRepeaterDraftsOutput,
+  AiReportNotesOutput,
+  AiScopeChecklistOutput
+} from "./ai/types";
+
 export type RadarApi = {
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
@@ -108,4 +134,11 @@ export type RadarApi = {
     concurrency: number;
     delayMs: number;
   }) => Promise<BurstResult>;
+  getAiSettings: () => Promise<AiSettings>;
+  setAiSettings: (settings: AiSettings) => Promise<AiSettings>;
+  previewAiContext: (payload: AiRunRequest) => Promise<AiContextPreview>;
+  runAiTask: (payload: AiRunRequest) => Promise<AiRunResult>;
+  getAiAudit: () => Promise<AiAuditEntry[]>;
+  connectAi: (presetId: import("./ai/types").AiConnectPresetId) => Promise<AiConnectResult>;
+  probeAiConnection: (settings: AiSettings) => Promise<import("./ai/types").AiConnectProbe>;
 };

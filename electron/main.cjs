@@ -11,6 +11,15 @@ const {
   resolveBuildId
 } = require("@puppeteer/browsers");
 const { generateCACertificate, generateSPKIFingerprint, getLocal } = require("mockttp");
+const {
+  loadSettings: loadAiSettings,
+  saveSettings: saveAiSettings,
+  previewContext: previewAiContext,
+  runAiTask,
+  snapshotAudit: snapshotAiAudit,
+  connectPreset: connectAiPreset,
+  probeSettings: probeAiSettings
+} = require("./ai/index.cjs");
 
 const MAX_CAPTURED_BODY = 120_000;
 const MAX_REPLAY_BODY = 500_000;
@@ -712,6 +721,40 @@ ipcMain.handle("targets:set", (_event, targets) => {
 
 ipcMain.handle("repeater:send", async (_event, input) => {
   return sendRequest(input, allowlist);
+});
+
+ipcMain.handle("ai:settings:get", () => loadAiSettings(app.getPath("userData")));
+
+ipcMain.handle("ai:settings:set", (_event, settings) => saveAiSettings(app.getPath("userData"), settings));
+
+ipcMain.handle("ai:context:preview", (_event, payload) => {
+  return previewAiContext({
+    capturedMap: captured,
+    allowlist,
+    browserUrl: browserState.url || "",
+    captureIds: payload?.captureIds,
+    includeRaw: Boolean(payload?.includeRaw)
+  });
+});
+
+ipcMain.handle("ai:run", async (_event, payload) => {
+  return runAiTask({
+    capturedMap: captured,
+    allowlist,
+    browserUrl: browserState.url || "",
+    userDataPath: app.getPath("userData"),
+    request: payload || {}
+  });
+});
+
+ipcMain.handle("ai:audit:snapshot", () => snapshotAiAudit());
+
+ipcMain.handle("ai:connect", async (_event, presetId) => {
+  return connectAiPreset(app.getPath("userData"), presetId);
+});
+
+ipcMain.handle("ai:connect:probe", async (_event, settings) => {
+  return probeAiSettings(settings || {});
 });
 
 ipcMain.handle("repeater:burst", async (_event, input) => {

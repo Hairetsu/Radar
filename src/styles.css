@@ -924,6 +924,195 @@
     color: var(--color-signal);
   }
 
+  button.agent-rack {
+    @apply w-full cursor-pointer transition-colors;
+  }
+
+  button.agent-rack:hover {
+    border-color: rgba(255, 87, 51, 0.55);
+    color: var(--color-bone);
+    background: rgba(255, 87, 51, 0.08);
+  }
+
+  /* ------------------------------------------------------------------
+     AI COMMAND PALETTE
+     ------------------------------------------------------------------ */
+  .ai-palette-backdrop {
+    @apply fixed inset-0 z-[40] flex items-start justify-center px-4 py-10;
+    background: rgba(4, 10, 9, 0.72);
+    backdrop-filter: blur(6px);
+  }
+
+  .ai-palette {
+    @apply grid w-full max-w-5xl gap-4 border p-5 font-mono;
+    border-color: var(--color-rule);
+    background: rgba(7, 17, 15, 0.96);
+    box-shadow: 0 24px 80px -20px rgba(0, 0, 0, 0.65);
+    max-height: calc(100vh - 5rem);
+    overflow: auto;
+  }
+
+  .ai-palette-head {
+    @apply flex items-start justify-between gap-4 border-b pb-4;
+    border-color: var(--color-rule);
+  }
+
+  .ai-palette-head h3 {
+    @apply font-display uppercase;
+    font-size: 28px;
+    letter-spacing: 0.08em;
+  }
+
+  .ai-palette-head p {
+    @apply mt-1 uppercase;
+    font-size: 10px;
+    letter-spacing: 0.24em;
+    color: var(--color-muted);
+  }
+
+  .ai-palette-grid {
+    @apply grid gap-4;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+
+  .ai-panel {
+    @apply grid gap-3;
+  }
+
+  .ai-task-list {
+    @apply grid gap-2;
+  }
+
+  .ai-task-list button {
+    @apply grid gap-1 border px-3 py-2 text-left uppercase transition-colors;
+    border-color: var(--color-rule);
+    background: rgba(255, 255, 255, 0.02);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+  }
+
+  .ai-task-list button strong {
+    color: var(--color-bone);
+    letter-spacing: 0.22em;
+  }
+
+  .ai-task-list button span {
+    color: var(--color-dim);
+    letter-spacing: 0.14em;
+    line-height: 1.4;
+  }
+
+  .ai-task-list button.active,
+  .ai-task-list button:hover {
+    border-color: rgba(255, 87, 51, 0.45);
+    background: rgba(255, 87, 51, 0.06);
+  }
+
+  .ai-note {
+    min-height: 72px;
+  }
+
+  .ai-raw-toggle {
+    @apply flex items-center gap-2 uppercase;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--color-muted);
+  }
+
+  .ai-settings-row {
+    @apply grid gap-2;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ai-settings-row select,
+  .ai-settings-row input,
+  .ai-key,
+  .ai-panel > input {
+    @apply h-9 border bg-transparent px-3 font-mono uppercase outline-none;
+    border-color: var(--color-rule);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--color-bone);
+  }
+
+  .ai-meta {
+    @apply flex flex-wrap gap-3 uppercase;
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    color: var(--color-dim);
+  }
+
+  .ai-connect-row {
+    @apply grid gap-2;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ai-connect-note {
+    @apply uppercase;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--color-dim);
+    line-height: 1.5;
+  }
+
+  .ai-actions {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .ai-error {
+    @apply uppercase;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--color-rust);
+  }
+
+  .ai-output {
+    @apply grid gap-2 border-t pt-4;
+    border-color: var(--color-rule);
+  }
+
+  .ai-output-head {
+    @apply flex flex-wrap items-center justify-between gap-2 uppercase;
+    font-size: 10px;
+    letter-spacing: 0.24em;
+    color: var(--color-muted);
+  }
+
+  .ai-output pre {
+    @apply max-h-64 overflow-auto border p-3;
+    border-color: var(--color-rule);
+    background: rgba(0, 0, 0, 0.22);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    color: var(--color-bone);
+  }
+
+  .ai-audit-list {
+    @apply grid gap-2;
+  }
+
+  .ai-audit-list > div {
+    @apply grid gap-1 border px-3 py-2 uppercase;
+    border-color: var(--color-rule);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--color-dim);
+  }
+
+  .ai-audit-list > div.failed {
+    border-color: rgba(196, 92, 74, 0.45);
+  }
+
+  .ai-audit-list strong {
+    color: var(--color-bone);
+    letter-spacing: 0.24em;
+  }
+
+  .spin {
+    animation: spin 0.9s linear infinite;
+  }
+
   /* ------------------------------------------------------------------
      SSL VIEW
      ------------------------------------------------------------------ */
@@ -1215,6 +1404,10 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes enter {

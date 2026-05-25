@@ -18,6 +18,7 @@ import {
   Zap
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { CommandPalette } from "./ai/CommandPalette";
 import type {
   BrowserState,
   BurstResult,
@@ -154,6 +155,7 @@ export function App() {
   const [busy, setBusy] = useState<"send" | "burst" | "">("");
   const [notice, setNotice] = useState("");
   const [clock, setClock] = useState(() => new Date());
+  const [aiPaletteOpen, setAiPaletteOpen] = useState(false);
 
   const selected = useMemo(
     () => captures.find((capture) => capture.id === selectedId) || captures[0] || null,
@@ -202,6 +204,17 @@ export function App() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setAiPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   async function openBrowser(event?: FormEvent) {
     event?.preventDefault();
     const next = normalizeUrl(address);
@@ -240,6 +253,18 @@ export function App() {
     setTargets(saved);
     setTargetText(saved.join("\n"));
     setNotice(`Added ${origin}`);
+  }
+
+  function applyAiDraft(nextDraft: ReplayDraft) {
+    setDraft(nextDraft);
+    setHeadersText(formatHeaders(nextDraft.headers));
+    setLastResponse(null);
+    setLastBurst(null);
+    setActiveView("repeater");
+  }
+
+  function prepareAiNavigate(url: string) {
+    setAddress(normalizeUrl(url));
   }
 
   function cloneToRepeater(capture: CapturedRequest | null) {
@@ -458,6 +483,15 @@ export function App() {
               </div>
             </div>
             <div className="head-right">
+              <button
+                className="line-button"
+                type="button"
+                onClick={() => setAiPaletteOpen(true)}
+                title="Command palette (⌘K)"
+              >
+                <Bot size={14} strokeWidth={1.7} />
+                AI
+              </button>
               {activeView === "traffic" && (
                 <button className="icon-button" onClick={clearCaptures} title="Clear log">
                   <Eraser size={15} strokeWidth={1.7} />
@@ -648,10 +682,10 @@ export function App() {
                 spellCheck={false}
                 placeholder="https://your-target.example"
               />
-              <div className="agent-rack">
+              <button type="button" className="agent-rack" onClick={() => setAiPaletteOpen(true)}>
                 <Bot size={15} strokeWidth={1.7} />
-                <span>Agent dock — reserved channel</span>
-              </div>
+                <span>AI command palette — ⌘K</span>
+              </button>
             </div>
           )}
 
@@ -706,6 +740,18 @@ export function App() {
           )}
         </section>
       </section>
+
+      <CommandPalette
+        open={aiPaletteOpen}
+        onClose={() => setAiPaletteOpen(false)}
+        captureIds={selected ? [selected.id] : []}
+        captures={captures}
+        targets={targets}
+        browserUrl={browserState.url || address}
+        onApplyDraft={applyAiDraft}
+        onPrepareNavigate={prepareAiNavigate}
+        onNotice={setNotice}
+      />
 
       <footer className="ticker reveal delay-5">
         <div className="left">

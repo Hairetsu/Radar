@@ -17,5 +17,12 @@ contextBridge.exposeInMainWorld("radar", {
   getTargets: () => ipcRenderer.invoke("targets:get"),
   setTargets: (targets) => ipcRenderer.invoke("targets:set", targets),
   sendReplay: (request) => ipcRenderer.invoke("repeater:send", request),
-  runBurst: (payload) => ipcRenderer.invoke("repeater:burst", payload)
+  runBurst: (payload) => ipcRenderer.invoke("repeater:burst", payload),
+  getAiSettings: () => ipcRenderer.invoke("ai:settings:get"),
+  setAiSettings: (settings) => ipcRenderer.invoke("ai:settings:set", settings),
+  previewAiContext: (payload) => ipcRenderer.invoke("ai:context:preview", payload),
+  runAiTask: (payload) => ipcRenderer.invoke("ai:run", payload),
+  getAiAudit: () => ipcRenderer.invoke("ai:audit:snapshot"),
+  connectAi: (presetId) => ipcRenderer.invoke("ai:connect", presetId),
+  probeAiConnection: (settings) => ipcRenderer.invoke("ai:connect:probe", settings)
 });

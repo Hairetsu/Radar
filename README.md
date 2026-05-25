@@ -11,11 +11,11 @@ Radar is a local-first defensive web security workbench. It embeds Chromium, cap
 - Target allowlist enforced before replaying requests.
 - Local HTTPS proxy mode for external browsers, with a Radar-generated CA and SPKI fingerprint.
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
-- Reserved agent dock and architecture notes for later AI provider integration.
+- Command-palette AI with provider adapters, context preview, prepare-only outputs, and session audit trail.
 
 ## Stack
 
-- Electron 42 main process (`electron/main.cjs`) wiring CDP capture, mockttp proxy, and the puppeteer-managed Chromium.
+- Electron 42 main process (`electron/main.cjs`) wiring CDP capture, mockttp proxy, Chromium launcher, and AI IPC.
 - React 18 + Vite + TypeScript renderer (`src/`).
 - Tailwind CSS v4 with a custom bureau theme (Antonio / Manrope / JetBrains Mono).
 - mockttp for the optional MITM proxy and CA generation.
@@ -28,7 +28,7 @@ pnpm install
 pnpm dev
 ```
 
-This starts Vite on `127.0.0.1:5173`, then launches Electron pointing at it. `pnpm build` runs `tsc` and a production Vite build into `dist/`. `pnpm lint` runs ESLint.
+This starts Vite on `127.0.0.1:5173`, then launches Electron pointing at it. `pnpm build` runs `tsc` and a production Vite build into `dist/`. `pnpm lint` runs ESLint. `pnpm screenshots` rebuilds and refreshes README screenshots into `docs/screens/`.
 
 ## Workspace Tour
 
@@ -50,13 +50,38 @@ Manual replay surface. Left: method selector, URL line, JSON-edited headers, fre
 
 ![Radar Scope view](docs/screens/radar-03-scope.png)
 
-The engagement boundary. Newline-delimited origins form the allowlist that gates every replay; defaults are local development origins. Edit and **Commit** to persist. The dashed *Agent Dock — reserved channel* strip below the editor is the future home for provider-agnostic AI agents that will inherit this same scope.
+The engagement boundary. Newline-delimited origins form the allowlist that gates every replay; defaults are local development origins. Edit and **Commit** to persist. The **AI command palette** strip below the editor opens the same palette as **⌘K** / **Ctrl+K** or the **AI** button in the panel header.
 
 ### 04 — SSL
 
 ![Radar SSL / Proxy view](docs/screens/radar-04-ssl.png)
 
 Crypto and proxy interception. The summary strip shows current proxy URL, generated CA path, and active Chrome profile. Below: **Engage Proxy** / **Disengage** / **Forge CA** controls plus a printout of HTTP proxy address, CA cert path, SPKI fingerprint, Chrome CDP endpoint, and the managed Chromium build. The lower panes hold the certificate event log (trusted vs. blocked endpoints) and a TLS detail pane for the currently selected capture.
+
+### AI — Command Palette
+
+![Radar AI command palette](docs/screens/radar-05-ai-palette.png)
+
+Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. Select a capture in Traffic first — AI only sends user-selected captures.
+
+**Tasks (prepare-only):**
+
+- Capture Summary — explain request/response, headers, TLS, timing
+- Repeater Drafts — suggest request variants; loads draft, never transmits
+- Scope Checklist — manual test checklist within allowlist
+- Report Notes — concise evidence notes with uncertainty markers
+- Browser Helper — suggested exploration steps; you confirm navigation
+
+**Connect presets:**
+
+- **Codex Connect** — OpenAI API via `OPENAI_API_KEY` or `CODEX_API_KEY`, model `gpt-5.3-codex`
+- **Cursor CLI Connect** — local OpenAI-compatible proxy at `http://127.0.0.1:8765/v1` (override with `CURSOR_PROXY_URL`); key from `CURSOR_BRIDGE_API_KEY`, `CURSOR_API_KEY`, or `unused`. Requires a local Cursor CLI proxy such as `npx cursor-api-proxy`.
+
+**Providers:** OpenAI, Anthropic, OpenAI-compatible endpoints.
+
+**Guardrails:** raw headers/bodies require explicit checkbox confirmation; scope/replay gates stay authoritative; session audit trail only — no cross-session memory or cloud storage of captures.
+
+See [docs/AI_V1_SPEC.md](docs/AI_V1_SPEC.md) for the full spec.
 
 ## Scope Model
 
@@ -90,29 +115,22 @@ The interface is a "bureau / operator console" aesthetic:
 - Asymmetric layout: vertical left rail with live section numerals, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, and a bottom telemetry ticker.
 - CSS-only motion: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button.
 
-## AI Integration Later
-
-The MVP keeps AI out of the request path for now. When it is time to add agents, the clean boundary is:
-
-- **Provider adapters** — OpenAI, Anthropic, local OpenAI-compatible servers, and other hosted APIs.
-- **Tool permissions** — browser navigation, capture search, request drafting, replay execution, report writing.
-- **Scope gates** — agents inherit the same target allowlist and replay caps as manual actions.
-- **Audit trail** — every agent action produces an inspectable event with prompt, tool call, target, and result metadata.
-
-This keeps the first version useful while leaving room for provider-agnostic agent work without coupling it to the UI too early.
-
 ## Project Layout
 
 ```
 electron/
   main.cjs        Main-process: CDP capture, proxy, Chromium launcher, IPC handlers
   preload.cjs     Exposes the typed `window.radar` API to the renderer
+  screenshot.cjs  Headless screenshot runner for README assets
+  ai/             Provider adapters, context builder, connect presets, audit trail
 src/
-  App.tsx         Bureau-style operator console (4 views)
+  App.tsx         Bureau-style operator console (4 views + AI palette)
+  ai/             Command palette UI and AI types
   styles.css      Theme tokens, layout, and motion
   types.ts        Shared types between main and renderer
   main.tsx        React entry
 docs/
+  AI_V1_SPEC.md   AI boundaries, tasks, IPC
   screens/        Screenshots used in this README
 index.html        Vite entry
 vite.config.ts    Vite + Tailwind v4 + React
