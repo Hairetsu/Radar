@@ -10,3 +10,4 @@ export {
 } from "./allowlist";
 export { MAX_CAPTURED_BODY, truncateText, statusTone, elapsed, bodyPreview, tlsLine } from "./text";
 export { resultPreview } from "./resultPreview";
+export { cn } from "./utils";

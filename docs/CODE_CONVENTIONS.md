@@ -1,6 +1,6 @@
 # Radar Code Conventions
 
-This guide documents the code conventions already present in Radar and should be used for future development. It focuses on engineering patterns, module boundaries, naming, testing, and safety rules. Visual design guidance stays in `README.md` and `src/styles.css`.
+This guide documents the code conventions already present in Radar and should be used for future development. It focuses on engineering patterns, module boundaries, naming, testing, and safety rules. Visual design guidance stays in `README.md`; styling implementation is covered below.
 
 ## Core Principles
 
@@ -22,7 +22,9 @@ Use the existing folders as ownership boundaries:
 - `electron/ai/`: AI settings, prompts, context building, provider calls, connect presets, and audit logic.
 - `src/`: React renderer code.
 - `src/hooks/`: Stateful renderer workflows such as `useRadarWorkbench`.
-- `src/lib/`: Renderer-facing utility re-exports and presentation helpers.
+- `src/lib/`: Renderer-facing utility re-exports and presentation helpers (including `cn()`).
+- `src/components/ui/`: shadcn-style form and action primitives (`Button`, `Input`, `Select`, `Textarea`).
+- `src/components/radar/`: Radar-specific presentation primitives (labels, status badges, pills, empty states).
 - `src/ai/`: AI command palette UI and renderer metadata.
 - `src/test/`: Shared renderer test setup.
 
@@ -86,6 +88,7 @@ import { buildContextPayload } from "./context.js";
 - Do not import Electron, Node built-ins, filesystem APIs, or process APIs into `src/`.
 - Add `data-testid` and `data-component` to interactive or test-relevant UI elements.
 - Use `lucide-react` icons for actions and status markers.
+- Style with Tailwind utilities and `src/components/ui/` / `src/components/radar/` primitives — not new selector blocks in `styles.css`.
 
 ## Hook And State Conventions
 
@@ -159,14 +162,40 @@ Keep prompts concise, defensive, and operational. They should emphasize authoriz
 
 ## Styling Implementation
 
-This guide is code-focused, but frontend implementation should still follow the existing styling architecture:
+Radar uses Tailwind CSS v4 with shadcn practices. Follow these rules when adding or changing UI:
 
-- Keep theme tokens and component styles centralized in `src/styles.css`.
-- Prefer semantic class names that describe product surfaces, such as `traffic-row`, `detail-pane`, `status-pill`, and `ai-palette`.
-- Use Tailwind v4 via `@theme`, `@layer`, and `@apply` as the repo already does.
-- Avoid inline styles except for values that truly must be computed at runtime.
-- Keep reusable interaction classes aligned with existing button families: `solid-button`, `line-button`, `icon-button`, and `zap-button`.
+### Theme and global CSS
+
+- Keep design tokens in `@theme` inside `src/styles.css` (colors, fonts, shadows). Reference them as Tailwind utilities (`bg-surface`, `text-signal`, `font-mono`, etc.).
+- Reserve `src/styles.css` for tokens, base element styles, the bureau shell texture (`.radar-shell`), scrollbars, and shared keyframes. Do not add new page-level or component selector blocks there.
+- Use `@layer base` and `@layer components` sparingly — only for truly global concerns that cannot live in a component.
+
+### shadcn-style components
+
+- Use `cn()` from `src/lib/utils.ts` (`clsx` + `tailwind-merge`) to merge class names.
+- Use `class-variance-authority` (`cva`) for variant-driven components. Export both the component and its `*Variants` helper when variants may be reused.
+- Put generic, reusable controls in `src/components/ui/` following shadcn patterns: `forwardRef`, `VariantProps`, typed props extending native element props, and `displayName`.
+- Put Radar-specific presentation pieces in `src/components/radar/` (for example `FieldLabel`, `StatusBadge`, `StatusPill`, `EmptyState`).
+- Prefer importing `Button`, `Input`, `Select`, and `Textarea` from `src/components/ui/` over raw elements with duplicated utility strings.
+- Map existing interaction families to `Button` variants: `solid`, `outline`, `icon`, `zap`, and `ghost`.
+
+Example:
+
+```tsx
+import { cn } from "../../lib";
+import { Button } from "./components/ui/button";
+import { StatusBadge } from "./components/radar/primitives";
+
+<Button variant="solid" size="compact">Transmit</Button>
+<StatusBadge tone="good">200</StatusBadge>
+```
+
+### Layout and composition
+
+- Style views and panels with Tailwind utilities directly in JSX. Compose layout with flex/grid, spacing, borders, and typography classes — not bespoke CSS classes.
+- Avoid inline styles except for values that must be computed at runtime.
 - Preserve the operational console layout patterns when adding UI: dense, readable, keyboard-aware, and testable.
+- When adding a new shadcn primitive, copy the shadcn structure (cva variants, `cn` merge, ref forwarding) and adapt tokens/colors to the bureau theme rather than importing default shadcn CSS variables wholesale.
 
 ## Testing Standards
 
@@ -216,4 +245,5 @@ Before considering a change complete:
 - User actions are explicit and reversible where practical.
 - Security-sensitive defaults fail closed.
 - Tests cover new behavior and the most likely failure path.
+- New UI uses Tailwind utilities and shadcn-style components; theme tokens stay in `@theme`, not ad-hoc CSS classes.
 - `pnpm lint`, `pnpm test:unit`, and `pnpm build` pass, or any inability to run them is documented.
