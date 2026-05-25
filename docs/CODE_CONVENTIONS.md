@@ -85,8 +85,11 @@ const sendReplayMutation = useAsyncAction(sendReplayAction);
 
 ```ts
 const selected = useMemo(
-  () => captures.find((capture) => capture.id === selectedId) || captures[0] || null,
-  [captures, selectedId]
+  () =>
+    captures.find((capture) => capture.id === selectedId) ||
+    captures[0] ||
+    null,
+  [captures, selectedId],
 );
 ```
 
@@ -194,3 +197,5 @@ Before considering a change complete:
 - Security-sensitive defaults fail closed.
 - Tests cover new behavior and the most likely failure path.
 - `pnpm lint`, `pnpm test:unit`, and `pnpm build` pass, or any inability to run them is documented.
+
+test
