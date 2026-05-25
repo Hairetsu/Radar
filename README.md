@@ -136,6 +136,10 @@ The interface is a "bureau / operator console" aesthetic:
 - Asymmetric layout: vertical left rail with live section numerals, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, and a bottom telemetry ticker.
 - CSS-only motion: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button.
 
+## Development Conventions
+
+See [docs/CODE_CONVENTIONS.md](docs/CODE_CONVENTIONS.md) for the repo-specific code style guide used for future development.
+
 ## Project Layout
 
 ```
@@ -151,6 +155,7 @@ src/
   types.ts        Shared types between main and renderer
   main.tsx        React entry
 docs/
+  CODE_CONVENTIONS.md
   AI_V1_SPEC.md   AI boundaries, tasks, IPC
   screens/        Screenshots used in this README
 index.html        Vite entry
