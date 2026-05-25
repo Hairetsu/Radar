@@ -47,6 +47,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
     concurrency:
       group: promote-master
@@ -92,3 +93,8 @@ jobs:
 
       - name: Push master
         run: git push origin HEAD:master
+
+      - name: Dispatch release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release.yml --ref master
