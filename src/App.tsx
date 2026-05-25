@@ -19,6 +19,17 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CommandPalette } from "./ai/CommandPalette";
+import {
+  bodyPreview,
+  DEFAULT_URL as defaultUrl,
+  elapsed,
+  formatHeaders,
+  normalizeUrl,
+  originFromUrl,
+  parseHeaders,
+  statusTone,
+  tlsLine
+} from "./lib";
 import type {
   BrowserState,
   BurstResult,
@@ -30,8 +41,6 @@ import type {
 } from "./types";
 
 type WorkView = "traffic" | "repeater" | "scope" | "ssl";
-
-const defaultUrl = "http://localhost:3000";
 const emptyDraft: ReplayDraft = {
   method: "GET",
   url: defaultUrl,
@@ -64,75 +73,6 @@ const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: string; 
   scope: { num: "03", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
   ssl: { num: "04", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
-
-function normalizeUrl(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return defaultUrl;
-  }
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-}
-
-function originFromUrl(value: string) {
-  try {
-    return new URL(normalizeUrl(value)).origin;
-  } catch {
-    return "";
-  }
-}
-
-function formatHeaders(headers: Record<string, string>) {
-  return JSON.stringify(headers, null, 2);
-}
-
-function parseHeaders(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return {};
-  }
-
-  const parsed = JSON.parse(trimmed);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Headers must be a JSON object.");
-  }
-  return Object.fromEntries(Object.entries(parsed).map(([key, headerValue]) => [key, String(headerValue)]));
-}
-
-function statusTone(status: number | null) {
-  if (!status) {
-    return "ghost";
-  }
-  if (status >= 500) {
-    return "danger";
-  }
-  if (status >= 400) {
-    return "warn";
-  }
-  if (status >= 300) {
-    return "move";
-  }
-  return "good";
-}
-
-function elapsed(value: number | null | undefined) {
-  return typeof value === "number" ? `${value}ms` : "—";
-}
-
-function bodyPreview(value: string) {
-  if (!value) {
-    return "";
-  }
-  return value.length > 5000 ? `${value.slice(0, 5000)}\n\n[preview truncated]` : value;
-}
-
-function tlsLine(capture: CapturedRequest | null) {
-  if (!capture?.tls) {
-    return "TLS: none";
-  }
-  return `TLS: ${capture.tls.protocol || "unknown"} | ${capture.tls.subjectName || "unknown subject"} | ${
-    capture.tls.issuer || "unknown issuer"
-  }`;
-}
 
 export function App() {
   const [address, setAddress] = useState(defaultUrl);
