@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   version:
     if: github.ref == 'refs/heads/master' && !startsWith(github.event.head_commit.message, 'chore(release):')
@@ -22,17 +25,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
 
       - name: Bump patch version
         id: bump
