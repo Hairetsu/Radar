@@ -1055,6 +1055,18 @@
     line-height: 1.5;
   }
 
+  .ai-local-note {
+    @apply border px-3 py-2 uppercase;
+    border-color: rgba(255, 87, 51, 0.24);
+    background:
+      linear-gradient(135deg, rgba(255, 87, 51, 0.08), transparent 42%),
+      rgba(255, 255, 255, 0.02);
+    color: var(--color-muted);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    line-height: 1.6;
+  }
+
   .ai-actions {
     @apply flex flex-wrap gap-2;
   }

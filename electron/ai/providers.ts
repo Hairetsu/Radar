@@ -1,6 +1,7 @@
 import type { AiSettings, AiTaskOutput, AiTaskType } from "../../shared/ai-types.js";
+import { runCodexCliCompletion } from "./codexCli.js";
 
-function extractJson(text: string) {
+export function extractJson(text: string) {
   const trimmed = String(text || "").trim();
   const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fence ? fence[1].trim() : trimmed;
@@ -110,6 +111,15 @@ export async function complete({
   system: string;
   user: string;
 }) {
+  if (settings.provider === "codex-local") {
+    const text = await runCodexCliCompletion({
+      model: settings.model,
+      system,
+      user
+    });
+    return { text, parsed: extractJson(text) };
+  }
+
   if (!settings.apiKey?.trim()) {
     throw new Error("AI API key is not configured.");
   }
@@ -220,5 +230,3 @@ export function normalizeOutput(task: AiTaskType, parsed: Record<string, unknown
       throw new Error(`Unknown AI task: ${task}`);
   }
 }
-
-export { extractJson };

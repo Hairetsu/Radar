@@ -16,18 +16,19 @@ describe("connect", () => {
 
   it("exposes known presets", () => {
     expect(PRESETS.codex.label).toBe("Codex");
+    expect(PRESETS.codex.provider).toBe("codex-local");
     expect(PRESETS.cursor_cli.provider).toBe("openai-compatible");
   });
 
-  it("resolves codex preset from env key", () => {
-    process.env.OPENAI_API_KEY = "sk-test";
+  it("resolves codex preset to local CLI auth", () => {
     const resolved = resolvePreset({ presetId: "codex" });
-    expect(resolved.apiKey).toBe("sk-test");
-    expect(resolved.apiKeySource).toBe("OPENAI_API_KEY");
+    expect(resolved.provider).toBe("codex-local");
+    expect(resolved.apiKey).toBe("local");
+    expect(resolved.apiKeySource).toBe("local");
   });
 
   it("falls back to saved api key", () => {
-    const resolved = resolvePreset({ presetId: "codex", savedApiKey: "saved-key" });
+    const resolved = resolvePreset({ presetId: "cursor_cli", savedApiKey: "saved-key" });
     expect(resolved.apiKey).toBe("saved-key");
     expect(resolved.apiKeySource).toBe("saved");
   });
@@ -36,13 +37,6 @@ describe("connect", () => {
     process.env.CURSOR_PROXY_URL = "http://127.0.0.1:9999/v1";
     const resolved = resolvePreset({ presetId: "cursor_cli" });
     expect(resolved.baseUrl).toBe("http://127.0.0.1:9999/v1");
-  });
-
-  it("marks missing api key source", () => {
-    delete process.env.OPENAI_API_KEY;
-    delete process.env.CODEX_API_KEY;
-    const resolved = resolvePreset({ presetId: "codex", savedApiKey: "" });
-    expect(resolved.apiKeySource).toBe("missing");
   });
 
   it("uses local fallback for cursor cli", () => {

@@ -12,6 +12,7 @@ import type {
   BrowserState,
   BurstResult,
   CapturedRequest,
+  LocalContext,
   ProxyState,
   ReplayDraft,
   ReplayResult,
@@ -19,6 +20,8 @@ import type {
 } from "./domain.js";
 
 export type RadarApi = {
+  getLocalContext: () => Promise<LocalContext>;
+  createLocalSession: (name?: string) => Promise<LocalContext>;
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
   browserBack: () => Promise<BrowserState>;

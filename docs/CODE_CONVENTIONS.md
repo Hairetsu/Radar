@@ -135,7 +135,7 @@ const selected = useMemo(
 
 ## Security And Scope Rules
 
-- The allowlist in `shared/allowlist.ts` gates replay behavior. Do not duplicate looser checks elsewhere.
+- The allowlist in `shared/allowlist.ts` defines Traffic visibility and AI scope. Repeater replay stays normalized and capped, but is not blocked by scope.
 - The default allowlist is local development only.
 - Raw AI context must remain explicit opt-in. Redacted context is the default.
 - AI output is prepare-only. It may load drafts or prepare navigation, but it must not transmit requests or navigate without user confirmation.
@@ -211,7 +211,7 @@ Before considering a change complete:
 - Shared contracts are updated first if data crosses renderer/main boundaries.
 - Core behavior is expressed as small, functional helpers instead of class-based abstractions.
 - No new `: any` annotations are introduced; untrusted values use `unknown` and are narrowed before use.
-- Electron handlers validate, clamp, normalize, and enforce scope.
+- Electron handlers validate, clamp, and normalize untrusted inputs.
 - Renderer code remains Electron-free except for `window.radar`.
 - User actions are explicit and reversible where practical.
 - Security-sensitive defaults fail closed.
