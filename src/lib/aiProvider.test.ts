@@ -6,6 +6,7 @@ describe("aiProvider", () => {
     expect(isAiProviderId("openai")).toBe(true);
     expect(isAiProviderId("anthropic")).toBe(true);
     expect(isAiProviderId("openai-compatible")).toBe(true);
+    expect(isAiProviderId("codex-local")).toBe(true);
   });
 
   it("rejects unknown provider ids", () => {

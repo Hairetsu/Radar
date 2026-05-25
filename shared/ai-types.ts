@@ -1,4 +1,4 @@
-export type AiProviderId = "openai" | "anthropic" | "openai-compatible";
+export type AiProviderId = "openai" | "anthropic" | "openai-compatible" | "codex-local";
 
 export type AiConnectPresetId = "codex" | "cursor_cli";
 

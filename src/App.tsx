@@ -6,6 +6,7 @@ import {
   Eraser,
   ExternalLink,
   FileLock2,
+  FilePlus2,
   Globe2,
   LockKeyhole,
   Play,
@@ -50,7 +51,11 @@ export function App() {
             <em>Confidential</em> // Operational
           </span>
           <span className="dotline" />
-          <span>Dossier No. R-{workbench.clock.getUTCFullYear()}-0481</span>
+          <span>
+            {workbench.localContext
+              ? `${workbench.localContext.workspace.name} // ${workbench.localContext.session.name}`
+              : `Dossier No. R-${workbench.clock.getUTCFullYear()}-0481`}
+          </span>
           <span className="dotline" />
           <span>{workbench.utc}</span>
         </div>
@@ -65,7 +70,7 @@ export function App() {
             </h1>
             <div className="brand-meta">
               <span className="tag">
-                <em>Field</em> — Attack Surface Workbench
+                <em>{workbench.localContext?.profile.name || "Field"}</em> — Attack Surface Workbench
               </span>
               <span className="lat">40.7128°N // 74.0060°W</span>
             </div>
@@ -168,15 +173,27 @@ export function App() {
                 AI
               </button>
               {workbench.activeView === "traffic" && (
-                <button
-                  className="icon-button"
-                  onClick={workbench.clearCaptures}
-                  title="Clear log"
-                  data-testid="clearCaptures"
-                  data-component="clearCaptures"
-                >
-                  <Eraser size={15} strokeWidth={1.7} />
-                </button>
+                <>
+                  <button
+                    className="line-button"
+                    onClick={workbench.createLocalSession}
+                    title="Open a fresh local session"
+                    data-testid="createLocalSession"
+                    data-component="createLocalSession"
+                  >
+                    <FilePlus2 size={14} strokeWidth={1.7} />
+                    New Session
+                  </button>
+                  <button
+                    className="icon-button"
+                    onClick={workbench.clearCaptures}
+                    title="Clear log"
+                    data-testid="clearCaptures"
+                    data-component="clearCaptures"
+                  >
+                    <Eraser size={15} strokeWidth={1.7} />
+                  </button>
+                </>
               )}
               {workbench.activeView === "repeater" && (
                 <button
@@ -206,13 +223,13 @@ export function App() {
           {workbench.activeView === "traffic" && (
             <div className="traffic-grid">
               <div className="traffic-list">
-                {workbench.captures.length === 0 && (
+                {workbench.trafficCaptures.length === 0 && (
                   <div className="empty-state">
                     <Activity size={18} strokeWidth={1.4} />
-                    <span>No transmissions intercepted</span>
+                    <span>No in-scope transmissions intercepted</span>
                   </div>
                 )}
-                {workbench.captures.map((capture) => (
+                {workbench.trafficCaptures.map((capture) => (
                   <button
                     key={capture.id}
                     className={`traffic-row ${capture.id === workbench.selected?.id ? "selected" : ""}`}

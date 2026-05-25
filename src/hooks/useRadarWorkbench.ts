@@ -1,9 +1,17 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { DEFAULT_URL as defaultUrl, formatHeaders, normalizeUrl, originFromUrl, parseHeaders } from "../lib";
+import {
+  DEFAULT_URL as defaultUrl,
+  formatHeaders,
+  isAllowedTarget,
+  normalizeUrl,
+  originFromUrl,
+  parseHeaders
+} from "../lib";
 import type {
   BrowserState,
   BurstResult,
   CapturedRequest,
+  LocalContext,
   ProxyState,
   ReplayDraft,
   ReplayResult,
@@ -52,6 +60,7 @@ export function useRadarWorkbench() {
   const [address, setAddress] = useState(defaultUrl);
   const [captures, setCaptures] = useState<CapturedRequest[]>([]);
   const [sslEvents, setSslEvents] = useState<SslEvent[]>([]);
+  const [localContext, setLocalContext] = useState<LocalContext | null>(null);
   const [browserState, setBrowserState] = useState<BrowserState>(defaultBrowserState);
   const [proxyState, setProxyState] = useState<ProxyState>(defaultProxyState);
   const [selectedId, setSelectedId] = useState("");
@@ -188,6 +197,19 @@ export function useRadarWorkbench() {
     setSelectedId("");
   }, []);
 
+  const createLocalSession = useCallback(async () => {
+    if (!window.radar) {
+      setNotice("Run in Electron to create a session.");
+      return;
+    }
+    const context = await window.radar.createLocalSession();
+    setLocalContext(context);
+    setCaptures([]);
+    setSslEvents([]);
+    setSelectedId("");
+    setNotice(`Session opened: ${context.session.name}`);
+  }, []);
+
   const ensureProxyCa = useCallback(async () => {
     if (!window.radar) {
       setNotice("Run in Electron to create the proxy CA.");
@@ -217,12 +239,18 @@ export function useRadarWorkbench() {
     setNotice("Proxy stopped");
   }, []);
 
+  const trafficCaptures = useMemo(
+    () => captures.filter((capture) => isAllowedTarget(capture.url, targets)),
+    [captures, targets]
+  );
+
   const selected = useMemo(
-    () => captures.find((capture) => capture.id === selectedId) || captures[0] || null,
-    [captures, selectedId]
+    () => trafficCaptures.find((capture) => capture.id === selectedId) || trafficCaptures[0] || null,
+    [trafficCaptures, selectedId]
   );
 
   useEffect(() => {
+    window.radar?.getLocalContext().then(setLocalContext);
     window.radar?.getTargets().then((items) => {
       setTargets(items);
       setTargetText(items.join("\n"));
@@ -282,6 +310,7 @@ export function useRadarWorkbench() {
     setAddress,
     captures,
     sslEvents,
+    localContext,
     browserState,
     proxyState,
     selectedId,
@@ -311,6 +340,7 @@ export function useRadarWorkbench() {
     aiPaletteOpen,
     setAiPaletteOpen,
     selected,
+    trafficCaptures,
     meta,
     utc,
     openBrowser,
@@ -325,6 +355,7 @@ export function useRadarWorkbench() {
     runBurstPending: runBurstMutation.isPending,
     replayPending,
     clearCaptures,
+    createLocalSession,
     ensureProxyCa,
     startProxy,
     stopProxy

@@ -6,15 +6,15 @@ import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage } from "el
 import { generateCACertificate, generateSPKIFingerprint, getLocal } from "mockttp";
 import {
   DEFAULT_ALLOWLIST,
-  isAllowedTarget,
   shouldTrustLocalCertificate
 } from "../shared/allowlist.js";
 import { toCaptureEntry, proxyRequestToCapture } from "../shared/capture.js";
-import type { BrowserState, CapturedRequest, ProxyState, ReplayDraft, SslEvent } from "../shared/domain.js";
+import type { BrowserState, CapturedRequest, LocalContext, ProxyState, ReplayDraft, SslEvent } from "../shared/domain.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
 import { normalizeUrl as normalizeBrowserUrl } from "../shared/url.js";
+import { openLocalStore, type LocalStore } from "./localStore.js";
 import {
   loadSettings as loadAiSettings,
   saveSettings as saveAiSettings,
@@ -30,6 +30,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const MAX_BURST_COUNT = 50;
 const MAX_BURST_CONCURRENCY = 5;
+const HOT_CAPTURE_LIMIT = 500;
 
 const defaultAllowlist = DEFAULT_ALLOWLIST;
 
@@ -41,6 +42,8 @@ let allowlist = [...defaultAllowlist];
 const captured = new Map<string, CapturedRequest>();
 const attachedContents = new Set<number>();
 const sslEvents: SslEvent[] = [];
+let localStore: LocalStore | null = null;
+let localContext: LocalContext | null = null;
 let browserState: BrowserState = {
   open: false,
   url: "",
@@ -56,6 +59,57 @@ let proxyState: ProxyState = {
   caKeyPath: "",
   caFingerprint: ""
 };
+
+function activeLocalContext() {
+  if (!localContext) {
+    throw new Error("Local workspace is not ready.");
+  }
+  return localContext;
+}
+
+function rememberCapture(entry: CapturedRequest) {
+  captured.set(entry.id, entry);
+  while (captured.size > HOT_CAPTURE_LIMIT) {
+    const oldest = captured.keys().next().value;
+    if (!oldest) {
+      break;
+    }
+    captured.delete(oldest);
+  }
+
+  if (localStore && localContext) {
+    localStore.upsertCapture(localContext.session.id, entry);
+  }
+}
+
+function rememberSslEvent(event: SslEvent) {
+  sslEvents.unshift(event);
+  sslEvents.splice(80);
+
+  if (localStore && localContext) {
+    localStore.insertSslEvent(localContext.session.id, event);
+  }
+}
+
+function hydrateActiveLocalState() {
+  if (!localStore || !localContext) {
+    return;
+  }
+
+  allowlist = localStore.getTargets(localContext.workspace.id);
+  captured.clear();
+  for (const entry of localStore.listCaptures(localContext.session.id, HOT_CAPTURE_LIMIT).reverse()) {
+    captured.set(entry.id, entry);
+  }
+
+  sslEvents.splice(0, sslEvents.length, ...localStore.listSslEvents(localContext.session.id, 80));
+}
+
+function initializeLocalState() {
+  localStore = openLocalStore(app.getPath("userData"));
+  localContext = localStore.getActiveContext();
+  hydrateActiveLocalState();
+}
 
 function loadAppIcon() {
   const base = path.join(__dirname, "..", "..", "resources");
@@ -131,6 +185,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  initializeLocalState();
   applyAppIcon();
   createWindow();
 
@@ -147,9 +202,14 @@ app.on("window-all-closed", () => {
   }
 });
 
+app.on("before-quit", () => {
+  localStore?.close();
+  localStore = null;
+});
+
 app.on("certificate-error", (event, _contents, url, error, certificate, callback) => {
   const trusted = shouldTrustLocalCertificate(url);
-  sslEvents.unshift({
+  rememberSslEvent({
     id: `${Date.now()}-${sslEvents.length}`,
     url,
     error,
@@ -158,7 +218,6 @@ app.on("certificate-error", (event, _contents, url, error, certificate, callback
     issuerName: certificate?.issuerName,
     createdAt: new Date().toISOString()
   });
-  sslEvents.splice(80);
 
   if (trusted) {
     event.preventDefault();
@@ -199,7 +258,8 @@ function syncBrowserState() {
 }
 
 function chromeProfileDir() {
-  const profileDir = path.join(app.getPath("userData"), "proxy-browser-profile");
+  const profileId = localContext?.profile.id || "default";
+  const profileDir = path.join(app.getPath("userData"), "profiles", profileId, "proxy-browser-profile");
   fs.mkdirSync(profileDir, { recursive: true });
   return profileDir;
 }
@@ -331,7 +391,7 @@ async function startMitmProxy(port = 8088) {
 
   await proxyServer.on("request", async (req) => {
     const text = await req.body.getText().catch(() => "");
-    captured.set(req.id, proxyRequestToCapture({ req, bodyText: truncateText(text), rules: allowlist }));
+    rememberCapture(proxyRequestToCapture({ req, bodyText: truncateText(text), rules: allowlist }));
   });
 
   await proxyServer.on("response", async (res) => {
@@ -349,18 +409,17 @@ async function startMitmProxy(port = 8088) {
       typeof res.timingEvents?.startTimestamp === "number"
         ? Math.max(0, Math.round(res.timingEvents.responseSentTimestamp - res.timingEvents.startTimestamp))
         : null;
-    captured.set(res.id, entry);
+    rememberCapture(entry);
   });
 
   await proxyServer.on("tls-client-error", (event) => {
-    sslEvents.unshift({
+    rememberSslEvent({
       id: `${Date.now()}-${sslEvents.length}`,
       url: event.remoteIpAddress || "tls-client",
       error: event.failureCause || "tls-client-error",
       trusted: false,
       createdAt: new Date().toISOString()
     });
-    sslEvents.splice(80);
   });
 
   await proxyServer.forAnyRequest().thenPassThrough();
@@ -426,7 +485,7 @@ function attachDebugger(contentsId: number) {
         request: params.request || {},
         rules: allowlist
       });
-      captured.set(params.requestId, next);
+      rememberCapture(next);
       return;
     }
 
@@ -455,7 +514,7 @@ function attachDebugger(contentsId: number) {
       if (response.timing && typeof response.timing.receiveHeadersEnd === "number") {
         entry.durationMs = Math.max(0, Math.round(response.timing.receiveHeadersEnd));
       }
-      captured.set(params.requestId, entry);
+      rememberCapture(entry);
     }
 
     if (method === "Network.loadingFinished") {
@@ -463,12 +522,12 @@ function attachDebugger(contentsId: number) {
       if (typeof params.encodedDataLength === "number") {
         entry.encodedDataLength = params.encodedDataLength;
       }
-      captured.set(params.requestId, entry);
+      rememberCapture(entry);
     }
 
     if (method === "Network.loadingFailed") {
       entry.statusText = params.errorText || "Failed";
-      captured.set(params.requestId, entry);
+      rememberCapture(entry);
     }
   });
 
@@ -477,11 +536,8 @@ function attachDebugger(contentsId: number) {
   });
 }
 
-async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft>[0], rules = allowlist) {
+async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft>[0]) {
   const draft = normalizeDraft(input);
-  if (!isAllowedTarget(draft.url, rules)) {
-    throw new Error("Blocked by target allowlist. Add the target origin before replaying requests.");
-  }
 
   const started = Date.now();
   const abort = new AbortController();
@@ -519,6 +575,22 @@ function delay(ms: number) {
 ipcMain.handle("capture:attach", (_event, contentsId) => {
   attachDebugger(contentsId);
   return { ok: true };
+});
+
+ipcMain.handle("local:context", () => activeLocalContext());
+
+ipcMain.handle("local:session:create", (_event, name) => {
+  const context = activeLocalContext();
+  const session = localStore?.createSession(context.workspace.id, typeof name === "string" ? name : undefined);
+  if (!session) {
+    throw new Error("Local store is not ready.");
+  }
+  localContext = {
+    ...context,
+    session
+  };
+  hydrateActiveLocalState();
+  return localContext;
 });
 
 ipcMain.handle("browser:open", (_event, url) => {
@@ -561,6 +633,12 @@ ipcMain.handle("proxy:stop", () => stopMitmProxy());
 ipcMain.handle("proxy:state", () => proxyState);
 
 ipcMain.handle("capture:snapshot", () => {
+  if (localStore && localContext) {
+    return localStore
+      .listCaptures(localContext.session.id, 2000)
+      .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"))
+      .slice(0, 400);
+  }
   return Array.from(captured.values())
     .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"))
     .slice(-400)
@@ -569,6 +647,9 @@ ipcMain.handle("capture:snapshot", () => {
 
 ipcMain.handle("capture:clear", () => {
   captured.clear();
+  if (localStore && localContext) {
+    localStore.clearCaptures(localContext.session.id);
+  }
   return { ok: true };
 });
 
@@ -581,11 +662,14 @@ ipcMain.handle("targets:set", (_event, targets) => {
     ? targets.map((target) => String(target).trim()).filter(Boolean).slice(0, 40)
     : defaultAllowlist;
   allowlist = next.length > 0 ? next : [...defaultAllowlist];
+  if (localStore && localContext) {
+    allowlist = localStore.setTargets(localContext.workspace.id, allowlist);
+  }
   return allowlist;
 });
 
 ipcMain.handle("repeater:send", async (_event, input) => {
-  return sendRequest(input, allowlist);
+  return sendRequest(input);
 });
 
 ipcMain.handle("ai:settings:get", () => loadAiSettings(app.getPath("userData")));
@@ -647,7 +731,7 @@ ipcMain.handle("repeater:burst", async (_event, input) => {
         await delay(delayMs);
       }
       try {
-        const response = await sendRequest(draft, allowlist);
+        const response = await sendRequest(draft);
         results[index] = { ...response, index: index + 1 };
       } catch (error) {
         results[index] = {
