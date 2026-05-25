@@ -8,23 +8,24 @@
     "email": "hairetsu@hairetsu.com"
   },
   "description": "Open defensive web security workbench with an embedded Chromium browser, capture history, and controlled request repeater.",
-  "main": "electron/main.cjs",
+  "main": "dist-electron/electron/main.js",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
-    "build": "tsc && vite build",
+    "dev": "pnpm build:electron && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron dist-electron/electron/main.js\"",
+    "build:app": "tsc -p tsconfig.app.json",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build": "pnpm build:app && pnpm build:electron && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "test:unit": "vitest run --coverage",
     "test:watch": "vitest",
     "test": "pnpm lint && pnpm test:unit && pnpm build",
-    "screenshots": "pnpm build && electron electron/screenshot.cjs",
+    "screenshots": "pnpm build && electron dist-electron/electron/screenshot.js",
     "icons": "bash scripts/build-icon.sh",
     "pack": "pnpm build && electron-builder --dir",
     "dist": "pnpm build && electron-builder"
   },
   "dependencies": {
-    "@puppeteer/browsers": "^2.13.2",
     "lucide-react": "^0.468.0",
     "mockttp": "^4.4.2",
     "react": "^18.3.1",
@@ -63,14 +64,13 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*",
+      "dist-electron/**/*",
       "resources/icon.png",
       "resources/icon.icns",
       "package.json"
     ],
     "asarUnpack": [
       "node_modules/mockttp/**/*",
-      "node_modules/@puppeteer/browsers/**/*",
       "node_modules/httpolyglot/**/*",
       "node_modules/node-forge/**/*",
       "node_modules/http-encoding/**/*",

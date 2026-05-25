@@ -1,5 +1,5 @@
 import type React from "react";
-import type { RadarApi } from "./types";
+import type { RadarApi } from "../shared/radar-api";
 
 declare global {
   interface Window {

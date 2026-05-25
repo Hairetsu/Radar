@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**"]
+    ignores: ["dist/**", "dist-electron/**", "node_modules/**"]
   },
   js.configs.recommended,
   {
@@ -39,12 +39,14 @@ export default [
     }
   },
   {
-    files: ["electron/**/*.cjs", "shared/**/*.cjs"],
+    files: ["shared/**/*.ts", "electron/**/*.ts"],
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "commonjs",
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module"
+      },
       globals: {
-        __dirname: "readonly",
         AbortController: "readonly",
         AbortSignal: "readonly",
         Buffer: "readonly",
@@ -52,27 +54,16 @@ export default [
         console: "readonly",
         fetch: "readonly",
         process: "readonly",
-        require: "readonly",
+        setInterval: "readonly",
         setTimeout: "readonly",
         URL: "readonly"
       }
-    }
-  },
-  {
-    files: ["**/*.test.cjs"],
-    languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      globals: {
-        AbortController: "readonly",
-        AbortSignal: "readonly",
-        Buffer: "readonly",
-        console: "readonly",
-        fetch: "readonly",
-        process: "readonly",
-        require: "readonly",
-        URL: "readonly"
-      }
+    },
+    plugins: {
+      "@typescript-eslint": tseslint
+    },
+    rules: {
+      ...tseslint.configs.recommended.rules
     }
   }
 ];

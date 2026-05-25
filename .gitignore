@@ -6,4 +6,5 @@ release
 *.log
 .env
 .env.*
+CODE_STYLE_GUIDE.md
 resources/icon.iconset
