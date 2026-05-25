@@ -8,7 +8,8 @@ This guide documents the code conventions already present in Radar and should be
 - Put cross-runtime domain logic in `shared/`; keep renderer-only convenience exports in `src/lib/` and `src/types.ts`.
 - Treat the Electron IPC boundary as the security boundary. The renderer asks; the main process performs filesystem, browser, proxy, replay, and AI work.
 - Normalize untrusted input at boundaries, then pass typed values through the rest of the code.
-- Prefer small named functions and explicit data objects over classes, hidden mutation, or broad abstractions.
+- Prefer small named functions, pure helpers, and explicit data objects over classes, hidden mutation, or broad abstractions.
+- Treat tests as part of the implementation. New behavior should ship with focused tests for the main path and the likely failure path.
 - Keep local-first behavior intact. Radar should work without cloud services except where the user explicitly configures AI.
 - Scope and allowlist checks are authoritative. Never add a shortcut that bypasses them.
 
@@ -29,7 +30,10 @@ When adding a feature, start with the shared types and pure helpers, then wire E
 
 ## TypeScript And Modules
 
-- Write strict TypeScript. Avoid `any`; prefer `unknown`, `Record<string, unknown>`, explicit unions, and type guards.
+- Write strict TypeScript. Do not use `: any`; use `unknown`, `Record<string, unknown>`, explicit unions, and type guards instead.
+- Treat `unknown` as the default for untrusted external data: IPC payloads, JSON parsing, provider responses, filesystem data, and network data.
+- Narrow `unknown` at the boundary with validation, type guards, or normalization before passing values deeper into the app.
+- If a dependency forces an unsafe type escape, keep it local, document why, and convert back to a safe typed shape immediately.
 - Use named exports for app code. Default exports are only used where framework config expects them.
 - Use `import type` for type-only imports.
 - Keep domain types serializable. IPC payloads and return values should be plain objects, arrays, strings, numbers, booleans, and nulls.
@@ -45,6 +49,18 @@ Example:
 import type { CapturedRequest } from "../../shared/domain.js";
 import { buildContextPayload } from "./context.js";
 ```
+
+## Functional Code First
+
+- Default to functional code: pure functions, immutable inputs, explicit return values, and dependency injection through parameters.
+- Keep business rules in small helpers that are easy to test without React, Electron, filesystem access, or network calls.
+- Use plain objects and discriminated unions for state and results. Avoid class instances in domain models and IPC payloads.
+- Do not introduce class hierarchies, inheritance, decorators, or service containers for normal app behavior.
+- Use classes only when a platform API or dependency genuinely requires them, and keep that class behind a small functional wrapper.
+- Prefer data transformation pipelines over methods that mutate internal state.
+- Keep side effects at the edges: React event handlers/hooks, Electron IPC handlers, provider calls, filesystem reads/writes, browser/proxy orchestration.
+- When a function has a side effect, make it obvious from the name and isolate the effect from pure validation/normalization logic.
+- Make hard-to-test code thinner by extracting pure parsing, normalization, formatting, and authorization decisions into `shared/` or focused module helpers.
 
 ## Formatting
 
@@ -110,6 +126,7 @@ const selected = useMemo(
 ## Shared Utility Patterns
 
 - Shared functions should be deterministic and side-effect free unless their name clearly indicates otherwise.
+- Shared utility modules should be mostly pure functions plus constants. Avoid module-level mutable state in `shared/`.
 - URL and parsing helpers should fail closed: return `false`, `""`, `null`, or a safe default instead of throwing when the caller is rendering UI.
 - Boundary functions that parse user-authored structured text, such as JSON headers, may throw clear validation errors.
 - Normalize network data into strings before crossing layers. Header values should end up as `Record<string, string>`.
@@ -155,10 +172,11 @@ This guide is code-focused, but frontend implementation should still follow the 
 
 - Use Vitest for all tests.
 - Keep tests next to the code they validate with `*.test.ts` or `*.test.tsx`.
+- Prefer testing pure helpers directly. Extract logic from UI or IPC handlers when that makes behavior easier to test.
 - Renderer tests use Testing Library and jsdom. Prefer user-visible queries and `userEvent`.
 - Shared utility tests should cover valid inputs, invalid inputs, boundary cases, and fail-closed behavior.
 - Electron/AI tests should stub globals such as `fetch`, use temp directories for filesystem state, and clean up in `afterEach`.
-- Add or update tests in the same change as behavior changes.
+- Add or update tests in the same change as behavior changes. At minimum, cover the happy path, an invalid input path, and any security/scope boundary touched.
 - Maintain the configured coverage thresholds in `vite.config.ts`.
 
 Useful commands:
@@ -191,11 +209,11 @@ pnpm test
 Before considering a change complete:
 
 - Shared contracts are updated first if data crosses renderer/main boundaries.
+- Core behavior is expressed as small, functional helpers instead of class-based abstractions.
+- No new `: any` annotations are introduced; untrusted values use `unknown` and are narrowed before use.
 - Electron handlers validate, clamp, normalize, and enforce scope.
 - Renderer code remains Electron-free except for `window.radar`.
 - User actions are explicit and reversible where practical.
 - Security-sensitive defaults fail closed.
 - Tests cover new behavior and the most likely failure path.
 - `pnpm lint`, `pnpm test:unit`, and `pnpm build` pass, or any inability to run them is documented.
-
-test
