@@ -18,13 +18,13 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}", "shared/**/*.test.cjs", "electron/**/*.test.cjs"],
+    include: ["src/**/*.test.{ts,tsx}", "shared/**/*.test.ts", "electron/**/*.test.ts"],
     environmentMatchGlobs: [["src/**/*.test.{ts,tsx}", "jsdom"]],
     setupFiles: ["src/test/setup.ts"],
     coverage: {
       provider: "v8",
-      include: ["shared/**/*.cjs", "electron/ai/**/*.cjs", "src/lib/resultPreview.ts"],
-      exclude: ["src/test/**"],
+      include: ["shared/**/*.ts", "electron/ai/**/*.ts", "src/lib/resultPreview.ts", "src/lib/aiProvider.ts"],
+      exclude: ["**/*.test.ts", "src/test/**", "shared/domain.ts", "shared/ai-types.ts"],
       thresholds: {
         lines: 90,
         functions: 90,

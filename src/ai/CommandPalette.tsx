@@ -1,9 +1,12 @@
 import { Command, Loader2, ShieldAlert, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CapturedRequest, ReplayDraft } from "../types";
+import { useAsyncAction } from "../hooks/useAsyncAction";
+import { aiProviderFromValue } from "../lib/aiProvider";
 import { resultPreview } from "../lib/resultPreview";
 import {
   AI_TASK_META,
+  AI_TASK_TYPES,
   DEFAULT_AI_SETTINGS,
   type AiAuditEntry,
   type AiConnectPresetId,
@@ -27,17 +30,7 @@ type CommandPaletteProps = {
 
 type PaletteStep = "task" | "preview" | "result";
 
-export function CommandPalette({
-  open,
-  onClose,
-  captureIds,
-  captures,
-  targets,
-  browserUrl,
-  onApplyDraft,
-  onPrepareNavigate,
-  onNotice
-}: CommandPaletteProps) {
+export function CommandPalette(props: CommandPaletteProps) {
   const [step, setStep] = useState<PaletteStep>("task");
   const [task, setTask] = useState<AiTaskType>("capture_summary");
   const [includeRaw, setIncludeRaw] = useState(false);
@@ -46,92 +39,54 @@ export function CommandPalette({
   const [preview, setPreview] = useState<AiContextPreview | null>(null);
   const [result, setResult] = useState<AiRunResult | null>(null);
   const [audit, setAudit] = useState<AiAuditEntry[]>([]);
-  const [busy, setBusy] = useState<"" | "preview" | "run" | "connect">("");
   const [connectNote, setConnectNote] = useState("");
   const [error, setError] = useState("");
 
-  const captureLabel = useMemo(() => {
-    if (captureIds.length === 0) {
-      return "No capture selected";
-    }
-    const selected = captures.filter((item) => captureIds.includes(item.id));
-    if (selected.length === 1) {
-      return `${selected[0].method} ${selected[0].host}${selected[0].path}`;
-    }
-    return `${selected.length} captures selected`;
-  }, [captureIds, captures]);
-
-  const reset = useCallback(() => {
-    setStep("task");
-    setPreview(null);
-    setResult(null);
-    setError("");
-    setBusy("");
-  }, []);
-
-  useEffect(() => {
-    if (!open) {
-      reset();
-      return;
-    }
-    window.radar?.getAiSettings().then((next) => setSettings(next));
-    window.radar?.getAiAudit().then((items) => setAudit(items));
-  }, [open, reset]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
-
-  async function persistSettings(next: AiSettings) {
+  const persistSettings = useCallback(async (next: AiSettings) => {
     const saved = (await window.radar?.setAiSettings(next)) || next;
     setSettings(saved);
-  }
+  }, []);
 
-  async function connectPreset(presetId: AiConnectPresetId) {
-    if (!window.radar) {
-      setError("Run in Electron to connect.");
-      return;
-    }
-    setBusy("connect");
-    setError("");
-    try {
-      const next = await window.radar.connectAi(presetId);
-      setSettings(next.settings);
-      const source =
-        next.meta.apiKeySource === "missing"
-          ? " — add API key or env var"
-          : ` · key from ${next.meta.apiKeySource}`;
-      setConnectNote(`${next.meta.label}: ${next.probe.message}${source}`);
-      if (!next.probe.ok) {
-        setError(next.probe.message);
-      } else {
-        onNotice(`${next.meta.label} connected`);
+  const connectPresetAction = useCallback(
+    async (presetId: AiConnectPresetId) => {
+      if (!window.radar) {
+        setError("Run in Electron to connect.");
+        return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Connect failed");
-    } finally {
-      setBusy("");
-    }
-  }
+      try {
+        setError("");
+        const next = await window.radar.connectAi(presetId);
+        setSettings(next.settings);
+        const source =
+          next.meta.apiKeySource === "missing"
+            ? " — add API key or env var"
+            : ` · key from ${next.meta.apiKeySource}`;
+        setConnectNote(`${next.meta.label}: ${next.probe.message}${source}`);
+        if (!next.probe.ok) {
+          setError(next.probe.message);
+          return;
+        }
+        props.onNotice(`${next.meta.label} connected`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Connect failed");
+      }
+    },
+    [props.onNotice]
+  );
 
-  async function buildPreview() {
+  const buildPreviewAction = useCallback(async () => {
     if (!window.radar) {
       setError("Run in Electron to use AI.");
       return;
     }
-    setBusy("preview");
-    setError("");
     try {
-      const next = await window.radar.previewAiContext({ task, captureIds, includeRaw, userPrompt });
+      setError("");
+      const next = await window.radar.previewAiContext({
+        task,
+        captureIds: props.captureIds,
+        includeRaw,
+        userPrompt
+      });
       setPreview(next);
       setStep("preview");
       if (next.blockedReason) {
@@ -139,12 +94,10 @@ export function CommandPalette({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Preview failed");
-    } finally {
-      setBusy("");
     }
-  }
+  }, [props.captureIds, includeRaw, task, userPrompt]);
 
-  async function runTask() {
+  const runTaskAction = useCallback(async () => {
     if (!window.radar) {
       setError("Run in Electron to use AI.");
       return;
@@ -153,11 +106,15 @@ export function CommandPalette({
       setError("Set an API key in AI settings.");
       return;
     }
-    setBusy("run");
-    setError("");
     try {
+      setError("");
       await persistSettings(settings);
-      const next = await window.radar.runAiTask({ task, captureIds, includeRaw, userPrompt });
+      const next = await window.radar.runAiTask({
+        task,
+        captureIds: props.captureIds,
+        includeRaw,
+        userPrompt
+      });
       setResult(next);
       setStep("result");
       const items = await window.radar.getAiAudit();
@@ -167,45 +124,105 @@ export function CommandPalette({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "AI request failed");
-    } finally {
-      setBusy("");
     }
-  }
+  }, [includeRaw, persistSettings, props.captureIds, settings, task, userPrompt]);
 
-  function applyPrepared() {
+  const connectMutation = useAsyncAction(connectPresetAction);
+  const previewMutation = useAsyncAction(buildPreviewAction);
+  const runMutation = useAsyncAction(runTaskAction);
+
+  const reset = useCallback(() => {
+    setStep("task");
+    setPreview(null);
+    setResult(null);
+    setError("");
+    setConnectNote("");
+  }, []);
+
+  const applyPrepared = useCallback(() => {
     if (!result?.ok || !result.output) {
       return;
     }
     if (result.output.task === "repeater_drafts") {
       const first = result.output.data.drafts[0];
       if (!first) {
-        onNotice("No drafts returned.");
+        props.onNotice("No drafts returned.");
         return;
       }
-      onApplyDraft(first.draft);
-      onNotice(`Loaded draft: ${first.label}`);
-      onClose();
+      props.onApplyDraft(first.draft);
+      props.onNotice(`Loaded draft: ${first.label}`);
+      props.onClose();
       return;
     }
     if (result.output.task === "browser_helper") {
-      const navigate = result.output.data.steps.find((step) => step.action === "navigate" && step.url);
+      const navigate = result.output.data.steps.find((stepItem) => stepItem.action === "navigate" && stepItem.url);
       if (!navigate?.url) {
-        onNotice("No navigate step to prepare.");
+        props.onNotice("No navigate step to prepare.");
         return;
       }
-      onPrepareNavigate(navigate.url);
-      onNotice(`Prepared navigation: ${navigate.label}`);
-      onClose();
+      props.onPrepareNavigate(navigate.url);
+      props.onNotice(`Prepared navigation: ${navigate.label}`);
+      props.onClose();
     }
-  }
+  }, [props.onApplyDraft, props.onClose, props.onNotice, props.onPrepareNavigate, result]);
 
-  if (!open) {
+  const captureLabel = useMemo(() => {
+    if (props.captureIds.length === 0) {
+      return "No capture selected";
+    }
+    const selected = props.captures.filter((item) => props.captureIds.includes(item.id));
+    if (selected.length === 1) {
+      return `${selected[0].method} ${selected[0].host}${selected[0].path}`;
+    }
+    return `${selected.length} captures selected`;
+  }, [props.captureIds, props.captures]);
+
+  useEffect(() => {
+    if (!props.open) {
+      return;
+    }
+    window.radar?.getAiSettings().then((next) => setSettings(next));
+    window.radar?.getAiAudit().then((items) => setAudit(items));
+  }, [props.open]);
+
+  useEffect(() => {
+    if (!props.open) {
+      reset();
+    }
+  }, [props.open, reset]);
+
+  useEffect(() => {
+    if (!props.open) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        props.onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [props.onClose, props.open]);
+
+  const actionPending = connectMutation.isPending || previewMutation.isPending || runMutation.isPending;
+
+  if (!props.open) {
     return null;
   }
 
   return (
-    <div className="ai-palette-backdrop" onClick={onClose}>
-      <div className="ai-palette" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="ai-palette-backdrop"
+      onClick={props.onClose}
+      data-testid="commandPaletteBackdrop"
+      data-component="commandPaletteBackdrop"
+    >
+      <div
+        className="ai-palette"
+        onClick={(event) => event.stopPropagation()}
+        data-testid="commandPalette"
+        data-component="commandPalette"
+      >
         <header className="ai-palette-head">
           <div>
             <span className="eyebrow">
@@ -214,7 +231,14 @@ export function CommandPalette({
             <h3>Command Palette</h3>
             <p>{captureLabel}</p>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} title="Close">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={props.onClose}
+            title="Close"
+            data-testid="commandPaletteClose"
+            data-component="commandPaletteClose"
+          >
             <X size={16} strokeWidth={1.8} />
           </button>
         </header>
@@ -223,12 +247,14 @@ export function CommandPalette({
           <section className="ai-panel">
             <label className="field-label">Task</label>
             <div className="ai-task-list">
-              {(Object.keys(AI_TASK_META) as AiTaskType[]).map((key) => (
+              {AI_TASK_TYPES.map((key) => (
                 <button
                   key={key}
                   type="button"
                   className={task === key ? "active" : ""}
                   onClick={() => setTask(key)}
+                  data-testid={`aiTask-${key}`}
+                  data-component="aiTaskButton"
                 >
                   <strong>{AI_TASK_META[key].label}</strong>
                   <span>{AI_TASK_META[key].hint}</span>
@@ -246,6 +272,8 @@ export function CommandPalette({
               onChange={(event) => setUserPrompt(event.target.value)}
               spellCheck={false}
               placeholder="Optional focus for this run"
+              data-testid="aiUserPrompt"
+              data-component="aiUserPrompt"
             />
 
             <label className="ai-raw-toggle">
@@ -253,6 +281,8 @@ export function CommandPalette({
                 type="checkbox"
                 checked={includeRaw}
                 onChange={(event) => setIncludeRaw(event.target.checked)}
+                data-testid="aiIncludeRaw"
+                data-component="aiIncludeRaw"
               />
               <ShieldAlert size={13} strokeWidth={1.7} />
               Send raw headers and bodies (explicit)
@@ -265,16 +295,20 @@ export function CommandPalette({
               <button
                 type="button"
                 className="line-button"
-                disabled={busy !== ""}
-                onClick={() => connectPreset("codex")}
+                disabled={actionPending}
+                onClick={() => connectMutation.run("codex")}
+                data-testid="aiConnectCodex"
+                data-component="aiConnectButton"
               >
                 Codex Connect
               </button>
               <button
                 type="button"
                 className="line-button"
-                disabled={busy !== ""}
-                onClick={() => connectPreset("cursor_cli")}
+                disabled={actionPending}
+                onClick={() => connectMutation.run("cursor_cli")}
+                data-testid="aiConnectCursorCli"
+                data-component="aiConnectButton"
               >
                 Cursor CLI Connect
               </button>
@@ -285,12 +319,14 @@ export function CommandPalette({
             <div className="ai-settings-row">
               <select
                 value={settings.provider}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    provider: event.target.value as AiSettings["provider"]
-                  })
-                }
+                onChange={(event) => {
+                  const provider = aiProviderFromValue(event.target.value);
+                  if (provider) {
+                    setSettings({ ...settings, provider });
+                  }
+                }}
+                data-testid="aiProvider"
+                data-component="aiProvider"
               >
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>
@@ -301,6 +337,8 @@ export function CommandPalette({
                 onChange={(event) => setSettings({ ...settings, model: event.target.value })}
                 spellCheck={false}
                 placeholder="model"
+                data-testid="aiModel"
+                data-component="aiModel"
               />
             </div>
             <input
@@ -310,6 +348,8 @@ export function CommandPalette({
               onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })}
               placeholder="API key"
               spellCheck={false}
+              data-testid="aiApiKey"
+              data-component="aiApiKey"
             />
             {settings.provider === "openai-compatible" && (
               <input
@@ -317,21 +357,37 @@ export function CommandPalette({
                 onChange={(event) => setSettings({ ...settings, baseUrl: event.target.value })}
                 spellCheck={false}
                 placeholder="http://127.0.0.1:11434/v1"
+                data-testid="aiBaseUrl"
+                data-component="aiBaseUrl"
               />
             )}
 
             <div className="ai-meta">
-              <span>Scope: {targets.length} origins</span>
-              <span>Browser: {browserUrl || "—"}</span>
+              <span>Scope: {props.targets.length} origins</span>
+              <span>Browser: {props.browserUrl || "—"}</span>
             </div>
 
             <div className="ai-actions">
-              <button type="button" className="line-button" onClick={buildPreview} disabled={busy !== ""}>
-                {busy === "preview" ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+              <button
+                type="button"
+                className="line-button"
+                onClick={() => previewMutation.run()}
+                disabled={actionPending}
+                data-testid="aiPreviewContext"
+                data-component="aiPreviewContext"
+              >
+                {previewMutation.isPending ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
                 Preview context
               </button>
-              <button type="button" className="solid-button" onClick={runTask} disabled={busy !== ""}>
-                {busy === "run" ? <Loader2 size={14} className="spin" /> : <Command size={14} />}
+              <button
+                type="button"
+                className="solid-button"
+                onClick={() => runMutation.run()}
+                disabled={actionPending}
+                data-testid="aiRunTask"
+                data-component="aiRunTask"
+              >
+                {runMutation.isPending ? <Loader2 size={14} className="spin" /> : <Command size={14} />}
                 Run task
               </button>
             </div>
@@ -341,7 +397,7 @@ export function CommandPalette({
         </div>
 
         {step === "preview" && preview && (
-          <section className="ai-output">
+          <section className="ai-output" data-testid="aiContextPreview" data-component="aiContextPreview">
             <div className="ai-output-head">
               <strong>Context preview</strong>
               <span>
@@ -354,14 +410,20 @@ export function CommandPalette({
         )}
 
         {step === "result" && result && (
-          <section className="ai-output">
+          <section className="ai-output" data-testid="aiResult" data-component="aiResult">
             <div className="ai-output-head">
               <strong>Result</strong>
               <span>audit {result.auditId}</span>
             </div>
             <pre>{resultPreview(result)}</pre>
             {(result.output?.task === "repeater_drafts" || result.output?.task === "browser_helper") && (
-              <button type="button" className="solid-button compact" onClick={applyPrepared}>
+              <button
+                type="button"
+                className="solid-button compact"
+                onClick={applyPrepared}
+                data-testid="aiApplyPrepared"
+                data-component="aiApplyPrepared"
+              >
                 Apply prepared action
               </button>
             )}
@@ -369,7 +431,7 @@ export function CommandPalette({
         )}
 
         {audit.length > 0 && (
-          <section className="ai-audit">
+          <section className="ai-audit" data-testid="aiAudit" data-component="aiAudit">
             <span className="field-label">Session audit</span>
             <div className="ai-audit-list">
               {audit.slice(0, 6).map((entry) => (

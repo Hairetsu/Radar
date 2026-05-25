@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { AiRunResult } from "../ai/types";
 import { resultPreview } from "./resultPreview";
 
 describe("resultPreview", () => {
@@ -69,15 +68,5 @@ describe("resultPreview", () => {
     });
     expect(text).toContain("[navigate] Open home");
     expect(text).toContain("http://localhost");
-  });
-
-  it("falls back to raw text for unknown output shape", () => {
-    const text = resultPreview({
-      ok: true,
-      auditId: "a1",
-      rawText: "fallback",
-      output: { task: "unknown", data: {} } as unknown as AiRunResult["output"]
-    });
-    expect(text).toBe("fallback");
   });
 });

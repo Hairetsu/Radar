@@ -17,297 +17,15 @@ import {
   Target,
   Zap
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CommandPalette } from "./ai/CommandPalette";
-import {
-  bodyPreview,
-  DEFAULT_URL as defaultUrl,
-  elapsed,
-  formatHeaders,
-  normalizeUrl,
-  originFromUrl,
-  parseHeaders,
-  statusTone,
-  tlsLine
-} from "./lib";
-import type {
-  BrowserState,
-  BurstResult,
-  CapturedRequest,
-  ProxyState,
-  ReplayDraft,
-  ReplayResult,
-  SslEvent
-} from "./types";
-
-type WorkView = "traffic" | "repeater" | "scope" | "ssl";
-const emptyDraft: ReplayDraft = {
-  method: "GET",
-  url: defaultUrl,
-  headers: {
-    Accept: "application/json, text/plain, */*"
-  },
-  body: ""
-};
-
-const defaultBrowserState: BrowserState = {
-  open: false,
-  url: "",
-  title: "",
-  loading: false,
-  engine: "none"
-};
-
-const defaultProxyState: ProxyState = {
-  running: false,
-  port: 8088,
-  proxyUrl: "http://127.0.0.1:8088",
-  caCertPath: "",
-  caKeyPath: "",
-  caFingerprint: ""
-};
-
-const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: string; title: string }> = {
-  traffic: { num: "01", label: "Traffic", eyebrow: "Capture // Live wire", title: "Traffic" },
-  repeater: { num: "02", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
-  scope: { num: "03", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "04", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
-};
+import { useRadarWorkbench, viewMeta, WORK_VIEWS } from "./hooks/useRadarWorkbench";
+import { bodyPreview, elapsed, formatHeaders, statusTone, tlsLine } from "./lib";
 
 export function App() {
-  const [address, setAddress] = useState(defaultUrl);
-  const [captures, setCaptures] = useState<CapturedRequest[]>([]);
-  const [sslEvents, setSslEvents] = useState<SslEvent[]>([]);
-  const [browserState, setBrowserState] = useState<BrowserState>(defaultBrowserState);
-  const [proxyState, setProxyState] = useState<ProxyState>(defaultProxyState);
-  const [selectedId, setSelectedId] = useState<string>("");
-  const [targets, setTargets] = useState<string[]>([]);
-  const [targetText, setTargetText] = useState("");
-  const [draft, setDraft] = useState<ReplayDraft>(emptyDraft);
-  const [headersText, setHeadersText] = useState(formatHeaders(emptyDraft.headers));
-  const [activeView, setActiveView] = useState<WorkView>("traffic");
-  const [activeDetail, setActiveDetail] = useState<"request" | "response">("request");
-  const [lastResponse, setLastResponse] = useState<ReplayResult | null>(null);
-  const [lastBurst, setLastBurst] = useState<BurstResult | null>(null);
-  const [count, setCount] = useState(5);
-  const [concurrency, setConcurrency] = useState(1);
-  const [delayMs, setDelayMs] = useState(250);
-  const [busy, setBusy] = useState<"send" | "burst" | "">("");
-  const [notice, setNotice] = useState("");
-  const [clock, setClock] = useState(() => new Date());
-  const [aiPaletteOpen, setAiPaletteOpen] = useState(false);
-
-  const selected = useMemo(
-    () => captures.find((capture) => capture.id === selectedId) || captures[0] || null,
-    [captures, selectedId]
-  );
-
-  const meta = viewMeta[activeView];
-
-  useEffect(() => {
-    window.radar?.getTargets().then((items) => {
-      setTargets(items);
-      setTargetText(items.join("\n"));
-    });
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (!window.radar || cancelled) {
-        return;
-      }
-      const [nextCaptures, nextSslEvents, nextBrowserState, nextProxyState] = await Promise.all([
-        window.radar.getCaptures(),
-        window.radar.getSslEvents(),
-        window.radar.getBrowserState(),
-        window.radar.getProxyState()
-      ]);
-      if (!cancelled) {
-        setCaptures(nextCaptures);
-        setSslEvents(nextSslEvents);
-        setBrowserState(nextBrowserState);
-        setProxyState(nextProxyState);
-      }
-    };
-
-    load();
-    const timer = setInterval(load, 900);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setClock(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setAiPaletteOpen((open) => !open);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  async function openBrowser(event?: FormEvent) {
-    event?.preventDefault();
-    const next = normalizeUrl(address);
-    setAddress(next);
-    if (!window.radar) {
-      setNotice("Run in Electron to open Chrome.");
-      return;
-    }
-    try {
-      const state = await window.radar.openBrowser(next);
-      setBrowserState(state);
-      setNotice("Chrome launched through Radar proxy");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Chrome launch failed");
-    }
-  }
-
-  async function saveTargets(nextText = targetText) {
-    const next = nextText
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const saved = (await window.radar?.setTargets(next)) || next;
-    setTargets(saved);
-    setTargetText(saved.join("\n"));
-    setNotice("Targets saved");
-  }
-
-  async function addTarget(value: string) {
-    const origin = originFromUrl(value);
-    if (!origin || targets.includes(origin)) {
-      return;
-    }
-    const next = [...targets, origin];
-    const saved = (await window.radar?.setTargets(next)) || next;
-    setTargets(saved);
-    setTargetText(saved.join("\n"));
-    setNotice(`Added ${origin}`);
-  }
-
-  function applyAiDraft(nextDraft: ReplayDraft) {
-    setDraft(nextDraft);
-    setHeadersText(formatHeaders(nextDraft.headers));
-    setLastResponse(null);
-    setLastBurst(null);
-    setActiveView("repeater");
-  }
-
-  function prepareAiNavigate(url: string) {
-    setAddress(normalizeUrl(url));
-  }
-
-  function cloneToRepeater(capture: CapturedRequest | null) {
-    if (!capture) {
-      return;
-    }
-    const nextDraft = {
-      method: capture.method,
-      url: capture.url,
-      headers: capture.requestHeaders,
-      body: capture.requestBody || ""
-    };
-    setDraft(nextDraft);
-    setHeadersText(formatHeaders(nextDraft.headers));
-    setLastResponse(null);
-    setLastBurst(null);
-    setActiveView("repeater");
-    setNotice("Loaded in repeater");
-  }
-
-  async function sendReplay() {
-    if (!window.radar) {
-      setNotice("Run in Electron to replay.");
-      return;
-    }
-    try {
-      setBusy("send");
-      setNotice("");
-      const request = { ...draft, headers: parseHeaders(headersText) };
-      const response = await window.radar.sendReplay(request);
-      setLastResponse(response);
-      setLastBurst(null);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Replay failed");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function runBurst() {
-    if (!window.radar) {
-      setNotice("Run in Electron to replay.");
-      return;
-    }
-    try {
-      setBusy("burst");
-      setNotice("");
-      const request = { ...draft, headers: parseHeaders(headersText) };
-      const response = await window.radar.runBurst({
-        request,
-        count,
-        concurrency,
-        delayMs
-      });
-      setLastBurst(response);
-      setLastResponse(response.results[response.results.length - 1] || null);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Burst failed");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function clearCaptures() {
-    await window.radar?.clearCaptures();
-    setCaptures([]);
-    setSelectedId("");
-  }
-
-  async function ensureProxyCa() {
-    if (!window.radar) {
-      setNotice("Run in Electron to create the proxy CA.");
-      return;
-    }
-    const state = await window.radar.ensureProxyCa();
-    setProxyState(state);
-    setNotice("Proxy CA ready");
-  }
-
-  async function startProxy() {
-    if (!window.radar) {
-      setNotice("Run in Electron to start the proxy.");
-      return;
-    }
-    const state = await window.radar.startProxy(proxyState.port);
-    setProxyState(state);
-    setNotice(`Proxy listening on ${state.proxyUrl}`);
-  }
-
-  async function stopProxy() {
-    if (!window.radar) {
-      return;
-    }
-    const state = await window.radar.stopProxy();
-    setProxyState(state);
-    setNotice("Proxy stopped");
-  }
-
-  const utc = clock.toISOString().replace("T", " ").slice(0, 19) + "Z";
-  const lat = "40.7128°N // 74.0060°W";
+  const workbench = useRadarWorkbench();
 
   return (
-    <main className="shell">
+    <main className="shell" data-testid="radarShell" data-component="radarShell">
       <div className="atmosphere" />
 
       <aside className="rail reveal delay-1">
@@ -318,8 +36,8 @@ export function App() {
           Radar <strong>// Bureau</strong> — Operational Surface Intelligence
         </span>
         <div className="rail-numerals">
-          {(["traffic", "repeater", "scope", "ssl"] as WorkView[]).map((view) => (
-            <span key={view} className={activeView === view ? "live" : ""}>
+          {WORK_VIEWS.map((view) => (
+            <span key={view} className={workbench.activeView === view ? "live" : ""}>
               {viewMeta[view].num}
             </span>
           ))}
@@ -332,9 +50,9 @@ export function App() {
             <em>Confidential</em> // Operational
           </span>
           <span className="dotline" />
-          <span>Dossier No. R-{clock.getUTCFullYear()}-0481</span>
+          <span>Dossier No. R-{workbench.clock.getUTCFullYear()}-0481</span>
           <span className="dotline" />
-          <span>{utc}</span>
+          <span>{workbench.utc}</span>
         </div>
 
         <header className="topbar reveal delay-2">
@@ -349,56 +67,66 @@ export function App() {
               <span className="tag">
                 <em>Field</em> — Attack Surface Workbench
               </span>
-              <span className="lat">{lat}</span>
+              <span className="lat">40.7128°N // 74.0060°W</span>
             </div>
           </div>
 
-          <form className="address" onSubmit={openBrowser}>
+          <form className="address" onSubmit={workbench.openBrowser} data-testid="addressForm" data-component="addressForm">
             <Globe2 size={15} strokeWidth={1.6} />
             <input
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
+              value={workbench.address}
+              onChange={(event) => workbench.setAddress(event.target.value)}
               spellCheck={false}
               placeholder="https://"
+              data-testid="addressInput"
+              data-component="addressInput"
             />
-            <button type="submit" className="solid-button">
+            <button type="submit" className="solid-button" data-testid="deployBrowser" data-component="deployBrowser">
               <ExternalLink size={14} strokeWidth={2} />
               Deploy
             </button>
-            <button type="button" className="line-button" onClick={() => addTarget(address)}>
+            <button
+              type="button"
+              className="line-button"
+              onClick={() => workbench.addTarget(workbench.address)}
+              data-testid="markTarget"
+              data-component="markTarget"
+            >
               <Crosshair size={14} strokeWidth={1.7} />
               Mark
             </button>
           </form>
 
           <div className="status-rail">
-            <span className={`status-pill ${browserState.open ? "live" : ""}`}>
+            <span className={`status-pill ${workbench.browserState.open ? "live" : ""}`}>
               <span className="dot" />
               <CircleDot size={11} strokeWidth={1.8} />
-              <strong>{browserState.open ? browserState.engine : "idle"}</strong>
+              <strong>{workbench.browserState.open ? workbench.browserState.engine : "idle"}</strong>
             </span>
             <span className="status-pill cool">
               <Activity size={11} strokeWidth={1.8} />
-              <strong>{captures.length}</strong> req
+              <strong>{workbench.captures.length}</strong> req
             </span>
             <span className="status-pill cool">
               <FileLock2 size={11} strokeWidth={1.8} />
-              <strong>{sslEvents.length}</strong> tls
+              <strong>{workbench.sslEvents.length}</strong> tls
             </span>
-            <span className={`status-pill ${proxyState.running ? "live" : ""}`}>
+            <span className={`status-pill ${workbench.proxyState.running ? "live" : ""}`}>
               <span className="dot" />
               <ShieldCheck size={11} strokeWidth={1.8} />
-              <strong>{proxyState.running ? "proxy" : "off"}</strong>
+              <strong>{workbench.proxyState.running ? "proxy" : "off"}</strong>
             </span>
           </div>
         </header>
 
-        <nav className="view-switch reveal delay-3">
-          {(["traffic", "repeater", "scope", "ssl"] as WorkView[]).map((view) => (
+        <nav className="view-switch reveal delay-3" data-testid="viewSwitch" data-component="viewSwitch">
+          {WORK_VIEWS.map((view) => (
             <button
               key={view}
-              className={activeView === view ? "active" : ""}
-              onClick={() => setActiveView(view)}
+              className={workbench.activeView === view ? "active" : ""}
+              onClick={() => workbench.setActiveView(view)}
+              data-testid={`view-${view}`}
+              data-component="viewSwitchButton"
             >
               <span className="num">{viewMeta[view].num}</span>
               {viewMeta[view].label}
@@ -406,7 +134,12 @@ export function App() {
           ))}
           <span className="telemetry">
             <span className="blip" />
-            <span>{browserState.remoteDebuggingUrl || browserState.url || notice || "Awaiting target acquisition"}</span>
+            <span>
+              {workbench.browserState.remoteDebuggingUrl ||
+                workbench.browserState.url ||
+                workbench.notice ||
+                "Awaiting target acquisition"}
+            </span>
           </span>
         </nav>
 
@@ -414,58 +147,78 @@ export function App() {
           <div className="panel-head">
             <div className="head-left">
               <span className="display-num">
-                {meta.num.replace(/(\d)$/, "")}
-                <em>{meta.num.slice(-1)}</em>
+                {workbench.meta.num.replace(/(\d)$/, "")}
+                <em>{workbench.meta.num.slice(-1)}</em>
               </span>
               <div>
-                <span className="eyebrow">{meta.eyebrow}</span>
-                <h2>{meta.title}</h2>
+                <span className="eyebrow">{workbench.meta.eyebrow}</span>
+                <h2>{workbench.meta.title}</h2>
               </div>
             </div>
             <div className="head-right">
               <button
                 className="line-button"
                 type="button"
-                onClick={() => setAiPaletteOpen(true)}
+                onClick={() => workbench.setAiPaletteOpen(true)}
                 title="Command palette (⌘K)"
+                data-testid="openAiPalette"
+                data-component="openAiPalette"
               >
                 <Bot size={14} strokeWidth={1.7} />
                 AI
               </button>
-              {activeView === "traffic" && (
-                <button className="icon-button" onClick={clearCaptures} title="Clear log">
+              {workbench.activeView === "traffic" && (
+                <button
+                  className="icon-button"
+                  onClick={workbench.clearCaptures}
+                  title="Clear log"
+                  data-testid="clearCaptures"
+                  data-component="clearCaptures"
+                >
                   <Eraser size={15} strokeWidth={1.7} />
                 </button>
               )}
-              {activeView === "repeater" && (
-                <button className="line-button" onClick={() => addTarget(draft.url)}>
+              {workbench.activeView === "repeater" && (
+                <button
+                  className="line-button"
+                  onClick={() => workbench.addTarget(workbench.draft.url)}
+                  data-testid="trustOrigin"
+                  data-component="trustOrigin"
+                >
                   <Target size={14} strokeWidth={1.7} />
                   Trust Origin
                 </button>
               )}
-              {activeView === "scope" && (
-                <button className="solid-button compact" onClick={() => saveTargets()}>
+              {workbench.activeView === "scope" && (
+                <button
+                  className="solid-button compact"
+                  onClick={() => workbench.saveTargets()}
+                  data-testid="commitTargets"
+                  data-component="commitTargets"
+                >
                   Commit
                 </button>
               )}
-              {activeView === "ssl" && <span className="notice">{notice}</span>}
+              {workbench.activeView === "ssl" && <span className="notice">{workbench.notice}</span>}
             </div>
           </div>
 
-          {activeView === "traffic" && (
+          {workbench.activeView === "traffic" && (
             <div className="traffic-grid">
               <div className="traffic-list">
-                {captures.length === 0 && (
+                {workbench.captures.length === 0 && (
                   <div className="empty-state">
                     <Activity size={18} strokeWidth={1.4} />
                     <span>No transmissions intercepted</span>
                   </div>
                 )}
-                {captures.map((capture) => (
+                {workbench.captures.map((capture) => (
                   <button
                     key={capture.id}
-                    className={`traffic-row ${capture.id === selected?.id ? "selected" : ""}`}
-                    onClick={() => setSelectedId(capture.id)}
+                    className={`traffic-row ${capture.id === workbench.selected?.id ? "selected" : ""}`}
+                    onClick={() => workbench.setSelectedId(capture.id)}
+                    data-testid={`trafficRow-${capture.id}`}
+                    data-component="trafficRow"
                   >
                     <span className="method">{capture.method}</span>
                     <span className={`status ${statusTone(capture.status)}`}>{capture.status || "···"}</span>
@@ -480,52 +233,67 @@ export function App() {
               <div className="detail-pane">
                 <div className="detail-tabs">
                   <button
-                    className={activeDetail === "request" ? "active" : ""}
-                    onClick={() => setActiveDetail("request")}
+                    className={workbench.activeDetail === "request" ? "active" : ""}
+                    onClick={() => workbench.setActiveDetail("request")}
+                    data-testid="detailTabRequest"
+                    data-component="detailTabRequest"
                   >
                     <Square size={9} strokeWidth={2} />
                     Request
                   </button>
                   <button
-                    className={activeDetail === "response" ? "active" : ""}
-                    onClick={() => setActiveDetail("response")}
+                    className={workbench.activeDetail === "response" ? "active" : ""}
+                    onClick={() => workbench.setActiveDetail("response")}
+                    data-testid="detailTabResponse"
+                    data-component="detailTabResponse"
                   >
                     <Square size={9} strokeWidth={2} />
                     Response
                   </button>
-                  <button onClick={() => cloneToRepeater(selected)}>
+                  <button
+                    onClick={() => workbench.cloneToRepeater(workbench.selected)}
+                    data-testid="cloneToRepeater"
+                    data-component="cloneToRepeater"
+                  >
                     <Repeat2 size={13} strokeWidth={1.7} />
                     To Repeater
                   </button>
                 </div>
                 <pre>
-                  {selected
-                    ? activeDetail === "request"
-                      ? `${selected.method} ${selected.url}\n${tlsLine(selected)}\n\n${formatHeaders(
-                          selected.requestHeaders
-                        )}\n\n${bodyPreview(selected.requestBody)}`
-                      : `${selected.status || ""} ${selected.statusText}\n${tlsLine(selected)}\n\n${formatHeaders(
-                          selected.responseHeaders
-                        )}\n\n${bodyPreview(selected.responseBody)}`
+                  {workbench.selected
+                    ? workbench.activeDetail === "request"
+                      ? `${workbench.selected.method} ${workbench.selected.url}\n${tlsLine(workbench.selected)}\n\n${formatHeaders(
+                          workbench.selected.requestHeaders
+                        )}\n\n${bodyPreview(workbench.selected.requestBody)}`
+                      : `${workbench.selected.status || ""} ${workbench.selected.statusText}\n${tlsLine(workbench.selected)}\n\n${formatHeaders(
+                          workbench.selected.responseHeaders
+                        )}\n\n${bodyPreview(workbench.selected.responseBody)}`
                     : ""}
                 </pre>
               </div>
             </div>
           )}
 
-          {activeView === "repeater" && (
+          {workbench.activeView === "repeater" && (
             <div className="repeater-view">
               <div className="request-editor">
                 <div className="repeater-grid">
-                  <select value={draft.method} onChange={(event) => setDraft({ ...draft, method: event.target.value })}>
+                  <select
+                    value={workbench.draft.method}
+                    onChange={(event) => workbench.setDraft({ ...workbench.draft, method: event.target.value })}
+                    data-testid="repeaterMethod"
+                    data-component="repeaterMethod"
+                  >
                     {["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"].map((method) => (
                       <option key={method}>{method}</option>
                     ))}
                   </select>
                   <input
-                    value={draft.url}
-                    onChange={(event) => setDraft({ ...draft, url: event.target.value })}
+                    value={workbench.draft.url}
+                    onChange={(event) => workbench.setDraft({ ...workbench.draft, url: event.target.value })}
                     spellCheck={false}
+                    data-testid="repeaterUrl"
+                    data-component="repeaterUrl"
                   />
                 </div>
 
@@ -535,9 +303,11 @@ export function App() {
                 <textarea
                   id="headers"
                   className="code-area headers-area"
-                  value={headersText}
-                  onChange={(event) => setHeadersText(event.target.value)}
+                  value={workbench.headersText}
+                  onChange={(event) => workbench.setHeadersText(event.target.value)}
                   spellCheck={false}
+                  data-testid="repeaterHeaders"
+                  data-component="repeaterHeaders"
                 />
 
                 <label className="field-label" htmlFor="body">
@@ -546,15 +316,23 @@ export function App() {
                 <textarea
                   id="body"
                   className="code-area body-area"
-                  value={draft.body}
-                  onChange={(event) => setDraft({ ...draft, body: event.target.value })}
+                  value={workbench.draft.body}
+                  onChange={(event) => workbench.setDraft({ ...workbench.draft, body: event.target.value })}
                   spellCheck={false}
+                  data-testid="repeaterBody"
+                  data-component="repeaterBody"
                 />
 
                 <div className="action-row">
-                  <button className="solid-button" onClick={sendReplay} disabled={busy !== ""}>
+                  <button
+                    className="solid-button"
+                    onClick={workbench.sendReplay}
+                    disabled={workbench.replayPending}
+                    data-testid="transmitReplay"
+                    data-component="transmitReplay"
+                  >
                     <Send size={14} strokeWidth={1.8} />
-                    {busy === "send" ? "Transmitting" : "Transmit"}
+                    {workbench.sendReplayPending ? "Transmitting" : "Transmit"}
                   </button>
                 </div>
               </div>
@@ -567,8 +345,10 @@ export function App() {
                       type="number"
                       min={1}
                       max={50}
-                      value={count}
-                      onChange={(event) => setCount(Number(event.target.value))}
+                      value={workbench.count}
+                      onChange={(event) => workbench.setCount(Number(event.target.value))}
+                      data-testid="burstCount"
+                      data-component="burstCount"
                     />
                   </div>
                   <div className="burst-control">
@@ -577,8 +357,10 @@ export function App() {
                       type="number"
                       min={1}
                       max={5}
-                      value={concurrency}
-                      onChange={(event) => setConcurrency(Number(event.target.value))}
+                      value={workbench.concurrency}
+                      onChange={(event) => workbench.setConcurrency(Number(event.target.value))}
+                      data-testid="burstConcurrency"
+                      data-component="burstConcurrency"
                     />
                   </div>
                   <div className="burst-control">
@@ -588,83 +370,116 @@ export function App() {
                       min={0}
                       max={10000}
                       step={50}
-                      value={delayMs}
-                      onChange={(event) => setDelayMs(Number(event.target.value))}
+                      value={workbench.delayMs}
+                      onChange={(event) => workbench.setDelayMs(Number(event.target.value))}
+                      data-testid="burstDelay"
+                      data-component="burstDelay"
                     />
                   </div>
-                  <button className="zap-button" onClick={runBurst} disabled={busy !== ""}>
+                  <button
+                    className="zap-button"
+                    onClick={workbench.runBurst}
+                    disabled={workbench.replayPending}
+                    data-testid="runBurst"
+                    data-component="runBurst"
+                  >
                     <Zap size={14} strokeWidth={1.8} />
-                    {busy === "burst" ? "Saturating" : "Saturate"}
+                    {workbench.runBurstPending ? "Saturating" : "Saturate"}
                   </button>
                 </div>
 
                 <div className="response-well">
                   <div className="response-meta">
-                    <span className={`status-dot ${statusTone(lastResponse?.status || null)}`} />
+                    <span className={`status-dot ${statusTone(workbench.lastResponse?.status || null)}`} />
                     <strong>
-                      {lastResponse ? `${lastResponse.status} ${lastResponse.statusText}` : "No response"}
+                      {workbench.lastResponse
+                        ? `${workbench.lastResponse.status} ${workbench.lastResponse.statusText}`
+                        : "No response"}
                     </strong>
-                    <span>{elapsed(lastResponse?.durationMs)}</span>
-                    {lastBurst && <span>{lastBurst.failures} flagged</span>}
+                    <span>{elapsed(workbench.lastResponse?.durationMs)}</span>
+                    {workbench.lastBurst && <span>{workbench.lastBurst.failures} flagged</span>}
                   </div>
-                  <pre>{lastResponse ? bodyPreview(lastResponse.body) : ""}</pre>
+                  <pre>{workbench.lastResponse ? bodyPreview(workbench.lastResponse.body) : ""}</pre>
                 </div>
               </div>
             </div>
           )}
 
-          {activeView === "scope" && (
+          {workbench.activeView === "scope" && (
             <div className="scope-view">
               <textarea
                 className="target-list"
-                value={targetText}
-                onChange={(event) => setTargetText(event.target.value)}
+                value={workbench.targetText}
+                onChange={(event) => workbench.setTargetText(event.target.value)}
                 spellCheck={false}
                 placeholder="https://your-target.example"
+                data-testid="scopeTargetList"
+                data-component="scopeTargetList"
               />
-              <button type="button" className="agent-rack" onClick={() => setAiPaletteOpen(true)}>
+              <button
+                type="button"
+                className="agent-rack"
+                onClick={() => workbench.setAiPaletteOpen(true)}
+                data-testid="scopeOpenAiPalette"
+                data-component="scopeOpenAiPalette"
+              >
                 <Bot size={15} strokeWidth={1.7} />
                 <span>AI command palette — ⌘K</span>
               </button>
             </div>
           )}
 
-          {activeView === "ssl" && (
+          {workbench.activeView === "ssl" && (
             <div className="ssl-view">
               <div className="ssl-summary">
                 <LockKeyhole size={20} strokeWidth={1.6} />
-                <strong>{proxyState.running ? proxyState.proxyUrl : "proxy stopped"}</strong>
-                <span>CA: {proxyState.caCertPath || "not generated"}</span>
-                <span>Profile: {browserState.profileDir || "opens on demand"}</span>
+                <strong>{workbench.proxyState.running ? workbench.proxyState.proxyUrl : "proxy stopped"}</strong>
+                <span>CA: {workbench.proxyState.caCertPath || "not generated"}</span>
+                <span>Profile: {workbench.browserState.profileDir || "opens on demand"}</span>
               </div>
 
               <div className="proxy-card">
                 <div className="proxy-actions">
-                  <button className="solid-button" onClick={startProxy}>
+                  <button
+                    className="solid-button"
+                    onClick={workbench.startProxy}
+                    data-testid="startProxy"
+                    data-component="startProxy"
+                  >
                     <Play size={14} strokeWidth={1.8} />
                     Engage Proxy
                   </button>
-                  <button className="line-button" onClick={stopProxy}>
+                  <button
+                    className="line-button"
+                    onClick={workbench.stopProxy}
+                    data-testid="stopProxy"
+                    data-component="stopProxy"
+                  >
                     Disengage
                   </button>
-                  <button className="line-button" onClick={ensureProxyCa}>
+                  <button
+                    className="line-button"
+                    onClick={workbench.ensureProxyCa}
+                    data-testid="forgeCa"
+                    data-component="forgeCa"
+                  >
                     <LockKeyhole size={13} strokeWidth={1.7} />
                     Forge CA
                   </button>
                 </div>
                 <div className="proxy-lines">
-                  <span>HTTP proxy: {proxyState.proxyUrl}</span>
-                  <span>CA cert: {proxyState.caCertPath || "—"}</span>
-                  <span>SPKI: {proxyState.caFingerprint || "—"}</span>
-                  <span>Chrome CDP: {browserState.remoteDebuggingUrl || "launch Chrome from Radar"}</span>
-                  <span>Browser: {browserState.channel || "Radar-managed Chromium"}</span>
-                  <span>Build: {browserState.buildId || "installs on first launch"}</span>
+                  <span>HTTP proxy: {workbench.proxyState.proxyUrl}</span>
+                  <span>CA cert: {workbench.proxyState.caCertPath || "—"}</span>
+                  <span>SPKI: {workbench.proxyState.caFingerprint || "—"}</span>
+                  <span>Chrome CDP: {workbench.browserState.remoteDebuggingUrl || "launch browser from Deploy"}</span>
+                  <span>Browser: {workbench.browserState.channel || "not launched"}</span>
+                  <span>Binary: {workbench.browserState.executablePath || "—"}</span>
                 </div>
               </div>
 
               <div className="ssl-events">
-                {sslEvents.length === 0 && <div className="empty-state">No certificate events</div>}
-                {sslEvents.map((event) => (
+                {workbench.sslEvents.length === 0 && <div className="empty-state">No certificate events</div>}
+                {workbench.sslEvents.map((event) => (
                   <div key={event.id} className="ssl-event">
                     <span className={event.trusted ? "good-text" : "danger-text"}>
                       {event.trusted ? "TRUSTED" : "BLOCKED"}
@@ -675,22 +490,26 @@ export function App() {
                   </div>
                 ))}
               </div>
-              <pre>{selected ? `${selected.url}\n${tlsLine(selected)}` : ""}</pre>
+              <pre>
+                {workbench.selected
+                  ? `${workbench.selected.url}\n${tlsLine(workbench.selected)}`
+                  : ""}
+              </pre>
             </div>
           )}
         </section>
       </section>
 
       <CommandPalette
-        open={aiPaletteOpen}
-        onClose={() => setAiPaletteOpen(false)}
-        captureIds={selected ? [selected.id] : []}
-        captures={captures}
-        targets={targets}
-        browserUrl={browserState.url || address}
-        onApplyDraft={applyAiDraft}
-        onPrepareNavigate={prepareAiNavigate}
-        onNotice={setNotice}
+        open={workbench.aiPaletteOpen}
+        onClose={() => workbench.setAiPaletteOpen(false)}
+        captureIds={workbench.selected ? [workbench.selected.id] : []}
+        captures={workbench.captures}
+        targets={workbench.targets}
+        browserUrl={workbench.browserState.url || workbench.address}
+        onApplyDraft={workbench.applyAiDraft}
+        onPrepareNavigate={workbench.prepareAiNavigate}
+        onNotice={workbench.setNotice}
       />
 
       <footer className="ticker reveal delay-5">
@@ -700,7 +519,7 @@ export function App() {
             Radar Online
           </span>
           <span className="item">
-            UTC <em>{utc}</em>
+            UTC <em>{workbench.utc}</em>
           </span>
           <span className="item">
             Sector <em>03</em>
@@ -708,16 +527,16 @@ export function App() {
         </div>
         <div className="right">
           <span className="item">
-            View <em>{meta.num}</em> · {meta.label}
+            View <em>{workbench.meta.num}</em> · {workbench.meta.label}
           </span>
           <span className="item">
-            Captures <em>{captures.length}</em>
+            Captures <em>{workbench.captures.length}</em>
           </span>
           <span className="item">
-            TLS <em>{sslEvents.length}</em>
+            TLS <em>{workbench.sslEvents.length}</em>
           </span>
           <span className="item">
-            Proxy <em>{proxyState.running ? "engaged" : "standby"}</em>
+            Proxy <em>{workbench.proxyState.running ? "engaged" : "standby"}</em>
           </span>
         </div>
       </footer>
