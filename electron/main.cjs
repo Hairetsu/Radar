@@ -288,6 +288,41 @@ function isolatedChromeCacheDir() {
   return cacheDir;
 }
 
+function cleanupStaleDownloads(cacheDir) {
+  const chromiumDir = path.join(cacheDir, Browser.CHROMIUM);
+  if (!fs.existsSync(chromiumDir)) return;
+  for (const entry of fs.readdirSync(chromiumDir)) {
+    const full = path.join(chromiumDir, entry);
+    try {
+      const stat = fs.statSync(full);
+      if (stat.isFile() && entry.endsWith(".zip")) {
+        fs.rmSync(full, { force: true });
+        continue;
+      }
+      if (stat.isDirectory()) {
+        const contents = fs.readdirSync(full);
+        if (contents.length === 0) {
+          fs.rmSync(full, { recursive: true, force: true });
+        }
+      }
+    } catch {
+      /* ignore unreadable entries */
+    }
+  }
+}
+
+function findUsableInstalledBrowser(installed, platform) {
+  const candidates = installed
+    .filter(
+      (browser) =>
+        browser.browser === Browser.CHROMIUM &&
+        browser.platform === platform &&
+        fs.existsSync(browser.executablePath)
+    )
+    .sort((a, b) => String(b.buildId).localeCompare(String(a.buildId)));
+  return candidates[0];
+}
+
 async function ensureIsolatedChrome() {
   const cacheDir = isolatedChromeCacheDir();
   const platform = detectBrowserPlatform();
@@ -295,22 +330,27 @@ async function ensureIsolatedChrome() {
     throw new Error("Cannot resolve a Radar Browser build for this platform.");
   }
 
-  const buildId = await resolveBuildId(Browser.CHROMIUM, platform, BrowserTag.LATEST);
-  const installed = await getInstalledBrowsers({ cacheDir });
-  const existing = installed.find(
-    (browser) =>
-      browser.browser === Browser.CHROMIUM &&
-      browser.platform === platform &&
-      browser.buildId === buildId &&
-      fs.existsSync(browser.executablePath)
-  );
+  cleanupStaleDownloads(cacheDir);
 
-  if (existing) {
+  const installed = await getInstalledBrowsers({ cacheDir });
+  const cached = findUsableInstalledBrowser(installed, platform);
+  if (cached) {
     return {
-      executablePath: existing.executablePath,
-      buildId,
-      cacheDir
+      executablePath: cached.executablePath,
+      buildId: cached.buildId,
+      cacheDir,
+      channel: "radar-browser",
+      managedByRadar: true
     };
+  }
+
+  let buildId;
+  try {
+    buildId = await resolveBuildId(Browser.CHROMIUM, platform, BrowserTag.STABLE);
+  } catch (err) {
+    throw new Error(
+      `Radar Browser is not installed and we couldn't reach the Chromium build index (${err.message}). Check your network connection and retry.`
+    );
   }
 
   const installOptions = {
@@ -324,12 +364,32 @@ async function ensureIsolatedChrome() {
   let downloaded;
   try {
     downloaded = await install(installOptions);
-  } catch {
+  } catch (firstErr) {
     fs.rmSync(path.join(cacheDir, Browser.CHROMIUM, `${platform}-${buildId}`), {
       recursive: true,
       force: true
     });
-    downloaded = await install(installOptions);
+    cleanupStaleDownloads(cacheDir);
+    try {
+      downloaded = await install(installOptions);
+    } catch (secondErr) {
+      const fallback = findUsableInstalledBrowser(
+        await getInstalledBrowsers({ cacheDir }),
+        platform
+      );
+      if (fallback) {
+        return {
+          executablePath: fallback.executablePath,
+          buildId: fallback.buildId,
+          cacheDir,
+          channel: "radar-browser",
+          managedByRadar: true
+        };
+      }
+      throw new Error(
+        `Failed to download Radar Browser (${secondErr.message || firstErr.message}). Retry once you have network.`
+      );
+    }
   }
 
   return {
