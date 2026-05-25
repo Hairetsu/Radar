@@ -1,6 +1,6 @@
 # Radar
 
-Radar is a local-first defensive web security workbench. It embeds Chromium, captures browser traffic through Electron's DevTools protocol and an optional MITM proxy, and lets you replay scoped requests through a controlled repeater — all in a desktop bureau-style operator console.
+Radar is a local-first defensive web security workbench. It embeds Chromium, captures browser traffic through Electron's DevTools protocol and an optional MITM proxy, and lets you replay requests through a controlled repeater — all in a desktop bureau-style operator console.
 
 ## MVP Surface
 
@@ -8,7 +8,7 @@ Radar is a local-first defensive web security workbench. It embeds Chromium, cap
 - Network capture history with request/response headers and body previews, TLS metadata, and source attribution (browser / proxy / repeater).
 - Clone captured requests into a repeater with full header and body editing.
 - Single replay plus capped burst replay (count, parallelism, delay) for hardening checks.
-- Target allowlist enforced before replaying requests.
+- Scope-filtered traffic list for focusing on selected targets.
 - Local HTTPS proxy mode for external browsers, with a Radar-generated CA and SPKI fingerprint.
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
 - Command-palette AI with provider adapters, context preview, prepare-only outputs, and session audit trail.
@@ -61,7 +61,7 @@ The renderer is a four-view operator console. Persistent across all views: a lef
 
 ![Radar Traffic view](docs/screens/radar-01-traffic.png)
 
-Live capture log. Each row shows method, status, host, path, transport (TLS protocol or resource type), and round-trip duration. Selecting a row reveals request/response detail with TLS info on the right; a one-click **To Repeater** action clones the selected request into view 02. Empty state reads _"No transmissions intercepted"_ until traffic flows in.
+Live capture log filtered to the current scope. Each row shows method, status, host, path, transport (TLS protocol or resource type), and round-trip duration. Selecting a row reveals request/response detail with TLS info on the right; a one-click **To Repeater** action clones the selected request into view 02. Empty state reads _"No in-scope transmissions intercepted"_ until matching traffic flows in.
 
 ### 02 — Repeater
 
@@ -73,7 +73,7 @@ Manual replay surface. Left: method selector, URL line, JSON-edited headers, fre
 
 ![Radar Scope view](docs/screens/radar-03-scope.png)
 
-The engagement boundary. Newline-delimited origins form the allowlist that gates every replay; defaults are local development origins. Edit and **Commit** to persist. The **AI command palette** strip below the editor opens the same palette as **⌘K** / **Ctrl+K** or the **AI** button in the panel header.
+The engagement boundary. Newline-delimited origins filter the Traffic view; defaults are local development origins. Edit and **Commit** to persist. The **AI command palette** strip below the editor opens the same palette as **⌘K** / **Ctrl+K** or the **AI** button in the panel header.
 
 ### 04 — SSL
 
@@ -97,16 +97,16 @@ Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. Se
 
 **Connect presets:**
 
-- **Codex Connect** — OpenAI API via `OPENAI_API_KEY` or `CODEX_API_KEY`, model `gpt-5.3-codex`
+- **Codex Connect** — local Codex app/CLI auth via the installed `codex` executable; override discovery with `CODEX_CLI_PATH`.
 - **Cursor CLI Connect** — local OpenAI-compatible proxy at `http://127.0.0.1:8765/v1` (override with `CURSOR_PROXY_URL`); key from `CURSOR_BRIDGE_API_KEY`, `CURSOR_API_KEY`, or `unused`. Requires a local Cursor CLI proxy such as `npx cursor-api-proxy`.
 
-**Providers:** OpenAI, Anthropic, OpenAI-compatible endpoints.
+**Providers:** Codex app, OpenAI, Anthropic, OpenAI-compatible endpoints.
 
-**Guardrails:** raw headers/bodies require explicit checkbox confirmation; scope/replay gates stay authoritative; session audit trail only — no cross-session memory or cloud storage of captures.
+**Guardrails:** raw headers/bodies require explicit checkbox confirmation; scope stays authoritative for traffic visibility and AI context; session audit trail only — no cross-session memory or cloud storage of captures.
 
 ## Scope Model
 
-Replay is intentionally blocked unless the target matches the allowlist. Defaults are local development origins:
+Scope controls which captures appear in Traffic. Defaults are local development origins:
 
 ```text
 http://localhost:*
@@ -114,7 +114,7 @@ http://127.0.0.1:*
 http://[::1]:*
 ```
 
-Add project origins in the Scope view (or use the "Mark" button on the address bar / "Trust Origin" in Repeater) before replaying captured production or staging traffic you are authorized to test.
+Add project origins in the Scope view (or use the "Mark" button on the address bar / "Trust Origin" in Repeater) to bring matching captured production or staging traffic into the Traffic list.
 
 ## SSL And Proxying
 

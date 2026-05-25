@@ -2,6 +2,50 @@ import { vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const radarApi = {
+  getLocalContext: vi.fn(async () => ({
+    profile: {
+      id: "profile-test",
+      name: "Local Operator",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    workspace: {
+      id: "workspace-test",
+      profileId: "profile-test",
+      name: "Default Workspace",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    session: {
+      id: "session-test",
+      workspaceId: "workspace-test",
+      name: "Session 2026-05-25 00:00",
+      startedAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    }
+  })),
+  createLocalSession: vi.fn(async () => ({
+    profile: {
+      id: "profile-test",
+      name: "Local Operator",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    workspace: {
+      id: "workspace-test",
+      profileId: "profile-test",
+      name: "Default Workspace",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    session: {
+      id: "session-next",
+      workspaceId: "workspace-test",
+      name: "Session 2026-05-25 00:01",
+      startedAt: "2026-05-25T00:01:00.000Z",
+      updatedAt: "2026-05-25T00:01:00.000Z"
+    }
+  })),
   getBrowserState: vi.fn(async () => ({ open: false, url: "", title: "", loading: false, engine: "none" })),
   getProxyState: vi.fn(async () => ({
     running: false,
@@ -24,7 +68,7 @@ const radarApi = {
   stopProxy: vi.fn(async () => undefined),
   setTargets: vi.fn(async () => undefined),
   sendReplay: vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", durationMs: 10 })),
-  sendBurst: vi.fn(async () => ({ ok: true, results: [], failures: 0 })),
+  runBurst: vi.fn(async () => ({ count: 1, concurrency: 1, averageMs: 10, results: [], failures: 0 })),
   getAiSettings: vi.fn(async () => ({
     provider: "openai",
     model: "gpt-4o-mini",
@@ -32,18 +76,18 @@ const radarApi = {
     baseUrl: "http://127.0.0.1:11434/v1"
   })),
   setAiSettings: vi.fn(async () => undefined),
-    previewAiContext: vi.fn(async () => ({
-      captureCount: 1,
-      charCount: 120,
-      previewText: "RADAR AI CONTEXT",
-      redacted: true
-    })),
+  previewAiContext: vi.fn(async () => ({
+    captureCount: 1,
+    charCount: 120,
+    previewText: "RADAR AI CONTEXT",
+    redacted: true
+  })),
   runAiTask: vi.fn(async () => ({ ok: false, auditId: "ai-1", error: "mock" })),
   getAiAudit: vi.fn(async () => []),
   connectAi: vi.fn(async () => ({
-    settings: { provider: "openai", model: "gpt-4o-mini", apiKey: "", baseUrl: "https://api.openai.com/v1" },
-    meta: { presetId: "codex", label: "Codex", apiKeySource: "missing" },
-    probe: { ok: false, message: "mock" }
+    settings: { provider: "codex-local", model: "auto", apiKey: "local", baseUrl: "codex://local" },
+    meta: { presetId: "codex", label: "Codex", apiKeySource: "local" },
+    probe: { ok: true, message: "mock" }
   }))
 };
 

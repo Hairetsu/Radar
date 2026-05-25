@@ -1,4 +1,5 @@
 import type { AiConnectPresetId, AiProviderId, ProbeSettingsInput } from "../../shared/ai-types.js";
+import { probeCodexCli } from "./codexCli.js";
 
 type PresetConfig = {
   label: string;
@@ -12,10 +13,11 @@ type PresetConfig = {
 export const PRESETS: Record<AiConnectPresetId, PresetConfig> = {
   codex: {
     label: "Codex",
-    provider: "openai",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-5.3-codex",
-    envKeys: ["OPENAI_API_KEY", "CODEX_API_KEY"]
+    provider: "codex-local",
+    baseUrl: "codex://local",
+    model: "auto",
+    envKeys: [],
+    fallbackApiKey: "local"
   },
   cursor_cli: {
     label: "Cursor CLI",
@@ -44,7 +46,8 @@ export function resolvePreset({ presetId, savedApiKey = "" }: { presetId: AiConn
   }
 
   const fromEnv = firstEnv(preset.envKeys);
-  const apiKey = fromEnv?.value || savedApiKey || preset.fallbackApiKey || "";
+  const savedPresetKey = preset.provider === "codex-local" ? "" : savedApiKey;
+  const apiKey = fromEnv?.value || savedPresetKey || preset.fallbackApiKey || "";
   const baseUrl =
     presetId === "cursor_cli"
       ? (process.env.CURSOR_PROXY_URL || process.env.CURSOR_API_PROXY_URL || preset.baseUrl).replace(/\/$/, "")
@@ -57,11 +60,15 @@ export function resolvePreset({ presetId, savedApiKey = "" }: { presetId: AiConn
     model: preset.model,
     apiKey,
     baseUrl,
-    apiKeySource: fromEnv ? fromEnv.key : savedApiKey ? "saved" : preset.fallbackApiKey ? "local" : "missing"
+    apiKeySource: fromEnv ? fromEnv.key : savedPresetKey ? "saved" : preset.fallbackApiKey ? "local" : "missing"
   };
 }
 
 export async function probeSettings(settings: ProbeSettingsInput) {
+  if (settings.provider === "codex-local") {
+    return probeCodexCli();
+  }
+
   const root = (settings.baseUrl || "").replace(/\/$/, "");
   if (!root) {
     return { ok: false, message: "Base URL is missing." };

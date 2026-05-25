@@ -70,7 +70,9 @@ export function CommandPalette({
         const source =
           next.meta.apiKeySource === "missing"
             ? " — add API key or env var"
-            : ` · key from ${next.meta.apiKeySource}`;
+            : next.meta.presetId === "codex" && next.meta.apiKeySource === "local"
+              ? " · installed Codex auth"
+              : ` · key from ${next.meta.apiKeySource}`;
         setConnectNote(`${next.meta.label}: ${next.probe.message}${source}`);
         if (!next.probe.ok) {
           setError(next.probe.message);
@@ -112,7 +114,7 @@ export function CommandPalette({
       setError("Run in Electron to use AI.");
       return;
     }
-    if (!settings.apiKey.trim()) {
+    if (settings.provider !== "codex-local" && !settings.apiKey.trim()) {
       setError("Set an API key in AI settings.");
       return;
     }
@@ -339,6 +341,7 @@ export function CommandPalette({
                 data-component="aiProvider"
               >
                 <option value="openai">OpenAI</option>
+                <option value="codex-local">Codex app</option>
                 <option value="anthropic">Anthropic</option>
                 <option value="openai-compatible">OpenAI-compatible</option>
               </select>
@@ -351,16 +354,22 @@ export function CommandPalette({
                 data-component="aiModel"
               />
             </div>
-            <input
-              className="ai-key"
-              type="password"
-              value={settings.apiKey}
-              onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })}
-              placeholder="API key"
-              spellCheck={false}
-              data-testid="aiApiKey"
-              data-component="aiApiKey"
-            />
+            {settings.provider === "codex-local" ? (
+              <p className="ai-local-note" data-testid="aiLocalCodexNote" data-component="aiLocalCodexNote">
+                Uses your installed Codex app login; no API key is stored in Radar.
+              </p>
+            ) : (
+              <input
+                className="ai-key"
+                type="password"
+                value={settings.apiKey}
+                onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })}
+                placeholder="API key"
+                spellCheck={false}
+                data-testid="aiApiKey"
+                data-component="aiApiKey"
+              />
+            )}
             {settings.provider === "openai-compatible" && (
               <input
                 value={settings.baseUrl}

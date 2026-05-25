@@ -38,6 +38,35 @@ export type SslEvent = {
   createdAt: string;
 };
 
+export type LocalProfile = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocalWorkspace = {
+  id: string;
+  profileId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocalSession = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  startedAt: string;
+  updatedAt: string;
+};
+
+export type LocalContext = {
+  profile: LocalProfile;
+  workspace: LocalWorkspace;
+  session: LocalSession;
+};
+
 export type BrowserState = {
   open: boolean;
   url: string;

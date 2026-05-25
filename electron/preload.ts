@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { RadarApi } from "../shared/radar-api.js";
 
 const radar: RadarApi = {
+  getLocalContext: () => ipcRenderer.invoke("local:context"),
+  createLocalSession: (name?: string) => ipcRenderer.invoke("local:session:create", name),
   openBrowser: (url: string) => ipcRenderer.invoke("browser:open", url),
   navigateBrowser: (url: string) => ipcRenderer.invoke("browser:navigate", url),
   browserBack: () => ipcRenderer.invoke("browser:back"),
