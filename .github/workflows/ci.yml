@@ -4,9 +4,17 @@ on:
   push:
     branches:
       - develop
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
   pull_request:
     branches:
       - develop
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"

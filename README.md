@@ -30,6 +30,29 @@ pnpm dev
 
 This starts Vite on `127.0.0.1:5173`, then launches Electron pointing at it. `pnpm build` runs `tsc` and a production Vite build into `dist/`. `pnpm lint` runs ESLint. `pnpm screenshots` rebuilds and refreshes README screenshots into `docs/screens/`.
 
+## Install (Releases)
+
+Pre-built installers are published on the [Releases page](https://github.com/Hairetsu/Radar/releases).
+
+### macOS
+
+Radar isn't notarized with Apple yet, so Gatekeeper will refuse to open it with either *"could not verify"* or *"Radar is damaged and can't be opened"*. To get past this, drag `Radar.app` into `/Applications`, then strip the quarantine flag in Terminal:
+
+```bash
+sudo xattr -dr com.apple.quarantine /Applications/Radar.app
+```
+
+Then launch normally. You only need to do this once per install.
+
+### Windows
+
+Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* — click **More info → Run anyway**.
+
+### Linux
+
+- `.AppImage`: `chmod +x Radar-*.AppImage && ./Radar-*.AppImage`
+- `.deb`: `sudo apt install ./radar_*_amd64.deb`
+
 ## Workspace Tour
 
 The renderer is a four-view operator console. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, the Radar Browser address bar (Deploy + Mark), live status pills (engine / req / tls / proxy), and a bottom telemetry ticker mirroring live counts.
