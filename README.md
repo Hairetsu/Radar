@@ -17,7 +17,7 @@ Radar is a local-first defensive web security workbench. It embeds Chromium, cap
 
 - Electron 42 main process (`electron/main.cjs`) wiring CDP capture, mockttp proxy, Chromium launcher, and AI IPC.
 - React 18 + Vite + TypeScript renderer (`src/`).
-- Tailwind CSS v4 with a custom bureau theme (Antonio / Manrope / JetBrains Mono).
+- Tailwind CSS v4 with a custom bureau theme (Antonio / Saira / JetBrains Mono) and shadcn-style UI primitives (`cn`, `cva`, `src/components/ui/`).
 - mockttp for the optional MITM proxy and CA generation.
 - `@puppeteer/browsers` to fetch and pin Radar's own Chromium build.
 
@@ -130,11 +130,11 @@ Radar never installs a root certificate automatically. On macOS, Radar launches 
 The interface is a "bureau / operator console" aesthetic:
 
 - Display: **Antonio** (variable condensed) — tactical authority for headers and section numerals.
-- Body: **Manrope** (geometric humanist).
+- Body: **Saira** (geometric humanist).
 - Mono: **JetBrains Mono** for all operational text.
-- Single signal-orange accent (`#ff5733`) on warm-dark slate, with steel-blue / jade / sand / rust status tokens. Driven entirely by CSS variables in `src/styles.css`.
+- Single signal-orange accent (`#ff5733`) on warm-dark slate, with steel-blue / jade / sand / rust status tokens. Tokens live in `@theme` inside `src/styles.css`; layout and surfaces are Tailwind utilities in components.
 - Asymmetric layout: vertical left rail with live section numerals, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, and a bottom telemetry ticker.
-- CSS-only motion: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button.
+- Motion via Tailwind utilities and keyframes in `src/styles.css`: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button.
 
 ## Development Conventions
 
@@ -152,7 +152,11 @@ electron/
 src/
   App.tsx         Bureau-style operator console (4 views + AI palette)
   ai/             Command palette UI and AI types
-  styles.css      Theme tokens, layout, and motion
+  components/
+    ui/           shadcn-style primitives (Button, Input, Select, Textarea)
+    radar/        Radar-specific labels, badges, pills, and empty states
+  lib/            Renderer utilities including `cn()` for class merging
+  styles.css      Theme tokens, base styles, shell texture, and keyframes
   types.ts        Shared types between main and renderer
   main.tsx        React entry
 docs/

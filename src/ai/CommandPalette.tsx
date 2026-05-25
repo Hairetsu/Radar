@@ -1,9 +1,15 @@
 import { Command, Loader2, ShieldAlert, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CapturedRequest, ReplayDraft } from "../types";
+import { FieldLabel } from "../components/radar/primitives";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Select } from "../components/ui/select";
+import { Textarea } from "../components/ui/textarea";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { aiProviderFromValue } from "../lib/aiProvider";
 import { resultPreview } from "../lib/resultPreview";
+import { cn } from "../lib/utils";
 import {
   AI_TASK_META,
   AI_TASK_TYPES,
@@ -29,6 +35,17 @@ type CommandPaletteProps = {
 };
 
 type PaletteStep = "task" | "preview" | "result";
+
+const taskButtonClass = (active: boolean) =>
+  cn(
+    "grid h-auto gap-1 border border-rule bg-white/[0.02] px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-muted transition-colors",
+    "hover:border-signal/45 hover:bg-signal/[0.06]",
+    active && "border-signal/45 bg-signal/[0.06]"
+  );
+
+const palettePanelClass = "grid gap-3";
+
+const paletteMetaClass = "flex flex-wrap gap-3 font-mono text-[9px] uppercase tracking-[0.28em] text-dim";
 
 export function CommandPalette({
   open,
@@ -224,62 +241,65 @@ export function CommandPalette({
 
   return (
     <div
-      className="ai-palette-backdrop"
+      className="fixed inset-0 z-40 flex items-start justify-center bg-[rgba(4,10,9,0.72)] px-4 py-10 backdrop-blur-md"
       onClick={onClose}
       data-testid="commandPaletteBackdrop"
       data-component="commandPaletteBackdrop"
     >
       <div
-        className="ai-palette"
+        className="grid max-h-[calc(100vh-5rem)] w-full max-w-5xl gap-4 overflow-auto border border-rule bg-[rgba(7,17,15,0.96)] p-5 font-mono shadow-[0_24px_80px_-20px_rgba(0,0,0,0.65)]"
         onClick={(event) => event.stopPropagation()}
         data-testid="commandPalette"
         data-component="commandPalette"
       >
-        <header className="ai-palette-head">
+        <header className="flex items-start justify-between gap-4 border-b border-rule pb-4">
           <div>
-            <span className="eyebrow">
+            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
               <Command size={12} strokeWidth={1.8} /> AI Channel
             </span>
-            <h3>Command Palette</h3>
-            <p>{captureLabel}</p>
+            <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">Command Palette</h3>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-muted">{captureLabel}</p>
           </div>
-          <button
+          <Button
             type="button"
-            className="icon-button"
+            variant="icon"
+            size="icon"
             onClick={onClose}
             title="Close"
             data-testid="commandPaletteClose"
             data-component="commandPaletteClose"
           >
             <X size={16} strokeWidth={1.8} />
-          </button>
+          </Button>
         </header>
 
-        <div className="ai-palette-grid">
-          <section className="ai-panel">
-            <label className="field-label">Task</label>
-            <div className="ai-task-list">
+        <div className="grid gap-4 [grid-template-columns:minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <section className={palettePanelClass}>
+            <FieldLabel className="px-0 pt-0">Task</FieldLabel>
+            <div className="grid gap-2">
               {AI_TASK_TYPES.map((key) => (
-                <button
+                <Button
                   key={key}
                   type="button"
-                  className={task === key ? "active" : ""}
+                  variant="ghost"
+                  className={taskButtonClass(task === key)}
                   onClick={() => setTask(key)}
                   data-testid={`aiTask-${key}`}
                   data-component="aiTaskButton"
                 >
-                  <strong>{AI_TASK_META[key].label}</strong>
-                  <span>{AI_TASK_META[key].hint}</span>
-                </button>
+                  <strong className="tracking-[0.22em] text-bone">{AI_TASK_META[key].label}</strong>
+                  <span className="text-dim tracking-[0.14em] leading-[1.4]">{AI_TASK_META[key].hint}</span>
+                </Button>
               ))}
             </div>
 
-            <label className="field-label" htmlFor="ai-user-prompt">
+            <FieldLabel className="px-0" htmlFor="ai-user-prompt">
               Operator note
-            </label>
-            <textarea
+            </FieldLabel>
+            <Textarea
               id="ai-user-prompt"
-              className="code-area ai-note"
+              variant="bare"
+              className="min-h-[72px]"
               value={userPrompt}
               onChange={(event) => setUserPrompt(event.target.value)}
               spellCheck={false}
@@ -288,7 +308,7 @@ export function CommandPalette({
               data-component="aiUserPrompt"
             />
 
-            <label className="ai-raw-toggle">
+            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
               <input
                 type="checkbox"
                 checked={includeRaw}
@@ -301,35 +321,40 @@ export function CommandPalette({
             </label>
           </section>
 
-          <section className="ai-panel">
-            <label className="field-label">Connect</label>
-            <div className="ai-connect-row">
-              <button
+          <section className={palettePanelClass}>
+            <FieldLabel className="px-0 pt-0">Connect</FieldLabel>
+            <div className="grid gap-2 [grid-template-columns:1fr_1fr]">
+              <Button
                 type="button"
-                className="line-button"
+                variant="outline"
                 disabled={actionPending}
                 onClick={() => connectMutation.run("codex")}
                 data-testid="aiConnectCodex"
                 data-component="aiConnectButton"
               >
                 Codex Connect
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="line-button"
+                variant="outline"
                 disabled={actionPending}
                 onClick={() => connectMutation.run("cursor_cli")}
                 data-testid="aiConnectCursorCli"
                 data-component="aiConnectButton"
               >
                 Cursor CLI Connect
-              </button>
+              </Button>
             </div>
-            {connectNote && <p className="ai-connect-note">{connectNote}</p>}
+            {connectNote && (
+              <p className="font-mono text-[9px] uppercase leading-[1.5] tracking-[0.2em] text-dim">
+                {connectNote}
+              </p>
+            )}
 
-            <label className="field-label">Provider</label>
-            <div className="ai-settings-row">
-              <select
+            <FieldLabel className="px-0">Provider</FieldLabel>
+            <div className="grid gap-2 [grid-template-columns:1fr_1fr]">
+              <Select
+                variant="compact"
                 value={settings.provider}
                 onChange={(event) => {
                   const provider = aiProviderFromValue(event.target.value);
@@ -344,8 +369,10 @@ export function CommandPalette({
                 <option value="codex-local">Codex app</option>
                 <option value="anthropic">Anthropic</option>
                 <option value="openai-compatible">OpenAI-compatible</option>
-              </select>
-              <input
+              </Select>
+              <Input
+                variant="compact"
+                className="uppercase tracking-[0.12em]"
                 value={settings.model}
                 onChange={(event) => setSettings({ ...settings, model: event.target.value })}
                 spellCheck={false}
@@ -355,12 +382,17 @@ export function CommandPalette({
               />
             </div>
             {settings.provider === "codex-local" ? (
-              <p className="ai-local-note" data-testid="aiLocalCodexNote" data-component="aiLocalCodexNote">
+              <p
+                className="border border-signal/25 bg-[linear-gradient(135deg,rgba(255,87,51,0.08),transparent_42%),rgba(255,255,255,0.02)] px-3 py-2 font-mono text-[9px] uppercase leading-[1.6] tracking-[0.2em] text-muted"
+                data-testid="aiLocalCodexNote"
+                data-component="aiLocalCodexNote"
+              >
                 Uses your installed Codex app login; no API key is stored in Radar.
               </p>
             ) : (
-              <input
-                className="ai-key"
+              <Input
+                variant="compact"
+                className="uppercase tracking-[0.12em]"
                 type="password"
                 value={settings.apiKey}
                 onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })}
@@ -371,7 +403,9 @@ export function CommandPalette({
               />
             )}
             {settings.provider === "openai-compatible" && (
-              <input
+              <Input
+                variant="compact"
+                className="uppercase tracking-[0.12em]"
                 value={settings.baseUrl}
                 onChange={(event) => setSettings({ ...settings, baseUrl: event.target.value })}
                 spellCheck={false}
@@ -381,81 +415,100 @@ export function CommandPalette({
               />
             )}
 
-            <div className="ai-meta">
+            <div className={paletteMetaClass}>
               <span>Scope: {targets.length} origins</span>
               <span>Browser: {browserUrl || "—"}</span>
             </div>
 
-            <div className="ai-actions">
-              <button
+            <div className="flex flex-wrap gap-2">
+              <Button
                 type="button"
-                className="line-button"
+                variant="outline"
                 onClick={() => previewMutation.run()}
                 disabled={actionPending}
                 data-testid="aiPreviewContext"
                 data-component="aiPreviewContext"
               >
-                {previewMutation.isPending ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+                {previewMutation.isPending ? (
+                  <Loader2 size={14} className="animate-[spin_0.9s_linear_infinite]" />
+                ) : (
+                  <Sparkles size={14} />
+                )}
                 Preview context
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="solid-button"
+                variant="solid"
                 onClick={() => runMutation.run()}
                 disabled={actionPending}
                 data-testid="aiRunTask"
                 data-component="aiRunTask"
               >
-                {runMutation.isPending ? <Loader2 size={14} className="spin" /> : <Command size={14} />}
+                {runMutation.isPending ? (
+                  <Loader2 size={14} className="animate-[spin_0.9s_linear_infinite]" />
+                ) : (
+                  <Command size={14} />
+                )}
                 Run task
-              </button>
+              </Button>
             </div>
 
-            {error && <p className="ai-error">{error}</p>}
+            {error && <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-rust">{error}</p>}
           </section>
         </div>
 
         {step === "preview" && preview && (
-          <section className="ai-output" data-testid="aiContextPreview" data-component="aiContextPreview">
-            <div className="ai-output-head">
+          <section className="grid gap-2 border-t border-rule pt-4" data-testid="aiContextPreview" data-component="aiContextPreview">
+            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
               <strong>Context preview</strong>
               <span>
                 {preview.captureCount} captures · {preview.charCount} chars ·{" "}
                 {preview.redacted ? "redacted" : "raw"}
               </span>
             </div>
-            <pre>{preview.previewText}</pre>
+            <pre className="max-h-64 overflow-auto border border-rule bg-black/20 p-3 text-[11px] leading-[1.5] text-bone">
+              {preview.previewText}
+            </pre>
           </section>
         )}
 
         {step === "result" && result && (
-          <section className="ai-output" data-testid="aiResult" data-component="aiResult">
-            <div className="ai-output-head">
+          <section className="grid gap-2 border-t border-rule pt-4" data-testid="aiResult" data-component="aiResult">
+            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
               <strong>Result</strong>
               <span>audit {result.auditId}</span>
             </div>
-            <pre>{resultPreview(result)}</pre>
+            <pre className="max-h-64 overflow-auto border border-rule bg-black/20 p-3 text-[11px] leading-[1.5] text-bone">
+              {resultPreview(result)}
+            </pre>
             {(result.output?.task === "repeater_drafts" || result.output?.task === "browser_helper") && (
-              <button
+              <Button
                 type="button"
-                className="solid-button compact"
+                variant="solid"
+                size="compact"
                 onClick={applyPrepared}
                 data-testid="aiApplyPrepared"
                 data-component="aiApplyPrepared"
               >
                 Apply prepared action
-              </button>
+              </Button>
             )}
           </section>
         )}
 
         {audit.length > 0 && (
           <section className="ai-audit" data-testid="aiAudit" data-component="aiAudit">
-            <span className="field-label">Session audit</span>
-            <div className="ai-audit-list">
+            <FieldLabel className="px-0">Session audit</FieldLabel>
+            <div className="grid gap-2">
               {audit.slice(0, 6).map((entry) => (
-                <div key={entry.id} className={entry.ok ? "" : "failed"}>
-                  <strong>{entry.task}</strong>
+                <div
+                  key={entry.id}
+                  className={cn(
+                    "grid gap-1 border border-rule px-3 py-2 font-mono text-[9px] uppercase tracking-[0.2em] text-dim",
+                    !entry.ok && "border-rust/45"
+                  )}
+                >
+                  <strong className="tracking-[0.24em] text-bone">{entry.task}</strong>
                   <span>
                     {entry.provider} · {entry.model} · {entry.redacted ? "redacted" : "raw"} · {entry.promptChars}c
                   </span>
