@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
+  "author": {
+    "name": "Hairetsu",
+    "email": "hairetsu@hairetsu.com"
+  },
   "description": "Open defensive web security workbench with an embedded Chromium browser, capture history, and controlled request repeater.",
   "main": "electron/main.cjs",
   "type": "module",
@@ -76,6 +80,7 @@
     },
     "linux": {
       "icon": "resources/icon.png",
+      "maintainer": "Hairetsu <hairetsu@hairetsu.com>",
       "target": [
         "AppImage",
         "deb"
