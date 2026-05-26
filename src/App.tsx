@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import {
   Activity,
   Braces,
@@ -118,6 +118,27 @@ function testIdSuffix(format: RequestExportFormat) {
   return format.slice(0, 1).toUpperCase() + format.slice(1);
 }
 
+const modeButtonClass = (active: boolean) =>
+  cn(
+    "h-8 border px-3 font-mono text-[9.5px] uppercase tracking-[0.2em]",
+    active
+      ? "border-signal/60 bg-signal/10 text-signal hover:bg-signal/15"
+      : "border-rule bg-surface/60 text-muted hover:bg-signal/5 hover:text-bone"
+  );
+
+function timelineEntryText(entry: { note?: string; toolCall?: { tool: string }; toolResult?: { tool: string; ok: boolean; error?: string } }) {
+  if (entry.toolResult) {
+    return entry.toolResult.ok ? `${entry.toolResult.tool} completed` : `${entry.toolResult.tool} blocked: ${entry.toolResult.error}`;
+  }
+  if (entry.toolCall) {
+    if (entry.toolCall.tool === "showView") {
+      return "Workbench tab changed";
+    }
+    return `${entry.toolCall.tool} requested`;
+  }
+  return entry.note || "Agent step";
+}
+
 export function App() {
   const workbench = useRadarWorkbench();
   const [requestMenu, setRequestMenu] = useState<RequestMenuState | null>(null);
@@ -231,6 +252,12 @@ export function App() {
   const activeSessionListed = activeSession
     ? workbench.sessions.some((session) => session.id === activeSession.id)
     : false;
+  const activeAgentRun = workbench.activeAgentRun;
+  const activeAgentRunning = activeAgentRun?.status === "queued" || activeAgentRun?.status === "running";
+  const submitAgentGoal = (event: FormEvent) => {
+    event.preventDefault();
+    void workbench.startAgentRun();
+  };
 
   return (
     <main className={shellClass} data-testid="radarShell" data-component="radarShell">
@@ -354,6 +381,32 @@ export function App() {
                 {workbench.proxyState.running ? "proxy" : "off"}
               </strong>
             </StatusPill>
+            <div
+              className="inline-flex overflow-hidden border border-rule bg-ink/35"
+              data-testid="appModeToggle"
+              data-component="appModeToggle"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                className={modeButtonClass(workbench.appMode === "manual-first")}
+                onClick={() => workbench.setAppMode("manual-first")}
+                data-testid="manualFirstMode"
+                data-component="appModeButton"
+              >
+                Manual-First
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className={modeButtonClass(workbench.appMode === "ai-first")}
+                onClick={() => workbench.setAppMode("ai-first")}
+                data-testid="aiFirstMode"
+                data-component="appModeButton"
+              >
+                AI-First
+              </Button>
+            </div>
             <Button
               type="button"
               variant="ghost"
@@ -490,6 +543,7 @@ export function App() {
           className={cn(
             revealClass,
             "relative mt-4 grid min-h-0 min-w-0 flex-1 overflow-hidden border border-rule shadow-bureau [animation-delay:300ms] [grid-template-rows:auto_minmax(0,1fr)]",
+            workbench.appMode === "ai-first" && "[grid-template-rows:auto_auto_minmax(0,1fr)]",
             "radar-workspace",
             "before:pointer-events-none before:absolute before:-left-px before:-top-px before:z-[4] before:h-3.5 before:w-3.5 before:border before:border-b-0 before:border-r-0 before:border-signal/55 before:content-['']",
             "after:pointer-events-none after:absolute after:-bottom-px after:-right-px after:z-[4] after:h-3.5 after:w-3.5 after:border after:border-l-0 after:border-t-0 after:border-signal/55 after:content-['']"
@@ -575,6 +629,102 @@ export function App() {
               )}
             </div>
           </div>
+
+          {workbench.appMode === "ai-first" && (
+            <div
+              className="grid gap-4 border-b border-rule bg-ink/35 p-4 lg:grid-cols-[minmax(260px,0.42fr)_minmax(0,1fr)]"
+              data-testid="aiFirstConsole"
+              data-component="aiFirstConsole"
+            >
+              <form className="flex min-w-0 flex-col gap-3" onSubmit={submitAgentGoal}>
+                <div>
+                  <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                    AI-First Goal
+                  </span>
+                  <Textarea
+                    value={workbench.agentGoal}
+                    onChange={(event) => workbench.setAgentGoal(event.target.value)}
+                    placeholder="Inspect https://target.test for auth, session, and API hardening issues."
+                    className="min-h-[92px]"
+                    data-testid="agentGoalInput"
+                    data-component="agentGoalInput"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="submit"
+                    variant="solid"
+                    disabled={activeAgentRunning}
+                    data-testid="startAgentRun"
+                    data-component="startAgentRun"
+                  >
+                    <Play size={14} strokeWidth={1.7} />
+                    Start Run
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!activeAgentRunning}
+                    onClick={workbench.stopAgentRun}
+                    data-testid="stopAgentRun"
+                    data-component="stopAgentRun"
+                  >
+                    <Square size={13} strokeWidth={1.8} />
+                    Stop
+                  </Button>
+                  <span className={cn(monoMuted, "ml-auto")}>
+                    {activeAgentRun ? activeAgentRun.status : "idle"}
+                  </span>
+                </div>
+                <p className="font-mono text-[10px] leading-relaxed text-muted">
+                  Manual-First controls stay available below as evidence panes. AI-First can only act inside saved scope and
+                  uses stricter replay budgets.
+                </p>
+              </form>
+
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                <div className="min-h-[160px] border border-rule bg-surface/55">
+                  <div className="flex items-center justify-between border-b border-rule px-3 py-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Run Timeline</span>
+                    {activeAgentRun && <StatusBadge>{activeAgentRun.timeline.length} steps</StatusBadge>}
+                  </div>
+                  <div className="max-h-[190px] overflow-auto p-3">
+                    {!activeAgentRun && <EmptyState>Prompt AI-First to start a scoped run.</EmptyState>}
+                    {activeAgentRun?.timeline.slice(-6).map((entry) => (
+                      <div key={entry.id} className="mb-2 border-l border-signal/35 pl-3">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-bone">
+                          {timelineEntryText(entry)}
+                        </p>
+                        {entry.note && <p className="mt-1 text-[12px] leading-relaxed text-muted">{entry.note}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="min-h-[160px] border border-rule bg-surface/55">
+                  <div className="flex items-center justify-between border-b border-rule px-3 py-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Findings Inbox</span>
+                    {activeAgentRun && <StatusBadge>{activeAgentRun.findings.length} draft</StatusBadge>}
+                  </div>
+                  <div className="max-h-[190px] overflow-auto p-3">
+                    {!activeAgentRun?.findings.length && <EmptyState>Findings appear after capture inspection.</EmptyState>}
+                    {activeAgentRun?.findings.map((finding) => (
+                      <div key={finding.id} className="mb-2 border border-rule bg-ink/30 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <strong className="font-display text-[13px] uppercase tracking-[0.05em] text-bone">
+                            {finding.title}
+                          </strong>
+                          <StatusBadge>{finding.confidence}</StatusBadge>
+                        </div>
+                        <p className="mt-2 text-[12px] leading-relaxed text-copy">{finding.notes}</p>
+                        <p className="mt-2 font-mono text-[10px] text-muted">{finding.evidenceRefs.join(", ")}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {workbench.activeView === "traffic" && (
             <div className="grid min-h-0 [grid-template-columns:minmax(0,1.15fr)_minmax(380px,0.85fr)] max-[1180px]:grid-cols-1">

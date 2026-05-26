@@ -30,8 +30,10 @@ const capture = (id: string, url: string, overrides: Partial<CapturedRequest> = 
 };
 
 afterEach(() => {
+  window.localStorage.clear();
   vi.mocked(window.radar!.getCaptures).mockResolvedValue([]);
   vi.mocked(window.radar!.getTargets).mockResolvedValue([]);
+  vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([]);
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
       id: "session-test",
@@ -54,6 +56,63 @@ describe("App", () => {
     expect(screen.getByText(/Attack Surface Workbench/i)).toBeInTheDocument();
     expect(screen.getByTestId("aiConnectionIndicator")).toBeInTheDocument();
     expect(screen.getByTestId("openProfileSessionPanel")).toBeInTheDocument();
+  });
+
+  it("switches to AI-First and starts an agent run from a goal", async () => {
+    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
+    startAgentRun.mockClear();
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("agentGoalInput"), { target: { value: "Inspect https://allowed.test" } });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => {
+      expect(startAgentRun).toHaveBeenCalledWith({
+        goal: "Inspect https://allowed.test",
+        startUrl: "http://localhost:3000"
+      });
+    });
+  });
+
+  it("follows agent view changes while AI-First is active", async () => {
+    window.localStorage.setItem("radar.appMode", "ai-first");
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([
+      {
+        id: "agent-view",
+        sessionId: "session-test",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:01.000Z",
+        goal: "Drive the app",
+        status: "running",
+        policy: {
+          maxRuntimeMs: 120000,
+          maxSteps: 8,
+          maxReplay: 1,
+          maxCaptureSample: 20,
+          allowRawContext: false
+        },
+        timeline: [
+          {
+            id: "step-repeater",
+            createdAt: "2026-05-25T00:00:01.000Z",
+            note: "Agent is moving to Repeater.",
+            toolCall: { tool: "showView", input: { view: "repeater", reason: "Replay inspection" } }
+          }
+        ],
+        findings: []
+      }
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByTestId("aiFirstConsole")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Repeater" })).toBeInTheDocument();
+    });
   });
 
   it("saves active profile and session names from the profile session panel", async () => {

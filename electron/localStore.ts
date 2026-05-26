@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
+import type { AgentFinding, AgentPolicy, AgentRun, AgentRunStatus, AgentTimelineEntry } from "../shared/agent-types.js";
 import type { AiModelOption } from "../shared/ai-types.js";
 import { sanitizeModelOption } from "../shared/ai-models.js";
 import type {
@@ -16,7 +17,7 @@ import type {
   TlsDetails
 } from "../shared/domain.js";
 
-const SCHEMA_VERSION = "1";
+const SCHEMA_VERSION = "2";
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
@@ -81,6 +82,19 @@ type SslEventRow = {
   created_at: string;
 };
 
+type AgentRunRow = {
+  id: string;
+  session_id: string;
+  created_at: string;
+  updated_at: string;
+  goal: string;
+  status: AgentRunStatus;
+  policy_json: string;
+  timeline_json: string;
+  findings_json: string;
+  error: string | null;
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -131,6 +145,24 @@ function parseTlsJson(value: string | null): TlsDetails | null {
     };
   } catch {
     return null;
+  }
+}
+
+function parseJsonArray<T>(value: string, fallback: T[] = []) {
+  try {
+    const parsed: unknown = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function parseJsonObject<T>(value: string, fallback: T) {
+  try {
+    const parsed: unknown = JSON.parse(value || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as T) : fallback;
+  } catch {
+    return fallback;
   }
 }
 
@@ -204,6 +236,27 @@ function toSslEvent(row: SslEventRow): SslEvent {
     subjectName: row.subject_name || undefined,
     issuerName: row.issuer_name || undefined,
     createdAt: row.created_at
+  };
+}
+
+function toAgentRun(row: AgentRunRow): AgentRun {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    goal: row.goal,
+    status: row.status,
+    policy: parseJsonObject<AgentPolicy>(row.policy_json, {
+      maxRuntimeMs: 0,
+      maxSteps: 0,
+      maxReplay: 0,
+      maxCaptureSample: 0,
+      allowRawContext: false
+    }),
+    timeline: parseJsonArray<AgentTimelineEntry>(row.timeline_json),
+    findings: parseJsonArray<AgentFinding>(row.findings_json),
+    error: row.error || undefined
   };
 }
 
@@ -299,12 +352,28 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (provider, model_id)
     );
 
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      goal TEXT NOT NULL,
+      status TEXT NOT NULL,
+      policy_json TEXT NOT NULL,
+      timeline_json TEXT NOT NULL,
+      findings_json TEXT NOT NULL,
+      error TEXT,
+      PRIMARY KEY (session_id, id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_captures_session_started
       ON captures(session_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_captures_session_host
       ON captures(session_id, host, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ssl_events_session_created
       ON ssl_events(session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_agent_runs_session_updated
+      ON agent_runs(session_id, updated_at DESC);
   `);
 
   const readMeta = (key: string) => {
@@ -691,6 +760,50 @@ export function openLocalStore(userDataPath: string) {
     return rows.map((row) => sanitizeModelOption({ id: row.model_id, label: row.label }));
   };
 
+  const upsertAgentRun = (sessionId: string, run: AgentRun) => {
+    db.prepare(`
+      INSERT INTO agent_runs (
+        session_id, id, created_at, updated_at, goal, status, policy_json, timeline_json, findings_json, error
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, id) DO UPDATE SET
+        updated_at = excluded.updated_at,
+        goal = excluded.goal,
+        status = excluded.status,
+        policy_json = excluded.policy_json,
+        timeline_json = excluded.timeline_json,
+        findings_json = excluded.findings_json,
+        error = excluded.error
+    `).run(
+      sessionId,
+      run.id,
+      run.createdAt,
+      run.updatedAt,
+      run.goal,
+      run.status,
+      JSON.stringify(run.policy),
+      JSON.stringify(run.timeline),
+      JSON.stringify(run.findings),
+      run.error ?? null
+    );
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.updatedAt, sessionId);
+    return run;
+  };
+
+  const getAgentRun = (sessionId: string, runId: string) => {
+    const row = db
+      .prepare("SELECT * FROM agent_runs WHERE session_id = ? AND id = ?")
+      .get(sessionId, runId) as AgentRunRow | undefined;
+    return row ? toAgentRun(row) : null;
+  };
+
+  const listAgentRuns = (sessionId: string, limit = 25) => {
+    const rows = db
+      .prepare("SELECT * FROM agent_runs WHERE session_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT ?")
+      .all(sessionId, Math.max(1, Math.min(Number(limit) || 25, 100))) as AgentRunRow[];
+    return rows.map(toAgentRun);
+  };
+
   const close = () => {
     db.close();
   };
@@ -715,6 +828,9 @@ export function openLocalStore(userDataPath: string) {
     listSslEvents,
     saveAiModels,
     listAiModels,
+    upsertAgentRun,
+    getAgentRun,
+    listAgentRuns,
     close
   };
 }

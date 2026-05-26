@@ -31,6 +31,7 @@ import {
   reconcileSettingsModel,
   loginCursorCli
 } from "./ai/index.js";
+import { AgentRuntime } from "./agent/runtime.js";
 import { findSystemBrowser } from "./systemBrowser.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,6 +52,7 @@ const attachedContents = new Set<number>();
 const sslEvents: SslEvent[] = [];
 let localStore: LocalStore | null = null;
 let localContext: LocalContext | null = null;
+let agentRuntime: AgentRuntime | null = null;
 let browserState: BrowserState = {
   open: false,
   url: "",
@@ -79,6 +81,13 @@ function activeLocalStore() {
     throw new Error("Local store is not ready.");
   }
   return localStore;
+}
+
+function activeAgentRuntime() {
+  if (!agentRuntime) {
+    agentRuntime = createAgentRuntime();
+  }
+  return agentRuntime;
 }
 
 function activateLocalContext(nextContext: LocalContext) {
@@ -137,9 +146,38 @@ function hydrateActiveLocalState() {
   sslEvents.splice(0, sslEvents.length, ...localStore.listSslEvents(localContext.session.id, 80));
 }
 
+function listHttpCaptures(limit = 400) {
+  if (localStore && localContext) {
+    return localStore
+      .listCaptures(localContext.session.id, Math.max(limit, 1))
+      .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"))
+      .slice(0, limit);
+  }
+  return Array.from(captured.values())
+    .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"))
+    .slice(-limit)
+    .reverse();
+}
+
+function createAgentRuntime() {
+  return new AgentRuntime({
+    currentSessionId: () => activeLocalContext().session.id,
+    allowlist: () => allowlist.slice(),
+    saveRun: (run) => activeLocalStore().upsertAgentRun(run.sessionId, run),
+    loadRun: (runId) => activeLocalStore().getAgentRun(activeLocalContext().session.id, String(runId || "")),
+    listRuns: () => activeLocalStore().listAgentRuns(activeLocalContext().session.id),
+    getBrowserState: () => syncBrowserState(),
+    openBrowser: (url) => openRealChrome(url),
+    navigateBrowser: (url) => openRealChrome(url),
+    getCaptures: () => listHttpCaptures(400),
+    sendReplay: (draft) => sendRequest(draft)
+  });
+}
+
 function initializeLocalState() {
   localStore = openLocalStore(app.getPath("userData"));
   localContext = localStore.getActiveContext();
+  agentRuntime = createAgentRuntime();
   hydrateActiveLocalState();
 }
 
@@ -705,16 +743,7 @@ ipcMain.handle("proxy:stop", () => stopMitmProxy());
 ipcMain.handle("proxy:state", () => proxyState);
 
 ipcMain.handle("capture:snapshot", () => {
-  if (localStore && localContext) {
-    return localStore
-      .listCaptures(localContext.session.id, 2000)
-      .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"))
-      .slice(0, 400);
-  }
-  return Array.from(captured.values())
-    .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"))
-    .slice(-400)
-    .reverse();
+  return listHttpCaptures(400);
 });
 
 ipcMain.handle("capture:delete", (_event, id) => {
@@ -755,6 +784,22 @@ ipcMain.handle("targets:set", (_event, targets) => {
 
 ipcMain.handle("repeater:send", async (_event, input) => {
   return sendRequest(input);
+});
+
+ipcMain.handle("agent:start", (_event, payload) => {
+  return activeAgentRuntime().start(payload || {});
+});
+
+ipcMain.handle("agent:stop", (_event, id) => {
+  return activeAgentRuntime().stop(String(id || ""));
+});
+
+ipcMain.handle("agent:get", (_event, id) => {
+  return activeAgentRuntime().get(String(id || ""));
+});
+
+ipcMain.handle("agent:list", () => {
+  return activeAgentRuntime().list();
 });
 
 ipcMain.handle("ai:settings:get", () => loadAiSettings(app.getPath("userData")));

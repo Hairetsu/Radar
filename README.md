@@ -1,6 +1,6 @@
 # Radar
 
-Radar is a local-first defensive web security workbench. It launches a dedicated browser profile, captures browser traffic through Electron's DevTools protocol and an optional MITM proxy, and lets you replay requests through a controlled repeater — all in a desktop bureau-style operator console.
+Radar is a local-first defensive web security workbench. It launches a dedicated browser profile, captures browser traffic through Electron's DevTools protocol and an optional MITM proxy, and lets you replay requests through a controlled repeater. Work in Manual-First mode when you want direct operator control, or switch to AI-First mode to let a scoped agent drive the app while you watch.
 
 ## MVP Surface
 
@@ -11,12 +11,14 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 - Scope-filtered traffic list for focusing on selected targets.
 - Local HTTPS proxy mode for external browsers, with a Radar-generated CA and SPKI fingerprint.
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
+- Manual-First / AI-First mode toggle: keep direct operator control, or hand a scoped goal to an autonomous run console with a live stop button.
 - Command-palette AI with per-view skills, provider adapters, context preview, prepare-only outputs, and session audit trail.
+- AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect captures, send strictly capped replay probes, record timeline entries, and produce draft findings inside local session history.
 - Switchable Bureau, Vellum, and Specter themes with high-contrast text selection for request/response inspection.
 
 ## Stack
 
-- Electron 42 main process (`electron/main.ts`) wiring CDP capture, mockttp proxy, system browser launcher, and AI IPC.
+- Electron 42 main process (`electron/main.ts`) wiring CDP capture, mockttp proxy, system browser launcher, autonomous agent runs, and AI IPC.
 - React 18 + Vite + TypeScript renderer (`src/`).
 - Tailwind CSS v4 with CSS-variable themes and shadcn-style UI primitives (`cn`, `cva`, `src/components/ui/`).
 - mockttp for the optional MITM proxy and CA generation.
@@ -56,7 +58,7 @@ Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* —
 
 ## Workspace Tour
 
-The renderer is a four-view operator console. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
+The renderer is a four-view operator console with a Manual-First / AI-First toggle. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
 
 For a full user-facing guide to the app, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
@@ -86,6 +88,12 @@ The engagement boundary. Newline-delimited origins filter the Traffic view; defa
 
 Crypto and proxy interception. The summary strip shows current proxy URL, generated CA path, and active browser profile. Below: **Engage Proxy** / **Disengage** / **Forge CA** controls plus a printout of HTTP proxy address, CA cert path, SPKI fingerprint, Chrome CDP endpoint, and selected browser binary. The lower panes hold the certificate event log (trusted vs. blocked endpoints) and a TLS detail pane for the currently selected capture.
 
+### Modes — Manual-First And AI-First
+
+Manual-First is the default. The Traffic, Repeater, Scope, and SSL views remain the primary controls, and the AI command palette stays prepare-only: it can summarize, draft, and suggest, but the operator clicks navigation and replay controls.
+
+AI-First adds a goal prompt and autonomous run console above the existing views. A run can move the visible workbench through Scope, Traffic, Repeater, and SSL, launch or inspect the browser, sample captures, load replay drafts, send a single capped replay probe, and write draft findings. The operator watches the timeline and can hit **Stop** at any time.
+
 ### AI — Command Palette
 
 ![Radar AI command palette](docs/screens/radar-05-ai-palette.png)
@@ -108,7 +116,7 @@ Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. Th
 
 **Providers:** Codex app, OpenAI, Anthropic, OpenAI-compatible endpoints.
 
-**Guardrails:** raw headers/bodies require explicit checkbox confirmation; scope stays authoritative for traffic visibility and AI context; session audit trail only — no cross-session memory or cloud storage of captures.
+**Guardrails:** raw headers/bodies require explicit checkbox confirmation; scope stays authoritative for traffic visibility, AI context, and autonomous tool calls; command-palette audit is session-only; AI-First run history is stored locally with the active session.
 
 ## Scope Model
 

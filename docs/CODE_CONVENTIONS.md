@@ -20,6 +20,7 @@ Use the existing folders as ownership boundaries:
 - `shared/`: TypeScript modules that can run in both renderer and Electron. Domain types, allowlist logic, capture shaping, draft normalization, text truncation, and API contracts belong here.
 - `electron/`: Main-process code, IPC handlers, filesystem access, proxy/browser orchestration, and AI provider calls.
 - `electron/ai/`: AI settings, prompts, context building, provider calls, connect presets, and audit logic.
+- `electron/agent/`: AI-First autonomous run loop, policy checks, and tool orchestration. Keep scope/replay limits here and have the runtime call existing browser, capture, and replay functions instead of duplicating them.
 - `src/`: React renderer code.
 - `src/hooks/`: Stateful renderer workflows such as `useRadarWorkbench`.
 - `src/lib/`: Renderer-facing utility re-exports and presentation helpers (including `cn()`).

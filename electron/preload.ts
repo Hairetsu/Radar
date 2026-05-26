@@ -41,7 +41,11 @@ const radar: RadarApi = {
   probeAiConnection: (settings) => ipcRenderer.invoke("ai:connect:probe", settings),
   loginCursor: () => ipcRenderer.invoke("ai:cursor:login"),
   getAiModels: (provider) => ipcRenderer.invoke("ai:models:get", provider),
-  refreshAiModels: (settings) => ipcRenderer.invoke("ai:models:refresh", settings)
+  refreshAiModels: (settings) => ipcRenderer.invoke("ai:models:refresh", settings),
+  startAgentRun: (payload) => ipcRenderer.invoke("agent:start", payload),
+  stopAgentRun: (id: string) => ipcRenderer.invoke("agent:stop", id),
+  getAgentRun: (id: string) => ipcRenderer.invoke("agent:get", id),
+  listAgentRuns: () => ipcRenderer.invoke("agent:list")
 };
 
 contextBridge.exposeInMainWorld("radar", radar);

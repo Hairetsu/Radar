@@ -32,3 +32,13 @@ export type {
   SslEvent,
   TlsDetails
 } from "../shared/domain";
+
+export type {
+  AgentFinding,
+  AgentPolicy,
+  AgentRun,
+  AgentRunRequest,
+  AgentRunStatus,
+  AgentTimelineEntry,
+  AppMode
+} from "../shared/agent-types";

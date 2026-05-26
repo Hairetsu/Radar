@@ -11,6 +11,8 @@ import type {
   BrowserState,
   BurstResult,
   CapturedRequest,
+  AgentRun,
+  AppMode,
   LocalContext,
   LocalProfile,
   LocalSessionSummary,
@@ -66,6 +68,17 @@ const defaultProxyState: ProxyState = {
   caKeyPath: "",
   caFingerprint: ""
 };
+
+function storedAppMode(): AppMode {
+  if (typeof window === "undefined") {
+    return "manual-first";
+  }
+  return window.localStorage.getItem("radar.appMode") === "ai-first" ? "ai-first" : "manual-first";
+}
+
+function isActiveAgentRun(run: AgentRun | null | undefined) {
+  return run?.status === "queued" || run?.status === "running";
+}
 
 export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: string; title: string }> = {
   traffic: { num: "01", label: "Traffic", eyebrow: "Capture // Live wire", title: "Traffic" },
@@ -204,6 +217,10 @@ export function useRadarWorkbench() {
   const [notice, setNotice] = useState("");
   const [clock, setClock] = useState(() => new Date());
   const [aiPaletteOpen, setAiPaletteOpen] = useState(false);
+  const [appMode, setAppModeState] = useState<AppMode>(storedAppMode);
+  const [agentGoal, setAgentGoal] = useState("");
+  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
+  const agentUiCursorRef = useRef<{ runId: string; entryId: string } | null>(null);
   const ai = useAiConnection();
   const appearance = useTheme();
 
@@ -231,17 +248,19 @@ export function useRadarWorkbench() {
       setLastBurst(null);
 
       if (window.radar) {
-        const [nextTargets, nextCaptures, nextSslEvents, nextBrowserState] = await Promise.all([
+        const [nextTargets, nextCaptures, nextSslEvents, nextBrowserState, nextAgentRuns] = await Promise.all([
           window.radar.getTargets(),
           window.radar.getCaptures(),
           window.radar.getSslEvents(),
-          window.radar.getBrowserState()
+          window.radar.getBrowserState(),
+          window.radar.listAgentRuns()
         ]);
         setTargets(nextTargets);
         setTargetText(nextTargets.join("\n"));
         setCaptures(nextCaptures);
         setSslEvents(nextSslEvents);
         setBrowserState(nextBrowserState);
+        setAgentRuns(nextAgentRuns);
         await refreshLocalLists(context);
       }
 
@@ -513,6 +532,98 @@ export function useRadarWorkbench() {
     setNotice("Proxy stopped");
   }, []);
 
+  const activeAgentRun = agentRuns[0] || null;
+
+  const setAppMode = useCallback(
+    (mode: AppMode) => {
+      setAppModeState(mode);
+      window.localStorage.setItem("radar.appMode", mode);
+      if (mode === "manual-first" && isActiveAgentRun(activeAgentRun)) {
+        void window.radar?.stopAgentRun(activeAgentRun.id).then((run) => {
+          if (run) {
+            setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+          }
+        });
+      }
+    },
+    [activeAgentRun]
+  );
+
+  const startAgentRun = useCallback(async () => {
+    if (!window.radar) {
+      setNotice("Run in Electron to start an agent run.");
+      return;
+    }
+    const goal = agentGoal.trim();
+    if (!goal) {
+      setNotice("Describe a goal before starting AI-First.");
+      return;
+    }
+    const run = await window.radar.startAgentRun({
+      goal,
+      startUrl: address
+    });
+    setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+    setAgentGoal("");
+    setNotice("AI-First run started");
+  }, [address, agentGoal]);
+
+  const stopAgentRun = useCallback(async () => {
+    if (!window.radar || !activeAgentRun) {
+      return;
+    }
+    const run = await window.radar.stopAgentRun(activeAgentRun.id);
+    if (run) {
+      setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+    }
+  }, [activeAgentRun]);
+
+  useEffect(() => {
+    if (appMode !== "ai-first" || !activeAgentRun) {
+      agentUiCursorRef.current = null;
+      return;
+    }
+
+    const cursor = agentUiCursorRef.current;
+    const startIndex =
+      cursor?.runId === activeAgentRun.id
+        ? activeAgentRun.timeline.findIndex((entry) => entry.id === cursor.entryId)
+        : -1;
+    const nextEntries = activeAgentRun.timeline.slice(startIndex + 1);
+    const lastEntry = nextEntries.at(-1);
+
+    if (!lastEntry) {
+      return;
+    }
+
+    for (const entry of nextEntries) {
+      if (entry.toolCall?.tool === "showView") {
+        setActiveView(entry.toolCall.input.view);
+      }
+
+      if (entry.toolCall?.tool === "sendReplay") {
+        setDraft(entry.toolCall.input.draft);
+        setHeadersText(formatHeaders(entry.toolCall.input.draft.headers));
+        setLastBurst(null);
+      }
+
+      if (entry.toolResult?.tool === "sendReplay" && entry.toolResult.ok) {
+        setLastResponse(entry.toolResult.data);
+      }
+
+      if (entry.toolResult?.tool === "getCaptures" && entry.toolResult.ok) {
+        const firstCapture = entry.toolResult.data.captures.find((capture) => capture.allowed) || entry.toolResult.data.captures[0];
+        if (firstCapture) {
+          setSelectedId(firstCapture.id);
+          setSelectedIds([firstCapture.id]);
+          selectionAnchorRef.current = firstCapture.id;
+        }
+      }
+    }
+
+    agentUiCursorRef.current = { runId: activeAgentRun.id, entryId: lastEntry.id };
+  }, [activeAgentRun, appMode]);
+
   const scopedTrafficCaptures = useMemo(
     () => captures.filter((capture) => isAllowedTarget(capture.url, targets)),
     [captures, targets]
@@ -611,10 +722,11 @@ export function useRadarWorkbench() {
         return;
       }
       const context = await window.radar.getLocalContext();
-      const [items, nextProfiles, nextSessions] = await Promise.all([
+      const [items, nextProfiles, nextSessions, nextAgentRuns] = await Promise.all([
         window.radar.getTargets(),
         window.radar.listLocalProfiles(),
-        window.radar.listLocalSessions(context.profile.id)
+        window.radar.listLocalSessions(context.profile.id),
+        window.radar.listAgentRuns()
       ]);
       if (cancelled) {
         return;
@@ -626,6 +738,7 @@ export function useRadarWorkbench() {
       setTargetText(items.join("\n"));
       setProfiles(nextProfiles);
       setSessions(nextSessions);
+      setAgentRuns(nextAgentRuns);
     };
     load();
     return () => {
@@ -665,17 +778,19 @@ export function useRadarWorkbench() {
       if (!window.radar || cancelled) {
         return;
       }
-      const [nextCaptures, nextSslEvents, nextBrowserState, nextProxyState] = await Promise.all([
+      const [nextCaptures, nextSslEvents, nextBrowserState, nextProxyState, nextAgentRuns] = await Promise.all([
         window.radar.getCaptures(),
         window.radar.getSslEvents(),
         window.radar.getBrowserState(),
-        window.radar.getProxyState()
+        window.radar.getProxyState(),
+        window.radar.listAgentRuns()
       ]);
       if (!cancelled) {
         setCaptures(nextCaptures);
         setSslEvents(nextSslEvents);
         setBrowserState(nextBrowserState);
         setProxyState(nextProxyState);
+        setAgentRuns(nextAgentRuns);
       }
     };
 
@@ -766,6 +881,14 @@ export function useRadarWorkbench() {
     notice,
     setNotice,
     clock,
+    appMode,
+    setAppMode,
+    agentGoal,
+    setAgentGoal,
+    agentRuns,
+    activeAgentRun,
+    startAgentRun,
+    stopAgentRun,
     aiPaletteOpen,
     setAiPaletteOpen,
     ai,
