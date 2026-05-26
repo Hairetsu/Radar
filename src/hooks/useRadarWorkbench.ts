@@ -557,7 +557,7 @@ export function useRadarWorkbench() {
   );
 
   const selectTrafficCapture = useCallback(
-    (captureId: string, event?: Pick<MouseEvent, "metaKey" | "ctrlKey" | "shiftKey">) => {
+    (captureId: string, event?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => {
       const meta = Boolean(event?.metaKey || event?.ctrlKey);
       const shift = Boolean(event?.shiftKey);
 
