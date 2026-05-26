@@ -17,6 +17,8 @@ import {
   Radar as RadarIcon,
   Repeat2,
   Search,
+  ArrowDownWideNarrow,
+  ArrowUpWideNarrow,
   Send,
   Settings2,
   ShieldCheck,
@@ -37,7 +39,7 @@ import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Select } from "./components/ui/select";
 import { Textarea } from "./components/ui/textarea";
-import { useRadarWorkbench, viewMeta, WORK_VIEWS } from "./hooks/useRadarWorkbench";
+import { TRAFFIC_SORT_FIELDS, useRadarWorkbench, viewMeta, WORK_VIEWS } from "./hooks/useRadarWorkbench";
 import {
   bodyPreview,
   cn,
@@ -76,14 +78,15 @@ const detailTabClass = (active: boolean) =>
     active && "-mb-px border-b border-signal bg-signal/10 text-signal"
   );
 
-const trafficRowClass = (selected: boolean) =>
+const trafficRowClass = (selected: boolean, focused: boolean) =>
   cn(
     "radar-traffic-row relative grid h-[46px] w-full items-center gap-2 border-0 border-b border-rule bg-transparent px-4 py-2.5 text-left text-copy transition",
     "justify-stretch normal-case",
     "[grid-template-columns:64px_60px_minmax(120px,0.9fr)_minmax(180px,1.5fr)_90px_60px]",
     "before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0 before:bg-signal before:transition-all before:content-['']",
     "hover:bg-[var(--theme-row-hover)] hover:text-bone hover:before:w-[3px]",
-    selected && "bg-[var(--theme-row-active)] text-bone before:w-[3px]"
+    selected && "bg-[var(--theme-row-active)] text-bone before:w-[3px]",
+    focused && "ring-1 ring-inset ring-signal/35"
   );
 
 type RequestMenuState = {
@@ -155,7 +158,7 @@ export function App() {
     event.preventDefault();
     event.stopPropagation();
     const nextPosition = contextMenuPosition(event);
-    workbench.setSelectedId(capture.id);
+    workbench.selectTrafficCapture(capture.id);
     setRequestMenu({ ...nextPosition, captureId: capture.id });
   };
   const copyRequestExport = async (format: RequestExportFormat) => {
@@ -576,7 +579,7 @@ export function App() {
           {workbench.activeView === "traffic" && (
             <div className="grid min-h-0 [grid-template-columns:minmax(0,1.15fr)_minmax(380px,0.85fr)] max-[1180px]:grid-cols-1">
               <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
-                <div className="grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-3 [grid-template-columns:120px_150px_minmax(180px,1fr)_auto_auto] max-[900px]:grid-cols-1">
+                <div className="grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-3 [grid-template-columns:120px_150px_112px_auto_minmax(140px,1fr)_auto_auto] max-[900px]:grid-cols-1">
                   <Select
                     variant="compact"
                     value={workbench.trafficMethodFilter}
@@ -607,6 +610,39 @@ export function App() {
                       </option>
                     ))}
                   </Select>
+                  <Select
+                    variant="compact"
+                    value={workbench.trafficSortField}
+                    onChange={(event) =>
+                      workbench.setTrafficSortField(event.target.value as typeof workbench.trafficSortField)
+                    }
+                    aria-label="Sort traffic by"
+                    data-testid="trafficSortField"
+                    data-component="trafficSortField"
+                  >
+                    {TRAFFIC_SORT_FIELDS.map((field) => (
+                      <option key={field.value} value={field.value}>
+                        {field.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    variant="icon"
+                    size="icon"
+                    onClick={() =>
+                      workbench.setTrafficSortDirection((direction) => (direction === "asc" ? "desc" : "asc"))
+                    }
+                    title={workbench.trafficSortDirection === "asc" ? "Sort ascending" : "Sort descending"}
+                    aria-label={workbench.trafficSortDirection === "asc" ? "Sort ascending" : "Sort descending"}
+                    data-testid="trafficSortDirection"
+                    data-component="trafficSortDirection"
+                  >
+                    {workbench.trafficSortDirection === "asc" ? (
+                      <ArrowUpWideNarrow size={15} strokeWidth={1.7} />
+                    ) : (
+                      <ArrowDownWideNarrow size={15} strokeWidth={1.7} />
+                    )}
+                  </Button>
                   <div className="relative min-w-0">
                     <Search
                       className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-signal"
@@ -655,13 +691,16 @@ export function App() {
                     </span>
                   </EmptyState>
                 )}
-                {workbench.trafficCaptures.map((capture) => (
+                {workbench.trafficCaptures.map((capture) => {
+                  const selected = workbench.selectedIds.includes(capture.id);
+                  const focused = capture.id === workbench.selected?.id;
+                  return (
                   <Button
                     key={capture.id}
                     variant="ghost"
-                    className={trafficRowClass(capture.id === workbench.selected?.id)}
-                    data-selected={capture.id === workbench.selected?.id ? "true" : "false"}
-                    onClick={() => workbench.setSelectedId(capture.id)}
+                    className={trafficRowClass(selected, focused)}
+                    data-selected={selected ? "true" : "false"}
+                    onClick={(event) => workbench.selectTrafficCapture(capture.id, event)}
                     onContextMenu={(event) => openRequestMenu(event, capture)}
                     data-testid={`trafficRow-${capture.id}`}
                     data-component="trafficRow"
@@ -675,7 +714,8 @@ export function App() {
                     <span className={ellipsisMono}>{capture.type || capture.source}</span>
                     <span className={ellipsisMono}>{elapsed(capture.durationMs)}</span>
                   </Button>
-                ))}
+                  );
+                })}
                 </div>
               </div>
 
@@ -1054,8 +1094,8 @@ export function App() {
         open={workbench.aiPaletteOpen}
         view={workbench.activeView}
         onClose={() => workbench.setAiPaletteOpen(false)}
-        captureIds={workbench.selected ? [workbench.selected.id] : []}
-        captures={workbench.captures}
+        captureIds={workbench.selectedIds}
+        captures={workbench.trafficCaptures}
         targets={workbench.targets}
         browserUrl={workbench.browserState.url || workbench.address}
         draft={workbench.draft}

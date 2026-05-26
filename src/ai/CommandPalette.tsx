@@ -60,6 +60,14 @@ const palettePanelClass = "grid gap-3";
 
 const paletteMetaClass = "flex flex-wrap gap-3 font-mono text-[9px] uppercase tracking-[0.28em] text-dim";
 
+const capturePickerRowClass = (checked: boolean) =>
+  cn(
+    "grid w-full cursor-pointer items-center gap-2 border-0 border-b border-rule/70 bg-transparent px-2 py-2 text-left font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition last:border-b-0",
+    "[grid-template-columns:auto_64px_minmax(0,1fr)]",
+    "hover:bg-signal/[0.06] hover:text-bone",
+    checked && "bg-signal/[0.08] text-bone"
+  );
+
 const emptySkillDraft = {
   label: "",
   hint: "",
@@ -97,6 +105,7 @@ export function CommandPalette({
   const [error, setError] = useState("");
   const [showSkillForm, setShowSkillForm] = useState(false);
   const [skillDraft, setSkillDraft] = useState(emptySkillDraft);
+  const [paletteCaptureIds, setPaletteCaptureIds] = useState<string[]>([]);
 
   const viewTasks = VIEW_AI_TASKS[view];
   const viewSkills = useMemo(() => skillsForView(skills, view), [skills, view]);
@@ -125,12 +134,12 @@ export function CommandPalette({
     () => ({
       ...runPayloadFromSelection(selection),
       view,
-      captureIds,
+      captureIds: paletteCaptureIds,
       includeRaw,
       userPrompt,
       viewContext
     }),
-    [captureIds, includeRaw, selection, userPrompt, view, viewContext]
+    [includeRaw, paletteCaptureIds, selection, userPrompt, view, viewContext]
   );
 
   const refreshSkills = useCallback(async () => {
@@ -269,11 +278,17 @@ export function CommandPalette({
     }
   }, [onApplyDraft, onClose, onNotice, onPrepareNavigate, result]);
 
+  const togglePaletteCapture = useCallback((captureId: string) => {
+    setPaletteCaptureIds((current) =>
+      current.includes(captureId) ? current.filter((id) => id !== captureId) : [...current, captureId]
+    );
+  }, []);
+
   const contextLabel = useMemo(() => {
     switch (view) {
       case "traffic":
-        if (captureIds.length === 0) {
-          return "No capture selected";
+        if (paletteCaptureIds.length === 0) {
+          return "No captures selected";
         }
         break;
       case "repeater":
@@ -284,15 +299,15 @@ export function CommandPalette({
         return `${sslEvents.length} certificate events`;
     }
 
-    if (captureIds.length === 0) {
+    if (paletteCaptureIds.length === 0) {
       return VIEW_AI_LABELS[view];
     }
-    const selected = captures.filter((item) => captureIds.includes(item.id));
+    const selected = captures.filter((item) => paletteCaptureIds.includes(item.id));
     if (selected.length === 1) {
       return `${selected[0].method} ${selected[0].host}${selected[0].path}`;
     }
     return `${selected.length} captures selected`;
-  }, [captureIds, captures, draft.method, draft.url, sslEvents.length, targets.length, view]);
+  }, [captures, draft.method, draft.url, paletteCaptureIds, sslEvents.length, targets.length, view]);
 
   useEffect(() => {
     if (!open) {
@@ -300,7 +315,8 @@ export function CommandPalette({
     }
     window.radar?.getAiAudit().then((items) => setAudit(items));
     refreshSkills().then((next) => setSelection(defaultSelection(view, next)));
-  }, [open, refreshSkills, view]);
+    setPaletteCaptureIds(captureIds);
+  }, [captureIds, open, refreshSkills, view]);
 
   useEffect(() => {
     if (!open) {
@@ -489,6 +505,75 @@ export function CommandPalette({
                 </div>
               ))}
             </div>
+
+            {view === "traffic" && (
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <FieldLabel className="px-0 pt-0">
+                    Captures ({paletteCaptureIds.length}/{captures.length})
+                  </FieldLabel>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="compact"
+                      disabled={captures.length === 0}
+                      onClick={() => setPaletteCaptureIds(captures.map((capture) => capture.id))}
+                      data-testid="aiSelectAllCaptures"
+                      data-component="aiSelectAllCaptures"
+                    >
+                      Select all
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="compact"
+                      disabled={paletteCaptureIds.length === 0}
+                      onClick={() => setPaletteCaptureIds([])}
+                      data-testid="aiClearCaptures"
+                      data-component="aiClearCaptures"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <div
+                  className="max-h-44 overflow-auto border border-rule radar-panel"
+                  data-testid="aiCapturePicker"
+                  data-component="aiCapturePicker"
+                >
+                  {captures.length === 0 && (
+                    <p className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-dim">
+                      No in-scope captures
+                    </p>
+                  )}
+                  {captures.map((capture) => {
+                    const checked = paletteCaptureIds.includes(capture.id);
+                    return (
+                      <label
+                        key={capture.id}
+                        className={capturePickerRowClass(checked)}
+                        data-testid={`aiCaptureOption-${capture.id}`}
+                        data-component="aiCaptureOption"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePaletteCapture(capture.id)}
+                          data-testid={`aiCaptureCheckbox-${capture.id}`}
+                          data-component="aiCaptureCheckbox"
+                        />
+                        <span className="font-bold text-signal">{capture.method}</span>
+                        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {capture.host}
+                          {capture.path}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <FieldLabel className="px-0" htmlFor="ai-user-prompt">
               Operator note
