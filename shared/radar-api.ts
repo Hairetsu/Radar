@@ -4,6 +4,8 @@ import type {
   AiConnectProbe,
   AiConnectResult,
   AiContextPreview,
+  AiCustomSkill,
+  AiModelOption,
   AiRunRequest,
   AiRunResult,
   AiSettings
@@ -49,6 +51,12 @@ export type RadarApi = {
   previewAiContext: (payload: AiRunRequest) => Promise<AiContextPreview>;
   runAiTask: (payload: AiRunRequest) => Promise<AiRunResult>;
   getAiAudit: () => Promise<AiAuditEntry[]>;
+  getAiSkills: () => Promise<AiCustomSkill[]>;
+  saveAiSkill: (skill: AiCustomSkill) => Promise<AiCustomSkill[]>;
+  deleteAiSkill: (id: string) => Promise<AiCustomSkill[]>;
   connectAi: (presetId: AiConnectPresetId) => Promise<AiConnectResult>;
   probeAiConnection: (settings: AiSettings) => Promise<AiConnectProbe>;
+  loginCursor: () => Promise<AiConnectProbe>;
+  getAiModels: (provider: AiSettings["provider"]) => Promise<AiModelOption[]>;
+  refreshAiModels: (settings: AiSettings) => Promise<AiModelOption[]>;
 };

@@ -69,4 +69,39 @@ describe("resultPreview", () => {
     expect(text).toContain("[navigate] Open home");
     expect(text).toContain("http://localhost");
   });
+
+  it("formats tls review output", () => {
+    const text = resultPreview({
+      ok: true,
+      auditId: "a1",
+      output: {
+        task: "tls_review",
+        data: { summary: "Mixed trust", findings: ["blocked localhost"], recommendations: ["install CA"] }
+      }
+    });
+    expect(text).toContain("Mixed trust");
+    expect(text).toContain("- blocked localhost");
+  });
+
+  it("formats custom skill output", () => {
+    const text = resultPreview({
+      ok: true,
+      auditId: "a1",
+      output: {
+        task: "custom",
+        data: { skillId: "skill-1", label: "Header diff", text: "Auth header changed" }
+      }
+    });
+    expect(text).toBe("Auth header changed");
+  });
+
+  it("falls back to raw text for unknown output tasks", () => {
+    const text = resultPreview({
+      ok: true,
+      auditId: "a1",
+      rawText: "raw fallback",
+      output: { task: "unknown" as "capture_summary", data: { summary: "", observations: [], uncertainties: [] } }
+    });
+    expect(text).toBe("raw fallback");
+  });
 });

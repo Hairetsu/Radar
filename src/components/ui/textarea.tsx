@@ -4,7 +4,7 @@ import { cn } from "../../lib";
 
 export const textareaVariants = cva(
   [
-    "min-h-0 resize-none border border-rule bg-graphite/85 p-3 font-mono text-[12px] leading-[1.65] text-bone outline-none transition",
+    "min-h-0 resize-none border border-rule radar-field p-3 font-mono text-[12px] leading-[1.65] outline-none transition",
     "[font-feature-settings:'calt'_0] placeholder:text-dim",
     "focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/10",
     "disabled:cursor-not-allowed disabled:opacity-50"

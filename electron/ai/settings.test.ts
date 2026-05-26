@@ -26,6 +26,24 @@ describe("settings", () => {
     expect(loadSettings(tmpDir).provider).toBe(DEFAULT_SETTINGS.provider);
   });
 
+  it("strips ansi codes from saved and loaded models", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
+    saveSettings(tmpDir, { model: "[36mgpt-5.3-codex[39m" });
+    expect(loadSettings(tmpDir).model).toBe("gpt-5.3-codex");
+  });
+
+  it("falls back to default model when saved model is blank", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
+    saveSettings(tmpDir, { model: "[36m[39m" });
+    expect(loadSettings(tmpDir).model).toBe(DEFAULT_SETTINGS.model);
+  });
+
+  it("returns defaults when settings file is invalid json", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
+    fs.writeFileSync(path.join(tmpDir, "ai-settings.json"), "{not-json");
+    expect(loadSettings(tmpDir)).toEqual(DEFAULT_SETTINGS);
+  });
+
   it("normalizes saved settings", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
     const saved = saveSettings(tmpDir, {

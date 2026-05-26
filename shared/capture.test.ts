@@ -73,4 +73,45 @@ describe("capture", () => {
     expect(entry.path).toBe("/");
     expect(entry.host).toBe("not-a-valid-url");
   });
+
+  it("defaults missing request fields", () => {
+    const entry = toCaptureEntry({
+      requestId: "req-5",
+      request: { headers: {}, postData: "payload" }
+    });
+    expect(entry.method).toBe("GET");
+    expect(entry.url).toBe("");
+    expect(entry.requestBody).toBe("payload");
+  });
+
+  it("builds proxy capture without tls for http", () => {
+    const entry = proxyRequestToCapture({
+      req: {
+        id: "p-2",
+        method: "GET",
+        url: "http://localhost:8080/plain",
+        headers: {},
+        timingEvents: { startTime: 1_700_000_000_000 }
+      },
+      bodyText: ""
+    });
+
+    expect(entry.tls).toBeNull();
+    expect(entry.startedAt).toBe(new Date(1_700_000_000_000).toISOString());
+  });
+
+  it("builds proxy capture with minimal tls metadata", () => {
+    const entry = proxyRequestToCapture({
+      req: {
+        id: "p-3",
+        url: "https://localhost/secure",
+        headers: {}
+      },
+      bodyText: "payload"
+    });
+
+    expect(entry.tls?.subjectName).toBe("");
+    expect(entry.tls?.protocol).toBe("https");
+    expect(entry.requestBody).toBe("payload");
+  });
 });

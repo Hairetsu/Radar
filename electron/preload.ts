@@ -26,8 +26,14 @@ const radar: RadarApi = {
   previewAiContext: (payload) => ipcRenderer.invoke("ai:context:preview", payload),
   runAiTask: (payload) => ipcRenderer.invoke("ai:run", payload),
   getAiAudit: () => ipcRenderer.invoke("ai:audit:snapshot"),
+  getAiSkills: () => ipcRenderer.invoke("ai:skills:get"),
+  saveAiSkill: (skill) => ipcRenderer.invoke("ai:skills:save", skill),
+  deleteAiSkill: (id) => ipcRenderer.invoke("ai:skills:delete", id),
   connectAi: (presetId) => ipcRenderer.invoke("ai:connect", presetId),
-  probeAiConnection: (settings) => ipcRenderer.invoke("ai:connect:probe", settings)
+  probeAiConnection: (settings) => ipcRenderer.invoke("ai:connect:probe", settings),
+  loginCursor: () => ipcRenderer.invoke("ai:cursor:login"),
+  getAiModels: (provider) => ipcRenderer.invoke("ai:models:get", provider),
+  refreshAiModels: (settings) => ipcRenderer.invoke("ai:models:refresh", settings)
 };
 
 contextBridge.exposeInMainWorld("radar", radar);

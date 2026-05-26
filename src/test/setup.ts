@@ -84,11 +84,18 @@ const radarApi = {
   })),
   runAiTask: vi.fn(async () => ({ ok: false, auditId: "ai-1", error: "mock" })),
   getAiAudit: vi.fn(async () => []),
+  getAiSkills: vi.fn(async () => []),
+  saveAiSkill: vi.fn(async (skill) => [skill]),
+  deleteAiSkill: vi.fn(async () => []),
+  probeAiConnection: vi.fn(async () => ({ ok: false, message: "Add an API key or connect a preset" })),
   connectAi: vi.fn(async () => ({
     settings: { provider: "codex-local", model: "auto", apiKey: "local", baseUrl: "codex://local" },
     meta: { presetId: "codex", label: "Codex", apiKeySource: "local" },
     probe: { ok: true, message: "mock" }
-  }))
+  })),
+  loginCursor: vi.fn(async () => ({ ok: true, message: "Linked as test@example.com" })),
+  getAiModels: vi.fn(async () => [{ id: "auto", label: "auto" }]),
+  refreshAiModels: vi.fn(async () => [{ id: "auto", label: "auto" }])
 };
 
 if (typeof window !== "undefined") {

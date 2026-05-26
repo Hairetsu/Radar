@@ -55,7 +55,7 @@ Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* —
 
 ## Workspace Tour
 
-The renderer is a four-view operator console. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, the Radar Browser address bar (Deploy + Mark), live status pills (engine / req / tls / proxy), and a bottom telemetry ticker mirroring live counts.
+The renderer is a four-view operator console. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, a one-click Radar Browser launcher, live status pills (engine / req / tls / proxy), and a bottom telemetry ticker mirroring live counts.
 
 ### 01 — Traffic
 
@@ -98,7 +98,7 @@ Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. Se
 **Connect presets:**
 
 - **Codex Connect** — local Codex app/CLI auth via the installed `codex` executable; override discovery with `CODEX_CLI_PATH`.
-- **Cursor CLI Connect** — local OpenAI-compatible proxy at `http://127.0.0.1:8765/v1` (override with `CURSOR_PROXY_URL`); key from `CURSOR_BRIDGE_API_KEY`, `CURSOR_API_KEY`, or `unused`. Requires a local Cursor CLI proxy such as `npx cursor-api-proxy`.
+- **Cursor CLI Connect** — invokes the installed Cursor `agent` CLI directly (like Codex Connect). Run `curl https://cursor.com/install | bash` and `agent login` first, or set `CURSOR_API_KEY` for headless auth.
 
 **Providers:** Codex app, OpenAI, Anthropic, OpenAI-compatible endpoints.
 
@@ -114,7 +114,7 @@ http://127.0.0.1:*
 http://[::1]:*
 ```
 
-Add project origins in the Scope view (or use the "Mark" button on the address bar / "Trust Origin" in Repeater) to bring matching captured production or staging traffic into the Traffic list.
+Add project origins in the Scope view (or use "Trust Origin" in Repeater) to bring matching captured production or staging traffic into the Traffic list.
 
 ## SSL And Proxying
 

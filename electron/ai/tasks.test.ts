@@ -1,6 +1,6 @@
 import type { AiTaskType } from "../../shared/ai-types.js";
 import { describe, expect, it } from "vitest";
-import { systemPrompt, TASK_INSTRUCTIONS } from "./tasks.js";
+import { systemPrompt, customSkillPrompt, TASK_INSTRUCTIONS } from "./tasks.js";
 
 describe("tasks", () => {
   it("defines all task instructions", () => {
@@ -9,7 +9,8 @@ describe("tasks", () => {
       "repeater_drafts",
       "scope_checklist",
       "report_notes",
-      "browser_helper"
+      "browser_helper",
+      "tls_review"
     ]);
   });
 
@@ -22,5 +23,18 @@ describe("tasks", () => {
 
   it("falls back to capture_summary for unknown task", () => {
     expect(systemPrompt("unknown" as AiTaskType)).toContain("Summarize the selected HTTP captures");
+  });
+
+  it("builds custom skill prompt", () => {
+    const prompt = customSkillPrompt({
+      id: "skill-1",
+      label: "Header diff",
+      hint: "Compare headers",
+      instructions: "Compare auth headers across captures.",
+      views: ["traffic"],
+      createdAt: "2026-05-25T00:00:00.000Z"
+    });
+    expect(prompt).toContain("Header diff");
+    expect(prompt).toContain("Compare auth headers");
   });
 });

@@ -78,6 +78,53 @@ describe("localStore", () => {
     reopened.close();
   });
 
+  it("persists ai models per provider", () => {
+    const store = makeStore();
+    const saved = store.saveAiModels("cursor-local", [
+      { id: "auto", label: "auto" },
+      { id: "gpt-5", label: "gpt-5" }
+    ]);
+
+    expect(saved).toEqual([
+      { id: "auto", label: "auto" },
+      { id: "gpt-5", label: "gpt-5" }
+    ]);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listAiModels("cursor-local")).toEqual(saved);
+    expect(reopened.listAiModels("codex-local")).toEqual([]);
+    reopened.close();
+  });
+
+  it("returns an empty list for blank providers", () => {
+    const store = makeStore();
+    expect(store.saveAiModels("   ", [{ id: "auto", label: "auto" }])).toEqual([]);
+    expect(store.listAiModels("")).toEqual([]);
+    store.close();
+  });
+
+  it("skips blank model ids when saving", () => {
+    const store = makeStore();
+    const saved = store.saveAiModels("cursor-local", [
+      { id: "[36m[39m", label: "ignored" },
+      { id: "auto", label: "auto" }
+    ]);
+
+    expect(saved).toEqual([{ id: "auto", label: "auto" }]);
+    store.close();
+  });
+
+  it("sanitizes ansi codes when reading stored models", () => {
+    const store = makeStore();
+    store.saveAiModels("cursor-local", [{ id: "[36mauto[39m", label: "[36mauto[39m" }]);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listAiModels("cursor-local")).toEqual([{ id: "auto", label: "auto" }]);
+    reopened.close();
+  });
+
   it("creates a fresh active session without deleting previous session data", () => {
     const store = makeStore();
     const context = store.getActiveContext();

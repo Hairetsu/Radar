@@ -4,7 +4,7 @@ import { cn } from "../../lib";
 
 export const inputVariants = cva(
   [
-    "flex min-w-0 border border-rule bg-graphite/80 font-mono text-[12px] tracking-[0.02em] text-bone outline-none transition",
+    "flex min-w-0 border border-rule radar-field font-mono text-[12px] tracking-[0.02em] outline-none transition",
     "placeholder:text-dim focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/10",
     "disabled:cursor-not-allowed disabled:opacity-50"
   ],
