@@ -158,6 +158,40 @@ describe("localStore", () => {
     store.close();
   });
 
+  it("deletes a single capture from a session", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const first: CapturedRequest = {
+      id: "cap-delete-1",
+      startedAt: "2026-05-25T12:00:00.000Z",
+      method: "GET",
+      url: "https://example.com/one",
+      host: "example.com",
+      path: "/one",
+      requestHeaders: {},
+      requestBody: "",
+      status: 200,
+      statusText: "OK",
+      mimeType: "text/plain",
+      type: "Fetch",
+      responseHeaders: {},
+      responseBody: "one",
+      durationMs: 12,
+      allowed: true,
+      source: "browser",
+      tls: null
+    };
+    const second = { ...first, id: "cap-delete-2", url: "https://example.com/two", path: "/two", responseBody: "two" };
+
+    store.upsertCapture(context.session.id, first);
+    store.upsertCapture(context.session.id, second);
+    store.deleteCapture(context.session.id, first.id);
+
+    expect(store.listCaptures(context.session.id, 10)).toEqual([second]);
+
+    store.close();
+  });
+
   it("persists ai models per provider", () => {
     const store = makeStore();
     const saved = store.saveAiModels("cursor-local", [

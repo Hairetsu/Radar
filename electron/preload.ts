@@ -22,6 +22,7 @@ const radar: RadarApi = {
   stopProxy: () => ipcRenderer.invoke("proxy:stop"),
   getProxyState: () => ipcRenderer.invoke("proxy:state"),
   getCaptures: () => ipcRenderer.invoke("capture:snapshot"),
+  deleteCapture: (id: string) => ipcRenderer.invoke("capture:delete", id),
   clearCaptures: () => ipcRenderer.invoke("capture:clear"),
   getSslEvents: () => ipcRenderer.invoke("ssl:snapshot"),
   getTargets: () => ipcRenderer.invoke("targets:get"),

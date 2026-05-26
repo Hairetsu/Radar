@@ -45,6 +45,7 @@ export type RadarApi = {
   stopProxy: () => Promise<ProxyState>;
   getProxyState: () => Promise<ProxyState>;
   getCaptures: () => Promise<CapturedRequest[]>;
+  deleteCapture: (id: string) => Promise<{ ok: boolean }>;
   clearCaptures: () => Promise<{ ok: boolean }>;
   getSslEvents: () => Promise<SslEvent[]>;
   getTargets: () => Promise<string[]>;

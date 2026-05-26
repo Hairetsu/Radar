@@ -717,6 +717,19 @@ ipcMain.handle("capture:snapshot", () => {
     .reverse();
 });
 
+ipcMain.handle("capture:delete", (_event, id) => {
+  const captureId = String(id || "").trim();
+  if (!captureId) {
+    return { ok: false };
+  }
+
+  captured.delete(captureId);
+  if (localStore && localContext) {
+    localStore.deleteCapture(localContext.session.id, captureId);
+  }
+  return { ok: true };
+});
+
 ipcMain.handle("capture:clear", () => {
   captured.clear();
   if (localStore && localContext) {

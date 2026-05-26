@@ -624,6 +624,11 @@ export function openLocalStore(userDataPath: string) {
     db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
   };
 
+  const deleteCapture = (sessionId: string, captureId: string) => {
+    db.prepare("DELETE FROM captures WHERE session_id = ? AND id = ?").run(sessionId, captureId);
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+  };
+
   const insertSslEvent = (sessionId: string, event: SslEvent) => {
     db.prepare(`
       INSERT OR REPLACE INTO ssl_events (
@@ -704,6 +709,7 @@ export function openLocalStore(userDataPath: string) {
     setTargets,
     upsertCapture,
     listCaptures,
+    deleteCapture,
     clearCaptures,
     insertSslEvent,
     listSslEvents,
