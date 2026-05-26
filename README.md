@@ -66,6 +66,8 @@ For a full user-facing guide to the app, see [docs/USER_GUIDE.md](docs/USER_GUID
 
 Live capture log filtered to the current scope. The toolbar narrows captures by HTTP method, resource type, or a broad string match across URL, request headers/body, and response headers/body. Each row shows method, status, host, path, resource type, and round-trip duration. Selecting a row reveals selectable request/response detail with TLS info on the right; **Copy** puts the active detail pane on the clipboard, and **To Repeater** clones the selected request into view 02. Right-click a row or the detail pane to copy the request as cURL, Bash, Python, Fetch, or raw HTTP, copy its URL, add the origin to scope, send it to Repeater, or delete the capture. Empty state reads _"No in-scope transmissions intercepted"_ until matching traffic flows in.
 
+![Radar request context menu](docs/screens/radar-06-request-menu.png)
+
 ### 02 — Repeater
 
 ![Radar Repeater view](docs/screens/radar-02-repeater.png)

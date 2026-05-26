@@ -328,6 +328,8 @@ Click **Copy** in the detail pane. Radar copies whichever detail tab is active.
 
 Right-click a Traffic row or the request/response detail pane to open request actions.
 
+![Radar request context menu](screens/radar-06-request-menu.png)
+
 Available actions:
 
 - Copy as cURL.
