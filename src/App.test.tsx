@@ -184,6 +184,58 @@ describe("App", () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("GET https://allowed.test/path"));
   });
 
+  it("opens a request context menu and copies export snippets", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([
+      capture("allowed", "https://allowed.test/api", {
+        method: "POST",
+        requestHeaders: { Accept: "application/json" },
+        requestBody: "{\"probe\":true}"
+      })
+    ]);
+
+    render(<App />);
+
+    fireEvent.contextMenu(await screen.findByTestId("trafficRow-allowed"), { clientX: 120, clientY: 140 });
+    expect(screen.getByTestId("requestContextMenu")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("requestMenuCopyCurl"));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("curl -i"));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("--data-raw '{\"probe\":true}'"));
+  });
+
+  it("adds a request origin to scope and deletes captures from the context menu", async () => {
+    const setTargets = vi.mocked(window.radar!.setTargets);
+    const deleteCapture = vi.mocked(window.radar!.deleteCapture);
+    setTargets.mockClear();
+    deleteCapture.mockClear();
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://*.test"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([capture("new", "https://new.test/api")]);
+
+    render(<App />);
+
+    fireEvent.contextMenu(await screen.findByTestId("trafficRow-new"), { clientX: 100, clientY: 100 });
+    fireEvent.click(screen.getByTestId("requestMenuAddScope"));
+
+    await waitFor(() => {
+      expect(setTargets).toHaveBeenCalledWith(["https://*.test", "https://new.test"]);
+    });
+
+    fireEvent.contextMenu(screen.getByTestId("trafficRow-new"), { clientX: 100, clientY: 100 });
+    fireEvent.click(screen.getByTestId("requestMenuDelete"));
+
+    await waitFor(() => {
+      expect(deleteCapture).toHaveBeenCalledWith("new");
+      expect(screen.queryByTestId("trafficRow-new")).not.toBeInTheDocument();
+    });
+  });
+
   it("filters traffic by method and resource type", async () => {
     vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
     vi.mocked(window.radar!.getCaptures).mockResolvedValue([

@@ -212,7 +212,11 @@ export function useRadarWorkbench() {
   const addTarget = useCallback(
     async (value: string) => {
       const origin = originFromUrl(value);
-      if (!origin || targets.includes(origin)) {
+      if (!origin) {
+        return;
+      }
+      if (targets.includes(origin)) {
+        setNotice(`${origin} already in scope`);
         return;
       }
       const next = [...targets, origin];
@@ -298,6 +302,26 @@ export function useRadarWorkbench() {
     setCaptures([]);
     setSelectedId("");
   }, []);
+
+  const deleteCapture = useCallback(
+    async (captureId: string) => {
+      if (!captureId) {
+        return;
+      }
+      try {
+        await window.radar?.deleteCapture(captureId);
+        setCaptures((items) => items.filter((capture) => capture.id !== captureId));
+        setSelectedId((current) => (current === captureId ? "" : current));
+        if (localContext) {
+          await refreshLocalLists(localContext);
+        }
+        setNotice("Capture deleted");
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : "Delete failed");
+      }
+    },
+    [localContext, refreshLocalLists]
+  );
 
   const openNewSessionDialog = useCallback(() => {
     setNewSessionName(defaultSessionName());
@@ -622,6 +646,7 @@ export function useRadarWorkbench() {
     runBurstPending: runBurstMutation.isPending,
     replayPending,
     clearCaptures,
+    deleteCapture,
     createLocalProfile,
     saveLocalProfile,
     loadLocalProfile,
