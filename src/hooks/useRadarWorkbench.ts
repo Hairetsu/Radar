@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_URL as defaultUrl,
   formatHeaders,
@@ -26,6 +26,20 @@ import { useTheme } from "./useTheme";
 export type WorkView = "traffic" | "repeater" | "scope" | "ssl";
 
 export const WORK_VIEWS: WorkView[] = ["traffic", "repeater", "scope", "ssl"];
+
+export type TrafficSortField = "time" | "method" | "status" | "host" | "path" | "type" | "duration";
+
+export type TrafficSortDirection = "asc" | "desc";
+
+export const TRAFFIC_SORT_FIELDS: { value: TrafficSortField; label: string }[] = [
+  { value: "time", label: "Time" },
+  { value: "method", label: "Method" },
+  { value: "status", label: "Status" },
+  { value: "host", label: "Host" },
+  { value: "path", label: "Path" },
+  { value: "type", label: "Type" },
+  { value: "duration", label: "Duration" }
+];
 
 const emptyDraft: ReplayDraft = {
   method: "GET",
@@ -66,14 +80,65 @@ function defaultSessionName(createdAt = new Date()) {
   return `Session ${createdAt.toISOString().slice(0, 16).replace("T", " ")}`;
 }
 
+function compareMethods(left: string, right: string) {
+  const leftIndex = methodSortOrder.indexOf(left);
+  const rightIndex = methodSortOrder.indexOf(right);
+  const normalizedLeft = leftIndex === -1 ? methodSortOrder.length : leftIndex;
+  const normalizedRight = rightIndex === -1 ? methodSortOrder.length : rightIndex;
+  return normalizedLeft - normalizedRight || left.localeCompare(right);
+}
+
 function sortedMethods(methods: string[]) {
-  return [...methods].sort((left, right) => {
-    const leftIndex = methodSortOrder.indexOf(left);
-    const rightIndex = methodSortOrder.indexOf(right);
-    const normalizedLeft = leftIndex === -1 ? methodSortOrder.length : leftIndex;
-    const normalizedRight = rightIndex === -1 ? methodSortOrder.length : rightIndex;
-    return normalizedLeft - normalizedRight || left.localeCompare(right);
-  });
+  return [...methods].sort(compareMethods);
+}
+
+function compareNullableNumber(left: number | null, right: number | null) {
+  if (left === null && right === null) {
+    return 0;
+  }
+  if (left === null) {
+    return 1;
+  }
+  if (right === null) {
+    return -1;
+  }
+  return left - right;
+}
+
+function compareTrafficCaptures(
+  left: CapturedRequest,
+  right: CapturedRequest,
+  field: TrafficSortField,
+  direction: TrafficSortDirection
+) {
+  let result = 0;
+  switch (field) {
+    case "time":
+      result = left.startedAt.localeCompare(right.startedAt);
+      break;
+    case "method":
+      result = compareMethods(left.method, right.method);
+      break;
+    case "status":
+      result = compareNullableNumber(left.status, right.status);
+      break;
+    case "host":
+      result = left.host.localeCompare(right.host);
+      break;
+    case "path":
+      result = left.path.localeCompare(right.path);
+      break;
+    case "type":
+      result = (left.type || left.source).localeCompare(right.type || right.source);
+      break;
+    case "duration":
+      result = compareNullableNumber(left.durationMs, right.durationMs);
+      break;
+  }
+  if (result === 0) {
+    result = left.id.localeCompare(right.id);
+  }
+  return direction === "asc" ? result : -result;
 }
 
 function serializeHeaders(headers: Record<string, string>) {
@@ -118,11 +183,15 @@ export function useRadarWorkbench() {
   const [browserState, setBrowserState] = useState<BrowserState>(defaultBrowserState);
   const [proxyState, setProxyState] = useState<ProxyState>(defaultProxyState);
   const [selectedId, setSelectedId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectionAnchorRef = useRef("");
   const [targets, setTargets] = useState<string[]>([]);
   const [targetText, setTargetText] = useState("");
   const [trafficMethodFilter, setTrafficMethodFilter] = useState("all");
   const [trafficTypeFilter, setTrafficTypeFilter] = useState("all");
   const [trafficSearch, setTrafficSearch] = useState("");
+  const [trafficSortField, setTrafficSortField] = useState<TrafficSortField>("time");
+  const [trafficSortDirection, setTrafficSortDirection] = useState<TrafficSortDirection>("desc");
   const [draft, setDraft] = useState<ReplayDraft>(emptyDraft);
   const [headersText, setHeadersText] = useState(formatHeaders(emptyDraft.headers));
   const [activeView, setActiveView] = useState<WorkView>("traffic");
@@ -156,6 +225,8 @@ export function useRadarWorkbench() {
       setProfileName(context.profile.name);
       setSessionName(context.session.name);
       setSelectedId("");
+      setSelectedIds([]);
+      selectionAnchorRef.current = "";
       setLastResponse(null);
       setLastBurst(null);
 
@@ -301,6 +372,8 @@ export function useRadarWorkbench() {
     await window.radar?.clearCaptures();
     setCaptures([]);
     setSelectedId("");
+    setSelectedIds([]);
+    selectionAnchorRef.current = "";
   }, []);
 
   const deleteCapture = useCallback(
@@ -312,6 +385,10 @@ export function useRadarWorkbench() {
         await window.radar?.deleteCapture(captureId);
         setCaptures((items) => items.filter((capture) => capture.id !== captureId));
         setSelectedId((current) => (current === captureId ? "" : current));
+        setSelectedIds((current) => current.filter((id) => id !== captureId));
+        if (selectionAnchorRef.current === captureId) {
+          selectionAnchorRef.current = "";
+        }
         if (localContext) {
           await refreshLocalLists(localContext);
         }
@@ -456,18 +533,75 @@ export function useRadarWorkbench() {
 
   const trafficCaptures = useMemo(() => {
     const query = trafficSearch.trim().toLowerCase();
-    return scopedTrafficCaptures.filter((capture) => {
+    const filtered = scopedTrafficCaptures.filter((capture) => {
       const methodMatches = trafficMethodFilter === "all" || capture.method === trafficMethodFilter;
       const typeMatches = trafficTypeFilter === "all" || capture.type === trafficTypeFilter;
       const searchMatches = !query || searchTextForCapture(capture).includes(query);
       return methodMatches && typeMatches && searchMatches;
     });
-  }, [scopedTrafficCaptures, trafficMethodFilter, trafficSearch, trafficTypeFilter]);
+    return [...filtered].sort((left, right) =>
+      compareTrafficCaptures(left, right, trafficSortField, trafficSortDirection)
+    );
+  }, [
+    scopedTrafficCaptures,
+    trafficMethodFilter,
+    trafficSearch,
+    trafficTypeFilter,
+    trafficSortField,
+    trafficSortDirection
+  ]);
 
   const selected = useMemo(
     () => trafficCaptures.find((capture) => capture.id === selectedId) || trafficCaptures[0] || null,
     [trafficCaptures, selectedId]
   );
+
+  const selectTrafficCapture = useCallback(
+    (captureId: string, event?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => {
+      const meta = Boolean(event?.metaKey || event?.ctrlKey);
+      const shift = Boolean(event?.shiftKey);
+
+      setSelectedId(captureId);
+
+      setSelectedIds((current) => {
+        if (shift && selectionAnchorRef.current) {
+          const ids = trafficCaptures.map((capture) => capture.id);
+          const start = ids.indexOf(selectionAnchorRef.current);
+          const end = ids.indexOf(captureId);
+          if (start === -1 || end === -1) {
+            if (meta) {
+              return current.includes(captureId)
+                ? current.filter((id) => id !== captureId)
+                : [...current, captureId];
+            }
+            selectionAnchorRef.current = captureId;
+            return [captureId];
+          }
+          const from = Math.min(start, end);
+          const to = Math.max(start, end);
+          const range = ids.slice(from, to + 1);
+          return meta ? [...new Set([...current, ...range])] : range;
+        }
+        if (meta) {
+          return current.includes(captureId)
+            ? current.filter((id) => id !== captureId)
+            : [...current, captureId];
+        }
+        selectionAnchorRef.current = captureId;
+        return [captureId];
+      });
+    },
+    [trafficCaptures]
+  );
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const visible = new Set(trafficCaptures.map((capture) => capture.id));
+      const next = current.filter((id) => visible.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [trafficCaptures]);
+
   const activeProfileId = localContext?.profile.id || "";
 
   useEffect(() => {
@@ -595,6 +729,8 @@ export function useRadarWorkbench() {
     proxyState,
     selectedId,
     setSelectedId,
+    selectedIds,
+    selectTrafficCapture,
     targets,
     targetText,
     setTargetText,
@@ -605,6 +741,10 @@ export function useRadarWorkbench() {
     setTrafficTypeFilter,
     trafficSearch,
     setTrafficSearch,
+    trafficSortField,
+    setTrafficSortField,
+    trafficSortDirection,
+    setTrafficSortDirection,
     trafficMethods,
     trafficTypes,
     draft,
