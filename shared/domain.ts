@@ -61,6 +61,11 @@ export type LocalSession = {
   updatedAt: string;
 };
 
+export type LocalSessionSummary = LocalSession & {
+  captureCount: number;
+  sslEventCount: number;
+};
+
 export type LocalContext = {
   profile: LocalProfile;
   workspace: LocalWorkspace;
