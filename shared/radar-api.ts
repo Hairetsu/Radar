@@ -15,6 +15,9 @@ import type {
   BurstResult,
   CapturedRequest,
   LocalContext,
+  LocalProfile,
+  LocalSession,
+  LocalSessionSummary,
   ProxyState,
   ReplayDraft,
   ReplayResult,
@@ -23,7 +26,14 @@ import type {
 
 export type RadarApi = {
   getLocalContext: () => Promise<LocalContext>;
+  listLocalProfiles: () => Promise<LocalProfile[]>;
+  createLocalProfile: (name?: string) => Promise<LocalContext>;
+  saveLocalProfile: (payload: { id: string; name: string }) => Promise<LocalProfile>;
+  loadLocalProfile: (id: string) => Promise<LocalContext>;
+  listLocalSessions: (profileId?: string) => Promise<LocalSessionSummary[]>;
   createLocalSession: (name?: string) => Promise<LocalContext>;
+  saveLocalSession: (payload: { id: string; name: string }) => Promise<LocalSession>;
+  loadLocalSession: (id: string) => Promise<LocalContext>;
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
   browserBack: () => Promise<BrowserState>;

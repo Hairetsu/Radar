@@ -3,7 +3,14 @@ import type { RadarApi } from "../shared/radar-api.js";
 
 const radar: RadarApi = {
   getLocalContext: () => ipcRenderer.invoke("local:context"),
+  listLocalProfiles: () => ipcRenderer.invoke("local:profiles:list"),
+  createLocalProfile: (name?: string) => ipcRenderer.invoke("local:profile:create", name),
+  saveLocalProfile: (payload) => ipcRenderer.invoke("local:profile:save", payload),
+  loadLocalProfile: (id: string) => ipcRenderer.invoke("local:profile:load", id),
+  listLocalSessions: (profileId?: string) => ipcRenderer.invoke("local:sessions:list", profileId),
   createLocalSession: (name?: string) => ipcRenderer.invoke("local:session:create", name),
+  saveLocalSession: (payload) => ipcRenderer.invoke("local:session:save", payload),
+  loadLocalSession: (id: string) => ipcRenderer.invoke("local:session:load", id),
   openBrowser: (url: string) => ipcRenderer.invoke("browser:open", url),
   navigateBrowser: (url: string) => ipcRenderer.invoke("browser:navigate", url),
   browserBack: () => ipcRenderer.invoke("browser:back"),

@@ -4,6 +4,7 @@ import path from "node:path";
 import type { CapturedRequest } from "../../shared/domain.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearAudit } from "./audit.js";
+import * as cursorCli from "./cursorCli.js";
 import { previewContext, runAiTask, connectPreset } from "./index.js";
 import { saveSettings } from "./settings.js";
 import { upsertSkill } from "./skills.js";
@@ -164,6 +165,7 @@ describe("ai index", () => {
   it("connects preset and saves settings", async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-ai-"));
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true })));
+    vi.spyOn(cursorCli, "probeCursorCli").mockResolvedValue({ ok: true, message: "Cursor ready" });
 
     const result = await connectPreset({ userDataPath: tmpDir, presetId: "cursor_cli" });
     expect(result.meta.presetId).toBe("cursor_cli");

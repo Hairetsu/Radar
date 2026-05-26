@@ -24,6 +24,75 @@ const radarApi = {
       updatedAt: "2026-05-25T00:00:00.000Z"
     }
   })),
+  listLocalProfiles: vi.fn(async () => [
+    {
+      id: "profile-test",
+      name: "Local Operator",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    }
+  ]),
+  createLocalProfile: vi.fn(async () => ({
+    profile: {
+      id: "profile-next",
+      name: "New Operator",
+      createdAt: "2026-05-25T00:02:00.000Z",
+      updatedAt: "2026-05-25T00:02:00.000Z"
+    },
+    workspace: {
+      id: "workspace-next",
+      profileId: "profile-next",
+      name: "Default Workspace",
+      createdAt: "2026-05-25T00:02:00.000Z",
+      updatedAt: "2026-05-25T00:02:00.000Z"
+    },
+    session: {
+      id: "session-profile-next",
+      workspaceId: "workspace-next",
+      name: "Session 2026-05-25 00:02",
+      startedAt: "2026-05-25T00:02:00.000Z",
+      updatedAt: "2026-05-25T00:02:00.000Z"
+    }
+  })),
+  saveLocalProfile: vi.fn(async (payload) => ({
+    id: payload.id,
+    name: payload.name,
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:03:00.000Z"
+  })),
+  loadLocalProfile: vi.fn(async () => ({
+    profile: {
+      id: "profile-test",
+      name: "Local Operator",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    workspace: {
+      id: "workspace-test",
+      profileId: "profile-test",
+      name: "Default Workspace",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    session: {
+      id: "session-test",
+      workspaceId: "workspace-test",
+      name: "Session 2026-05-25 00:00",
+      startedAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    }
+  })),
+  listLocalSessions: vi.fn(async () => [
+    {
+      id: "session-test",
+      workspaceId: "workspace-test",
+      name: "Session 2026-05-25 00:00",
+      startedAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      captureCount: 0,
+      sslEventCount: 0
+    }
+  ]),
   createLocalSession: vi.fn(async () => ({
     profile: {
       id: "profile-test",
@@ -44,6 +113,35 @@ const radarApi = {
       name: "Session 2026-05-25 00:01",
       startedAt: "2026-05-25T00:01:00.000Z",
       updatedAt: "2026-05-25T00:01:00.000Z"
+    }
+  })),
+  saveLocalSession: vi.fn(async (payload) => ({
+    id: payload.id,
+    workspaceId: "workspace-test",
+    name: payload.name,
+    startedAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:03:00.000Z"
+  })),
+  loadLocalSession: vi.fn(async () => ({
+    profile: {
+      id: "profile-test",
+      name: "Local Operator",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    workspace: {
+      id: "workspace-test",
+      profileId: "profile-test",
+      name: "Default Workspace",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    session: {
+      id: "session-test",
+      workspaceId: "workspace-test",
+      name: "Session 2026-05-25 00:00",
+      startedAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
     }
   })),
   getBrowserState: vi.fn(async () => ({ open: false, url: "", title: "", loading: false, engine: "none" })),

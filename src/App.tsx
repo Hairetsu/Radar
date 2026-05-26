@@ -18,11 +18,14 @@ import {
   ShieldCheck,
   Square,
   Target,
+  UserRound,
   Zap
 } from "lucide-react";
 import { AiSettingsPanel } from "./ai/AiSettingsPanel";
 import { CommandPalette } from "./ai/CommandPalette";
 import { AppearanceSettingsPanel } from "./components/AppearanceSettingsPanel";
+import { NewSessionDialog } from "./components/NewSessionDialog";
+import { ProfileSessionPanel } from "./components/ProfileSessionPanel";
 import { EmptyState, FieldLabel, StatusBadge, StatusDot, StatusPill, ToneText } from "./components/radar/primitives";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
@@ -92,6 +95,10 @@ export function App() {
       workbench.setNotice("Copy failed");
     }
   };
+  const activeSession = workbench.localContext?.session || null;
+  const activeSessionListed = activeSession
+    ? workbench.sessions.some((session) => session.id === activeSession.id)
+    : false;
 
   return (
     <main className={shellClass} data-testid="radarShell" data-component="radarShell">
@@ -250,6 +257,18 @@ export function App() {
               type="button"
               variant="outline"
               size="compact"
+              onClick={() => workbench.setProfileSessionOpen(true)}
+              title="Profiles and sessions"
+              data-testid="openProfileSessionPanel"
+              data-component="openProfileSessionPanel"
+            >
+              <UserRound size={14} strokeWidth={1.7} />
+              Profiles
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
               onClick={() => workbench.appearance.setSettingsOpen(true)}
               title="Appearance settings"
               data-testid="openAppearanceSettings"
@@ -294,7 +313,37 @@ export function App() {
               {viewMeta[view].label}
             </Button>
           ))}
-          <span className="ml-auto inline-flex min-w-0 items-center gap-3 px-4 font-mono text-[10px] tracking-[0.16em] text-muted max-[640px]:hidden">
+          <div className="ml-auto flex min-w-[260px] items-center gap-2 border-l border-rule px-3 max-[760px]:ml-0">
+            <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Session</span>
+            <Select
+              variant="compact"
+              className="h-[30px] min-w-[190px] max-w-[320px] flex-1"
+              value={activeSession?.id || ""}
+              onChange={(event) => {
+                if (event.target.value && event.target.value !== activeSession?.id) {
+                  void workbench.loadLocalSession(event.target.value);
+                }
+              }}
+              aria-label="Session selector"
+              data-testid="sessionSelector"
+              data-component="sessionSelector"
+            >
+              {workbench.sessions.length === 0 && (
+                <option value={activeSession?.id || ""}>
+                  {activeSession?.name || "No sessions"}
+                </option>
+              )}
+              {workbench.sessions.length > 0 && activeSession && !activeSessionListed && (
+                <option value={activeSession.id}>{activeSession.name}</option>
+              )}
+              {workbench.sessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {session.name} - {session.captureCount} req
+                </option>
+              ))}
+            </Select>
+          </div>
+          <span className="inline-flex min-w-0 items-center gap-3 px-4 font-mono text-[10px] tracking-[0.16em] text-muted max-[640px]:hidden">
             <span className="h-1.5 w-1.5 animate-[pulse_1.6s_ease-in-out_infinite] rounded-full bg-signal" />
             <span className="min-w-0 max-w-[42vw] overflow-hidden text-ellipsis whitespace-nowrap">
               {workbench.browserState.remoteDebuggingUrl ||
@@ -345,7 +394,7 @@ export function App() {
                 <>
                   <Button
                     variant="outline"
-                    onClick={workbench.createLocalSession}
+                    onClick={workbench.openNewSessionDialog}
                     title="Open a fresh local session"
                     data-testid="createLocalSession"
                     data-component="createLocalSession"
@@ -818,6 +867,32 @@ export function App() {
         onClose={() => workbench.appearance.setSettingsOpen(false)}
         themeId={workbench.appearance.themeId}
         onThemeChange={workbench.appearance.setTheme}
+      />
+
+      <NewSessionDialog
+        open={workbench.newSessionOpen}
+        name={workbench.newSessionName}
+        onNameChange={workbench.setNewSessionName}
+        onClose={() => workbench.setNewSessionOpen(false)}
+        onCreate={workbench.confirmNewSession}
+      />
+
+      <ProfileSessionPanel
+        open={workbench.profileSessionOpen}
+        onClose={() => workbench.setProfileSessionOpen(false)}
+        context={workbench.localContext}
+        profiles={workbench.profiles}
+        sessions={workbench.sessions}
+        profileName={workbench.profileName}
+        onProfileNameChange={workbench.setProfileName}
+        sessionName={workbench.sessionName}
+        onSessionNameChange={workbench.setSessionName}
+        onCreateProfile={workbench.createLocalProfile}
+        onSaveProfile={workbench.saveLocalProfile}
+        onLoadProfile={workbench.loadLocalProfile}
+        onCreateSession={workbench.createLocalSession}
+        onSaveSession={workbench.saveLocalSession}
+        onLoadSession={workbench.loadLocalSession}
       />
 
       <AiSettingsPanel

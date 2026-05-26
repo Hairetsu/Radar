@@ -12,6 +12,8 @@ import type {
   BurstResult,
   CapturedRequest,
   LocalContext,
+  LocalProfile,
+  LocalSessionSummary,
   ProxyState,
   ReplayDraft,
   ReplayResult,
@@ -60,6 +62,10 @@ export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: s
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
+function defaultSessionName(createdAt = new Date()) {
+  return `Session ${createdAt.toISOString().slice(0, 16).replace("T", " ")}`;
+}
+
 function sortedMethods(methods: string[]) {
   return [...methods].sort((left, right) => {
     const leftIndex = methodSortOrder.indexOf(left);
@@ -102,6 +108,13 @@ export function useRadarWorkbench() {
   const [captures, setCaptures] = useState<CapturedRequest[]>([]);
   const [sslEvents, setSslEvents] = useState<SslEvent[]>([]);
   const [localContext, setLocalContext] = useState<LocalContext | null>(null);
+  const [profiles, setProfiles] = useState<LocalProfile[]>([]);
+  const [sessions, setSessions] = useState<LocalSessionSummary[]>([]);
+  const [profileName, setProfileName] = useState("");
+  const [sessionName, setSessionName] = useState("");
+  const [profileSessionOpen, setProfileSessionOpen] = useState(false);
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [newSessionName, setNewSessionName] = useState("");
   const [browserState, setBrowserState] = useState<BrowserState>(defaultBrowserState);
   const [proxyState, setProxyState] = useState<ProxyState>(defaultProxyState);
   const [selectedId, setSelectedId] = useState("");
@@ -124,6 +137,49 @@ export function useRadarWorkbench() {
   const [aiPaletteOpen, setAiPaletteOpen] = useState(false);
   const ai = useAiConnection();
   const appearance = useTheme();
+
+  const refreshLocalLists = useCallback(async (context: LocalContext) => {
+    if (!window.radar) {
+      return;
+    }
+    const [nextProfiles, nextSessions] = await Promise.all([
+      window.radar.listLocalProfiles(),
+      window.radar.listLocalSessions(context.profile.id)
+    ]);
+    setProfiles(nextProfiles);
+    setSessions(nextSessions);
+  }, []);
+
+  const applyLocalContext = useCallback(
+    async (context: LocalContext, noticeText?: string) => {
+      setLocalContext(context);
+      setProfileName(context.profile.name);
+      setSessionName(context.session.name);
+      setSelectedId("");
+      setLastResponse(null);
+      setLastBurst(null);
+
+      if (window.radar) {
+        const [nextTargets, nextCaptures, nextSslEvents, nextBrowserState] = await Promise.all([
+          window.radar.getTargets(),
+          window.radar.getCaptures(),
+          window.radar.getSslEvents(),
+          window.radar.getBrowserState()
+        ]);
+        setTargets(nextTargets);
+        setTargetText(nextTargets.join("\n"));
+        setCaptures(nextCaptures);
+        setSslEvents(nextSslEvents);
+        setBrowserState(nextBrowserState);
+        await refreshLocalLists(context);
+      }
+
+      if (noticeText) {
+        setNotice(noticeText);
+      }
+    },
+    [refreshLocalLists]
+  );
 
   const openBrowser = useCallback(async (event?: FormEvent) => {
     event?.preventDefault();
@@ -243,18 +299,89 @@ export function useRadarWorkbench() {
     setSelectedId("");
   }, []);
 
-  const createLocalSession = useCallback(async () => {
+  const openNewSessionDialog = useCallback(() => {
+    setNewSessionName(defaultSessionName());
+    setNewSessionOpen(true);
+  }, []);
+
+  const createLocalProfile = useCallback(async () => {
+    if (!window.radar) {
+      setNotice("Run in Electron to create a profile.");
+      return;
+    }
+    const context = await window.radar.createLocalProfile(profileName);
+    await applyLocalContext(context, `Profile opened: ${context.profile.name}`);
+  }, [applyLocalContext, profileName]);
+
+  const saveLocalProfile = useCallback(async () => {
+    if (!window.radar || !localContext) {
+      setNotice("Run in Electron to save a profile.");
+      return;
+    }
+    const profile = await window.radar.saveLocalProfile({
+      id: localContext.profile.id,
+      name: profileName
+    });
+    const context = { ...localContext, profile };
+    setLocalContext(context);
+    setProfileName(profile.name);
+    await refreshLocalLists(context);
+    setNotice(`Profile saved: ${profile.name}`);
+  }, [localContext, profileName, refreshLocalLists]);
+
+  const loadLocalProfile = useCallback(
+    async (profileId: string) => {
+      if (!window.radar) {
+        setNotice("Run in Electron to load a profile.");
+        return;
+      }
+      const context = await window.radar.loadLocalProfile(profileId);
+      await applyLocalContext(context, `Profile loaded: ${context.profile.name}`);
+    },
+    [applyLocalContext]
+  );
+
+  const createLocalSession = useCallback(async (name?: string) => {
     if (!window.radar) {
       setNotice("Run in Electron to create a session.");
       return;
     }
-    const context = await window.radar.createLocalSession();
+    const context = await window.radar.createLocalSession(name);
+    await applyLocalContext(context, `Session opened: ${context.session.name}`);
+  }, [applyLocalContext]);
+
+  const confirmNewSession = useCallback(async () => {
+    await createLocalSession(newSessionName);
+    setNewSessionOpen(false);
+  }, [createLocalSession, newSessionName]);
+
+  const saveLocalSession = useCallback(async () => {
+    if (!window.radar || !localContext) {
+      setNotice("Run in Electron to save a session.");
+      return;
+    }
+    const session = await window.radar.saveLocalSession({
+      id: localContext.session.id,
+      name: sessionName
+    });
+    const context = { ...localContext, session };
     setLocalContext(context);
-    setCaptures([]);
-    setSslEvents([]);
-    setSelectedId("");
-    setNotice(`Session opened: ${context.session.name}`);
-  }, []);
+    setSessionName(session.name);
+    await refreshLocalLists(context);
+    setNotice(`Session saved: ${session.name}`);
+  }, [localContext, refreshLocalLists, sessionName]);
+
+  const loadLocalSession = useCallback(
+    async (sessionId: string) => {
+      if (!window.radar) {
+        setNotice("Run in Electron to load a session.");
+        return;
+      }
+      const context = await window.radar.loadLocalSession(sessionId);
+      await applyLocalContext(context, `Session loaded: ${context.session.name}`);
+    },
+    [applyLocalContext]
+  );
 
   const ensureProxyCa = useCallback(async () => {
     if (!window.radar) {
@@ -317,14 +444,62 @@ export function useRadarWorkbench() {
     () => trafficCaptures.find((capture) => capture.id === selectedId) || trafficCaptures[0] || null,
     [trafficCaptures, selectedId]
   );
+  const activeProfileId = localContext?.profile.id || "";
 
   useEffect(() => {
-    window.radar?.getLocalContext().then(setLocalContext);
-    window.radar?.getTargets().then((items) => {
+    let cancelled = false;
+    const load = async () => {
+      if (!window.radar) {
+        return;
+      }
+      const context = await window.radar.getLocalContext();
+      const [items, nextProfiles, nextSessions] = await Promise.all([
+        window.radar.getTargets(),
+        window.radar.listLocalProfiles(),
+        window.radar.listLocalSessions(context.profile.id)
+      ]);
+      if (cancelled) {
+        return;
+      }
+      setLocalContext(context);
+      setProfileName(context.profile.name);
+      setSessionName(context.session.name);
       setTargets(items);
       setTargetText(items.join("\n"));
-    });
+      setProfiles(nextProfiles);
+      setSessions(nextSessions);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!activeProfileId) {
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      if (!window.radar || cancelled) {
+        return;
+      }
+      const [nextProfiles, nextSessions] = await Promise.all([
+        window.radar.listLocalProfiles(),
+        window.radar.listLocalSessions(activeProfileId)
+      ]);
+      if (!cancelled) {
+        setProfiles(nextProfiles);
+        setSessions(nextSessions);
+      }
+    };
+    load();
+    const timer = setInterval(load, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [activeProfileId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -380,6 +555,18 @@ export function useRadarWorkbench() {
     captures,
     sslEvents,
     localContext,
+    profiles,
+    sessions,
+    profileName,
+    setProfileName,
+    sessionName,
+    setSessionName,
+    profileSessionOpen,
+    setProfileSessionOpen,
+    newSessionOpen,
+    setNewSessionOpen,
+    newSessionName,
+    setNewSessionName,
     browserState,
     proxyState,
     selectedId,
@@ -435,7 +622,14 @@ export function useRadarWorkbench() {
     runBurstPending: runBurstMutation.isPending,
     replayPending,
     clearCaptures,
+    createLocalProfile,
+    saveLocalProfile,
+    loadLocalProfile,
     createLocalSession,
+    openNewSessionDialog,
+    confirmNewSession,
+    saveLocalSession,
+    loadLocalSession,
     ensureProxyCa,
     startProxy,
     stopProxy
