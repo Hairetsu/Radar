@@ -7,6 +7,7 @@ import { CommandPalette } from "./CommandPalette";
 
 const baseProps = {
   open: true,
+  view: "traffic" as const,
   onClose: vi.fn(),
   captureIds: ["cap-1"],
   captures: [
@@ -32,16 +33,36 @@ const baseProps = {
   ],
   targets: ["http://localhost:*"],
   browserUrl: "http://localhost:3000",
+  draft: {
+    method: "GET",
+    url: "http://localhost:3000",
+    headers: {},
+    body: ""
+  },
+  lastResponse: null,
+  sslEvents: [],
+  proxyRunning: false,
+  proxyUrl: "http://127.0.0.1:8088",
+  caCertPath: "",
   onApplyDraft: vi.fn(),
   onPrepareNavigate: vi.fn(),
-  onNotice: vi.fn()
+  onNotice: vi.fn(),
+  canRun: false,
+  onOpenSettings: vi.fn()
 };
 
 describe("CommandPalette", () => {
-  it("lists ai tasks when open", async () => {
+  it("lists traffic tasks when open", async () => {
     render(<CommandPalette {...baseProps} />);
     expect(await screen.findByText("Capture Summary")).toBeInTheDocument();
-    expect(screen.getByText("Repeater Drafts")).toBeInTheDocument();
+    expect(screen.getByText("Report Notes")).toBeInTheDocument();
+    expect(screen.queryByText("Repeater Drafts")).not.toBeInTheDocument();
+  });
+
+  it("lists scope tasks for scope view", async () => {
+    render(<CommandPalette {...baseProps} view="scope" captureIds={[]} />);
+    expect(await screen.findByText("Scope Checklist")).toBeInTheDocument();
+    expect(screen.getByText("Browser Helper")).toBeInTheDocument();
   });
 
   it("moves to preview after selecting a task", async () => {

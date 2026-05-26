@@ -71,7 +71,7 @@ export function StatusPill({ className, live, cool, children, ...props }: Status
   return (
     <span
       className={cn(
-        "relative inline-flex h-8 items-center gap-2 border border-rule bg-surface/60 px-3 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted",
+        "relative inline-flex h-8 items-center gap-2 border border-rule radar-status-pill px-3 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted",
         cool && "border-steel/35 text-steel",
         live && "border-signal/40 bg-signal/10 text-signal",
         className

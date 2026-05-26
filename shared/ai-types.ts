@@ -1,6 +1,10 @@
-export type AiProviderId = "openai" | "anthropic" | "openai-compatible" | "codex-local";
+import type { ReplayDraft, SslEvent } from "./domain.js";
+
+export type AiProviderId = "openai" | "anthropic" | "openai-compatible" | "codex-local" | "cursor-local";
 
 export type AiConnectPresetId = "codex" | "cursor_cli";
+
+export type AiWorkView = "traffic" | "repeater" | "scope" | "ssl";
 
 export type AiSettings = {
   provider: AiProviderId;
@@ -9,24 +13,58 @@ export type AiSettings = {
   baseUrl: string;
 };
 
+export type AiModelOption = {
+  id: string;
+  label: string;
+};
+
 export type AiTaskType =
   | "capture_summary"
   | "repeater_drafts"
   | "scope_checklist"
   | "report_notes"
-  | "browser_helper";
+  | "browser_helper"
+  | "tls_review";
+
+export type AiCustomSkill = {
+  id: string;
+  label: string;
+  hint: string;
+  instructions: string;
+  views: AiWorkView[];
+  createdAt: string;
+};
+
+export type AiViewContext = {
+  view?: AiWorkView;
+  draft?: ReplayDraft;
+  lastResponse?: {
+    status: number;
+    statusText: string;
+    body: string;
+  };
+  targets?: string[];
+  sslEvents?: SslEvent[];
+  proxyRunning?: boolean;
+  proxyUrl?: string;
+  caCertPath?: string;
+};
 
 export type AiRunRequest = {
-  task: AiTaskType;
+  task: AiTaskType | "custom";
+  skillId?: string;
+  view?: AiWorkView;
   captureIds: string[];
   includeRaw: boolean;
   userPrompt?: string;
+  viewContext?: AiViewContext;
 };
 
 export type AiAuditEntry = {
   id: string;
   createdAt: string;
-  task: AiTaskType;
+  task: AiTaskType | "custom";
+  skillId?: string;
   provider: AiProviderId;
   model: string;
   captureIds: string[];
@@ -103,12 +141,26 @@ export type AiBrowserHelperOutput = {
   steps: AiBrowserStep[];
 };
 
+export type AiTlsReviewOutput = {
+  summary: string;
+  findings: string[];
+  recommendations: string[];
+};
+
+export type AiCustomSkillOutput = {
+  skillId: string;
+  label: string;
+  text: string;
+};
+
 export type AiTaskOutput =
   | { task: "capture_summary"; data: AiCaptureSummaryOutput }
   | { task: "repeater_drafts"; data: AiRepeaterDraftsOutput }
   | { task: "scope_checklist"; data: AiScopeChecklistOutput }
   | { task: "report_notes"; data: AiReportNotesOutput }
-  | { task: "browser_helper"; data: AiBrowserHelperOutput };
+  | { task: "browser_helper"; data: AiBrowserHelperOutput }
+  | { task: "tls_review"; data: AiTlsReviewOutput }
+  | { task: "custom"; data: AiCustomSkillOutput };
 
 export type AiRunResult = {
   ok: boolean;

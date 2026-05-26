@@ -1,34 +1,47 @@
-import { Command, Loader2, ShieldAlert, Sparkles, X } from "lucide-react";
+import { Command, Loader2, Plus, ShieldAlert, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CapturedRequest, ReplayDraft } from "../types";
+import type { CapturedRequest, ReplayDraft, ReplayResult, SslEvent } from "../types";
+import type { WorkView } from "../hooks/useRadarWorkbench";
 import { FieldLabel } from "../components/radar/primitives";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Select } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
 import { useAsyncAction } from "../hooks/useAsyncAction";
-import { aiProviderFromValue } from "../lib/aiProvider";
 import { resultPreview } from "../lib/resultPreview";
 import { cn } from "../lib/utils";
 import {
   AI_TASK_META,
-  AI_TASK_TYPES,
-  DEFAULT_AI_SETTINGS,
+  defaultSelection,
+  runPayloadFromSelection,
+  selectionKey,
+  skillsForView,
+  VIEW_AI_LABELS,
+  VIEW_AI_TASKS,
   type AiAuditEntry,
-  type AiConnectPresetId,
   type AiContextPreview,
+  type AiCustomSkill,
+  type AiPaletteSelection,
   type AiRunResult,
-  type AiSettings,
-  type AiTaskType
+  type AiTaskType,
+  type AiViewContext
 } from "./types";
 
 type CommandPaletteProps = {
   open: boolean;
+  view: WorkView;
   onClose: () => void;
   captureIds: string[];
   captures: CapturedRequest[];
   targets: string[];
   browserUrl: string;
+  draft: ReplayDraft;
+  lastResponse: ReplayResult | null;
+  sslEvents: SslEvent[];
+  proxyRunning: boolean;
+  proxyUrl: string;
+  caCertPath: string;
+  canRun: boolean;
+  onOpenSettings: () => void;
   onApplyDraft: (draft: ReplayDraft) => void;
   onPrepareNavigate: (url: string) => void;
   onNotice: (message: string) => void;
@@ -38,70 +51,93 @@ type PaletteStep = "task" | "preview" | "result";
 
 const taskButtonClass = (active: boolean) =>
   cn(
-    "grid h-auto gap-1 border border-rule bg-white/[0.02] px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-muted transition-colors",
-    "hover:border-signal/45 hover:bg-signal/[0.06]",
-    active && "border-signal/45 bg-signal/[0.06]"
+    "grid h-auto w-full content-center justify-start justify-items-start gap-1 border border-rule radar-card px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-muted transition-colors",
+    "hover:border-signal/45 hover:bg-signal/[0.08]",
+    active && "border-signal/45 bg-signal/[0.1]"
   );
 
 const palettePanelClass = "grid gap-3";
 
 const paletteMetaClass = "flex flex-wrap gap-3 font-mono text-[9px] uppercase tracking-[0.28em] text-dim";
 
+const emptySkillDraft = {
+  label: "",
+  hint: "",
+  instructions: ""
+};
+
 export function CommandPalette({
   open,
+  view,
   onClose,
   captureIds,
   captures,
   targets,
   browserUrl,
+  draft,
+  lastResponse,
+  sslEvents,
+  proxyRunning,
+  proxyUrl,
+  caCertPath,
+  canRun,
+  onOpenSettings,
   onApplyDraft,
   onPrepareNavigate,
   onNotice
 }: CommandPaletteProps) {
   const [step, setStep] = useState<PaletteStep>("task");
-  const [task, setTask] = useState<AiTaskType>("capture_summary");
+  const [selection, setSelection] = useState<AiPaletteSelection>(() => defaultSelection(view, []));
   const [includeRaw, setIncludeRaw] = useState(false);
   const [userPrompt, setUserPrompt] = useState("");
-  const [settings, setSettings] = useState<AiSettings>(DEFAULT_AI_SETTINGS);
   const [preview, setPreview] = useState<AiContextPreview | null>(null);
   const [result, setResult] = useState<AiRunResult | null>(null);
   const [audit, setAudit] = useState<AiAuditEntry[]>([]);
-  const [connectNote, setConnectNote] = useState("");
+  const [skills, setSkills] = useState<AiCustomSkill[]>([]);
   const [error, setError] = useState("");
+  const [showSkillForm, setShowSkillForm] = useState(false);
+  const [skillDraft, setSkillDraft] = useState(emptySkillDraft);
 
-  const persistSettings = useCallback(async (next: AiSettings) => {
-    const saved = (await window.radar?.setAiSettings(next)) || next;
-    setSettings(saved);
-  }, []);
+  const viewTasks = VIEW_AI_TASKS[view];
+  const viewSkills = useMemo(() => skillsForView(skills, view), [skills, view]);
 
-  const connectPresetAction = useCallback(
-    async (presetId: AiConnectPresetId) => {
-      if (!window.radar) {
-        setError("Run in Electron to connect.");
-        return;
-      }
-      try {
-        setError("");
-        const next = await window.radar.connectAi(presetId);
-        setSettings(next.settings);
-        const source =
-          next.meta.apiKeySource === "missing"
-            ? " — add API key or env var"
-            : next.meta.presetId === "codex" && next.meta.apiKeySource === "local"
-              ? " · installed Codex auth"
-              : ` · key from ${next.meta.apiKeySource}`;
-        setConnectNote(`${next.meta.label}: ${next.probe.message}${source}`);
-        if (!next.probe.ok) {
-          setError(next.probe.message);
-          return;
-        }
-        onNotice(`${next.meta.label} connected`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Connect failed");
-      }
-    },
-    [onNotice]
+  const viewContext = useMemo<AiViewContext>(
+    () => ({
+      view,
+      draft,
+      lastResponse: lastResponse
+        ? {
+            status: lastResponse.status,
+            statusText: lastResponse.statusText,
+            body: lastResponse.body
+          }
+        : undefined,
+      targets,
+      sslEvents,
+      proxyRunning,
+      proxyUrl,
+      caCertPath
+    }),
+    [caCertPath, draft, lastResponse, proxyRunning, proxyUrl, sslEvents, targets, view]
   );
+
+  const runRequestBase = useMemo(
+    () => ({
+      ...runPayloadFromSelection(selection),
+      view,
+      captureIds,
+      includeRaw,
+      userPrompt,
+      viewContext
+    }),
+    [captureIds, includeRaw, selection, userPrompt, view, viewContext]
+  );
+
+  const refreshSkills = useCallback(async () => {
+    const next = (await window.radar?.getAiSkills()) || [];
+    setSkills(next);
+    return next;
+  }, []);
 
   const buildPreviewAction = useCallback(async () => {
     if (!window.radar) {
@@ -110,12 +146,7 @@ export function CommandPalette({
     }
     try {
       setError("");
-      const next = await window.radar.previewAiContext({
-        task,
-        captureIds,
-        includeRaw,
-        userPrompt
-      });
+      const next = await window.radar.previewAiContext(runRequestBase);
       setPreview(next);
       setStep("preview");
       if (next.blockedReason) {
@@ -124,26 +155,21 @@ export function CommandPalette({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Preview failed");
     }
-  }, [captureIds, includeRaw, task, userPrompt]);
+  }, [runRequestBase]);
 
   const runTaskAction = useCallback(async () => {
     if (!window.radar) {
       setError("Run in Electron to use AI.");
       return;
     }
-    if (settings.provider !== "codex-local" && !settings.apiKey.trim()) {
-      setError("Set an API key in AI settings.");
+    if (!canRun) {
+      setError("Connect AI in settings before running tasks.");
+      onOpenSettings();
       return;
     }
     try {
       setError("");
-      await persistSettings(settings);
-      const next = await window.radar.runAiTask({
-        task,
-        captureIds,
-        includeRaw,
-        userPrompt
-      });
+      const next = await window.radar.runAiTask(runRequestBase);
       setResult(next);
       setStep("result");
       const items = await window.radar.getAiAudit();
@@ -154,18 +180,66 @@ export function CommandPalette({
     } catch (err) {
       setError(err instanceof Error ? err.message : "AI request failed");
     }
-  }, [includeRaw, persistSettings, captureIds, settings, task, userPrompt]);
+  }, [canRun, onOpenSettings, runRequestBase]);
 
-  const connectMutation = useAsyncAction(connectPresetAction);
+  const saveSkillAction = useCallback(async () => {
+    if (!window.radar) {
+      setError("Run in Electron to save skills.");
+      return;
+    }
+    const label = skillDraft.label.trim();
+    const instructions = skillDraft.instructions.trim();
+    if (!label || !instructions) {
+      setError("Skill needs a label and instructions.");
+      return;
+    }
+    try {
+      setError("");
+      const nextSkill: AiCustomSkill = {
+        id: `skill-${Date.now()}`,
+        label,
+        hint: skillDraft.hint.trim() || "Custom operator skill",
+        instructions,
+        views: [view],
+        createdAt: new Date().toISOString()
+      };
+      const next = await window.radar.saveAiSkill(nextSkill);
+      setSkills(next);
+      setSelection({ kind: "custom", skillId: nextSkill.id });
+      setSkillDraft(emptySkillDraft);
+      setShowSkillForm(false);
+      onNotice(`Saved skill: ${label}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save skill");
+    }
+  }, [onNotice, skillDraft, view]);
+
+  const deleteSkillAction = useCallback(
+    async (skillId: string) => {
+      if (!window.radar) {
+        return;
+      }
+      const next = await window.radar.deleteAiSkill(skillId);
+      setSkills(next);
+      if (selection.kind === "custom" && selection.skillId === skillId) {
+        setSelection(defaultSelection(view, next));
+      }
+      onNotice("Skill removed");
+    },
+    [onNotice, selection, view]
+  );
+
   const previewMutation = useAsyncAction(buildPreviewAction);
   const runMutation = useAsyncAction(runTaskAction);
+  const saveSkillMutation = useAsyncAction(saveSkillAction);
 
   const reset = useCallback(() => {
     setStep("task");
     setPreview(null);
     setResult(null);
     setError("");
-    setConnectNote("");
+    setShowSkillForm(false);
+    setSkillDraft(emptySkillDraft);
   }, []);
 
   const applyPrepared = useCallback(() => {
@@ -195,30 +269,59 @@ export function CommandPalette({
     }
   }, [onApplyDraft, onClose, onNotice, onPrepareNavigate, result]);
 
-  const captureLabel = useMemo(() => {
+  const contextLabel = useMemo(() => {
+    switch (view) {
+      case "traffic":
+        if (captureIds.length === 0) {
+          return "No capture selected";
+        }
+        break;
+      case "repeater":
+        return draft.url ? `${draft.method} ${draft.url}` : "Empty repeater draft";
+      case "scope":
+        return `${targets.length} scope targets`;
+      case "ssl":
+        return `${sslEvents.length} certificate events`;
+    }
+
     if (captureIds.length === 0) {
-      return "No capture selected";
+      return VIEW_AI_LABELS[view];
     }
     const selected = captures.filter((item) => captureIds.includes(item.id));
     if (selected.length === 1) {
       return `${selected[0].method} ${selected[0].host}${selected[0].path}`;
     }
     return `${selected.length} captures selected`;
-  }, [captureIds, captures]);
+  }, [captureIds, captures, draft.method, draft.url, sslEvents.length, targets.length, view]);
 
   useEffect(() => {
     if (!open) {
       return;
     }
-    window.radar?.getAiSettings().then((next) => setSettings(next));
     window.radar?.getAiAudit().then((items) => setAudit(items));
-  }, [open]);
+    refreshSkills().then((next) => setSelection(defaultSelection(view, next)));
+  }, [open, refreshSkills, view]);
 
   useEffect(() => {
     if (!open) {
       reset();
     }
   }, [open, reset]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setSelection((current) => {
+      if (current.kind === "custom" && viewSkills.some((skill) => skill.id === current.skillId)) {
+        return current;
+      }
+      if (current.kind === "builtin" && viewTasks.includes(current.task)) {
+        return current;
+      }
+      return defaultSelection(view, skills);
+    });
+  }, [open, skills, view, viewSkills, viewTasks]);
 
   useEffect(() => {
     if (!open) {
@@ -233,7 +336,8 @@ export function CommandPalette({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose, open]);
 
-  const actionPending = connectMutation.isPending || previewMutation.isPending || runMutation.isPending;
+  const actionPending = previewMutation.isPending || runMutation.isPending || saveSkillMutation.isPending;
+  const activeKey = selectionKey(selection);
 
   if (!open) {
     return null;
@@ -241,13 +345,13 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center bg-[rgba(4,10,9,0.72)] px-4 py-10 backdrop-blur-md"
+      className="theme-modal-backdrop fixed inset-0 z-40 flex items-start justify-center px-4 py-10 backdrop-blur-md"
       onClick={onClose}
       data-testid="commandPaletteBackdrop"
       data-component="commandPaletteBackdrop"
     >
       <div
-        className="grid max-h-[calc(100vh-5rem)] w-full max-w-5xl gap-4 overflow-auto border border-rule bg-[rgba(7,17,15,0.96)] p-5 font-mono shadow-[0_24px_80px_-20px_rgba(0,0,0,0.65)]"
+        className="theme-modal-surface grid max-h-[calc(100vh-5rem)] w-full max-w-5xl gap-4 overflow-auto border border-rule p-5 font-mono shadow-bureau"
         onClick={(event) => event.stopPropagation()}
         data-testid="commandPalette"
         data-component="commandPalette"
@@ -255,10 +359,10 @@ export function CommandPalette({
         <header className="flex items-start justify-between gap-4 border-b border-rule pb-4">
           <div>
             <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
-              <Command size={12} strokeWidth={1.8} /> AI Channel
+              <Command size={12} strokeWidth={1.8} /> AI Channel · {VIEW_AI_LABELS[view]}
             </span>
             <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">Command Palette</h3>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-muted">{captureLabel}</p>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-muted">{contextLabel}</p>
           </div>
           <Button
             type="button"
@@ -275,21 +379,114 @@ export function CommandPalette({
 
         <div className="grid gap-4 [grid-template-columns:minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <section className={palettePanelClass}>
-            <FieldLabel className="px-0 pt-0">Task</FieldLabel>
+            <div className="flex items-center justify-between gap-3">
+              <FieldLabel className="px-0 pt-0">Skills</FieldLabel>
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() => setShowSkillForm((openForm) => !openForm)}
+                data-testid="aiToggleSkillForm"
+                data-component="aiToggleSkillForm"
+              >
+                <Plus size={12} strokeWidth={1.8} />
+                Add skill
+              </Button>
+            </div>
+
+            {showSkillForm && (
+              <div className="grid gap-2 border border-dashed radar-note p-3">
+                <Input
+                  variant="compact"
+                  value={skillDraft.label}
+                  onChange={(event) => setSkillDraft({ ...skillDraft, label: event.target.value })}
+                  placeholder="Skill name"
+                  spellCheck={false}
+                  data-testid="aiSkillLabel"
+                  data-component="aiSkillLabel"
+                />
+                <Input
+                  variant="compact"
+                  value={skillDraft.hint}
+                  onChange={(event) => setSkillDraft({ ...skillDraft, hint: event.target.value })}
+                  placeholder="Short hint"
+                  spellCheck={false}
+                  data-testid="aiSkillHint"
+                  data-component="aiSkillHint"
+                />
+                <Textarea
+                  variant="bare"
+                  className="min-h-[88px]"
+                  value={skillDraft.instructions}
+                  onChange={(event) => setSkillDraft({ ...skillDraft, instructions: event.target.value })}
+                  placeholder="Instructions for this view"
+                  spellCheck={false}
+                  data-testid="aiSkillInstructions"
+                  data-component="aiSkillInstructions"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="solid"
+                    size="compact"
+                    disabled={actionPending}
+                    onClick={() => saveSkillMutation.run()}
+                    data-testid="aiSaveSkill"
+                    data-component="aiSaveSkill"
+                  >
+                    Save to {view}
+                  </Button>
+                  <Button type="button" variant="outline" size="compact" onClick={() => setShowSkillForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-2">
-              {AI_TASK_TYPES.map((key) => (
+              {viewTasks.map((key) => (
                 <Button
                   key={key}
                   type="button"
                   variant="ghost"
-                  className={taskButtonClass(task === key)}
-                  onClick={() => setTask(key)}
+                  className={taskButtonClass(selection.kind === "builtin" && selection.task === key)}
+                  onClick={() => setSelection({ kind: "builtin", task: key as AiTaskType })}
                   data-testid={`aiTask-${key}`}
                   data-component="aiTaskButton"
                 >
-                  <strong className="tracking-[0.22em] text-bone">{AI_TASK_META[key].label}</strong>
-                  <span className="text-dim tracking-[0.14em] leading-[1.4]">{AI_TASK_META[key].hint}</span>
+                  <strong className="block w-full text-left tracking-[0.22em] text-bone">{AI_TASK_META[key].label}</strong>
+                  <span className="block w-full text-left text-dim tracking-[0.14em] leading-[1.4]">
+                    {AI_TASK_META[key].hint}
+                  </span>
                 </Button>
+              ))}
+
+              {viewSkills.map((skill) => (
+                <div key={skill.id} className="grid gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={taskButtonClass(selection.kind === "custom" && selection.skillId === skill.id)}
+                    onClick={() => setSelection({ kind: "custom", skillId: skill.id })}
+                    data-testid={`aiSkill-${skill.id}`}
+                    data-component="aiSkillButton"
+                  >
+                    <strong className="block w-full text-left tracking-[0.22em] text-bone">{skill.label}</strong>
+                    <span className="block w-full text-left text-dim tracking-[0.14em] leading-[1.4]">{skill.hint}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    className="h-7 justify-start px-2 text-[9px] uppercase tracking-[0.22em] text-rust hover:bg-rust/10"
+                    onClick={() => deleteSkillAction(skill.id)}
+                    data-testid={`aiDeleteSkill-${skill.id}`}
+                    data-component="aiDeleteSkillButton"
+                  >
+                    <Trash2 size={11} strokeWidth={1.7} />
+                    Remove skill
+                  </Button>
+                </div>
               ))}
             </div>
 
@@ -322,102 +519,26 @@ export function CommandPalette({
           </section>
 
           <section className={palettePanelClass}>
-            <FieldLabel className="px-0 pt-0">Connect</FieldLabel>
-            <div className="grid gap-2 [grid-template-columns:1fr_1fr]">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={actionPending}
-                onClick={() => connectMutation.run("codex")}
-                data-testid="aiConnectCodex"
-                data-component="aiConnectButton"
-              >
-                Codex Connect
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={actionPending}
-                onClick={() => connectMutation.run("cursor_cli")}
-                data-testid="aiConnectCursorCli"
-                data-component="aiConnectButton"
-              >
-                Cursor CLI Connect
-              </Button>
-            </div>
-            {connectNote && (
-              <p className="font-mono text-[9px] uppercase leading-[1.5] tracking-[0.2em] text-dim">
-                {connectNote}
+            <FieldLabel className="px-0 pt-0">Run</FieldLabel>
+            {!canRun && (
+              <p className="border border-rust/30 bg-rust/5 px-3 py-2 font-mono text-[9px] uppercase leading-[1.6] tracking-[0.2em] text-rust">
+                AI is not connected.{" "}
+                <button
+                  type="button"
+                  className="text-signal underline-offset-2 hover:underline"
+                  onClick={onOpenSettings}
+                  data-testid="aiOpenSettingsFromPalette"
+                  data-component="aiOpenSettingsFromPalette"
+                >
+                  Open connection settings
+                </button>
               </p>
-            )}
-
-            <FieldLabel className="px-0">Provider</FieldLabel>
-            <div className="grid gap-2 [grid-template-columns:1fr_1fr]">
-              <Select
-                variant="compact"
-                value={settings.provider}
-                onChange={(event) => {
-                  const provider = aiProviderFromValue(event.target.value);
-                  if (provider) {
-                    setSettings({ ...settings, provider });
-                  }
-                }}
-                data-testid="aiProvider"
-                data-component="aiProvider"
-              >
-                <option value="openai">OpenAI</option>
-                <option value="codex-local">Codex app</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openai-compatible">OpenAI-compatible</option>
-              </Select>
-              <Input
-                variant="compact"
-                className="uppercase tracking-[0.12em]"
-                value={settings.model}
-                onChange={(event) => setSettings({ ...settings, model: event.target.value })}
-                spellCheck={false}
-                placeholder="model"
-                data-testid="aiModel"
-                data-component="aiModel"
-              />
-            </div>
-            {settings.provider === "codex-local" ? (
-              <p
-                className="border border-signal/25 bg-[linear-gradient(135deg,rgba(255,87,51,0.08),transparent_42%),rgba(255,255,255,0.02)] px-3 py-2 font-mono text-[9px] uppercase leading-[1.6] tracking-[0.2em] text-muted"
-                data-testid="aiLocalCodexNote"
-                data-component="aiLocalCodexNote"
-              >
-                Uses your installed Codex app login; no API key is stored in Radar.
-              </p>
-            ) : (
-              <Input
-                variant="compact"
-                className="uppercase tracking-[0.12em]"
-                type="password"
-                value={settings.apiKey}
-                onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })}
-                placeholder="API key"
-                spellCheck={false}
-                data-testid="aiApiKey"
-                data-component="aiApiKey"
-              />
-            )}
-            {settings.provider === "openai-compatible" && (
-              <Input
-                variant="compact"
-                className="uppercase tracking-[0.12em]"
-                value={settings.baseUrl}
-                onChange={(event) => setSettings({ ...settings, baseUrl: event.target.value })}
-                spellCheck={false}
-                placeholder="http://127.0.0.1:11434/v1"
-                data-testid="aiBaseUrl"
-                data-component="aiBaseUrl"
-              />
             )}
 
             <div className={paletteMetaClass}>
               <span>Scope: {targets.length} origins</span>
               <span>Browser: {browserUrl || "—"}</span>
+              <span>Skill: {activeKey}</span>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -458,15 +579,18 @@ export function CommandPalette({
         </div>
 
         {step === "preview" && preview && (
-          <section className="grid gap-2 border-t border-rule pt-4" data-testid="aiContextPreview" data-component="aiContextPreview">
+          <section
+            className="grid gap-2 border-t border-rule pt-4"
+            data-testid="aiContextPreview"
+            data-component="aiContextPreview"
+          >
             <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
               <strong>Context preview</strong>
               <span>
-                {preview.captureCount} captures · {preview.charCount} chars ·{" "}
-                {preview.redacted ? "redacted" : "raw"}
+                {preview.captureCount} captures · {preview.charCount} chars · {preview.redacted ? "redacted" : "raw"}
               </span>
             </div>
-            <pre className="max-h-64 overflow-auto border border-rule bg-black/20 p-3 text-[11px] leading-[1.5] text-bone">
+            <pre className="max-h-64 overflow-auto border border-rule radar-panel p-3 text-[11px] leading-[1.5]">
               {preview.previewText}
             </pre>
           </section>
@@ -478,7 +602,7 @@ export function CommandPalette({
               <strong>Result</strong>
               <span>audit {result.auditId}</span>
             </div>
-            <pre className="max-h-64 overflow-auto border border-rule bg-black/20 p-3 text-[11px] leading-[1.5] text-bone">
+            <pre className="max-h-64 overflow-auto border border-rule radar-panel p-3 text-[11px] leading-[1.5]">
               {resultPreview(result)}
             </pre>
             {(result.output?.task === "repeater_drafts" || result.output?.task === "browser_helper") && (
@@ -508,7 +632,9 @@ export function CommandPalette({
                     !entry.ok && "border-rust/45"
                   )}
                 >
-                  <strong className="tracking-[0.24em] text-bone">{entry.task}</strong>
+                  <strong className="tracking-[0.24em] text-bone">
+                    {entry.skillId ? `custom:${entry.skillId}` : entry.task}
+                  </strong>
                   <span>
                     {entry.provider} · {entry.model} · {entry.redacted ? "redacted" : "raw"} · {entry.promptChars}c
                   </span>

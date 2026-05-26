@@ -1,5 +1,7 @@
 import type { AiTaskType } from "../../shared/ai-types.js";
 import { describe, expect, it, vi } from "vitest";
+import * as codexCli from "./codexCli.js";
+import * as cursorCli from "./cursorCli.js";
 import { extractJson, normalizeOutput, complete } from "./providers.js";
 
 describe("providers", () => {
@@ -108,6 +110,33 @@ describe("providers", () => {
     expect(() => normalizeOutput("unknown" as AiTaskType, {})).toThrow("Unknown AI task");
   });
 
+  it("normalizes tls review output", () => {
+    const output = normalizeOutput("tls_review", {
+      summary: "ok",
+      findings: ["x"],
+      recommendations: ["y"]
+    });
+    if (output.task === "tls_review") {
+      expect(output.data.findings).toEqual(["x"]);
+    }
+  });
+
+  it("normalizes custom skill output", () => {
+    const output = normalizeOutput("custom", { text: "done" }, { skillId: "skill-1", label: "Mine" });
+    if (output.task === "custom") {
+      expect(output.data.text).toBe("done");
+      expect(output.data.label).toBe("Mine");
+    }
+  });
+
+  it("falls back to parsed custom metadata", () => {
+    const output = normalizeOutput("custom", { skillId: "from-json", label: "From JSON", text: "done" });
+    if (output.task === "custom") {
+      expect(output.data.skillId).toBe("from-json");
+      expect(output.data.label).toBe("From JSON");
+    }
+  });
+
   it("requires api key for complete", async () => {
     await expect(
       complete({ settings: { provider: "openai", model: "gpt-4o-mini", apiKey: "", baseUrl: "" }, system: "s", user: "u" })
@@ -202,5 +231,25 @@ describe("providers", () => {
       })
     ).rejects.toThrow("Empty model response.");
     vi.unstubAllGlobals();
+  });
+
+  it("calls codex local provider", async () => {
+    vi.spyOn(codexCli, "runCodexCliCompletion").mockResolvedValue('{"text":"codex"}');
+    const result = await complete({
+      settings: { provider: "codex-local", model: "auto", apiKey: "local", baseUrl: "codex://local" },
+      system: "sys",
+      user: "ctx"
+    });
+    expect((result.parsed as { text: string }).text).toBe("codex");
+  });
+
+  it("calls cursor local provider", async () => {
+    vi.spyOn(cursorCli, "runCursorCliCompletion").mockResolvedValue('{"text":"cursor"}');
+    const result = await complete({
+      settings: { provider: "cursor-local", model: "auto", apiKey: "local", baseUrl: "cursor://local" },
+      system: "sys",
+      user: "ctx"
+    });
+    expect((result.parsed as { text: string }).text).toBe("cursor");
   });
 });

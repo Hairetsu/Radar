@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { parseModelLines } from "./modelParse.js";
 
 const MAX_BUFFER_CHARS = 300_000;
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -141,6 +142,28 @@ export async function probeCodexCli() {
       executablePath: command
     };
   }
+}
+
+export async function listCodexCliModels() {
+  const command = resolveCodexCliPath();
+  const attempts = [["--list-models"], ["models", "list"], ["model", "list"]] as const;
+
+  for (const args of attempts) {
+    try {
+      const result = await runProcess(command, [...args], { timeoutMs: 15000 });
+      if (result.exitCode !== 0) {
+        continue;
+      }
+      const models = parseModelLines(result.stdout);
+      if (models.length > 0) {
+        return models;
+      }
+    } catch {
+      // try next invocation
+    }
+  }
+
+  return [{ id: "auto", label: "auto" }];
 }
 
 function codexPrompt(system: string, user: string) {

@@ -9,6 +9,9 @@ export type {
   AiConnectProbe,
   AiConnectResult,
   AiContextPreview,
+  AiCustomSkill,
+  AiModelOption,
+  AiCustomSkillOutput,
   AiProviderId,
   AiRepeaterDraftItem,
   AiRepeaterDraftsOutput,
@@ -18,10 +21,13 @@ export type {
   AiScopeChecklistOutput,
   AiSettings,
   AiTaskOutput,
-  AiTaskType
+  AiTaskType,
+  AiTlsReviewOutput,
+  AiViewContext,
+  AiWorkView
 } from "../../shared/ai-types";
 
-import type { AiSettings, AiTaskType } from "../../shared/ai-types";
+import type { AiCustomSkill, AiSettings, AiTaskType, AiWorkView } from "../../shared/ai-types";
 
 export const AI_TASK_META: Record<AiTaskType, { label: string; hint: string }> = {
   capture_summary: {
@@ -43,6 +49,10 @@ export const AI_TASK_META: Record<AiTaskType, { label: string; hint: string }> =
   browser_helper: {
     label: "Browser Helper",
     hint: "Suggested exploration steps — you confirm navigation"
+  },
+  tls_review: {
+    label: "TLS Review",
+    hint: "Review certificate events, trust failures, and proxy posture"
   }
 };
 
@@ -51,8 +61,23 @@ export const AI_TASK_TYPES: AiTaskType[] = [
   "repeater_drafts",
   "scope_checklist",
   "report_notes",
-  "browser_helper"
+  "browser_helper",
+  "tls_review"
 ];
+
+export const VIEW_AI_TASKS: Record<AiWorkView, AiTaskType[]> = {
+  traffic: ["capture_summary", "report_notes"],
+  repeater: ["repeater_drafts"],
+  scope: ["scope_checklist", "browser_helper"],
+  ssl: ["tls_review"]
+};
+
+export const VIEW_AI_LABELS: Record<AiWorkView, string> = {
+  traffic: "Traffic analysis",
+  repeater: "Replay engineering",
+  scope: "Scope planning",
+  ssl: "TLS & proxy review"
+};
 
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   provider: "openai",
@@ -67,3 +92,32 @@ export type AiPaletteContext = {
   targets: string[];
   browserUrl: string;
 };
+
+export type AiPaletteSelection =
+  | { kind: "builtin"; task: AiTaskType }
+  | { kind: "custom"; skillId: string };
+
+export function skillsForView(skills: AiCustomSkill[], view: AiWorkView) {
+  return skills.filter((skill) => skill.views.includes(view));
+}
+
+export function defaultSelection(view: AiWorkView, skills: AiCustomSkill[]): AiPaletteSelection {
+  const custom = skillsForView(skills, view)[0];
+  if (custom) {
+    return { kind: "custom", skillId: custom.id };
+  }
+  return { kind: "builtin", task: VIEW_AI_TASKS[view][0] };
+}
+
+export function selectionKey(selection: AiPaletteSelection) {
+  return selection.kind === "custom" ? `custom:${selection.skillId}` : selection.task;
+}
+
+export function runPayloadFromSelection(
+  selection: AiPaletteSelection
+): Pick<import("../../shared/ai-types").AiRunRequest, "task" | "skillId"> {
+  if (selection.kind === "custom") {
+    return { task: "custom", skillId: selection.skillId };
+  }
+  return { task: selection.task };
+}
