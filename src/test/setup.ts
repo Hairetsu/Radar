@@ -194,7 +194,49 @@ const radarApi = {
   })),
   loginCursor: vi.fn(async () => ({ ok: true, message: "Linked as test@example.com" })),
   getAiModels: vi.fn(async () => [{ id: "auto", label: "auto" }]),
-  refreshAiModels: vi.fn(async () => [{ id: "auto", label: "auto" }])
+  refreshAiModels: vi.fn(async () => [{ id: "auto", label: "auto" }]),
+  startAgentRun: vi.fn(async (payload) => ({
+    id: "agent-test",
+    sessionId: "session-test",
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z",
+    goal: payload.goal,
+    status: "queued",
+    policy: {
+      maxRuntimeMs: 120000,
+      maxSteps: 8,
+      maxReplay: 1,
+      maxCaptureSample: 20,
+      allowRawContext: false
+    },
+    timeline: [
+      {
+        id: "step-test",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        note: "Run queued from AI-First goal prompt."
+      }
+    ],
+    findings: []
+  })),
+  stopAgentRun: vi.fn(async () => ({
+    id: "agent-test",
+    sessionId: "session-test",
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:01:00.000Z",
+    goal: "Inspect target",
+    status: "stopped",
+    policy: {
+      maxRuntimeMs: 120000,
+      maxSteps: 8,
+      maxReplay: 1,
+      maxCaptureSample: 20,
+      allowRawContext: false
+    },
+    timeline: [],
+    findings: []
+  })),
+  getAgentRun: vi.fn(async () => null),
+  listAgentRuns: vi.fn(async () => [])
 };
 
 if (typeof window !== "undefined") {

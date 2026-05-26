@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
+import type { AgentRun } from "../shared/agent-types.js";
 import type { CapturedRequest, SslEvent } from "../shared/domain.js";
 import { openLocalStore } from "./localStore.js";
 
@@ -236,6 +237,46 @@ describe("localStore", () => {
 
     const reopened = openLocalStore(tmpDir);
     expect(reopened.listAiModels("cursor-local")).toEqual([{ id: "auto", label: "auto" }]);
+    reopened.close();
+  });
+
+  it("persists agent runs with timeline and findings", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const run: AgentRun = {
+      id: "agent-1",
+      sessionId: context.session.id,
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Inspect target",
+      status: "completed",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      timeline: [{ id: "step-1", createdAt: "2026-05-25T00:00:00.000Z", note: "Run started." }],
+      findings: [
+        {
+          id: "finding-1",
+          createdAt: "2026-05-25T00:00:01.000Z",
+          title: "Missing HSTS",
+          confidence: "low",
+          evidenceRefs: ["capture:cap-1"],
+          notes: "Sampled HTTPS response did not include HSTS.",
+          uncertainties: ["Review manually."]
+        }
+      ]
+    };
+
+    store.upsertAgentRun(context.session.id, run);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.getAgentRun(context.session.id, run.id)).toEqual(run);
+    expect(reopened.listAgentRuns(context.session.id)).toEqual([run]);
     reopened.close();
   });
 

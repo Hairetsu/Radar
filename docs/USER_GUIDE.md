@@ -498,6 +498,33 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 - Subject name.
 - Issuer.
 
+## Manual-First And AI-First Modes
+
+Radar starts in **Manual-First** mode. In this mode, the operator drives Traffic, Repeater, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, and report notes, but it does not execute browser navigation or replay requests.
+
+Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt and run console above the normal views. Enter a scoped goal such as:
+
+```text
+Inspect https://staging.example.com for auth, session, and API hardening issues.
+```
+
+When a run starts, Radar records a live timeline and moves the visible app as the agent works:
+
+- **Scope** shows the engagement boundary before autonomous actions.
+- **Traffic** shows browser launch, navigation, and captured requests.
+- **Repeater** shows the selected replay draft and latest autonomous replay response.
+- **SSL** shows TLS and proxy evidence before the run finishes.
+
+The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. Click **Stop** in the AI-First console to interrupt an active run. Switching back to Manual-First also stops an active autonomous run so it cannot continue invisibly.
+
+AI-First runs are intentionally bounded:
+
+- Every browser or replay URL must be in Scope.
+- Replay uses stricter autonomous limits than manual Repeater controls.
+- Burst replay is not part of the first autonomous slice.
+- Findings are draft findings until manually reviewed.
+- Tool calls, policy blocks, results, and findings are saved locally with the active session.
+
 ## AI Command Palette
 
 Open the AI command palette with:
@@ -646,7 +673,7 @@ Important local files and folders:
 
 | Item | Purpose |
 | --- | --- |
-| `radar-local.sqlite` | Profiles, workspaces, sessions, targets, captures, SSL events, cached model lists. |
+| `radar-local.sqlite` | Profiles, workspaces, sessions, targets, captures, SSL events, cached model lists, and AI-First agent run history. |
 | `proxy-ca/radar-ca.pem` | Local proxy CA certificate. |
 | `proxy-ca/radar-ca-key.pem` | Local proxy CA private key. |
 | `profiles/<profile-id>/proxy-browser-profile` | Dedicated launched-browser profile. |
@@ -656,6 +683,7 @@ Important local files and folders:
 Privacy notes:
 
 - Captures stay local unless you explicitly include them in AI context.
+- AI-First run history, tool timelines, and draft findings stay local in the active session.
 - Raw AI context is opt-in.
 - API keys are saved locally when entered for non-local providers.
 - Codex local mode uses installed Codex authentication and does not store an API key in Radar.
@@ -710,6 +738,16 @@ https://staging.example.com
 8. Apply the draft if useful.
 9. Manually confirm the URL and headers.
 10. Click **Transmit** yourself.
+
+### Run AI-First Autonomy
+
+1. Add the target origin in **03 Scope** and click **Commit**.
+2. Switch the top shell toggle from **Manual-First** to **AI-First**.
+3. Enter a goal that includes the scoped target.
+4. Click **Start Run**.
+5. Watch Radar move through Scope, Traffic, Repeater, and SSL as the timeline updates.
+6. Click **Stop** if the run should halt.
+7. Review draft findings in the AI-First findings inbox before using them.
 
 ### Create Report Notes
 
@@ -807,6 +845,16 @@ Open AI settings and check:
 - Base URL is correct for OpenAI-compatible providers.
 - Codex CLI is installed and authenticated for Codex Connect.
 - Cursor agent is installed and authenticated for Cursor CLI Connect.
+
+### AI-First Run Does Not Move
+
+Check:
+
+- AI settings are connected.
+- The goal includes a URL or the address bar contains the target you want to inspect.
+- The target origin is saved in **03 Scope**.
+- The run timeline does not show a policy block.
+- The run has not been stopped by switching back to Manual-First.
 
 ### Codex Connect Cannot Find Codex
 

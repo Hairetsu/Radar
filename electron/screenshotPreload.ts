@@ -1,4 +1,5 @@
 import { contextBridge } from "electron";
+import type { AgentRun } from "../shared/agent-types.js";
 import type { AiSettings } from "../shared/ai-types.js";
 import type { RadarApi } from "../shared/radar-api.js";
 import type { BrowserState, CapturedRequest, LocalContext, ProxyState, SslEvent } from "../shared/domain.js";
@@ -121,6 +122,7 @@ const aiSettings: AiSettings = {
 
 let currentCaptures = [...captures];
 let targets = ["http://localhost:*", "http://127.0.0.1:*", "http://[::1]:*"];
+const agentRuns: AgentRun[] = [];
 
 const radar: RadarApi = {
   getLocalContext: async () => context,
@@ -190,7 +192,37 @@ const radar: RadarApi = {
   probeAiConnection: async () => ({ ok: true, message: "Connected" }),
   loginCursor: async () => ({ ok: true, message: "Linked" }),
   getAiModels: async () => [{ id: "auto", label: "auto" }],
-  refreshAiModels: async () => [{ id: "auto", label: "auto" }]
+  refreshAiModels: async () => [{ id: "auto", label: "auto" }],
+  startAgentRun: async (payload) => {
+    const run: AgentRun = {
+      id: "agent-screenshot",
+      sessionId: context.session.id,
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: payload.goal,
+      status: "queued",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      timeline: [{ id: "step-screenshot", createdAt: "2026-05-25T00:00:00.000Z", note: "Run queued." }],
+      findings: []
+    };
+    agentRuns.unshift(run);
+    return run;
+  },
+  stopAgentRun: async (id) => {
+    const run = agentRuns.find((item) => item.id === id);
+    if (!run) return null;
+    run.status = "stopped";
+    run.updatedAt = "2026-05-25T00:01:00.000Z";
+    return run;
+  },
+  getAgentRun: async (id) => agentRuns.find((run) => run.id === id) || null,
+  listAgentRuns: async () => agentRuns
 };
 
 contextBridge.exposeInMainWorld("radar", radar);
