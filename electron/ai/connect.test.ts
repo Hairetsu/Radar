@@ -1,5 +1,7 @@
 import type { AiConnectPresetId } from "../../shared/ai-types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as codexCli from "./codexCli.js";
+import * as cursorCli from "./cursorCli.js";
 import { PRESETS, resolvePreset, applyConnectPreset, probeSettings } from "./connect.js";
 
 describe("connect", () => {
@@ -17,7 +19,7 @@ describe("connect", () => {
   it("exposes known presets", () => {
     expect(PRESETS.codex.label).toBe("Codex");
     expect(PRESETS.codex.provider).toBe("codex-local");
-    expect(PRESETS.cursor_cli.provider).toBe("openai-compatible");
+    expect(PRESETS.cursor_cli.provider).toBe("cursor-local");
   });
 
   it("resolves codex preset to local CLI auth", () => {
@@ -27,21 +29,27 @@ describe("connect", () => {
     expect(resolved.apiKeySource).toBe("local");
   });
 
-  it("falls back to saved api key", () => {
-    const resolved = resolvePreset({ presetId: "cursor_cli", savedApiKey: "saved-key" });
-    expect(resolved.apiKey).toBe("saved-key");
-    expect(resolved.apiKeySource).toBe("saved");
-  });
-
-  it("uses cursor proxy url override", () => {
-    process.env.CURSOR_PROXY_URL = "http://127.0.0.1:9999/v1";
+  it("resolves cursor preset to local agent auth", () => {
     const resolved = resolvePreset({ presetId: "cursor_cli" });
-    expect(resolved.baseUrl).toBe("http://127.0.0.1:9999/v1");
+    expect(resolved.provider).toBe("cursor-local");
+    expect(resolved.baseUrl).toBe("cursor://local");
+    expect(resolved.apiKey).toBe("local");
+    expect(resolved.apiKeySource).toBe("local");
   });
 
-  it("uses local fallback for cursor cli", () => {
+  it("reads cursor api key from env", () => {
+    process.env.CURSOR_API_KEY = "env-key";
     const resolved = resolvePreset({ presetId: "cursor_cli", savedApiKey: "" });
-    expect(resolved.apiKeySource).toBe("local");
+    expect(resolved.apiKey).toBe("env-key");
+    expect(resolved.apiKeySource).toBe("CURSOR_API_KEY");
+  });
+
+  it("reads cursor auth token from env", () => {
+    delete process.env.CURSOR_API_KEY;
+    process.env.CURSOR_AUTH_TOKEN = "token-key";
+    const resolved = resolvePreset({ presetId: "cursor_cli", savedApiKey: "" });
+    expect(resolved.apiKey).toBe("token-key");
+    expect(resolved.apiKeySource).toBe("CURSOR_AUTH_TOKEN");
   });
 
   it("throws for unknown preset", () => {
@@ -50,7 +58,7 @@ describe("connect", () => {
 
   it("applies connect preset settings", () => {
     const applied = applyConnectPreset({ presetId: "cursor_cli", savedApiKey: "" });
-    expect(applied.settings.provider).toBe("openai-compatible");
+    expect(applied.settings.provider).toBe("cursor-local");
     expect(applied.meta.presetId).toBe("cursor_cli");
   });
 
@@ -60,8 +68,7 @@ describe("connect", () => {
     const probe = await probeSettings({
       provider: "openai-compatible",
       baseUrl: "http://127.0.0.1:8765/v1",
-      apiKey: "unused",
-      presetId: "cursor_cli"
+      apiKey: "unused"
     });
 
     expect(probe.ok).toBe(true);
@@ -79,15 +86,26 @@ describe("connect", () => {
     expect(probe.message).toContain("API key is missing");
   });
 
-  it("reports unreachable codex endpoint", async () => {
+  it("probes codex local provider", async () => {
+    vi.spyOn(codexCli, "probeCodexCli").mockResolvedValue({ ok: true, message: "Codex ready" });
+    const probe = await probeSettings({ provider: "codex-local", baseUrl: "codex://local", apiKey: "local" });
+    expect(probe.ok).toBe(true);
+  });
+
+  it("probes cursor local provider", async () => {
+    vi.spyOn(cursorCli, "probeCursorCli").mockResolvedValue({ ok: true, message: "Cursor ready" });
+    const probe = await probeSettings({ provider: "cursor-local", baseUrl: "cursor://local", apiKey: "local" });
+    expect(probe.ok).toBe(true);
+  });
+
+  it("reports unreachable openai-compatible endpoint", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false })));
     const probe = await probeSettings({
-      provider: "openai",
-      baseUrl: "https://api.openai.com/v1",
-      apiKey: "k",
-      presetId: "codex"
+      provider: "openai-compatible",
+      baseUrl: "http://127.0.0.1:8765/v1",
+      apiKey: "k"
     });
     expect(probe.ok).toBe(false);
-    expect(probe.message).toContain("Codex/OpenAI API not reachable");
+    expect(probe.message).toContain("OpenAI-compatible API not reachable");
   });
 });

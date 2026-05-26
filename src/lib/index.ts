@@ -11,3 +11,4 @@ export {
 export { MAX_CAPTURED_BODY, truncateText, statusTone, elapsed, bodyPreview, tlsLine } from "./text";
 export { resultPreview } from "./resultPreview";
 export { cn } from "./utils";
+export { applyTheme, readStoredTheme, storeTheme, themeOption, THEME_OPTIONS, THEME_IDS, isThemeId, type ThemeId, type ThemeOption } from "./theme";

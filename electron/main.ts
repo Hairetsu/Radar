@@ -22,7 +22,14 @@ import {
   runAiTask,
   snapshotAudit as snapshotAiAudit,
   connectPreset as connectAiPreset,
-  probeSettings as probeAiSettings
+  probeSettings as probeAiSettings,
+  loadSkills as loadAiSkills,
+  upsertSkill as saveAiSkill,
+  deleteSkill as deleteAiSkill,
+  getAiModels,
+  refreshAiModels,
+  reconcileSettingsModel,
+  loginCursorCli
 } from "./ai/index.js";
 import { findSystemBrowser } from "./systemBrowser.js";
 
@@ -681,8 +688,7 @@ ipcMain.handle("ai:context:preview", (_event, payload) => {
     capturedMap: captured,
     allowlist,
     browserUrl: browserState.url || "",
-    captureIds: payload?.captureIds,
-    includeRaw: Boolean(payload?.includeRaw)
+    request: payload || {}
   });
 });
 
@@ -696,14 +702,46 @@ ipcMain.handle("ai:run", async (_event, payload) => {
   });
 });
 
+ipcMain.handle("ai:skills:get", () => loadAiSkills(app.getPath("userData")));
+
+ipcMain.handle("ai:skills:save", (_event, skill) => saveAiSkill(app.getPath("userData"), skill));
+
+ipcMain.handle("ai:skills:delete", (_event, id) => deleteAiSkill(app.getPath("userData"), String(id || "")));
+
 ipcMain.handle("ai:audit:snapshot", () => snapshotAiAudit());
 
 ipcMain.handle("ai:connect", async (_event, presetId) => {
-  return connectAiPreset({ userDataPath: app.getPath("userData"), presetId });
+  const result = await connectAiPreset({ userDataPath: app.getPath("userData"), presetId });
+  if (localStore && result.probe.ok) {
+    try {
+      await refreshAiModels({ settings: result.settings, store: localStore });
+    } catch {
+      // keep cached models when refresh fails
+    }
+  }
+  return result;
 });
 
 ipcMain.handle("ai:connect:probe", async (_event, settings) => {
   return probeAiSettings(settings || {});
+});
+
+ipcMain.handle("ai:cursor:login", async () => {
+  return loginCursorCli();
+});
+
+ipcMain.handle("ai:models:get", (_event, provider) => {
+  return getAiModels(String(provider || ""), localStore);
+});
+
+ipcMain.handle("ai:models:refresh", async (_event, settings) => {
+  const current = settings || loadAiSettings(app.getPath("userData"));
+  const models = await refreshAiModels({ settings: current, store: localStore });
+  const next = reconcileSettingsModel(current, models);
+  if (next.model !== current.model) {
+    saveAiSettings(app.getPath("userData"), next);
+  }
+  return models;
 });
 
 ipcMain.handle("repeater:burst", async (_event, input) => {

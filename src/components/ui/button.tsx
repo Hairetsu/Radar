@@ -14,9 +14,9 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         solid:
-          "border-signal bg-signal text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_22px_-8px_rgba(255,87,51,0.5)] hover:-translate-y-px hover:bg-signal-soft hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_12px_28px_-8px_rgba(255,87,51,0.6)]",
+          "border-signal bg-signal text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_22px_-8px_color-mix(in_srgb,var(--color-signal)_50%,transparent)] hover:-translate-y-px hover:bg-signal-soft hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_12px_28px_-8px_color-mix(in_srgb,var(--color-signal)_60%,transparent)]",
         outline:
-          "border-[rgba(237,229,210,0.18)] bg-transparent text-bone hover:border-signal hover:bg-signal/5 hover:text-signal",
+          "border-[color-mix(in_srgb,var(--color-bone)_18%,transparent)] bg-transparent text-bone hover:border-signal hover:bg-signal/5 hover:text-signal",
         icon: "border-rule bg-graphite text-copy hover:border-signal hover:bg-signal/5 hover:text-signal",
         zap:
           "z-0 overflow-hidden border-signal bg-transparent font-bold tracking-[0.22em] text-signal before:absolute before:inset-0 before:-z-10 before:translate-y-full before:bg-signal before:transition-transform before:duration-300 before:content-[''] hover:text-ink hover:before:translate-y-0",

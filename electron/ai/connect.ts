@@ -1,5 +1,6 @@
 import type { AiConnectPresetId, AiProviderId, ProbeSettingsInput } from "../../shared/ai-types.js";
 import { probeCodexCli } from "./codexCli.js";
+import { probeCursorCli } from "./cursorCli.js";
 
 type PresetConfig = {
   label: string;
@@ -21,11 +22,11 @@ export const PRESETS: Record<AiConnectPresetId, PresetConfig> = {
   },
   cursor_cli: {
     label: "Cursor CLI",
-    provider: "openai-compatible",
-    baseUrl: "http://127.0.0.1:8765/v1",
+    provider: "cursor-local",
+    baseUrl: "cursor://local",
     model: "auto",
-    envKeys: ["CURSOR_BRIDGE_API_KEY", "CURSOR_API_KEY"],
-    fallbackApiKey: "unused"
+    envKeys: ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"],
+    fallbackApiKey: "local"
   }
 };
 
@@ -46,12 +47,9 @@ export function resolvePreset({ presetId, savedApiKey = "" }: { presetId: AiConn
   }
 
   const fromEnv = firstEnv(preset.envKeys);
-  const savedPresetKey = preset.provider === "codex-local" ? "" : savedApiKey;
+  const savedPresetKey = preset.provider === "codex-local" || preset.provider === "cursor-local" ? "" : savedApiKey;
   const apiKey = fromEnv?.value || savedPresetKey || preset.fallbackApiKey || "";
-  const baseUrl =
-    presetId === "cursor_cli"
-      ? (process.env.CURSOR_PROXY_URL || process.env.CURSOR_API_PROXY_URL || preset.baseUrl).replace(/\/$/, "")
-      : preset.baseUrl;
+  const baseUrl = preset.baseUrl;
 
   return {
     presetId,
@@ -67,6 +65,10 @@ export function resolvePreset({ presetId, savedApiKey = "" }: { presetId: AiConn
 export async function probeSettings(settings: ProbeSettingsInput) {
   if (settings.provider === "codex-local") {
     return probeCodexCli();
+  }
+
+  if (settings.provider === "cursor-local") {
+    return probeCursorCli();
   }
 
   const root = (settings.baseUrl || "").replace(/\/$/, "");
@@ -106,9 +108,7 @@ export async function probeSettings(settings: ProbeSettingsInput) {
   return {
     ok: false,
     message:
-      settings.presetId === "cursor_cli"
-        ? "Cursor CLI proxy not reachable. Start: npx cursor-api-proxy (or set CURSOR_PROXY_URL)."
-        : "Codex/OpenAI API not reachable. Check OPENAI_API_KEY and network."
+      "OpenAI-compatible API not reachable. Check base URL, API key, and network."
   };
 }
 

@@ -60,4 +60,16 @@ describe("context", () => {
     expect(payload).toContain("Bearer secret-token");
     expect(payload).toContain("redacted: no");
   });
+
+  it("handles captures without tls metadata", () => {
+    const payload = buildContextPayload({
+      captures: [{ ...sampleCapture, tls: null, requestBody: "", responseBody: "" }],
+      targets: [],
+      browserUrl: "",
+      includeRaw: false
+    });
+
+    expect(payload).toContain("TLS: none");
+    expect(payload).toContain("(empty)");
+  });
 });

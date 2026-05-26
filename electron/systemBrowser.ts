@@ -64,6 +64,6 @@ export function findSystemBrowser(): SystemBrowser {
   }
 
   throw new Error(
-    "No supported browser found. Install Google Chrome, Microsoft Edge, or Chromium, then try Deploy again."
+    "No supported browser found. Install Google Chrome, Microsoft Edge, or Chromium, then try Open Browser again."
   );
 }

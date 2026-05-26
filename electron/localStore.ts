@@ -3,6 +3,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
+import type { AiModelOption } from "../shared/ai-types.js";
+import { sanitizeModelOption } from "../shared/ai-models.js";
 import type {
   CapturedRequest,
   LocalContext,
@@ -268,6 +270,15 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (session_id, id)
     );
 
+    CREATE TABLE IF NOT EXISTS ai_models (
+      provider TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      label TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (provider, model_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_captures_session_started
       ON captures(session_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_captures_session_host
@@ -494,6 +505,43 @@ export function openLocalStore(userDataPath: string) {
     return rows.map(toSslEvent);
   };
 
+  const saveAiModels = (provider: string, models: AiModelOption[]) => {
+    const nextProvider = provider.trim();
+    if (!nextProvider) {
+      return [];
+    }
+
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM ai_models WHERE provider = ?").run(nextProvider);
+      const insert = db.prepare(
+        "INSERT INTO ai_models (provider, model_id, label, position, updated_at) VALUES (?, ?, ?, ?, ?)"
+      );
+      const updatedAt = nowIso();
+      models.forEach((model, index) => {
+        const cleaned = sanitizeModelOption(model);
+        const id = cleaned.id;
+        if (!id) {
+          return;
+        }
+        insert.run(nextProvider, id, cleaned.label || id, index, updatedAt);
+      });
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+
+    return listAiModels(nextProvider);
+  };
+
+  const listAiModels = (provider: string) => {
+    const rows = db
+      .prepare("SELECT model_id, label FROM ai_models WHERE provider = ? ORDER BY position ASC")
+      .all(provider.trim()) as Array<{ model_id: string; label: string }>;
+    return rows.map((row) => sanitizeModelOption({ id: row.model_id, label: row.label }));
+  };
+
   const close = () => {
     db.close();
   };
@@ -508,6 +556,8 @@ export function openLocalStore(userDataPath: string) {
     clearCaptures,
     insertSslEvent,
     listSslEvents,
+    saveAiModels,
+    listAiModels,
     close
   };
 }

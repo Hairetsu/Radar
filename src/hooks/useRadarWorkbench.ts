@@ -18,6 +18,8 @@ import type {
   SslEvent
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
+import { useAiConnection } from "./useAiConnection";
+import { useTheme } from "./useTheme";
 
 export type WorkView = "traffic" | "repeater" | "scope" | "ssl";
 
@@ -56,6 +58,45 @@ export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: s
   ssl: { num: "04", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
+const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+
+function sortedMethods(methods: string[]) {
+  return [...methods].sort((left, right) => {
+    const leftIndex = methodSortOrder.indexOf(left);
+    const rightIndex = methodSortOrder.indexOf(right);
+    const normalizedLeft = leftIndex === -1 ? methodSortOrder.length : leftIndex;
+    const normalizedRight = rightIndex === -1 ? methodSortOrder.length : rightIndex;
+    return normalizedLeft - normalizedRight || left.localeCompare(right);
+  });
+}
+
+function serializeHeaders(headers: Record<string, string>) {
+  return Object.entries(headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+}
+
+function searchTextForCapture(capture: CapturedRequest) {
+  return [
+    capture.method,
+    capture.url,
+    capture.host,
+    capture.path,
+    capture.status,
+    capture.statusText,
+    capture.mimeType,
+    capture.type,
+    capture.source,
+    serializeHeaders(capture.requestHeaders),
+    capture.requestBody,
+    serializeHeaders(capture.responseHeaders),
+    capture.responseBody
+  ]
+    .filter((value) => value !== null && value !== undefined)
+    .join("\n")
+    .toLowerCase();
+}
+
 export function useRadarWorkbench() {
   const [address, setAddress] = useState(defaultUrl);
   const [captures, setCaptures] = useState<CapturedRequest[]>([]);
@@ -66,6 +107,9 @@ export function useRadarWorkbench() {
   const [selectedId, setSelectedId] = useState("");
   const [targets, setTargets] = useState<string[]>([]);
   const [targetText, setTargetText] = useState("");
+  const [trafficMethodFilter, setTrafficMethodFilter] = useState("all");
+  const [trafficTypeFilter, setTrafficTypeFilter] = useState("all");
+  const [trafficSearch, setTrafficSearch] = useState("");
   const [draft, setDraft] = useState<ReplayDraft>(emptyDraft);
   const [headersText, setHeadersText] = useState(formatHeaders(emptyDraft.headers));
   const [activeView, setActiveView] = useState<WorkView>("traffic");
@@ -78,6 +122,8 @@ export function useRadarWorkbench() {
   const [notice, setNotice] = useState("");
   const [clock, setClock] = useState(() => new Date());
   const [aiPaletteOpen, setAiPaletteOpen] = useState(false);
+  const ai = useAiConnection();
+  const appearance = useTheme();
 
   const openBrowser = useCallback(async (event?: FormEvent) => {
     event?.preventDefault();
@@ -239,10 +285,33 @@ export function useRadarWorkbench() {
     setNotice("Proxy stopped");
   }, []);
 
-  const trafficCaptures = useMemo(
+  const scopedTrafficCaptures = useMemo(
     () => captures.filter((capture) => isAllowedTarget(capture.url, targets)),
     [captures, targets]
   );
+
+  const trafficMethods = useMemo(
+    () => sortedMethods(Array.from(new Set(scopedTrafficCaptures.map((capture) => capture.method).filter(Boolean)))),
+    [scopedTrafficCaptures]
+  );
+
+  const trafficTypes = useMemo(
+    () =>
+      Array.from(new Set(scopedTrafficCaptures.map((capture) => capture.type).filter(Boolean))).sort((left, right) =>
+        left.localeCompare(right)
+      ),
+    [scopedTrafficCaptures]
+  );
+
+  const trafficCaptures = useMemo(() => {
+    const query = trafficSearch.trim().toLowerCase();
+    return scopedTrafficCaptures.filter((capture) => {
+      const methodMatches = trafficMethodFilter === "all" || capture.method === trafficMethodFilter;
+      const typeMatches = trafficTypeFilter === "all" || capture.type === trafficTypeFilter;
+      const searchMatches = !query || searchTextForCapture(capture).includes(query);
+      return methodMatches && typeMatches && searchMatches;
+    });
+  }, [scopedTrafficCaptures, trafficMethodFilter, trafficSearch, trafficTypeFilter]);
 
   const selected = useMemo(
     () => trafficCaptures.find((capture) => capture.id === selectedId) || trafficCaptures[0] || null,
@@ -318,6 +387,15 @@ export function useRadarWorkbench() {
     targets,
     targetText,
     setTargetText,
+    scopedTrafficCaptures,
+    trafficMethodFilter,
+    setTrafficMethodFilter,
+    trafficTypeFilter,
+    setTrafficTypeFilter,
+    trafficSearch,
+    setTrafficSearch,
+    trafficMethods,
+    trafficTypes,
     draft,
     setDraft,
     headersText,
@@ -339,6 +417,8 @@ export function useRadarWorkbench() {
     clock,
     aiPaletteOpen,
     setAiPaletteOpen,
+    ai,
+    appearance,
     selected,
     trafficCaptures,
     meta,

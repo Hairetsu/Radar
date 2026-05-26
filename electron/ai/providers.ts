@@ -1,5 +1,6 @@
 import type { AiSettings, AiTaskOutput, AiTaskType } from "../../shared/ai-types.js";
 import { runCodexCliCompletion } from "./codexCli.js";
+import { runCursorCliCompletion } from "./cursorCli.js";
 
 export function extractJson(text: string) {
   const trimmed = String(text || "").trim();
@@ -120,6 +121,16 @@ export async function complete({
     return { text, parsed: extractJson(text) };
   }
 
+  if (settings.provider === "cursor-local") {
+    const text = await runCursorCliCompletion({
+      model: settings.model,
+      apiKey: settings.apiKey,
+      system,
+      user
+    });
+    return { text, parsed: extractJson(text) };
+  }
+
   if (!settings.apiKey?.trim()) {
     throw new Error("AI API key is not configured.");
   }
@@ -145,7 +156,11 @@ export async function complete({
   });
 }
 
-export function normalizeOutput(task: AiTaskType, parsed: Record<string, unknown>): AiTaskOutput {
+export function normalizeOutput(
+  task: AiTaskType | "custom",
+  parsed: Record<string, unknown>,
+  customMeta?: { skillId: string; label: string }
+): AiTaskOutput {
   switch (task) {
     case "capture_summary":
       return {
@@ -226,6 +241,24 @@ export function normalizeOutput(task: AiTaskType, parsed: Record<string, unknown
         }
       };
     }
+    case "tls_review":
+      return {
+        task,
+        data: {
+          summary: String(parsed.summary || ""),
+          findings: Array.isArray(parsed.findings) ? parsed.findings.map(String) : [],
+          recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.map(String) : []
+        }
+      };
+    case "custom":
+      return {
+        task,
+        data: {
+          skillId: customMeta?.skillId || String(parsed.skillId || ""),
+          label: customMeta?.label || String(parsed.label || "Custom skill"),
+          text: String(parsed.text || parsed.summary || "")
+        }
+      };
     default:
       throw new Error(`Unknown AI task: ${task}`);
   }

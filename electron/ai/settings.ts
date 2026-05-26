@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AiSettings } from "../../shared/ai-types.js";
+import { sanitizeModelId } from "../../shared/ai-models.js";
 
 export const DEFAULT_SETTINGS: AiSettings = {
   provider: "openai",
@@ -18,7 +19,8 @@ export function loadSettings(userDataPath: string): AiSettings {
   try {
     const raw = fs.readFileSync(file, "utf8");
     const parsed = JSON.parse(raw) as Partial<AiSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    return { ...merged, model: sanitizeModelId(merged.model) || DEFAULT_SETTINGS.model };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
@@ -28,7 +30,7 @@ export function saveSettings(userDataPath: string, settings: Partial<AiSettings>
   const file = settingsPath(userDataPath);
   const next: AiSettings = {
     provider: settings.provider || DEFAULT_SETTINGS.provider,
-    model: String(settings.model || DEFAULT_SETTINGS.model),
+    model: sanitizeModelId(String(settings.model || DEFAULT_SETTINGS.model)) || DEFAULT_SETTINGS.model,
     apiKey: String(settings.apiKey || ""),
     baseUrl: String(settings.baseUrl || DEFAULT_SETTINGS.baseUrl)
   };

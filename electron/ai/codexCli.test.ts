@@ -10,7 +10,7 @@ vi.mock("node:child_process", () => ({
   spawn: spawnMock
 }));
 
-import { probeCodexCli, resolveCodexCliPath, runCodexCliCompletion } from "./codexCli.js";
+import { listCodexCliModels, probeCodexCli, resolveCodexCliPath, runCodexCliCompletion } from "./codexCli.js";
 
 type MockSpawnOptions = {
   exitCode?: number | null;
@@ -217,6 +217,59 @@ describe("codexCli", () => {
         user: "user"
       })
     ).rejects.toThrow("no exit code");
+  });
+
+  it("lists codex models from cli output", async () => {
+    mockSpawn({ stdout: "auto\ncodex-mini\n" });
+
+    await expect(listCodexCliModels()).resolves.toEqual([
+      { id: "auto", label: "auto" },
+      { id: "codex-mini", label: "codex-mini" }
+    ]);
+    expect(spawnMock.mock.calls[0]?.[1]).toEqual(["--list-models"]);
+  });
+
+  it("tries alternate codex list commands", async () => {
+    spawnMock
+      .mockImplementationOnce(() => {
+        const child = new EventEmitter() as EventEmitter & {
+          stdout: EventEmitter;
+          stderr: EventEmitter;
+          stdin: { end: (input?: string) => void };
+          kill: ReturnType<typeof vi.fn>;
+        };
+        child.stdout = new EventEmitter();
+        child.stderr = new EventEmitter();
+        child.stdin = { end: vi.fn() };
+        child.kill = vi.fn();
+        Promise.resolve().then(() => child.emit("close", 1));
+        return child;
+      })
+      .mockImplementationOnce((_command: string, args: string[]) => {
+        const child = new EventEmitter() as EventEmitter & {
+          stdout: EventEmitter;
+          stderr: EventEmitter;
+          stdin: { end: (input?: string) => void };
+          kill: ReturnType<typeof vi.fn>;
+        };
+        child.stdout = new EventEmitter();
+        child.stderr = new EventEmitter();
+        child.stdin = { end: vi.fn() };
+        child.kill = vi.fn();
+        Promise.resolve().then(() => {
+          expect(args).toEqual(["models", "list"]);
+          child.stdout.emit("data", Buffer.from("codex-mini\n"));
+          child.emit("close", 0);
+        });
+        return child;
+      });
+
+    await expect(listCodexCliModels()).resolves.toEqual([{ id: "codex-mini", label: "codex-mini" }]);
+  });
+
+  it("falls back to auto when codex model listing fails", async () => {
+    mockSpawn({ exitCode: 1, stderr: "unknown command" });
+    await expect(listCodexCliModels()).resolves.toEqual([{ id: "auto", label: "auto" }]);
   });
 
   it("rejects empty codex responses", async () => {

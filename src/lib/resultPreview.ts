@@ -41,6 +41,18 @@ export function resultPreview(result: AiRunResult) {
       return result.output.data.steps
         .map((step, index) => `${index + 1}. [${step.action}] ${step.label}${step.url ? ` → ${step.url}` : ""}`)
         .join("\n");
+    case "tls_review":
+      return [
+        result.output.data.summary,
+        "",
+        "Findings:",
+        ...result.output.data.findings.map((line) => `- ${line}`),
+        "",
+        "Recommendations:",
+        ...result.output.data.recommendations.map((line) => `- ${line}`)
+      ].join("\n");
+    case "custom":
+      return result.output.data.text;
     default:
       return result.rawText || "";
   }
