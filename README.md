@@ -1,25 +1,26 @@
 # Radar
 
-Radar is a local-first defensive web security workbench. It embeds Chromium, captures browser traffic through Electron's DevTools protocol and an optional MITM proxy, and lets you replay requests through a controlled repeater — all in a desktop bureau-style operator console.
+Radar is a local-first defensive web security workbench. It launches a dedicated browser profile, captures browser traffic through Electron's DevTools protocol and an optional MITM proxy, and lets you replay requests through a controlled repeater — all in a desktop bureau-style operator console.
 
 ## MVP Surface
 
-- Burp-style Radar Browser using a Radar-managed Chromium binary and a Radar-owned profile.
-- Network capture history with request/response headers and body previews, TLS metadata, and source attribution (browser / proxy / repeater).
+- Burp-style Radar Browser launcher using a supported local Chrome, Edge, Brave, or Chromium binary with a Radar-owned profile.
+- Network capture history with method/type filters, request/response string search, selectable copyable details, TLS metadata, and source attribution (browser / proxy / repeater).
 - Clone captured requests into a repeater with full header and body editing.
 - Single replay plus capped burst replay (count, parallelism, delay) for hardening checks.
 - Scope-filtered traffic list for focusing on selected targets.
 - Local HTTPS proxy mode for external browsers, with a Radar-generated CA and SPKI fingerprint.
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
-- Command-palette AI with provider adapters, context preview, prepare-only outputs, and session audit trail.
+- Command-palette AI with per-view skills, provider adapters, context preview, prepare-only outputs, and session audit trail.
+- Switchable Bureau, Vellum, and Specter themes with high-contrast text selection for request/response inspection.
 
 ## Stack
 
-- Electron 42 main process (`electron/main.cjs`) wiring CDP capture, mockttp proxy, Chromium launcher, and AI IPC.
+- Electron 42 main process (`electron/main.ts`) wiring CDP capture, mockttp proxy, system browser launcher, and AI IPC.
 - React 18 + Vite + TypeScript renderer (`src/`).
-- Tailwind CSS v4 with a custom bureau theme (Antonio / Saira / JetBrains Mono) and shadcn-style UI primitives (`cn`, `cva`, `src/components/ui/`).
+- Tailwind CSS v4 with CSS-variable themes and shadcn-style UI primitives (`cn`, `cva`, `src/components/ui/`).
 - mockttp for the optional MITM proxy and CA generation.
-- `@puppeteer/browsers` to fetch and pin Radar's own Chromium build.
+- System browser discovery for Chrome, Edge, Brave, and Chromium.
 
 ## Run
 
@@ -55,13 +56,13 @@ Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* —
 
 ## Workspace Tour
 
-The renderer is a four-view operator console. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, a one-click Radar Browser launcher, live status pills (engine / req / tls / proxy), and a bottom telemetry ticker mirroring live counts.
+The renderer is a four-view operator console. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
 
 ### 01 — Traffic
 
 ![Radar Traffic view](docs/screens/radar-01-traffic.png)
 
-Live capture log filtered to the current scope. Each row shows method, status, host, path, transport (TLS protocol or resource type), and round-trip duration. Selecting a row reveals request/response detail with TLS info on the right; a one-click **To Repeater** action clones the selected request into view 02. Empty state reads _"No in-scope transmissions intercepted"_ until matching traffic flows in.
+Live capture log filtered to the current scope. The toolbar narrows captures by HTTP method, resource type, or a broad string match across URL, request headers/body, and response headers/body. Each row shows method, status, host, path, resource type, and round-trip duration. Selecting a row reveals selectable request/response detail with TLS info on the right; **Copy** puts the active detail pane on the clipboard, and **To Repeater** clones the selected request into view 02. Empty state reads _"No in-scope transmissions intercepted"_ until matching traffic flows in.
 
 ### 02 — Repeater
 
@@ -79,13 +80,13 @@ The engagement boundary. Newline-delimited origins filter the Traffic view; defa
 
 ![Radar SSL / Proxy view](docs/screens/radar-04-ssl.png)
 
-Crypto and proxy interception. The summary strip shows current proxy URL, generated CA path, and active Chrome profile. Below: **Engage Proxy** / **Disengage** / **Forge CA** controls plus a printout of HTTP proxy address, CA cert path, SPKI fingerprint, Chrome CDP endpoint, and the managed Chromium build. The lower panes hold the certificate event log (trusted vs. blocked endpoints) and a TLS detail pane for the currently selected capture.
+Crypto and proxy interception. The summary strip shows current proxy URL, generated CA path, and active browser profile. Below: **Engage Proxy** / **Disengage** / **Forge CA** controls plus a printout of HTTP proxy address, CA cert path, SPKI fingerprint, Chrome CDP endpoint, and selected browser binary. The lower panes hold the certificate event log (trusted vs. blocked endpoints) and a TLS detail pane for the currently selected capture.
 
 ### AI — Command Palette
 
 ![Radar AI command palette](docs/screens/radar-05-ai-palette.png)
 
-Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. Select a capture in Traffic first — AI only sends user-selected captures.
+Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. The palette is view-aware: built-in tasks change per view, custom skills can be added for the current view, and AI only sends selected captures or the active view context.
 
 **Tasks (prepare-only):**
 
@@ -94,6 +95,7 @@ Open with **⌘K** / **Ctrl+K**, the panel **AI** button, or the Scope strip. Se
 - Scope Checklist — manual test checklist within allowlist
 - Report Notes — concise evidence notes with uncertainty markers
 - Browser Helper — suggested exploration steps; you confirm navigation
+- Custom skills — saved operator instructions scoped to the active view
 
 **Connect presets:**
 
@@ -120,21 +122,22 @@ Add project origins in the Scope view (or use "Trust Origin" in Repeater) to bri
 
 Radar has two HTTPS paths:
 
-- **Radar Browser mode** — Radar installs and launches its own Chromium build with a dedicated profile, remote debugging on `127.0.0.1:9223`, and the Radar proxy attached. Radar's CA fingerprint is supplied as a launch-scoped certificate exception so HTTPS works without touching the system trust store.
+- **Radar Browser mode** — **Open Browser** launches a supported local Chrome, Edge, Brave, or Chromium binary with a dedicated Radar profile, remote debugging on `127.0.0.1:9223`, and the Radar proxy attached. Radar's CA fingerprint is supplied as a launch-scoped certificate exception so HTTPS works without touching the system trust store.
 - **External browser proxy** — engage the proxy from the SSL view, point your browser at `http://127.0.0.1:8088`, then manually trust the generated `radar-ca.pem` shown in the UI.
 
-Radar never installs a root certificate automatically. On macOS, Radar launches the isolated Chrome with Chrome's mock-keychain flag so it does not request your login keychain password or share system Chrome's saved secrets.
+Radar never installs a root certificate automatically. On macOS, Radar launches the isolated browser with Chrome's mock-keychain flag where supported so it does not request your login keychain password or share system Chrome's saved secrets.
 
 ## Design
 
-The interface is a "bureau / operator console" aesthetic:
+The interface is a themed "operator console" aesthetic:
 
-- Display: **Antonio** (variable condensed) — tactical authority for headers and section numerals.
-- Body: **Saira** (geometric humanist).
-- Mono: **JetBrains Mono** for all operational text.
-- Single signal-orange accent (`#ff5733`) on warm-dark slate, with steel-blue / jade / sand / rust status tokens. Tokens live in `@theme` inside `src/styles.css`; layout and surfaces are Tailwind utilities in components.
+- **Bureau**: Antonio / Saira / JetBrains Mono with signal orange on warm-dark slate.
+- **Vellum**: Instrument Serif / Hanken Grotesk / DM Mono with vermillion ink on sunlit paper.
+- **Specter**: Unbounded / Sora / Space Mono with chartreuse acid over midnight plum.
+- Theme tokens live in `src/styles.css` as CSS variables that feed Tailwind's `@theme`; layout and surfaces are Tailwind utilities in components.
 - Asymmetric layout: vertical left rail with live section numerals, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, and a bottom telemetry ticker.
 - Motion via Tailwind utilities and keyframes in `src/styles.css`: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button.
+- Text selection is explicitly high-contrast in every theme so request and response evidence can be copied without losing readability.
 
 ## Development Conventions
 
@@ -145,9 +148,9 @@ See [docs/BRANCHING.md](docs/BRANCHING.md) for the protected branch and promotio
 
 ```
 electron/
-  main.cjs        Main-process: CDP capture, proxy, Chromium launcher, IPC handlers
-  preload.cjs     Exposes the typed `window.radar` API to the renderer
-  screenshot.cjs  Headless screenshot runner for README assets
+  main.ts         Main-process: CDP capture, proxy, browser launcher, IPC handlers
+  preload.ts      Exposes the typed `window.radar` API to the renderer
+  screenshot.ts   Headless screenshot runner for README assets
   ai/             Provider adapters, context builder, connect presets, audit trail
 src/
   App.tsx         Bureau-style operator console (4 views + AI palette)
@@ -162,7 +165,6 @@ src/
 docs/
   BRANCHING.md
   CODE_CONVENTIONS.md
-  AI_V1_SPEC.md   AI boundaries, tasks, IPC
   screens/        Screenshots used in this README
 index.html        Vite entry
 vite.config.ts    Vite + Tailwind v4 + React
