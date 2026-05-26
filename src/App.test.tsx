@@ -257,6 +257,70 @@ describe("App", () => {
     expect(screen.getByText("No captures match filters")).toBeInTheDocument();
   });
 
+  it("multi-selects traffic rows for the ai palette", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([
+      capture("one", "https://allowed.test/one", { startedAt: "2026-05-25T00:00:01.000Z" }),
+      capture("two", "https://allowed.test/two", { startedAt: "2026-05-25T00:00:02.000Z" }),
+      capture("three", "https://allowed.test/three", { startedAt: "2026-05-25T00:00:03.000Z" })
+    ]);
+
+    render(<App />);
+
+    const rowOne = await screen.findByTestId("trafficRow-one");
+    const rowTwo = screen.getByTestId("trafficRow-two");
+    const rowThree = screen.getByTestId("trafficRow-three");
+
+    fireEvent.click(rowOne);
+    expect(rowOne).toHaveAttribute("data-selected", "true");
+    expect(rowTwo).toHaveAttribute("data-selected", "false");
+
+    fireEvent.click(rowTwo, { metaKey: true });
+    expect(rowOne).toHaveAttribute("data-selected", "true");
+    expect(rowTwo).toHaveAttribute("data-selected", "true");
+
+    fireEvent.click(rowThree, { shiftKey: true });
+    expect(rowOne).toHaveAttribute("data-selected", "true");
+    expect(rowTwo).toHaveAttribute("data-selected", "true");
+    expect(rowThree).toHaveAttribute("data-selected", "true");
+  });
+
+  it("sorts traffic by selected field and direction", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://*.test"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([
+      capture("b", "https://alpha.test/z", {
+        startedAt: "2026-05-25T00:00:02.000Z",
+        host: "alpha.test",
+        path: "/z",
+        durationMs: 50
+      }),
+      capture("a", "https://beta.test/a", {
+        startedAt: "2026-05-25T00:00:01.000Z",
+        host: "beta.test",
+        path: "/a",
+        durationMs: 10
+      })
+    ]);
+
+    render(<App />);
+
+    await screen.findByTestId("trafficRow-b");
+
+    const rowOrder = () =>
+      screen.getAllByTestId(/^trafficRow-/).map((row) => row.getAttribute("data-testid")?.replace("trafficRow-", ""));
+
+    expect(rowOrder()).toEqual(["b", "a"]);
+
+    fireEvent.change(screen.getByTestId("trafficSortField"), { target: { value: "host" } });
+    expect(rowOrder()).toEqual(["a", "b"]);
+
+    fireEvent.click(screen.getByTestId("trafficSortDirection"));
+    expect(rowOrder()).toEqual(["b", "a"]);
+
+    fireEvent.change(screen.getByTestId("trafficSortField"), { target: { value: "duration" } });
+    expect(rowOrder()).toEqual(["a", "b"]);
+  });
+
   it("searches traffic across request and response details", async () => {
     vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
     vi.mocked(window.radar!.getCaptures).mockResolvedValue([

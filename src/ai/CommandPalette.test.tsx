@@ -73,4 +73,38 @@ describe("CommandPalette", () => {
     await user.click(screen.getByRole("button", { name: /Preview context/i }));
     expect(await screen.findByText(/Context preview/i)).toBeInTheDocument();
   });
+
+  it("supports multi-selecting captures for traffic tasks", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPalette
+        {...baseProps}
+        captureIds={["cap-1"]}
+        captures={[
+          baseProps.captures[0],
+          {
+            ...baseProps.captures[0],
+            id: "cap-2",
+            path: "/api",
+            url: "http://localhost:3000/api"
+          }
+        ]}
+      />
+    );
+
+    expect(await screen.findByText("Captures (1/2)")).toBeInTheDocument();
+    expect(screen.getByTestId("aiCaptureCheckbox-cap-1")).toBeChecked();
+    expect(screen.getByTestId("aiCaptureCheckbox-cap-2")).not.toBeChecked();
+
+    await user.click(screen.getByTestId("aiCaptureCheckbox-cap-2"));
+    expect(screen.getByText("Captures (2/2)")).toBeInTheDocument();
+    expect(screen.getByText("2 captures selected")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("aiClearCaptures"));
+    expect(screen.getByText("Captures (0/2)")).toBeInTheDocument();
+    expect(screen.getByText("No captures selected")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("aiSelectAllCaptures"));
+    expect(screen.getByText("Captures (2/2)")).toBeInTheDocument();
+  });
 });
