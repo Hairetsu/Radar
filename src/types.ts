@@ -24,6 +24,7 @@ export type {
   LocalContext,
   LocalProfile,
   LocalSession,
+  LocalSessionSummary,
   LocalWorkspace,
   ProxyState,
   ReplayDraft,

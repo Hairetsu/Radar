@@ -74,6 +74,31 @@ function activeLocalContext() {
   return localContext;
 }
 
+function activeLocalStore() {
+  if (!localStore) {
+    throw new Error("Local store is not ready.");
+  }
+  return localStore;
+}
+
+function activateLocalContext(nextContext: LocalContext) {
+  const profileChanged = Boolean(localContext && localContext.profile.id !== nextContext.profile.id);
+  if (profileChanged) {
+    stopChromeProcess();
+    browserState = {
+      open: false,
+      url: browserState.url,
+      title: "",
+      loading: false,
+      engine: "none"
+    };
+  }
+
+  localContext = nextContext;
+  hydrateActiveLocalState();
+  return localContext;
+}
+
 function rememberCapture(entry: CapturedRequest) {
   captured.set(entry.id, entry);
   while (captured.size > HOT_CAPTURE_LIMIT) {
@@ -586,18 +611,58 @@ ipcMain.handle("capture:attach", (_event, contentsId) => {
 
 ipcMain.handle("local:context", () => activeLocalContext());
 
+ipcMain.handle("local:profiles:list", () => activeLocalStore().listProfiles());
+
+ipcMain.handle("local:profile:create", (_event, name) => {
+  const context = activeLocalStore().createProfileContext(typeof name === "string" ? name : undefined);
+  return activateLocalContext(context);
+});
+
+ipcMain.handle("local:profile:save", (_event, payload) => {
+  const profile = activeLocalStore().updateProfile(String(payload?.id || ""), String(payload?.name || ""));
+  if (localContext?.profile.id === profile.id) {
+    localContext = {
+      ...localContext,
+      profile
+    };
+  }
+  return profile;
+});
+
+ipcMain.handle("local:profile:load", (_event, id) => {
+  const context = activeLocalStore().loadProfile(String(id || ""));
+  return activateLocalContext(context);
+});
+
+ipcMain.handle("local:sessions:list", (_event, profileId) => {
+  const context = activeLocalContext();
+  const nextProfileId = typeof profileId === "string" && profileId.trim() ? profileId : context.profile.id;
+  return activeLocalStore().listSessions(nextProfileId);
+});
+
 ipcMain.handle("local:session:create", (_event, name) => {
   const context = activeLocalContext();
-  const session = localStore?.createSession(context.workspace.id, typeof name === "string" ? name : undefined);
-  if (!session) {
-    throw new Error("Local store is not ready.");
-  }
-  localContext = {
+  const session = activeLocalStore().createSession(context.workspace.id, typeof name === "string" ? name : undefined);
+  return activateLocalContext({
     ...context,
     session
-  };
-  hydrateActiveLocalState();
-  return localContext;
+  });
+});
+
+ipcMain.handle("local:session:save", (_event, payload) => {
+  const session = activeLocalStore().updateSession(String(payload?.id || ""), String(payload?.name || ""));
+  if (localContext?.session.id === session.id) {
+    localContext = {
+      ...localContext,
+      session
+    };
+  }
+  return session;
+});
+
+ipcMain.handle("local:session:load", (_event, id) => {
+  const context = activeLocalStore().loadSession(String(id || ""));
+  return activateLocalContext(context);
 });
 
 ipcMain.handle("browser:open", (_event, url) => {
