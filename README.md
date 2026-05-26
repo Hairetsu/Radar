@@ -5,7 +5,7 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 ## MVP Surface
 
 - Burp-style Radar Browser launcher using a supported local Chrome, Edge, Brave, or Chromium binary with a Radar-owned profile.
-- Network capture history with method/type filters, request/response string search, selectable copyable details, TLS metadata, and source attribution (browser / proxy / repeater).
+- Network capture history with method/type filters, request/response string search, selectable copyable details, right-click request actions, TLS metadata, and source attribution (browser / proxy / repeater).
 - Clone captured requests into a repeater with full header and body editing.
 - Single replay plus capped burst replay (count, parallelism, delay) for hardening checks.
 - Scope-filtered traffic list for focusing on selected targets.
@@ -58,11 +58,15 @@ Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* —
 
 The renderer is a four-view operator console. Persistent across all views: a left rail with vertical bureau lockup and live section numerals, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
 
+For a full user-facing guide to the app, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+
 ### 01 — Traffic
 
 ![Radar Traffic view](docs/screens/radar-01-traffic.png)
 
-Live capture log filtered to the current scope. The toolbar narrows captures by HTTP method, resource type, or a broad string match across URL, request headers/body, and response headers/body. Each row shows method, status, host, path, resource type, and round-trip duration. Selecting a row reveals selectable request/response detail with TLS info on the right; **Copy** puts the active detail pane on the clipboard, and **To Repeater** clones the selected request into view 02. Empty state reads _"No in-scope transmissions intercepted"_ until matching traffic flows in.
+Live capture log filtered to the current scope. The toolbar narrows captures by HTTP method, resource type, or a broad string match across URL, request headers/body, and response headers/body. Each row shows method, status, host, path, resource type, and round-trip duration. Selecting a row reveals selectable request/response detail with TLS info on the right; **Copy** puts the active detail pane on the clipboard, and **To Repeater** clones the selected request into view 02. Right-click a row or the detail pane to copy the request as cURL, Bash, Python, Fetch, or raw HTTP, copy its URL, add the origin to scope, send it to Repeater, or delete the capture. Empty state reads _"No in-scope transmissions intercepted"_ until matching traffic flows in.
+
+![Radar request context menu](docs/screens/radar-06-request-menu.png)
 
 ### 02 — Repeater
 

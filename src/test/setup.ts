@@ -154,6 +154,7 @@ const radarApi = {
     caFingerprint: ""
   })),
   getCaptures: vi.fn(async () => []),
+  deleteCapture: vi.fn(async () => ({ ok: true })),
   getSslEvents: vi.fn(async () => []),
   getTargets: vi.fn(async () => []),
   onCapture: vi.fn(() => () => undefined),

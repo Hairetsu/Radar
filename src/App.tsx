@@ -1,10 +1,14 @@
+import { useEffect, useState, type MouseEvent } from "react";
 import {
   Activity,
+  Braces,
   Bot,
+  Code2,
   CircleDot,
   Copy,
   Eraser,
   ExternalLink,
+  FileCode2,
   FileLock2,
   FilePlus2,
   LockKeyhole,
@@ -18,6 +22,8 @@ import {
   ShieldCheck,
   Square,
   Target,
+  Terminal,
+  Trash2,
   UserRound,
   Zap
 } from "lucide-react";
@@ -32,7 +38,19 @@ import { Input } from "./components/ui/input";
 import { Select } from "./components/ui/select";
 import { Textarea } from "./components/ui/textarea";
 import { useRadarWorkbench, viewMeta, WORK_VIEWS } from "./hooks/useRadarWorkbench";
-import { bodyPreview, cn, elapsed, formatHeaders, statusTone, tlsLine } from "./lib";
+import {
+  bodyPreview,
+  cn,
+  elapsed,
+  formatCapturedRequest,
+  formatHeaders,
+  originFromUrl,
+  REQUEST_EXPORT_LABELS,
+  statusTone,
+  tlsLine,
+  type RequestExportFormat
+} from "./lib";
+import type { CapturedRequest } from "./types";
 
 const shellClass =
   "radar-shell relative grid h-full min-h-full cursor-default overflow-hidden [grid-template-columns:56px_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_28px] max-[1180px]:[grid-template-columns:1fr] max-[1180px]:[grid-template-rows:auto_minmax(0,1fr)_28px]";
@@ -68,8 +86,38 @@ const trafficRowClass = (selected: boolean) =>
     selected && "bg-[var(--theme-row-active)] text-bone before:w-[3px]"
   );
 
+type RequestMenuState = {
+  x: number;
+  y: number;
+  captureId: string;
+};
+
+const requestExportFormats: RequestExportFormat[] = ["curl", "bash", "python", "fetch", "raw"];
+
+const requestMenuActionClass =
+  "flex h-9 w-full items-center gap-2.5 border-0 bg-transparent px-3 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-muted transition hover:bg-signal/10 hover:text-bone focus-visible:bg-signal/10 focus-visible:text-bone focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent disabled:hover:text-muted [&_svg]:text-signal";
+
+const requestMenuDangerClass =
+  "hover:bg-rust/10 hover:text-rust focus-visible:bg-rust/10 focus-visible:text-rust [&_svg]:text-rust";
+
+function contextMenuPosition(event: MouseEvent<HTMLElement>) {
+  const menuWidth = 264;
+  const menuHeight = 404;
+  const viewportWidth = window.innerWidth || 1024;
+  const viewportHeight = window.innerHeight || 768;
+  return {
+    x: Math.max(12, Math.min(event.clientX, viewportWidth - menuWidth - 12)),
+    y: Math.max(12, Math.min(event.clientY, viewportHeight - menuHeight - 12))
+  };
+}
+
+function testIdSuffix(format: RequestExportFormat) {
+  return format.slice(0, 1).toUpperCase() + format.slice(1);
+}
+
 export function App() {
   const workbench = useRadarWorkbench();
+  const [requestMenu, setRequestMenu] = useState<RequestMenuState | null>(null);
   const trafficFiltersActive = Boolean(
     workbench.trafficSearch.trim() ||
       workbench.trafficMethodFilter !== "all" ||
@@ -95,6 +143,87 @@ export function App() {
       workbench.setNotice("Copy failed");
     }
   };
+  const requestMenuCapture = requestMenu
+    ? workbench.captures.find((capture) => capture.id === requestMenu.captureId) || null
+    : null;
+  const requestMenuOrigin = requestMenuCapture ? originFromUrl(requestMenuCapture.url) : "";
+  const requestMenuOriginInScope = Boolean(requestMenuOrigin && workbench.targets.includes(requestMenuOrigin));
+  const openRequestMenu = (event: MouseEvent<HTMLElement>, capture: CapturedRequest | null = workbench.selected) => {
+    if (!capture) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const nextPosition = contextMenuPosition(event);
+    workbench.setSelectedId(capture.id);
+    setRequestMenu({ ...nextPosition, captureId: capture.id });
+  };
+  const copyRequestExport = async (format: RequestExportFormat) => {
+    if (!requestMenuCapture) {
+      return;
+    }
+    try {
+      await window.navigator.clipboard.writeText(formatCapturedRequest(requestMenuCapture, format));
+      workbench.setNotice(`Request copied as ${REQUEST_EXPORT_LABELS[format]}`);
+    } catch {
+      workbench.setNotice("Copy failed");
+    } finally {
+      setRequestMenu(null);
+    }
+  };
+  const copyRequestUrl = async () => {
+    if (!requestMenuCapture) {
+      return;
+    }
+    try {
+      await window.navigator.clipboard.writeText(requestMenuCapture.url);
+      workbench.setNotice("Request URL copied");
+    } catch {
+      workbench.setNotice("Copy failed");
+    } finally {
+      setRequestMenu(null);
+    }
+  };
+  const cloneMenuRequest = () => {
+    if (requestMenuCapture) {
+      workbench.cloneToRepeater(requestMenuCapture);
+    }
+    setRequestMenu(null);
+  };
+  const addMenuRequestToScope = async () => {
+    if (requestMenuCapture) {
+      await workbench.addTarget(requestMenuCapture.url);
+    }
+    setRequestMenu(null);
+  };
+  const deleteMenuRequest = async () => {
+    if (requestMenuCapture) {
+      await workbench.deleteCapture(requestMenuCapture.id);
+    }
+    setRequestMenu(null);
+  };
+  useEffect(() => {
+    if (!requestMenu) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setRequestMenu(null);
+      }
+    };
+    const close = () => setRequestMenu(null);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", close);
+    };
+  }, [requestMenu]);
+  useEffect(() => {
+    if (requestMenu && !requestMenuCapture) {
+      setRequestMenu(null);
+    }
+  }, [requestMenu, requestMenuCapture]);
   const activeSession = workbench.localContext?.session || null;
   const activeSessionListed = activeSession
     ? workbench.sessions.some((session) => session.id === activeSession.id)
@@ -533,6 +662,7 @@ export function App() {
                     className={trafficRowClass(capture.id === workbench.selected?.id)}
                     data-selected={capture.id === workbench.selected?.id ? "true" : "false"}
                     onClick={() => workbench.setSelectedId(capture.id)}
+                    onContextMenu={(event) => openRequestMenu(event, capture)}
                     data-testid={`trafficRow-${capture.id}`}
                     data-component="trafficRow"
                   >
@@ -594,7 +724,11 @@ export function App() {
                     Copy
                   </Button>
                 </div>
-                <pre className="min-h-0 select-text cursor-text radar-pre-gradient px-5 py-4" data-testid="trafficDetailText">
+                <pre
+                  className="min-h-0 select-text cursor-text radar-pre-gradient px-5 py-4"
+                  onContextMenu={(event) => openRequestMenu(event)}
+                  data-testid="trafficDetailText"
+                >
                   {selectedDetailText}
                 </pre>
               </div>
@@ -936,6 +1070,118 @@ export function App() {
         onPrepareNavigate={workbench.prepareAiNavigate}
         onNotice={workbench.setNotice}
       />
+
+      {requestMenu && requestMenuCapture && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setRequestMenu(null)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setRequestMenu(null);
+          }}
+          data-testid="requestContextMenuOverlay"
+          data-component="requestContextMenuOverlay"
+        >
+          <div
+            role="menu"
+            aria-label="Request actions"
+            className="absolute w-[264px] overflow-hidden border border-rule theme-modal-surface shadow-bureau backdrop-blur-xl"
+            style={{ left: requestMenu.x, top: requestMenu.y }}
+            onClick={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.preventDefault()}
+            data-testid="requestContextMenu"
+            data-component="requestContextMenu"
+          >
+            <div className="border-b border-rule bg-signal/5 px-3 py-2">
+              <span className="block font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                Request
+              </span>
+              <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.06em] text-bone">
+                {requestMenuCapture.method} {requestMenuCapture.host || "capture"}
+              </strong>
+              <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted">
+                {requestMenuCapture.path || requestMenuCapture.url}
+              </span>
+            </div>
+
+            <div className="py-1">
+              {requestExportFormats.map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  role="menuitem"
+                  className={requestMenuActionClass}
+                  onClick={() => void copyRequestExport(format)}
+                  data-testid={`requestMenuCopy${testIdSuffix(format)}`}
+                  data-component="requestMenuCopyExport"
+                >
+                  {format === "curl" || format === "bash" ? (
+                    <Terminal size={13} strokeWidth={1.7} />
+                  ) : format === "python" ? (
+                    <FileCode2 size={13} strokeWidth={1.7} />
+                  ) : format === "fetch" ? (
+                    <Code2 size={13} strokeWidth={1.7} />
+                  ) : (
+                    <Braces size={13} strokeWidth={1.7} />
+                  )}
+                  Copy as {REQUEST_EXPORT_LABELS[format]}
+                </button>
+              ))}
+              <button
+                type="button"
+                role="menuitem"
+                className={requestMenuActionClass}
+                onClick={() => void copyRequestUrl()}
+                data-testid="requestMenuCopyUrl"
+                data-component="requestMenuCopyUrl"
+              >
+                <Copy size={13} strokeWidth={1.7} />
+                Copy URL
+              </button>
+            </div>
+
+            <div className="border-t border-rule py-1">
+              <button
+                type="button"
+                role="menuitem"
+                className={requestMenuActionClass}
+                onClick={cloneMenuRequest}
+                data-testid="requestMenuToRepeater"
+                data-component="requestMenuToRepeater"
+              >
+                <Repeat2 size={13} strokeWidth={1.7} />
+                To Repeater
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={requestMenuActionClass}
+                onClick={() => void addMenuRequestToScope()}
+                disabled={requestMenuOriginInScope}
+                data-testid="requestMenuAddScope"
+                data-component="requestMenuAddScope"
+              >
+                <Target size={13} strokeWidth={1.7} />
+                {requestMenuOriginInScope ? "Origin In Scope" : "Add Origin To Scope"}
+              </button>
+            </div>
+
+            <div className="border-t border-rule py-1">
+              <button
+                type="button"
+                role="menuitem"
+                className={cn(requestMenuActionClass, requestMenuDangerClass)}
+                onClick={() => void deleteMenuRequest()}
+                data-testid="requestMenuDelete"
+                data-component="requestMenuDelete"
+              >
+                <Trash2 size={13} strokeWidth={1.7} />
+                Delete Capture
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer
         className={cn(
