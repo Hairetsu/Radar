@@ -13,12 +13,18 @@ export function parseHeaders(value: string) {
     throw new Error("Headers must be a JSON object.");
   }
   return Object.fromEntries(
-    Object.entries(parsed).map(([key, headerValue]) => [key, String(headerValue)])
+    Object.entries(parsed).map(([key, headerValue]) => [
+      key,
+      String(headerValue),
+    ]),
   );
 }
 
 export function safeJsonHeaders(headers: Record<string, unknown> = {}) {
   return Object.fromEntries(
-    Object.entries(headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(", ") : String(value)])
+    Object.entries(headers).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? value.join(", ") : String(value),
+    ]),
   );
 }

@@ -23,6 +23,7 @@ import type {
   ReplayResult,
   SslEvent
 } from "./domain.js";
+import type { AgentRun, AgentRunRequest } from "./agent-types.js";
 
 export type RadarApi = {
   getLocalContext: () => Promise<LocalContext>;
@@ -70,4 +71,8 @@ export type RadarApi = {
   loginCursor: () => Promise<AiConnectProbe>;
   getAiModels: (provider: AiSettings["provider"]) => Promise<AiModelOption[]>;
   refreshAiModels: (settings: AiSettings) => Promise<AiModelOption[]>;
+  startAgentRun: (payload: AgentRunRequest) => Promise<AgentRun>;
+  stopAgentRun: (id: string) => Promise<AgentRun | null>;
+  getAgentRun: (id: string) => Promise<AgentRun | null>;
+  listAgentRuns: () => Promise<AgentRun[]>;
 };
