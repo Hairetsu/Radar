@@ -25,6 +25,10 @@ export type CapturedRequest = {
   encodedDataLength?: number;
   allowed: boolean;
   source: "browser" | "repeater" | "proxy";
+  agentRunId?: string;
+  navigationId?: string;
+  frameUrl?: string;
+  initiator?: string;
   tls?: TlsDetails | null;
 };
 

@@ -17,7 +17,7 @@ import type {
   TlsDetails
 } from "../shared/domain.js";
 
-const SCHEMA_VERSION = "2";
+const SCHEMA_VERSION = "3";
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
@@ -69,6 +69,10 @@ type CaptureRow = {
   encoded_data_length: number | null;
   allowed: number;
   source: CapturedRequest["source"];
+  agent_run_id: string | null;
+  navigation_id: string | null;
+  frame_url: string | null;
+  initiator: string | null;
   tls_json: string | null;
 };
 
@@ -223,6 +227,10 @@ function toCapture(row: CaptureRow): CapturedRequest {
     encodedDataLength: row.encoded_data_length ?? undefined,
     allowed: row.allowed === 1,
     source: row.source,
+    agentRunId: row.agent_run_id || undefined,
+    navigationId: row.navigation_id || undefined,
+    frameUrl: row.frame_url || undefined,
+    initiator: row.initiator || undefined,
     tls: parseTlsJson(row.tls_json)
   };
 }
@@ -326,6 +334,10 @@ export function openLocalStore(userDataPath: string) {
       encoded_data_length INTEGER,
       allowed INTEGER NOT NULL,
       source TEXT NOT NULL CHECK (source IN ('browser', 'repeater', 'proxy')),
+      agent_run_id TEXT,
+      navigation_id TEXT,
+      frame_url TEXT,
+      initiator TEXT,
       tls_json TEXT,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (session_id, id)
@@ -374,6 +386,29 @@ export function openLocalStore(userDataPath: string) {
       ON ssl_events(session_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_agent_runs_session_updated
       ON agent_runs(session_id, updated_at DESC);
+  `);
+
+  const captureColumns = new Set(
+    (
+      db.prepare("PRAGMA table_info(captures)").all() as Array<{
+        name: string;
+      }>
+    ).map((column) => column.name)
+  );
+  const captureColumnMigrations: Array<[string, string]> = [
+    ["agent_run_id", "TEXT"],
+    ["navigation_id", "TEXT"],
+    ["frame_url", "TEXT"],
+    ["initiator", "TEXT"]
+  ];
+  for (const [name, type] of captureColumnMigrations) {
+    if (!captureColumns.has(name)) {
+      db.exec(`ALTER TABLE captures ADD COLUMN ${name} ${type}`);
+    }
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_captures_session_agent_run
+      ON captures(session_id, agent_run_id, started_at DESC);
   `);
 
   const readMeta = (key: string) => {
@@ -632,9 +667,9 @@ export function openLocalStore(userDataPath: string) {
         session_id, id, started_at, method, url, host, path,
         request_headers_json, request_body, status, status_text, mime_type, resource_type,
         response_headers_json, response_body, duration_ms, encoded_data_length, allowed,
-        source, tls_json, updated_at
+        source, agent_run_id, navigation_id, frame_url, initiator, tls_json, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(session_id, id) DO UPDATE SET
         started_at = excluded.started_at,
         method = excluded.method,
@@ -653,6 +688,10 @@ export function openLocalStore(userDataPath: string) {
         encoded_data_length = excluded.encoded_data_length,
         allowed = excluded.allowed,
         source = excluded.source,
+        agent_run_id = excluded.agent_run_id,
+        navigation_id = excluded.navigation_id,
+        frame_url = excluded.frame_url,
+        initiator = excluded.initiator,
         tls_json = excluded.tls_json,
         updated_at = excluded.updated_at
     `).run(
@@ -675,6 +714,10 @@ export function openLocalStore(userDataPath: string) {
       capture.encodedDataLength ?? null,
       capture.allowed ? 1 : 0,
       capture.source,
+      capture.agentRunId || null,
+      capture.navigationId || null,
+      capture.frameUrl || null,
+      capture.initiator || null,
       capture.tls ? JSON.stringify(capture.tls) : null,
       nowIso()
     );

@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_URL as defaultUrl,
+  firstUrlFromText,
   formatHeaders,
   isAllowedTarget,
   normalizeUrl,
@@ -559,13 +560,28 @@ export function useRadarWorkbench() {
       setNotice("Describe a goal before starting AI-First.");
       return;
     }
+    const goalUrl = firstUrlFromText(goal);
+    const startUrl = goalUrl || normalizeUrl(address);
+    const scopeOrigin = goalUrl ? originFromUrl(goalUrl) : "";
+
+    if (goalUrl && scopeOrigin) {
+      const latestTargets = await window.radar.getTargets();
+      if (!isAllowedTarget(goalUrl, latestTargets)) {
+        const nextTargets = [...latestTargets, scopeOrigin];
+        const saved = (await window.radar.setTargets(nextTargets)) || nextTargets;
+        setTargets(saved);
+        setTargetText(saved.join("\n"));
+      }
+    }
+
     const run = await window.radar.startAgentRun({
       goal,
-      startUrl: address
+      startUrl
     });
+    setAddress(startUrl);
     setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
     setAgentGoal("");
-    setNotice("AI-First run started");
+    setNotice(scopeOrigin ? `AI-First run started on ${scopeOrigin}` : "AI-First run started");
   }, [address, agentGoal]);
 
   const stopAgentRun = useCallback(async () => {

@@ -13,7 +13,7 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
 - Manual-First / AI-First mode toggle: keep direct operator control, or hand a scoped goal to an autonomous run console with a live stop button.
 - Command-palette AI with per-view skills, provider adapters, context preview, prepare-only outputs, and session audit trail.
-- AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect captures, send strictly capped replay probes, record timeline entries, and produce draft findings inside local session history.
+- AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect run-scoped capture context across redirects, recover the controlled browser when CDP drops, send strictly capped replay probes, record timeline entries, and produce draft findings inside local session history.
 - Switchable Bureau, Vellum, and Specter themes with high-contrast text selection for request/response inspection.
 
 ## Stack

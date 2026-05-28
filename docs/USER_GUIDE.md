@@ -1,6 +1,6 @@
 # Radar User Guide
 
-Radar is a local-first defensive web security workbench for capturing browser traffic, inspecting request and response evidence, replaying requests manually, managing engagement scope, reviewing TLS/proxy behavior, and preparing AI-assisted analysis without giving the AI permission to act on your behalf.
+Radar is a local-first defensive web security workbench for capturing browser traffic, inspecting request and response evidence, replaying requests, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only; AI-First lets a scoped agent choose bounded tools while you watch.
 
 This guide covers the app as it exists now: the main console, profiles and sessions, traffic capture, repeater, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
 
@@ -35,9 +35,9 @@ Use Radar when you need a controlled local workbench for authorized web security
 - Clone captured requests into a manual repeater.
 - Send a single replay or a capped burst replay for hardening checks.
 - Review proxy, certificate, and TLS signals.
-- Ask AI for summaries, report notes, checklist ideas, safe repeater drafts, browser exploration suggestions, or TLS review.
+- Ask AI for summaries, report notes, checklist ideas, safe repeater drafts, browser exploration suggestions, TLS review, or a bounded AI-First run.
 
-Radar is not an exploitation automation tool. It is built around manual confirmation: you choose the scope, you choose what to replay, and AI output only prepares analysis or drafts.
+Radar is not an exploitation automation tool. It is built around explicit scope, local evidence, operator-visible timelines, and bounded replay budgets.
 
 ## Safety Model
 
@@ -46,11 +46,11 @@ Radar is designed for defensive, authorized work.
 - Scope controls what appears in Traffic and what the AI can use as app context.
 - The default scope is local development only.
 - AI context is redacted by default. Raw headers and bodies require explicit opt-in in the command palette.
-- AI tasks are prepare-only. They can suggest drafts or navigation, but they do not send requests or navigate without you.
+- Manual-First AI tasks are prepare-only. AI-First can navigate, inspect, and send strictly capped replay probes, but only through saved-scope policy checks.
 - Radar never installs a root certificate automatically.
 - Radar stores captures, targets, sessions, proxy CA files, AI settings, and custom skills locally on your machine.
-- Replay is manual. It is not blocked by scope, so confirm the URL before transmitting.
-- Burst replay is capped to reduce accidental load.
+- Manual replay is operator-driven. AI-First replay is scope-checked and capped separately.
+- Burst replay is capped to reduce accidental load and is not available to AI-First.
 
 Use Radar only on systems, domains, and environments where you have permission to test.
 
@@ -508,20 +508,36 @@ Switch to **AI-First** from the top shell toggle when you want Radar to run from
 Inspect https://staging.example.com for auth, session, and API hardening issues.
 ```
 
-When a run starts, Radar records a live timeline and moves the visible app as the agent works:
+When a run starts, Radar records a live timeline. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. Radar does not fall back to a preset autonomous script if the configured AI planner fails.
 
-- **Scope** shows the engagement boundary before autonomous actions.
-- **Traffic** shows browser launch, navigation, and captured requests.
-- **Repeater** shows the selected replay draft and latest autonomous replay response.
-- **SSL** shows TLS and proxy evidence before the run finishes.
+Available AI-First tools:
+
+- `showView` moves the visible workbench between Traffic, Repeater, Scope, and SSL.
+- `getBrowserState` reads the launched browser state.
+- `openBrowser` and `navigateBrowser` drive in-scope browser navigation.
+- `waitForNetworkIdle` waits for captured traffic to settle after navigation.
+- `getPageText` reads visible text from the active page.
+- `getDomSummary` reads compact page text, links, buttons, and forms.
+- `getClickableElements`, `clickElement`, `fillInput`, and `submitForm` inspect and operate page controls.
+- `getCookies` and `getStorageState` inspect browser session state.
+- `saveAuthState`, `loadAuthState`, `listAuthStates`, and `compareAuthStates` manage named auth/session states for comparison workflows.
+- `getCaptures` reads run-scoped in-scope evidence across target redirects, with optional origin narrowing.
+- `sendReplay` sends one policy-capped replay draft.
+- `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
 
 The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. Click **Stop** in the AI-First console to interrupt an active run. Switching back to Manual-First also stops an active autonomous run so it cannot continue invisibly.
 
 AI-First runs are intentionally bounded:
 
 - Every browser or replay URL must be in Scope.
+- Captures created during an AI-First run are tagged with the run id, navigation id, frame URL, and initiator when available.
+- AI-First feeds the current run's in-scope captured traffic into each planner decision, so redirects and canonical hostnames remain visible without repeated capture reads.
+- AI-First capture reads only return evidence for the active run unless an origin filter narrows that run evidence further.
+- If Chrome's debugging endpoint drops, page-inspection tools reopen the controlled browser at the current URL before retrying.
 - Replay uses stricter autonomous limits than manual Repeater controls.
 - Burst replay is not part of the first autonomous slice.
+- Invalid planner output fails the run instead of switching to heuristics.
+- Findings without evidence references fail the run.
 - Findings are draft findings until manually reviewed.
 - Tool calls, policy blocks, results, and findings are saved locally with the active session.
 
@@ -741,13 +757,12 @@ https://staging.example.com
 
 ### Run AI-First Autonomy
 
-1. Add the target origin in **03 Scope** and click **Commit**.
-2. Switch the top shell toggle from **Manual-First** to **AI-First**.
-3. Enter a goal that includes the scoped target.
-4. Click **Start Run**.
-5. Watch Radar move through Scope, Traffic, Repeater, and SSL as the timeline updates.
-6. Click **Stop** if the run should halt.
-7. Review draft findings in the AI-First findings inbox before using them.
+1. Switch the top shell toggle from **Manual-First** to **AI-First**.
+2. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
+3. Click **Start Run**. Radar saves the goal's target origin into **03 Scope** before the agent chooses tools.
+4. Watch the tool/action timeline update until the agent returns `finish`.
+5. Click **Stop** if the run should halt.
+6. Review draft findings in the AI-First findings inbox before using them.
 
 ### Create Report Notes
 
@@ -851,9 +866,9 @@ Open AI settings and check:
 Check:
 
 - AI settings are connected.
-- The goal includes a URL or the address bar contains the target you want to inspect.
-- The target origin is saved in **03 Scope**.
-- The run timeline does not show a policy block.
+- The goal includes a URL, domain, or the address bar contains the target you want to inspect.
+- If relying on the address bar instead of a goal target, the target origin is saved in **03 Scope**.
+- The run timeline does not show invalid planner output, a policy block, or an AI provider error.
 - The run has not been stopped by switching back to Manual-First.
 
 ### Codex Connect Cannot Find Codex

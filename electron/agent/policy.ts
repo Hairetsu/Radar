@@ -2,10 +2,10 @@ import { isAllowedTarget } from "../../shared/allowlist.js";
 import type { AgentPolicy, AgentToolCall } from "../../shared/agent-types.js";
 
 export const DEFAULT_AGENT_POLICY: AgentPolicy = {
-  maxRuntimeMs: 120_000,
-  maxSteps: 8,
+  maxRuntimeMs: 300_000,
+  maxSteps: 40,
   maxReplay: 1,
-  maxCaptureSample: 20,
+  maxCaptureSample: 100,
   allowRawContext: false
 };
 
@@ -73,4 +73,3 @@ export function blockedToolReason({
 
   return "";
 }
-

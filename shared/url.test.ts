@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeUrl, originFromUrl, DEFAULT_URL } from "./url";
+import { DEFAULT_URL, firstUrlFromText, normalizeUrl, originFromUrl } from "./url";
 
 describe("url", () => {
   it("returns default for empty input", () => {
@@ -21,5 +21,12 @@ describe("url", () => {
     expect(originFromUrl("example.com")).toBe("https://example.com");
     expect(originFromUrl("http://localhost:3000/foo")).toBe("http://localhost:3000");
     expect(originFromUrl("not a url at all!!!")).toBe("");
+  });
+
+  it("extracts explicit and bare urls from natural-language text", () => {
+    expect(firstUrlFromText("Inspect https://example.com/login, then review auth")).toBe("https://example.com/login");
+    expect(firstUrlFromText("Inspect hairetsu.com for API hardening")).toBe("https://hairetsu.com");
+    expect(firstUrlFromText("Try localhost:3000/admin.")).toBe("https://localhost:3000/admin");
+    expect(firstUrlFromText("Email ops@example.com for access")).toBe("");
   });
 });
