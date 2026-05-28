@@ -56,6 +56,10 @@ describe("localStore", () => {
       encodedDataLength: 11,
       allowed: false,
       source: "browser",
+      agentRunId: "agent-1",
+      navigationId: "nav-1",
+      frameUrl: "https://example.com/dashboard",
+      initiator: "script",
       tls: {
         protocol: "TLS 1.3",
         issuer: "Example CA",

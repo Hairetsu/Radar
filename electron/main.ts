@@ -1,15 +1,19 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage } from "electron";
 import { generateCACertificate, generateSPKIFingerprint, getLocal } from "mockttp";
 import {
   DEFAULT_ALLOWLIST,
+  isAllowedTarget,
   shouldTrustLocalCertificate
 } from "../shared/allowlist.js";
 import { toCaptureEntry, proxyRequestToCapture } from "../shared/capture.js";
 import type { BrowserState, CapturedRequest, LocalContext, ProxyState, ReplayDraft, SslEvent } from "../shared/domain.js";
+import type { AgentAuthStateSummary, AgentCookie, AgentStorageState } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
@@ -32,7 +36,9 @@ import {
   loginCursorCli
 } from "./ai/index.js";
 import { AgentRuntime } from "./agent/runtime.js";
+import { createAiAgentPlanner } from "./agent/planner.js";
 import { findSystemBrowser } from "./systemBrowser.js";
+import { ensureRadarKeychainInSearchList, trustProxyCa } from "./trustCa.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,9 +56,12 @@ let allowlist = [...defaultAllowlist];
 const captured = new Map<string, CapturedRequest>();
 const attachedContents = new Set<number>();
 const sslEvents: SslEvent[] = [];
+let lastCaptureChangeAt = Date.now();
 let localStore: LocalStore | null = null;
 let localContext: LocalContext | null = null;
 let agentRuntime: AgentRuntime | null = null;
+let activeAgentRunId = "";
+let activeNavigationId = "";
 let browserState: BrowserState = {
   open: false,
   url: "",
@@ -109,7 +118,15 @@ function activateLocalContext(nextContext: LocalContext) {
 }
 
 function rememberCapture(entry: CapturedRequest) {
+  if (activeAgentRunId && !entry.agentRunId) {
+    entry.agentRunId = activeAgentRunId;
+  }
+  if (activeNavigationId && !entry.navigationId) {
+    entry.navigationId = activeNavigationId;
+  }
+
   captured.set(entry.id, entry);
+  lastCaptureChangeAt = Date.now();
   while (captured.size > HOT_CAPTURE_LIMIT) {
     const oldest = captured.keys().next().value;
     if (!oldest) {
@@ -159,6 +176,543 @@ function listHttpCaptures(limit = 400) {
     .reverse();
 }
 
+async function waitForNetworkIdle({ idleMs = 700, timeoutMs = 8000 }: { idleMs?: number; timeoutMs?: number }) {
+  const started = Date.now();
+  let observedChangeAt = lastCaptureChangeAt;
+  while (Date.now() - started < timeoutMs) {
+    if (lastCaptureChangeAt !== observedChangeAt) {
+      observedChangeAt = lastCaptureChangeAt;
+    }
+    if (Date.now() - observedChangeAt >= idleMs) {
+      return { idle: true, waitedMs: Date.now() - started };
+    }
+    await delay(100);
+  }
+  return { idle: false, waitedMs: Date.now() - started };
+}
+
+function trimAgentText(value: unknown, max = 20000) {
+  const text = String(value || "").replace(/\s+\n/g, "\n").trim();
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+async function evaluateElectronPage<T>(script: string) {
+  if (!targetBrowserWindow || targetBrowserWindow.isDestroyed()) {
+    return null;
+  }
+  return targetBrowserWindow.webContents.executeJavaScript(script, true) as Promise<T>;
+}
+
+type CdpListEntry = {
+  type?: string;
+  url?: string;
+  title?: string;
+  webSocketDebuggerUrl?: string;
+};
+
+type CdpSocket = {
+  readyState: number;
+  send: (text: string) => void;
+  close: () => void;
+  addEventListener: (event: string, listener: (event: { data?: unknown }) => void, options?: { once?: boolean }) => void;
+  removeEventListener: (event: string, listener: (event: { data?: unknown }) => void) => void;
+};
+
+async function canUsePort(port: number) {
+  return new Promise<boolean>((resolve) => {
+    const server = createServer();
+    server.unref();
+    server.once("error", () => resolve(false));
+    server.listen(port, "127.0.0.1", () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+async function findOpenPort(startPort: number) {
+  for (let port = startPort; port < startPort + 80; port += 1) {
+    if (await canUsePort(port)) {
+      return port;
+    }
+  }
+  throw new Error(`No open local port found for Chrome debugging near ${startPort}.`);
+}
+
+async function fetchCdpTargets(endpoint: string) {
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/json/list`);
+  if (!response.ok) {
+    throw new Error(`Chrome debugging endpoint returned ${response.status}.`);
+  }
+  return (await response.json()) as CdpListEntry[];
+}
+
+async function waitForChromeDebugger(endpoint: string, timeoutMs = 8000) {
+  const started = Date.now();
+  let lastError: unknown;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      return await fetchCdpTargets(endpoint);
+    } catch (error) {
+      lastError = error;
+      await delay(150);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Chrome debugging endpoint is unavailable.");
+}
+
+async function cdpPageTarget() {
+  let endpoint = browserState.remoteDebuggingUrl;
+  let targets: CdpListEntry[] | null = null;
+
+  if (endpoint) {
+    try {
+      targets = await waitForChromeDebugger(endpoint, 2500);
+    } catch {
+      targets = null;
+    }
+  }
+
+  if (!targets) {
+    const reopenUrl = syncBrowserState().url || browserState.url;
+    if (reopenUrl && /^https?:\/\//i.test(reopenUrl)) {
+      await openRealChrome(reopenUrl);
+      endpoint = browserState.remoteDebuggingUrl;
+      if (endpoint) {
+        targets = await waitForChromeDebugger(endpoint, 8000);
+      }
+    }
+  }
+
+  if (!endpoint || !targets) {
+    throw new Error("No Chrome debugging endpoint is available. Use openBrowser to reopen the controlled browser, then retry.");
+  }
+
+  const target = targets.find((item) => item.type === "page" && item.webSocketDebuggerUrl) || targets.find((item) => item.webSocketDebuggerUrl);
+  if (!target?.webSocketDebuggerUrl) {
+    throw new Error("No debuggable page target is available.");
+  }
+  return target;
+}
+
+async function withCdpPage<T>(callback: (sendCommand: (method: string, params?: Record<string, unknown>) => Promise<unknown>) => Promise<T>) {
+  const target = await cdpPageTarget();
+  const WebSocketCtor = (globalThis as unknown as { WebSocket?: new (url: string) => CdpSocket }).WebSocket;
+  if (!WebSocketCtor) {
+    throw new Error("WebSocket support is not available in this runtime.");
+  }
+  const debuggerUrl = target.webSocketDebuggerUrl;
+  if (!debuggerUrl) {
+    throw new Error("No Chrome debugger WebSocket URL is available.");
+  }
+
+  const socket = new WebSocketCtor(debuggerUrl);
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Timed out connecting to Chrome debugger.")), 5000);
+    socket.addEventListener(
+      "open",
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      { once: true }
+    );
+    socket.addEventListener(
+      "error",
+      () => {
+        clearTimeout(timeout);
+        reject(new Error("Chrome debugger connection failed."));
+      },
+      { once: true }
+    );
+  });
+
+  let id = 0;
+  const sendCommand = (method: string, params: Record<string, unknown> = {}) => {
+    id += 1;
+    const commandId = id;
+    return new Promise<unknown>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        socket.removeEventListener("message", onMessage);
+        reject(new Error(`Chrome debugger command timed out: ${method}`));
+      }, 5000);
+      const onMessage = (event: { data?: unknown }) => {
+        const payload = JSON.parse(String(event.data || "{}")) as {
+          id?: number;
+          result?: unknown;
+          error?: { message?: string };
+        };
+        if (payload.id !== commandId) {
+          return;
+        }
+        clearTimeout(timeout);
+        socket.removeEventListener("message", onMessage);
+        if (payload.error) {
+          reject(new Error(payload.error.message || `Chrome debugger command failed: ${method}`));
+          return;
+        }
+        resolve(payload.result);
+      };
+      socket.addEventListener("message", onMessage);
+      socket.send(JSON.stringify({ id: commandId, method, params }));
+    });
+  };
+
+  try {
+    return await callback(sendCommand);
+  } finally {
+    socket.close();
+  }
+}
+
+type CdpRuntimeEvaluation<T> = {
+  result?: { value?: T; description?: string };
+  exceptionDetails?: {
+    text?: string;
+    exception?: { description?: string; value?: unknown };
+  };
+};
+
+async function evaluateChromePage<T>(expression: string) {
+  const result = (await withCdpPage((sendCommand) =>
+    sendCommand("Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+      awaitPromise: true
+    })
+  )) as CdpRuntimeEvaluation<T>;
+  if (result.exceptionDetails) {
+    throw new Error(
+      result.exceptionDetails.exception?.description ||
+        result.exceptionDetails.text ||
+        "Chrome page evaluation failed."
+    );
+  }
+  return result.result?.value;
+}
+
+async function getPageText() {
+  const expression = `(() => ({
+    url: location.href,
+    title: document.title,
+    text: document.body ? document.body.innerText : ""
+  }))()`;
+  const electronResult = await evaluateElectronPage<{ url: string; title: string; text: string }>(expression);
+  const result = electronResult || (await evaluateChromePage<{ url: string; title: string; text: string }>(expression));
+  if (!result) {
+    throw new Error("No active browser page is available.");
+  }
+  return { url: result.url || "", title: result.title || "", text: trimAgentText(result.text) };
+}
+
+async function getDomSummary() {
+  const expression = `(() => ({
+    url: location.href,
+    title: document.title,
+    text: document.body ? document.body.innerText.slice(0, 6000) : "",
+    links: Array.from(document.querySelectorAll('a[href]')).slice(0, 80).map((node) => ({ text: (node.innerText || node.getAttribute('aria-label') || '').trim().slice(0, 120), href: node.href })),
+    buttons: Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]')).slice(0, 80).map((node) => (node.innerText || node.value || node.getAttribute('aria-label') || '').trim().slice(0, 120)).filter(Boolean),
+    forms: Array.from(document.querySelectorAll('form')).slice(0, 20).map((form) => ({ action: form.action || location.href, method: (form.method || 'GET').toUpperCase(), inputs: Array.from(form.querySelectorAll('input, textarea, select')).map((input) => input.name || input.id || input.type || input.tagName).filter(Boolean).slice(0, 40) }))
+  }))()`;
+  const electronResult = await evaluateElectronPage<{
+    url: string;
+    title: string;
+    text: string;
+    links: Array<{ text: string; href: string }>;
+    buttons: string[];
+    forms: Array<{ action: string; method: string; inputs: string[] }>;
+  }>(expression);
+  const result = electronResult || (await evaluateChromePage<{
+    url: string;
+    title: string;
+    text: string;
+    links: Array<{ text: string; href: string }>;
+    buttons: string[];
+    forms: Array<{ action: string; method: string; inputs: string[] }>;
+  }>(expression));
+  if (!result) {
+    throw new Error("No active browser page is available.");
+  }
+  return {
+    url: result.url || "",
+    title: result.title || "",
+    text: trimAgentText(result.text, 6000),
+    links: Array.isArray(result.links) ? result.links : [],
+    buttons: Array.isArray(result.buttons) ? result.buttons : [],
+    forms: Array.isArray(result.forms) ? result.forms : []
+  };
+}
+
+async function getClickableElements() {
+  const expression = `(() => {
+    const cssPath = (node) => {
+      if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
+      if (node.id && document.querySelectorAll("#" + CSS.escape(node.id)).length === 1) return "#" + CSS.escape(node.id);
+      const parts = [];
+      let current = node;
+      while (current && current.nodeType === Node.ELEMENT_NODE && parts.length < 5) {
+        let part = current.localName.toLowerCase();
+        if (current.classList.length) part += "." + Array.from(current.classList).slice(0, 2).map((item) => CSS.escape(item)).join(".");
+        const siblings = Array.from(current.parentElement ? current.parentElement.children : []);
+        const sameTag = siblings.filter((item) => item.localName === current.localName);
+        if (sameTag.length > 1) part += ":nth-of-type(" + (sameTag.indexOf(current) + 1) + ")";
+        parts.unshift(part);
+        current = current.parentElement;
+      }
+      return parts.join(" > ");
+    };
+    const nodes = Array.from(document.querySelectorAll('a[href], button, [role="button"], input, textarea, select, summary, [tabindex]:not([tabindex="-1"])'));
+    return {
+      url: location.href,
+      elements: nodes.slice(0, 120).map((node) => ({
+        selector: cssPath(node),
+        text: (node.innerText || node.value || node.getAttribute('aria-label') || node.name || node.id || '').trim().slice(0, 140),
+        tag: node.tagName.toLowerCase(),
+        role: node.getAttribute('role') || node.type || '',
+        href: node.href || undefined
+      })).filter((item) => item.selector)
+    };
+  })()`;
+  const result =
+    (await evaluateElectronPage<{ url: string; elements: Array<{ selector: string; text: string; tag: string; role: string; href?: string }> }>(expression)) ||
+    (await evaluateChromePage<{ url: string; elements: Array<{ selector: string; text: string; tag: string; role: string; href?: string }> }>(expression));
+  if (!result) {
+    throw new Error("No active browser page is available.");
+  }
+  return { url: result.url || "", elements: Array.isArray(result.elements) ? result.elements : [] };
+}
+
+async function clickElement({ selector }: { selector: string }) {
+  const expression = `(() => {
+    const selector = ${JSON.stringify(selector)};
+    const node = document.querySelector(selector);
+    if (!node) throw new Error("Element not found: " + selector);
+    node.scrollIntoView({ block: "center", inline: "center" });
+    node.click();
+    return { clicked: true, selector, url: location.href };
+  })()`;
+  const result =
+    (await evaluateElectronPage<{ clicked: boolean; selector: string; url: string }>(expression)) ||
+    (await evaluateChromePage<{ clicked: boolean; selector: string; url: string }>(expression));
+  if (!result) {
+    throw new Error("No active browser page is available.");
+  }
+  return result;
+}
+
+async function fillInput({ selector, value }: { selector: string; value: string }) {
+  const expression = `(() => {
+    const selector = ${JSON.stringify(selector)};
+    const value = ${JSON.stringify(value)};
+    const node = document.querySelector(selector);
+    if (!node) throw new Error("Input not found: " + selector);
+    node.focus();
+    if ("value" in node) {
+      node.value = value;
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+    } else if (node.isContentEditable) {
+      node.textContent = value;
+      node.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+    } else {
+      throw new Error("Element is not fillable: " + selector);
+    }
+    return { filled: true, selector };
+  })()`;
+  const result =
+    (await evaluateElectronPage<{ filled: boolean; selector: string }>(expression)) ||
+    (await evaluateChromePage<{ filled: boolean; selector: string }>(expression));
+  if (!result) {
+    throw new Error("No active browser page is available.");
+  }
+  return result;
+}
+
+async function submitForm({ selector }: { selector: string }) {
+  const expression = `(() => {
+    const selector = ${JSON.stringify(selector)};
+    const node = document.querySelector(selector);
+    if (!node) throw new Error("Form target not found: " + selector);
+    const form = node.tagName && node.tagName.toLowerCase() === "form" ? node : node.closest("form");
+    if (!form) throw new Error("No form found for selector: " + selector);
+    if (form.requestSubmit) form.requestSubmit();
+    else form.submit();
+    return { submitted: true, selector, url: location.href };
+  })()`;
+  const result =
+    (await evaluateElectronPage<{ submitted: boolean; selector: string; url: string }>(expression)) ||
+    (await evaluateChromePage<{ submitted: boolean; selector: string; url: string }>(expression));
+  if (!result) {
+    throw new Error("No active browser page is available.");
+  }
+  return result;
+}
+
+function normalizeCookie(cookie: Record<string, unknown>): AgentCookie {
+  return {
+    name: String(cookie.name || ""),
+    value: String(cookie.value || ""),
+    domain: cookie.domain ? String(cookie.domain) : undefined,
+    path: cookie.path ? String(cookie.path) : undefined,
+    expires: typeof cookie.expires === "number" ? cookie.expires : undefined,
+    httpOnly: Boolean(cookie.httpOnly),
+    secure: Boolean(cookie.secure),
+    sameSite: cookie.sameSite ? String(cookie.sameSite) : undefined
+  };
+}
+
+async function getCookies() {
+  const result = (await withCdpPage((sendCommand) => sendCommand("Network.getAllCookies"))) as {
+    cookies?: Array<Record<string, unknown>>;
+  };
+  return { cookies: Array.isArray(result.cookies) ? result.cookies.map(normalizeCookie).filter((cookie) => cookie.name) : [] };
+}
+
+async function getStorageState(): Promise<AgentStorageState> {
+  const page = await getPageText();
+  const expression = `(() => ({
+    localStorage: Object.fromEntries(Object.entries(localStorage)),
+    sessionStorage: Object.fromEntries(Object.entries(sessionStorage))
+  }))()`;
+  const storage =
+    (await evaluateElectronPage<{ localStorage: Record<string, string>; sessionStorage: Record<string, string> }>(expression)) ||
+    (await evaluateChromePage<{ localStorage: Record<string, string>; sessionStorage: Record<string, string> }>(expression)) || {
+      localStorage: {},
+      sessionStorage: {}
+    };
+  const cookies = await getCookies();
+  return {
+    url: page.url,
+    origin: new URL(page.url).origin,
+    cookies: cookies.cookies,
+    localStorage: storage.localStorage || {},
+    sessionStorage: storage.sessionStorage || {}
+  };
+}
+
+type SavedAuthState = AgentStorageState & {
+  name: string;
+  createdAt: string;
+};
+
+function authStatesPath() {
+  return path.join(app.getPath("userData"), "agent-auth-states.json");
+}
+
+function readAuthStates() {
+  try {
+    return JSON.parse(fs.readFileSync(authStatesPath(), "utf8")) as SavedAuthState[];
+  } catch {
+    return [];
+  }
+}
+
+function writeAuthStates(states: SavedAuthState[]) {
+  fs.mkdirSync(path.dirname(authStatesPath()), { recursive: true });
+  fs.writeFileSync(authStatesPath(), JSON.stringify(states, null, 2), "utf8");
+}
+
+function authStateSummary(state: SavedAuthState): AgentAuthStateSummary {
+  return {
+    name: state.name,
+    origin: state.origin,
+    createdAt: state.createdAt,
+    cookieCount: state.cookies.length,
+    localStorageKeys: Object.keys(state.localStorage),
+    sessionStorageKeys: Object.keys(state.sessionStorage)
+  };
+}
+
+async function saveAuthState({ name }: { name: string }) {
+  if (!name) {
+    throw new Error("Auth state name is required.");
+  }
+  const state = await getStorageState();
+  const saved: SavedAuthState = { ...state, name, createdAt: new Date().toISOString() };
+  const next = [saved, ...readAuthStates().filter((item) => item.name !== name)].slice(0, 20);
+  writeAuthStates(next);
+  return authStateSummary(saved);
+}
+
+async function loadAuthState({ name }: { name: string }) {
+  const state = readAuthStates().find((item) => item.name === name);
+  if (!state) {
+    throw new Error(`Auth state not found: ${name}`);
+  }
+  if (!isAllowedTarget(state.origin, allowlist)) {
+    throw new Error(`Saved auth state origin is out of scope: ${state.origin}`);
+  }
+
+  if (!browserState.remoteDebuggingUrl || !browserState.url || !browserState.url.startsWith(state.origin)) {
+    await openRealChrome(state.origin);
+    await waitForNetworkIdle({ idleMs: 500, timeoutMs: 5000 });
+  }
+  await withCdpPage(async (sendCommand) => {
+    await sendCommand("Network.setCookies", { cookies: state.cookies });
+  });
+  const expression = `(() => {
+    const local = ${JSON.stringify(state.localStorage)};
+    const session = ${JSON.stringify(state.sessionStorage)};
+    localStorage.clear();
+    sessionStorage.clear();
+    Object.entries(local).forEach(([key, value]) => localStorage.setItem(key, String(value)));
+    Object.entries(session).forEach(([key, value]) => sessionStorage.setItem(key, String(value)));
+    return true;
+  })()`;
+  await evaluateChromePage<boolean>(expression);
+  await evaluateChromePage<boolean>("(() => { location.reload(); return true; })()");
+  await waitForNetworkIdle({ idleMs: 500, timeoutMs: 5000 });
+  return authStateSummary(state);
+}
+
+async function listAuthStates() {
+  return { states: readAuthStates().map(authStateSummary) };
+}
+
+async function compareAuthStates({ left, right }: { left: string; right: string }) {
+  const states = readAuthStates();
+  const leftState = states.find((item) => item.name === left);
+  const rightState = states.find((item) => item.name === right);
+  if (!leftState || !rightState) {
+    throw new Error(`Auth states not found: ${left}${leftState ? "" : " (missing)"}, ${right}${rightState ? "" : " (missing)"}`);
+  }
+
+  const observations: Array<{ name: string; issue: string; severity: "info" | "low" | "medium" | "high"; value?: string }> = [];
+  const leftCookies = new Map(leftState.cookies.map((cookie) => [cookie.name, cookie]));
+  const rightCookies = new Map(rightState.cookies.map((cookie) => [cookie.name, cookie]));
+  for (const name of new Set([...leftCookies.keys(), ...rightCookies.keys()])) {
+    const a = leftCookies.get(name);
+    const b = rightCookies.get(name);
+    if (!a || !b) {
+      observations.push({
+        name,
+        issue: `Cookie exists only in ${a ? left : right} auth state.`,
+        severity: "info"
+      });
+      continue;
+    }
+    if (a.value !== b.value) {
+      observations.push({ name, issue: "Cookie value differs between auth states.", severity: "info" });
+    }
+    if (a.secure !== b.secure || a.httpOnly !== b.httpOnly || a.sameSite !== b.sameSite) {
+      observations.push({ name, issue: "Cookie flags differ between auth states.", severity: "low" });
+    }
+  }
+
+  const compareKeys = (label: string, a: Record<string, string>, b: Record<string, string>) => {
+    for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      if (!(key in a) || !(key in b)) {
+        observations.push({ name: `${label}:${key}`, issue: `Storage key exists only in ${key in a ? left : right}.`, severity: "info" });
+      } else if (a[key] !== b[key]) {
+        observations.push({ name: `${label}:${key}`, issue: "Storage value differs between auth states.", severity: "info" });
+      }
+    }
+  };
+  compareKeys("localStorage", leftState.localStorage, rightState.localStorage);
+  compareKeys("sessionStorage", leftState.sessionStorage, rightState.sessionStorage);
+
+  return { left, right, observations };
+}
+
 function createAgentRuntime() {
   return new AgentRuntime({
     currentSessionId: () => activeLocalContext().session.id,
@@ -167,10 +721,36 @@ function createAgentRuntime() {
     loadRun: (runId) => activeLocalStore().getAgentRun(activeLocalContext().session.id, String(runId || "")),
     listRuns: () => activeLocalStore().listAgentRuns(activeLocalContext().session.id),
     getBrowserState: () => syncBrowserState(),
-    openBrowser: (url) => openRealChrome(url),
-    navigateBrowser: (url) => openRealChrome(url),
+    openBrowser: (url) => {
+      activeNavigationId = `nav_${randomUUID()}`;
+      return openRealChrome(url);
+    },
+    navigateBrowser: (url) => {
+      activeNavigationId = `nav_${randomUUID()}`;
+      return openRealChrome(url);
+    },
     getCaptures: () => listHttpCaptures(400),
-    sendReplay: (draft) => sendRequest(draft)
+    sendReplay: (draft) => sendRequest(draft),
+    waitForNetworkIdle,
+    getPageText,
+    getDomSummary,
+    getClickableElements,
+    clickElement,
+    fillInput,
+    submitForm,
+    getCookies,
+    getStorageState,
+    saveAuthState,
+    loadAuthState,
+    listAuthStates,
+    compareAuthStates,
+    decideNextAction: createAiAgentPlanner(app.getPath("userData")),
+    setActiveRunId: (runId) => {
+      activeAgentRunId = runId || "";
+      if (!runId) {
+        activeNavigationId = "";
+      }
+    }
   });
 }
 
@@ -351,9 +931,14 @@ async function openRealChrome(urlString: string) {
   const nextUrl = normalizeBrowserUrl(urlString);
   const browser = findSystemBrowser();
   const proxy = await startMitmProxy(proxyState.port);
-  const remoteDebuggingPort = 9223;
+  const remoteDebuggingPort = await findOpenPort(9223);
 
   stopChromeProcess();
+
+  const radarKeychain = trustProxyCa(proxy.caCertPath, path.dirname(proxy.caCertPath));
+  if (radarKeychain) {
+    ensureRadarKeychainInSearchList(radarKeychain);
+  }
 
   const args = [
     `--user-data-dir=${chromeProfileDir()}`,
@@ -367,10 +952,6 @@ async function openRealChrome(urlString: string) {
     "--new-window",
     nextUrl
   ];
-
-  if (process.platform === "darwin") {
-    args.splice(4, 0, "--use-mock-keychain");
-  }
 
   const launched = await new Promise<ChildProcess>((resolve, reject) => {
     const child = spawn(browser.executablePath, args, {
@@ -386,6 +967,9 @@ async function openRealChrome(urlString: string) {
   launched.once("exit", (code, signal) => {
     if (code && code !== 0) {
       console.error(`[radar] browser exited code=${code} signal=${signal}`);
+    }
+    if (chromeProcess !== launched) {
+      return;
     }
     browserState = {
       ...browserState,
@@ -407,6 +991,7 @@ async function openRealChrome(urlString: string) {
     channel: browser.channel
   };
 
+  await waitForChromeDebugger(`http://127.0.0.1:${remoteDebuggingPort}`, 8000);
   return browserState;
 }
 
@@ -430,6 +1015,7 @@ async function ensureProxyCa() {
 
   const cert = fs.readFileSync(caCertPath, "utf8");
   const caFingerprint = await generateSPKIFingerprint(cert);
+  trustProxyCa(caCertPath, caDir);
   proxyState = {
     ...proxyState,
     caCertPath,
@@ -552,7 +1138,11 @@ function attachDebugger(contentsId: number) {
     if (method === "Network.requestWillBeSent") {
       const next = toCaptureEntry({
         requestId: params.requestId,
-        request: params.request || {},
+        request: {
+          ...(params.request || {}),
+          frameUrl: params.documentURL || params.frameId || "",
+          initiator: params.initiator?.type || ""
+        },
         rules: allowlist
       });
       rememberCapture(next);
