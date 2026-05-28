@@ -1,4 +1,4 @@
-export { DEFAULT_URL, normalizeUrl, originFromUrl } from "./url";
+export { DEFAULT_URL, firstUrlFromText, normalizeUrl, originFromUrl } from "./url";
 export { formatHeaders, parseHeaders, safeJsonHeaders } from "./headers";
 export {
   DEFAULT_ALLOWLIST,

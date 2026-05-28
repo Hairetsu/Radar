@@ -33,6 +33,8 @@ afterEach(() => {
   window.localStorage.clear();
   vi.mocked(window.radar!.getCaptures).mockResolvedValue([]);
   vi.mocked(window.radar!.getTargets).mockResolvedValue([]);
+  vi.mocked(window.radar!.setTargets).mockClear();
+  vi.mocked(window.radar!.setTargets).mockResolvedValue(undefined as unknown as string[]);
   vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([]);
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
@@ -60,20 +62,25 @@ describe("App", () => {
 
   it("switches to AI-First and starts an agent run from a goal", async () => {
     const startAgentRun = vi.mocked(window.radar!.startAgentRun);
+    const setTargets = vi.mocked(window.radar!.setTargets);
     startAgentRun.mockClear();
+    setTargets.mockClear();
+    setTargets.mockImplementation(async (nextTargets) => nextTargets);
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["http://localhost:*"]);
 
     render(<App />);
 
     fireEvent.click(await screen.findByTestId("aiFirstMode"));
     expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId("agentGoalInput"), { target: { value: "Inspect https://allowed.test" } });
+    fireEvent.change(screen.getByTestId("agentGoalInput"), { target: { value: "Inspect hairetsu.com for auth hardening" } });
     fireEvent.click(screen.getByTestId("startAgentRun"));
 
     await waitFor(() => {
+      expect(setTargets).toHaveBeenCalledWith(["http://localhost:*", "https://hairetsu.com"]);
       expect(startAgentRun).toHaveBeenCalledWith({
-        goal: "Inspect https://allowed.test",
-        startUrl: "http://localhost:3000"
+        goal: "Inspect hairetsu.com for auth hardening",
+        startUrl: "https://hairetsu.com"
       });
     });
   });

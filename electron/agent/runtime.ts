@@ -1,16 +1,25 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AgentCookie,
+  AgentCapturedTrafficContext,
+  AgentDecision,
+  AgentDecisionContext,
+  AgentDecisionFinding,
+  AgentEvidenceObservation,
   AgentFinding,
   AgentRun,
   AgentRunRequest,
+  AgentStorageState,
   AgentTimelineEntry,
   AgentToolCall,
   AgentToolResult
 } from "../../shared/agent-types.js";
 import type { BrowserState, CapturedRequest, ReplayDraft, ReplayResult } from "../../shared/domain.js";
-import { originFromUrl } from "../../shared/url.js";
+import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
+import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeDraft } from "../../shared/draft.js";
 import { DEFAULT_AGENT_POLICY, blockedToolReason, normalizeAgentPolicy } from "./policy.js";
+import { availableToolNames, normalizeAgentToolCall } from "./tools.js";
 
 type AgentRuntimeDeps = {
   currentSessionId: () => string;
@@ -23,6 +32,52 @@ type AgentRuntimeDeps = {
   navigateBrowser: (url: string) => Promise<BrowserState>;
   getCaptures: () => CapturedRequest[];
   sendReplay: (draft: ReplayDraft) => Promise<ReplayResult>;
+  waitForNetworkIdle: (input: { idleMs?: number; timeoutMs?: number }) => Promise<{ idle: boolean; waitedMs: number }>;
+  getPageText: () => Promise<{ url: string; title: string; text: string }>;
+  getDomSummary: () => Promise<{
+    url: string;
+    title: string;
+    text: string;
+    links: Array<{ text: string; href: string }>;
+    buttons: string[];
+    forms: Array<{ action: string; method: string; inputs: string[] }>;
+  }>;
+  getClickableElements: () => Promise<{ url: string; elements: Array<{ selector: string; text: string; tag: string; role: string; href?: string }> }>;
+  clickElement: (input: { selector: string }) => Promise<{ clicked: boolean; selector: string; url: string }>;
+  fillInput: (input: { selector: string; value: string }) => Promise<{ filled: boolean; selector: string }>;
+  submitForm: (input: { selector: string }) => Promise<{ submitted: boolean; selector: string; url: string }>;
+  getCookies: () => Promise<{ cookies: AgentCookie[] }>;
+  getStorageState: () => Promise<AgentStorageState>;
+  saveAuthState: (input: { name: string }) => Promise<{
+    name: string;
+    origin: string;
+    createdAt: string;
+    cookieCount: number;
+    localStorageKeys: string[];
+    sessionStorageKeys: string[];
+  }>;
+  loadAuthState: (input: { name: string }) => Promise<{
+    name: string;
+    origin: string;
+    createdAt: string;
+    cookieCount: number;
+    localStorageKeys: string[];
+    sessionStorageKeys: string[];
+  }>;
+  listAuthStates: () => Promise<{
+    states: Array<{
+      name: string;
+      origin: string;
+      createdAt: string;
+      cookieCount: number;
+      localStorageKeys: string[];
+      sessionStorageKeys: string[];
+    }>;
+  }>;
+  compareAuthStates: (input: { left: string; right: string }) => Promise<{ left: string; right: string; observations: AgentEvidenceObservation[] }>;
+  decideNextAction: (context: AgentDecisionContext) => Promise<AgentDecision>;
+  setActiveRunId?: (runId: string | null) => void;
+  waitForSettle?: (ms: number) => Promise<void>;
 };
 
 type RunCounters = {
@@ -40,11 +95,6 @@ function nowIso() {
 
 function createId(prefix: string) {
   return `${prefix}_${randomUUID()}`;
-}
-
-function firstUrlFromText(text: string) {
-  const match = String(text || "").match(/https?:\/\/[^\s"'<>]+/i);
-  return match?.[0] || "";
 }
 
 function timeline(note: string, extra: Partial<AgentTimelineEntry> = {}): AgentTimelineEntry {
@@ -66,104 +116,210 @@ function withUpdate(run: AgentRun, saveRun: (run: AgentRun) => void, update: Par
   return next;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clip(value: unknown, max = 1200) {
+  const text = String(value ?? "");
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function sameOrigin(value: string, targetOrigin: string) {
+  if (!targetOrigin) {
+    return true;
+  }
+
+  try {
+    return new URL(value).origin === targetOrigin;
+  } catch {
+    return false;
+  }
+}
+
 function headerValue(headers: Record<string, string>, name: string) {
   const found = Object.entries(headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
   return found?.[1] || "";
 }
 
-function finding(title: string, notes: string, evidenceRefs: string[], confidence: AgentFinding["confidence"]): AgentFinding {
+function runCaptures(run: AgentRun, captures: CapturedRequest[], rules: string[], targetOrigin: string) {
+  return captures
+    .map((capture) => ({
+      ...capture,
+      allowed: isAllowedTarget(capture.url, rules)
+    }))
+    .filter((capture) => capture.agentRunId === run.id && capture.allowed && sameOrigin(capture.url, targetOrigin));
+}
+
+function capturedTrafficContext(captures: CapturedRequest[], limit: number): AgentCapturedTrafficContext[] {
+  return captures.slice(0, limit).map((capture) => ({
+    id: capture.id,
+    method: capture.method,
+    url: capture.url,
+    status: capture.status,
+    statusText: capture.statusText,
+    type: capture.type,
+    mimeType: capture.mimeType,
+    source: capture.source,
+    requestHeaders: capture.requestHeaders,
+    responseHeaders: capture.responseHeaders,
+    requestBodyPreview: clip(capture.requestBody),
+    responseBodyPreview: clip(capture.responseBody),
+    agentRunId: capture.agentRunId,
+    navigationId: capture.navigationId,
+    frameUrl: capture.frameUrl,
+    initiator: capture.initiator
+  }));
+}
+
+function analyzeSecurityHeaders(captures: CapturedRequest[]): AgentEvidenceObservation[] {
+  const observations: AgentEvidenceObservation[] = [];
+  for (const capture of captures) {
+    const contentType = headerValue(capture.responseHeaders, "content-type");
+    const isHtml = /text\/html/i.test(contentType) || /document/i.test(capture.type || "");
+    if (isHtml && !headerValue(capture.responseHeaders, "content-security-policy")) {
+      observations.push({
+        captureId: capture.id,
+        url: capture.url,
+        name: "content-security-policy",
+        issue: "HTML response does not include Content-Security-Policy.",
+        severity: "low"
+      });
+    }
+    if (capture.url.startsWith("https://") && !headerValue(capture.responseHeaders, "strict-transport-security")) {
+      observations.push({
+        captureId: capture.id,
+        url: capture.url,
+        name: "strict-transport-security",
+        issue: "HTTPS response does not include Strict-Transport-Security.",
+        severity: "low"
+      });
+    }
+    if (isHtml && !headerValue(capture.responseHeaders, "x-frame-options") && !/frame-ancestors/i.test(headerValue(capture.responseHeaders, "content-security-policy"))) {
+      observations.push({
+        captureId: capture.id,
+        url: capture.url,
+        name: "frame-ancestors",
+        issue: "HTML response does not include X-Frame-Options or CSP frame-ancestors.",
+        severity: "low"
+      });
+    }
+  }
+  return observations;
+}
+
+function splitSetCookie(value: string) {
+  return String(value || "")
+    .split(/,(?=\s*[^;,=\s]+=[^;,]+)/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function analyzeCookieFlags(captures: CapturedRequest[]): AgentEvidenceObservation[] {
+  const observations: AgentEvidenceObservation[] = [];
+  for (const capture of captures) {
+    const setCookie = headerValue(capture.responseHeaders, "set-cookie");
+    for (const cookie of splitSetCookie(setCookie)) {
+      const name = cookie.split("=")[0] || "cookie";
+      const lower = cookie.toLowerCase();
+      if (capture.url.startsWith("https://") && !lower.includes("; secure")) {
+        observations.push({ captureId: capture.id, url: capture.url, name, issue: "Cookie is missing Secure.", severity: "medium" });
+      }
+      if (!lower.includes("; httponly")) {
+        observations.push({ captureId: capture.id, url: capture.url, name, issue: "Cookie is missing HttpOnly.", severity: "low" });
+      }
+      if (!lower.includes("; samesite")) {
+        observations.push({ captureId: capture.id, url: capture.url, name, issue: "Cookie is missing SameSite.", severity: "low" });
+      }
+    }
+  }
+  return observations;
+}
+
+function checkCorsPolicy(captures: CapturedRequest[]): AgentEvidenceObservation[] {
+  const observations: AgentEvidenceObservation[] = [];
+  for (const capture of captures) {
+    const allowOrigin = headerValue(capture.responseHeaders, "access-control-allow-origin");
+    const allowCredentials = headerValue(capture.responseHeaders, "access-control-allow-credentials");
+    if (allowOrigin === "*") {
+      observations.push({
+        captureId: capture.id,
+        url: capture.url,
+        name: "access-control-allow-origin",
+        value: allowOrigin,
+        issue: "Response allows any CORS origin.",
+        severity: /true/i.test(allowCredentials) ? "medium" : "low"
+      });
+    }
+    if (/true/i.test(allowCredentials) && allowOrigin && allowOrigin !== "*") {
+      observations.push({
+        captureId: capture.id,
+        url: capture.url,
+        name: "access-control-allow-credentials",
+        value: allowCredentials,
+        issue: "Response allows credentialed CORS; confirm allowed origin is intentional.",
+        severity: "info"
+      });
+    }
+  }
+  return observations;
+}
+
+function findingFromDecision(input: AgentDecisionFinding): AgentFinding {
+  const evidenceRefs = Array.isArray(input.evidenceRefs) ? input.evidenceRefs.map(String).filter(Boolean) : [];
+  if (evidenceRefs.length === 0) {
+    throw new Error("Agent findings must cite at least one evidence reference.");
+  }
   return {
     id: createId("finding"),
     createdAt: nowIso(),
-    title,
-    confidence,
+    title: String(input.title || "Draft finding"),
+    confidence: input.confidence || "low",
     evidenceRefs,
-    notes,
-    uncertainties: ["Agent findings are draft-only until manually reviewed."]
+    notes: String(input.notes || ""),
+    uncertainties: [
+      ...(Array.isArray(input.uncertainties) ? input.uncertainties.map(String) : []),
+      "Agent findings are draft-only until manually reviewed."
+    ]
   };
 }
 
-function findingsFromCaptures(captures: CapturedRequest[]) {
-  const findings: AgentFinding[] = [];
-  const seen = new Set<string>();
-
-  for (const capture of captures) {
-    const evidence = [`capture:${capture.id}`];
-    if ((capture.status || 0) >= 500 && !seen.has("server-error")) {
-      seen.add("server-error");
-      findings.push(
-        finding(
-          "Server error observed in scoped traffic",
-          `${capture.method} ${capture.url} returned ${capture.status} ${capture.statusText}.`,
-          evidence,
-          "medium"
-        )
-      );
-    }
-
-    const contentType = headerValue(capture.responseHeaders, "content-type");
-    if (/text\/html/i.test(contentType) && !headerValue(capture.responseHeaders, "content-security-policy") && !seen.has("csp")) {
-      seen.add("csp");
-      findings.push(
-        finding(
-          "HTML response missing Content-Security-Policy",
-          `${capture.url} returned HTML without a Content-Security-Policy header.`,
-          evidence,
-          "low"
-        )
-      );
-    }
-
-    if (capture.url.startsWith("https://") && !headerValue(capture.responseHeaders, "strict-transport-security") && !seen.has("hsts")) {
-      seen.add("hsts");
-      findings.push(
-        finding(
-          "HTTPS response missing HSTS",
-          `${originFromUrl(capture.url) || capture.host} did not include Strict-Transport-Security in the sampled response.`,
-          evidence,
-          "low"
-        )
-      );
-    }
-  }
-
-  return findings;
-}
-
-function replayFinding(capture: CapturedRequest, response: ReplayResult) {
-  if ((response.status || 0) >= 500) {
-    return finding(
-      "Replay reproduced a server error",
-      `${capture.method} ${capture.url} replay returned ${response.status} ${response.statusText}.`,
-      [`capture:${capture.id}`, "replay:latest"],
-      "medium"
-    );
-  }
-
-  if (capture.status !== null && response.status !== capture.status) {
-    return finding(
-      "Replay response changed status",
-      `Captured response was ${capture.status}; replay returned ${response.status} ${response.statusText}.`,
-      [`capture:${capture.id}`, "replay:latest"],
-      "low"
-    );
-  }
-
-  return null;
-}
-
-function latestToolResult<T extends AgentToolResult["tool"]>(run: AgentRun, tool: T) {
-  for (let index = run.timeline.length - 1; index >= 0; index -= 1) {
-    const result = run.timeline[index]?.toolResult;
-    if (result?.tool === tool && result.ok) {
-      return result;
-    }
-  }
-  return null;
+function decisionContext({
+  run,
+  counters,
+  startUrl,
+  targetOrigin,
+  deps
+}: {
+  run: AgentRun;
+  counters: RunCounters;
+  startUrl: string;
+  targetOrigin: string;
+  deps: AgentRuntimeDeps;
+}): AgentDecisionContext {
+  const activeAllowlist = deps.allowlist();
+  const captures = runCaptures(run, deps.getCaptures(), activeAllowlist, "");
+  return {
+    goal: run.goal,
+    startUrl,
+    targetOrigin,
+    allowlist: activeAllowlist,
+    browserState: deps.getBrowserState(),
+    policy: run.policy,
+    stepCount: counters.stepCount,
+    replayCount: counters.replayCount,
+    availableTools: availableToolNames(),
+    capturedTraffic: capturedTrafficContext(captures, run.policy.maxCaptureSample),
+    timeline: run.timeline.slice(-16)
+  };
 }
 
 export class AgentRuntime {
   constructor(private readonly deps: AgentRuntimeDeps) {}
+
+  private waitForSettle(ms: number) {
+    return this.deps.waitForSettle ? this.deps.waitForSettle(ms) : sleep(ms);
+  }
 
   start(request: AgentRunRequest) {
     const goal = String(request.goal || "").trim();
@@ -218,8 +374,9 @@ export class AgentRuntime {
   }
 
   private async callTool(run: AgentRun, counters: RunCounters, call: AgentToolCall) {
+    const normalizedCall = normalizeAgentToolCall(call);
     const blocked = blockedToolReason({
-      call,
+      call: normalizedCall,
       allowlist: this.deps.allowlist(),
       policy: run.policy,
       replayCount: counters.replayCount,
@@ -227,54 +384,120 @@ export class AgentRuntime {
       startedAt: counters.startedAt
     });
     if (blocked) {
+      counters.stepCount += 1;
       return withUpdate(run, this.deps.saveRun, {
-        timeline: [...run.timeline, timeline(blocked, { toolCall: call })]
+        timeline: [
+          ...run.timeline,
+          timeline(blocked, {
+            toolCall: normalizedCall,
+            toolResult: { tool: normalizedCall.tool, ok: false, error: blocked }
+          })
+        ]
       });
     }
 
     let next = withUpdate(run, this.deps.saveRun, {
-      timeline: [...run.timeline, timeline(`Tool call: ${call.tool}`, { toolCall: call })]
+      timeline: [...run.timeline, timeline(`Tool call: ${normalizedCall.tool}`, { toolCall: normalizedCall })]
     });
     counters.stepCount += 1;
 
     let result: AgentToolResult;
     try {
-      switch (call.tool) {
+      switch (normalizedCall.tool) {
         case "getBrowserState":
-          result = { tool: call.tool, ok: true, data: this.deps.getBrowserState() };
+          result = { tool: normalizedCall.tool, ok: true, data: this.deps.getBrowserState() };
           break;
         case "showView":
-          result = { tool: call.tool, ok: true, data: { view: call.input.view } };
+          result = { tool: normalizedCall.tool, ok: true, data: { view: normalizedCall.input.view } };
           break;
         case "openBrowser":
-          result = { tool: call.tool, ok: true, data: await this.deps.openBrowser(call.input.url) };
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.openBrowser(normalizedCall.input.url) };
           break;
         case "navigateBrowser":
-          result = { tool: call.tool, ok: true, data: await this.deps.navigateBrowser(call.input.url) };
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.navigateBrowser(normalizedCall.input.url) };
+          break;
+        case "waitForNetworkIdle":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.waitForNetworkIdle(normalizedCall.input) };
+          break;
+        case "getPageText":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.getPageText() };
+          break;
+        case "getDomSummary":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.getDomSummary() };
+          break;
+        case "getClickableElements":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.getClickableElements() };
+          break;
+        case "clickElement":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.clickElement(normalizedCall.input) };
+          break;
+        case "fillInput":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.fillInput(normalizedCall.input) };
+          break;
+        case "submitForm":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.submitForm(normalizedCall.input) };
+          break;
+        case "getCookies":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.getCookies() };
+          break;
+        case "getStorageState":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.getStorageState() };
+          break;
+        case "saveAuthState":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.saveAuthState(normalizedCall.input) };
+          break;
+        case "loadAuthState":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.loadAuthState(normalizedCall.input) };
+          break;
+        case "listAuthStates":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.listAuthStates() };
+          break;
+        case "compareAuthStates":
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.compareAuthStates(normalizedCall.input) };
           break;
         case "getCaptures":
-          result = {
-            tool: call.tool,
-            ok: true,
-            data: { captures: this.deps.getCaptures().slice(0, call.input.limit || run.policy.maxCaptureSample) }
-          };
+          {
+            const activeAllowlist = this.deps.allowlist();
+            const targetOrigin = String(normalizedCall.input.targetOrigin || "").trim();
+            const captures = runCaptures(run, this.deps.getCaptures(), activeAllowlist, targetOrigin);
+            result = {
+              tool: normalizedCall.tool,
+              ok: true,
+              data: { captures: captures.slice(0, normalizedCall.input.limit || run.policy.maxCaptureSample) }
+            };
+          }
           break;
+        case "analyzeSecurityHeaders": {
+          const captures = runCaptures(run, this.deps.getCaptures(), this.deps.allowlist(), normalizedCall.input.targetOrigin || "");
+          result = { tool: normalizedCall.tool, ok: true, data: { observations: analyzeSecurityHeaders(captures) } };
+          break;
+        }
+        case "analyzeCookieFlags": {
+          const captures = runCaptures(run, this.deps.getCaptures(), this.deps.allowlist(), normalizedCall.input.targetOrigin || "");
+          result = { tool: normalizedCall.tool, ok: true, data: { observations: analyzeCookieFlags(captures) } };
+          break;
+        }
+        case "checkCorsPolicy": {
+          const captures = runCaptures(run, this.deps.getCaptures(), this.deps.allowlist(), normalizedCall.input.targetOrigin || "");
+          result = { tool: normalizedCall.tool, ok: true, data: { observations: checkCorsPolicy(captures) } };
+          break;
+        }
         case "sendReplay": {
           counters.replayCount += 1;
-          result = { tool: call.tool, ok: true, data: await this.deps.sendReplay(normalizeDraft(call.input.draft)) };
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.sendReplay(normalizeDraft(normalizedCall.input.draft)) };
           break;
         }
       }
     } catch (error) {
       result = {
-        tool: call.tool,
+        tool: normalizedCall.tool,
         ok: false,
         error: error instanceof Error ? error.message : "Agent tool failed."
       };
     }
 
     next = withUpdate(next, this.deps.saveRun, {
-      timeline: [...next.timeline, timeline(`Tool result: ${call.tool}`, { toolResult: result })]
+      timeline: [...next.timeline, timeline(`Tool result: ${normalizedCall.tool}`, { toolResult: result })]
     });
     return next;
   }
@@ -291,6 +514,7 @@ export class AgentRuntime {
       if (!run) {
         return;
       }
+      this.deps.setActiveRunId?.(run.id);
 
       run = withUpdate(run, this.deps.saveRun, {
         status: "running",
@@ -301,83 +525,67 @@ export class AgentRuntime {
         return;
       }
 
-      run = await this.callTool(run, counters, {
-        tool: "showView",
-        input: { view: "scope", reason: "Review active engagement boundary before autonomous actions." }
-      });
+      const targetOrigin = startUrl ? originFromUrl(startUrl) : "";
 
-      if (this.isStopped(runId)) {
-        return;
+      while (!this.isStopped(runId)) {
+        if (Date.now() - counters.startedAt > run.policy.maxRuntimeMs) {
+          throw new Error("Agent exceeded its runtime budget before returning finish.");
+        }
+        if (counters.stepCount >= run.policy.maxSteps) {
+          throw new Error("Agent exhausted its tool-call budget before returning finish.");
+        }
+
+        const decision = await this.deps.decideNextAction(
+          decisionContext({
+            run,
+            counters,
+            startUrl,
+            targetOrigin,
+            deps: this.deps
+          })
+        );
+
+        if (!decision || (decision.action !== "tool" && decision.action !== "finish")) {
+          throw new Error("Agent decision must choose either tool or finish.");
+        }
+
+        if (decision.action === "finish") {
+          const nextFindings = (decision.findings || []).map(findingFromDecision);
+          run = withUpdate(run, this.deps.saveRun, {
+            status: "completed",
+            findings: nextFindings,
+            timeline: [
+              ...run.timeline,
+              timeline(
+                decision.rationale ||
+                  `Agent returned finish with ${nextFindings.length} draft finding${nextFindings.length === 1 ? "" : "s"}.`
+              )
+            ]
+          });
+          return;
+        }
+
+        if (!decision.call) {
+          throw new Error("Agent tool decision did not include a tool call.");
+        }
+
+        if (decision.rationale) {
+          run = withUpdate(run, this.deps.saveRun, {
+            timeline: [...run.timeline, timeline(`Agent selected ${decision.call.tool}: ${decision.rationale}`)]
+          });
+        }
+        run = await this.callTool(run, counters, decision.call);
+
+        if (
+          decision.call.tool === "openBrowser" ||
+          decision.call.tool === "navigateBrowser" ||
+          decision.call.tool === "clickElement" ||
+          decision.call.tool === "submitForm" ||
+          decision.call.tool === "loadAuthState"
+        ) {
+          await this.waitForSettle(1200);
+        }
       }
-
-      if (startUrl) {
-        run = await this.callTool(run, counters, {
-          tool: "showView",
-          input: { view: "traffic", reason: "Launch browser and observe captured traffic." }
-        });
-        run = await this.callTool(run, counters, { tool: "openBrowser", input: { url: startUrl } });
-      } else {
-        run = await this.callTool(run, counters, {
-          tool: "showView",
-          input: { view: "traffic", reason: "Inspect the current browser and capture state." }
-        });
-        run = await this.callTool(run, counters, { tool: "getBrowserState", input: {} });
-      }
-
-      if (this.isStopped(runId)) {
-        return;
-      }
-
-      run = await this.callTool(run, counters, { tool: "getCaptures", input: { limit: run.policy.maxCaptureSample } });
-      const captureResult = latestToolResult(run, "getCaptures") as Extract<AgentToolResult, { tool: "getCaptures"; ok: true }> | null;
-      const captures = (captureResult?.data.captures || []).filter((capture) => capture.allowed);
-      const candidate = captures.find((capture) => !["OPTIONS", "HEAD"].includes(capture.method));
-      let nextFindings = findingsFromCaptures(captures);
-
-      if (candidate && counters.replayCount < run.policy.maxReplay && !this.isStopped(runId)) {
-        run = await this.callTool(run, counters, {
-          tool: "showView",
-          input: { view: "repeater", reason: "Replay a selected in-scope request with strict autonomous limits." }
-        });
-        run = await this.callTool(run, counters, {
-          tool: "sendReplay",
-          input: {
-            draft: {
-              method: candidate.method,
-              url: candidate.url,
-              headers: candidate.requestHeaders,
-              body: candidate.requestBody
-            }
-          }
-        });
-        const replayResult = latestToolResult(run, "sendReplay") as Extract<AgentToolResult, { tool: "sendReplay"; ok: true }> | null;
-        const replayObservation = replayResult ? replayFinding(candidate, replayResult.data) : null;
-        nextFindings = replayObservation ? [...nextFindings, replayObservation] : nextFindings;
-      }
-
-      if (this.isStopped(runId)) {
-        return;
-      }
-
-      run = await this.callTool(run, counters, {
-        tool: "showView",
-        input: { view: "ssl", reason: "Surface TLS and proxy evidence before finishing." }
-      });
-
-      run = withUpdate(run, this.deps.saveRun, {
-        status: "completed",
-        findings: nextFindings,
-        timeline: [
-          ...run.timeline,
-          timeline(
-            nextFindings.length > 0
-              ? `Run completed with ${nextFindings.length} draft finding${nextFindings.length === 1 ? "" : "s"}.`
-              : captures.length > 0
-                ? "Run completed. No draft findings were created from the sampled captures."
-                : "Run completed. No in-scope captures were available to inspect."
-          )
-        ]
-      });
     } catch (error) {
       const run = this.deps.loadRun(runId);
       if (run) {
@@ -388,6 +596,7 @@ export class AgentRuntime {
         });
       }
     } finally {
+      this.deps.setActiveRunId?.(null);
       running.delete(runId);
       stopped.delete(runId);
     }
@@ -395,4 +604,3 @@ export class AgentRuntime {
 }
 
 export { DEFAULT_AGENT_POLICY };
-

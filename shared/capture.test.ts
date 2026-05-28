@@ -18,6 +18,8 @@ describe("capture", () => {
     expect(entry.path).toBe("/api?q=1");
     expect(entry.allowed).toBe(true);
     expect(entry.source).toBe("browser");
+    expect(entry.frameUrl).toBe("");
+    expect(entry.initiator).toBe("");
   });
 
   it("marks external urls as not allowed by default", () => {

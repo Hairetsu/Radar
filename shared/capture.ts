@@ -8,6 +8,8 @@ type CaptureRequestInput = {
   url?: string;
   headers?: Record<string, unknown>;
   postData?: string;
+  frameUrl?: string;
+  initiator?: string;
 };
 
 function parseCaptureUrl(url: string) {
@@ -51,7 +53,9 @@ export function toCaptureEntry({
     responseBody: "",
     durationMs: null,
     allowed: isAllowedTarget(url, rules),
-    source: "browser"
+    source: "browser",
+    frameUrl: request.frameUrl || "",
+    initiator: request.initiator || ""
   };
 }
 
