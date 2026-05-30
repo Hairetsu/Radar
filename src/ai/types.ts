@@ -1,4 +1,4 @@
-import type { CapturedRequest } from "../../shared/domain";
+import type { CapturedRequest, WebSocketEvent } from "../../shared/domain";
 
 export type {
   AiAuditEntry,
@@ -67,6 +67,7 @@ export const AI_TASK_TYPES: AiTaskType[] = [
 
 export const VIEW_AI_TASKS: Record<AiWorkView, AiTaskType[]> = {
   traffic: ["capture_summary", "report_notes"],
+  websocket: ["capture_summary", "report_notes"],
   repeater: ["repeater_drafts"],
   scope: ["scope_checklist", "browser_helper"],
   ssl: ["tls_review"]
@@ -74,6 +75,7 @@ export const VIEW_AI_TASKS: Record<AiWorkView, AiTaskType[]> = {
 
 export const VIEW_AI_LABELS: Record<AiWorkView, string> = {
   traffic: "Traffic analysis",
+  websocket: "WebSocket analysis",
   repeater: "Replay engineering",
   scope: "Scope planning",
   ssl: "TLS & proxy review"
@@ -89,6 +91,8 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
 export type AiPaletteContext = {
   captureIds: string[];
   captures: CapturedRequest[];
+  webSocketEventIds: string[];
+  webSocketEvents: WebSocketEvent[];
   targets: string[];
   browserUrl: string;
 };

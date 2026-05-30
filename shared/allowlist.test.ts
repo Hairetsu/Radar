@@ -49,6 +49,13 @@ describe("allowlist", () => {
     expect(isAllowedTarget("https://blocked.test", ["https://allowed.test"])).toBe(false);
   });
 
+  it("matches websocket urls against equivalent http origins", () => {
+    expect(isAllowedTarget("ws://localhost:3000/socket")).toBe(true);
+    expect(isAllowedTarget("wss://allowed.test/socket", ["https://allowed.test"])).toBe(true);
+    expect(isAllowedTarget("wss://api.allowed.test/socket", ["https://*.allowed.test"])).toBe(true);
+    expect(isAllowedTarget("wss://blocked.test/socket", ["https://allowed.test"])).toBe(false);
+  });
+
   it("trusts local https certificates only", () => {
     expect(shouldTrustLocalCertificate("https://localhost:8443")).toBe(true);
     expect(shouldTrustLocalCertificate("http://localhost:8443")).toBe(false);

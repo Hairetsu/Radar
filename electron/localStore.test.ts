@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
 import type { AgentRun } from "../shared/agent-types.js";
-import type { CapturedRequest, SslEvent } from "../shared/domain.js";
+import type { CapturedRequest, SslEvent, WebSocketEvent } from "../shared/domain.js";
 import { openLocalStore } from "./localStore.js";
 
 describe("localStore", () => {
@@ -242,6 +242,36 @@ describe("localStore", () => {
     const reopened = openLocalStore(tmpDir);
     expect(reopened.listAiModels("cursor-local")).toEqual([{ id: "auto", label: "auto" }]);
     reopened.close();
+  });
+
+  it("persists and clears websocket events per session", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const event: WebSocketEvent = {
+      id: "ws-1",
+      requestId: "request-1",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      url: "wss://example.com/realtime",
+      host: "example.com",
+      direction: "received",
+      opcode: 1,
+      payloadData: "{\"event\":\"ready\"}",
+      size: 17,
+      status: 101,
+      statusText: "Switching Protocols",
+      requestHeaders: { Upgrade: "websocket" },
+      responseHeaders: { Connection: "Upgrade" },
+      initiator: "script",
+      allowed: true
+    };
+
+    store.insertWebSocketEvent(context.session.id, event);
+    expect(store.listWebSocketEvents(context.session.id, 10)).toEqual([event]);
+
+    store.clearWebSocketEvents(context.session.id);
+    expect(store.listWebSocketEvents(context.session.id, 10)).toEqual([]);
+
+    store.close();
   });
 
   it("persists agent runs with timeline and findings", () => {

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { CapturedRequest } from "../../shared/domain.js";
+import type { CapturedRequest, WebSocketEvent } from "../../shared/domain.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearAudit } from "./audit.js";
 import * as cursorCli from "./cursorCli.js";
@@ -30,6 +30,23 @@ const sampleCapture: CapturedRequest = {
   tls: null
 };
 
+const sampleWebSocketEvent: WebSocketEvent = {
+  id: "ws-1",
+  requestId: "stream-1",
+  createdAt: new Date().toISOString(),
+  url: "wss://localhost:3000/socket",
+  host: "localhost:3000",
+  direction: "received",
+  opcode: 1,
+  payloadData: '{"event":"ready","token":"secret-token"}',
+  size: 40,
+  status: 101,
+  statusText: "Switching Protocols",
+  requestHeaders: { Authorization: "Bearer secret-token" },
+  responseHeaders: {},
+  allowed: true
+};
+
 describe("ai index", () => {
   let tmpDir = "";
 
@@ -50,7 +67,7 @@ describe("ai index", () => {
       request: { view: "traffic", captureIds: [], includeRaw: false }
     });
 
-    expect(preview.blockedReason).toContain("Select at least one capture");
+    expect(preview.blockedReason).toContain("Select at least one HTTP capture or WebSocket frame");
     expect(preview.captureCount).toBe(0);
   });
 
@@ -114,6 +131,22 @@ describe("ai index", () => {
     expect(preview.captureCount).toBe(1);
     expect(preview.previewText).toContain("RADAR AI CONTEXT");
     expect(preview.redacted).toBe(true);
+  });
+
+  it("previews selected websocket frames without http captures", () => {
+    const preview = previewContext({
+      capturedMap: new Map(),
+      webSocketEventMap: new Map([["ws-1", sampleWebSocketEvent]]),
+      allowlist: ["http://localhost:*"],
+      browserUrl: "http://localhost:3000",
+      request: { view: "websocket", captureIds: [], webSocketEventIds: ["ws-1"], includeRaw: false }
+    });
+
+    expect(preview.blockedReason).toBeUndefined();
+    expect(preview.captureCount).toBe(0);
+    expect(preview.webSocketEventCount).toBe(1);
+    expect(preview.previewText).toContain("websocket:ws-1");
+    expect(preview.previewText).toContain("[REDACTED]");
   });
 
   it("runs ai task with mocked provider", async () => {
@@ -182,7 +215,7 @@ describe("ai index", () => {
         userDataPath: tmpDir,
         request: { view: "traffic", task: "capture_summary", captureIds: [], includeRaw: false }
       })
-    ).rejects.toThrow("Select at least one capture");
+    ).rejects.toThrow("Select at least one HTTP capture or WebSocket frame");
   });
 
   it("runs custom skill with mocked provider", async () => {

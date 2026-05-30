@@ -1,4 +1,4 @@
-import type { CapturedRequest } from "../../shared/domain.js";
+import type { CapturedRequest, WebSocketEvent } from "../../shared/domain.js";
 import { describe, expect, it } from "vitest";
 import { redactHeaders, redactBody, buildContextPayload } from "./context.js";
 
@@ -21,6 +21,21 @@ const sampleCapture: CapturedRequest = {
   mimeType: "",
   type: "",
   tls: { protocol: "TLS1.3", subjectName: "localhost", issuer: "Radar CA", validFrom: 0, validTo: 0 }
+};
+
+const sampleWebSocketEvent: WebSocketEvent = {
+  id: "ws-1",
+  requestId: "stream-1",
+  createdAt: new Date().toISOString(),
+  url: "wss://localhost:3000/socket",
+  host: "localhost:3000",
+  direction: "sent",
+  opcode: 1,
+  payloadData: 'token="abc123"',
+  size: 14,
+  requestHeaders: { Authorization: "Bearer secret-token" },
+  responseHeaders: {},
+  allowed: true
 };
 
 describe("context", () => {
@@ -71,5 +86,19 @@ describe("context", () => {
 
     expect(payload).toContain("TLS: none");
     expect(payload).toContain("(empty)");
+  });
+
+  it("includes websocket events with redacted payloads", () => {
+    const payload = buildContextPayload({
+      captures: [],
+      webSocketEvents: [sampleWebSocketEvent],
+      targets: ["http://localhost:*"],
+      browserUrl: "",
+      includeRaw: false
+    });
+
+    expect(payload).toContain("websocket:ws-1");
+    expect(payload).toContain("SENT wss://localhost:3000/socket");
+    expect(payload).toContain("[REDACTED]");
   });
 });

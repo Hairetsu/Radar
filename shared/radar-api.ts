@@ -21,7 +21,8 @@ import type {
   ProxyState,
   ReplayDraft,
   ReplayResult,
-  SslEvent
+  SslEvent,
+  WebSocketEvent
 } from "./domain.js";
 import type { AgentRun, AgentRunRequest } from "./agent-types.js";
 
@@ -49,6 +50,8 @@ export type RadarApi = {
   deleteCapture: (id: string) => Promise<{ ok: boolean }>;
   clearCaptures: () => Promise<{ ok: boolean }>;
   getSslEvents: () => Promise<SslEvent[]>;
+  getWebSocketEvents: () => Promise<WebSocketEvent[]>;
+  clearWebSocketEvents: () => Promise<{ ok: boolean }>;
   getTargets: () => Promise<string[]>;
   setTargets: (targets: string[]) => Promise<string[]>;
   sendReplay: (request: ReplayDraft) => Promise<ReplayResult>;

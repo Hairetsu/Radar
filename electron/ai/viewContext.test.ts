@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { appendViewContext, contextBlockedReason } from "./viewContext.js";
 
 describe("viewContext", () => {
-  it("requires captures on traffic view", () => {
+  it("requires packets on traffic view", () => {
     expect(
       contextBlockedReason({
         view: "traffic",
         captures: [],
         viewContext: { view: "traffic" }
       })
-    ).toContain("Select at least one capture");
+    ).toContain("Select at least one HTTP capture or WebSocket frame");
   });
 
   it("allows scope view with targets only", () => {
@@ -88,6 +88,31 @@ describe("viewContext", () => {
         view: "repeater",
         captures: [],
         viewContext: { view: "repeater", draft: { method: "GET", url: "http://localhost", headers: {}, body: "" } }
+      })
+    ).toBeUndefined();
+  });
+
+  it("allows websocket view with websocket frames only", () => {
+    expect(
+      contextBlockedReason({
+        view: "websocket",
+        captures: [],
+        webSocketEvents: [
+          {
+            id: "ws-1",
+            requestId: "stream-1",
+            createdAt: "",
+            url: "wss://localhost/socket",
+            host: "localhost",
+            direction: "received",
+            payloadData: "ready",
+            size: 5,
+            requestHeaders: {},
+            responseHeaders: {},
+            allowed: true
+          }
+        ],
+        viewContext: { view: "websocket" }
       })
     ).toBeUndefined();
   });

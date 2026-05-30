@@ -1,6 +1,6 @@
 import { Command, Loader2, Plus, ShieldAlert, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CapturedRequest, ReplayDraft, ReplayResult, SslEvent } from "../types";
+import type { CapturedRequest, ReplayDraft, ReplayResult, SslEvent, WebSocketEvent } from "../types";
 import type { WorkView } from "../hooks/useRadarWorkbench";
 import { FieldLabel } from "../components/radar/primitives";
 import { Button } from "../components/ui/button";
@@ -32,6 +32,8 @@ type CommandPaletteProps = {
   onClose: () => void;
   captureIds: string[];
   captures: CapturedRequest[];
+  webSocketEventIds: string[];
+  webSocketEvents: WebSocketEvent[];
   targets: string[];
   browserUrl: string;
   draft: ReplayDraft;
@@ -68,6 +70,14 @@ const capturePickerRowClass = (checked: boolean) =>
     checked && "bg-signal/[0.08] text-bone"
   );
 
+const packetPickerRowClass = (checked: boolean) =>
+  cn(
+    "grid w-full cursor-pointer items-center gap-2 border-0 border-b border-rule/70 bg-transparent px-2 py-2 text-left font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition last:border-b-0",
+    "[grid-template-columns:auto_78px_minmax(0,1fr)]",
+    "hover:bg-steel/[0.07] hover:text-bone",
+    checked && "bg-steel/[0.09] text-bone"
+  );
+
 const emptySkillDraft = {
   label: "",
   hint: "",
@@ -80,6 +90,8 @@ export function CommandPalette({
   onClose,
   captureIds,
   captures,
+  webSocketEventIds,
+  webSocketEvents,
   targets,
   browserUrl,
   draft,
@@ -106,6 +118,7 @@ export function CommandPalette({
   const [showSkillForm, setShowSkillForm] = useState(false);
   const [skillDraft, setSkillDraft] = useState(emptySkillDraft);
   const [paletteCaptureIds, setPaletteCaptureIds] = useState<string[]>([]);
+  const [paletteWebSocketEventIds, setPaletteWebSocketEventIds] = useState<string[]>([]);
 
   const viewTasks = VIEW_AI_TASKS[view];
   const viewSkills = useMemo(() => skillsForView(skills, view), [skills, view]);
@@ -135,11 +148,12 @@ export function CommandPalette({
       ...runPayloadFromSelection(selection),
       view,
       captureIds: paletteCaptureIds,
+      webSocketEventIds: paletteWebSocketEventIds,
       includeRaw,
       userPrompt,
       viewContext
     }),
-    [includeRaw, paletteCaptureIds, selection, userPrompt, view, viewContext]
+    [includeRaw, paletteCaptureIds, paletteWebSocketEventIds, selection, userPrompt, view, viewContext]
   );
 
   const refreshSkills = useCallback(async () => {
@@ -284,11 +298,22 @@ export function CommandPalette({
     );
   }, []);
 
+  const togglePaletteWebSocketEvent = useCallback((eventId: string) => {
+    setPaletteWebSocketEventIds((current) =>
+      current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]
+    );
+  }, []);
+
+  const selectedPacketCount = paletteCaptureIds.length + paletteWebSocketEventIds.length;
+  const totalPacketCount = captures.length + webSocketEvents.length;
+
   const contextLabel = useMemo(() => {
+    const selectedWebSocketEvents = webSocketEvents.filter((item) => paletteWebSocketEventIds.includes(item.id));
     switch (view) {
       case "traffic":
-        if (paletteCaptureIds.length === 0) {
-          return "No captures selected";
+      case "websocket":
+        if (selectedPacketCount === 0) {
+          return "No packets selected";
         }
         break;
       case "repeater":
@@ -300,14 +325,32 @@ export function CommandPalette({
     }
 
     if (paletteCaptureIds.length === 0) {
+      if (selectedWebSocketEvents.length === 1) {
+        const event = selectedWebSocketEvents[0];
+        return `WS ${event.direction} ${event.host || "socket"}`;
+      }
+      if (selectedWebSocketEvents.length > 1) {
+        return `${selectedWebSocketEvents.length} packets selected`;
+      }
       return VIEW_AI_LABELS[view];
     }
     const selected = captures.filter((item) => paletteCaptureIds.includes(item.id));
-    if (selected.length === 1) {
+    if (selected.length === 1 && selectedWebSocketEvents.length === 0) {
       return `${selected[0].method} ${selected[0].host}${selected[0].path}`;
     }
-    return `${selected.length} captures selected`;
-  }, [captures, draft.method, draft.url, paletteCaptureIds, sslEvents.length, targets.length, view]);
+    return `${selected.length + selectedWebSocketEvents.length} packets selected`;
+  }, [
+    captures,
+    draft.method,
+    draft.url,
+    paletteCaptureIds,
+    paletteWebSocketEventIds,
+    selectedPacketCount,
+    sslEvents.length,
+    targets.length,
+    view,
+    webSocketEvents
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -316,7 +359,8 @@ export function CommandPalette({
     window.radar?.getAiAudit().then((items) => setAudit(items));
     refreshSkills().then((next) => setSelection(defaultSelection(view, next)));
     setPaletteCaptureIds(captureIds);
-  }, [captureIds, open, refreshSkills, view]);
+    setPaletteWebSocketEventIds(webSocketEventIds);
+  }, [captureIds, open, refreshSkills, view, webSocketEventIds]);
 
   useEffect(() => {
     if (!open) {
@@ -506,74 +550,111 @@ export function CommandPalette({
               ))}
             </div>
 
-            {view === "traffic" && (
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <FieldLabel className="px-0 pt-0">
-                    Captures ({paletteCaptureIds.length}/{captures.length})
-                  </FieldLabel>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="compact"
-                      disabled={captures.length === 0}
-                      onClick={() => setPaletteCaptureIds(captures.map((capture) => capture.id))}
-                      data-testid="aiSelectAllCaptures"
-                      data-component="aiSelectAllCaptures"
-                    >
-                      Select all
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="compact"
-                      disabled={paletteCaptureIds.length === 0}
-                      onClick={() => setPaletteCaptureIds([])}
-                      data-testid="aiClearCaptures"
-                      data-component="aiClearCaptures"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-                <div
-                  className="max-h-44 overflow-auto border border-rule radar-panel"
-                  data-testid="aiCapturePicker"
-                  data-component="aiCapturePicker"
-                >
-                  {captures.length === 0 && (
-                    <p className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-dim">
-                      No in-scope captures
-                    </p>
-                  )}
-                  {captures.map((capture) => {
-                    const checked = paletteCaptureIds.includes(capture.id);
-                    return (
-                      <label
-                        key={capture.id}
-                        className={capturePickerRowClass(checked)}
-                        data-testid={`aiCaptureOption-${capture.id}`}
-                        data-component="aiCaptureOption"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePaletteCapture(capture.id)}
-                          data-testid={`aiCaptureCheckbox-${capture.id}`}
-                          data-component="aiCaptureCheckbox"
-                        />
-                        <span className="font-bold text-signal">{capture.method}</span>
-                        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {capture.host}
-                          {capture.path}
-                        </span>
-                      </label>
-                    );
-                  })}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <FieldLabel className="px-0 pt-0">
+                  Packets ({selectedPacketCount}/{totalPacketCount})
+                </FieldLabel>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="compact"
+                    disabled={totalPacketCount === 0}
+                    onClick={() => {
+                      setPaletteCaptureIds(captures.map((capture) => capture.id));
+                      setPaletteWebSocketEventIds(webSocketEvents.map((event) => event.id));
+                    }}
+                    data-testid="aiSelectAllPackets"
+                    data-component="aiSelectAllPackets"
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="compact"
+                    disabled={selectedPacketCount === 0}
+                    onClick={() => {
+                      setPaletteCaptureIds([]);
+                      setPaletteWebSocketEventIds([]);
+                    }}
+                    data-testid="aiClearPackets"
+                    data-component="aiClearPackets"
+                  >
+                    Clear
+                  </Button>
                 </div>
               </div>
-            )}
+              <div
+                className="max-h-44 overflow-auto border border-rule radar-panel"
+                data-testid="aiPacketPicker"
+                data-component="aiPacketPicker"
+              >
+                {totalPacketCount === 0 && (
+                  <p className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-dim">
+                    No HTTP or WebSocket packets
+                  </p>
+                )}
+                {captures.length > 0 && (
+                  <div className="border-b border-rule/70 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.28em] text-dim">
+                    HTTP / HTTPS ({paletteCaptureIds.length}/{captures.length})
+                  </div>
+                )}
+                {captures.map((capture) => {
+                  const checked = paletteCaptureIds.includes(capture.id);
+                  return (
+                    <label
+                      key={capture.id}
+                      className={capturePickerRowClass(checked)}
+                      data-testid={`aiCaptureOption-${capture.id}`}
+                      data-component="aiCaptureOption"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePaletteCapture(capture.id)}
+                        data-testid={`aiCaptureCheckbox-${capture.id}`}
+                        data-component="aiCaptureCheckbox"
+                      />
+                      <span className="font-bold text-signal">{capture.method}</span>
+                      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                        {capture.host}
+                        {capture.path}
+                      </span>
+                    </label>
+                  );
+                })}
+                {webSocketEvents.length > 0 && (
+                  <div className="border-b border-rule/70 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.28em] text-dim">
+                    WebSocket ({paletteWebSocketEventIds.length}/{webSocketEvents.length})
+                  </div>
+                )}
+                {webSocketEvents.map((event) => {
+                  const checked = paletteWebSocketEventIds.includes(event.id);
+                  return (
+                    <label
+                      key={event.id}
+                      className={packetPickerRowClass(checked)}
+                      data-testid={`aiWebSocketOption-${event.id}`}
+                      data-component="aiWebSocketOption"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePaletteWebSocketEvent(event.id)}
+                        data-testid={`aiWebSocketCheckbox-${event.id}`}
+                        data-component="aiWebSocketCheckbox"
+                      />
+                      <span className="font-bold text-steel">{event.direction}</span>
+                      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                        {event.host || "socket"} · {event.payloadData || event.url}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
 
             <FieldLabel className="px-0" htmlFor="ai-user-prompt">
               Operator note
@@ -599,7 +680,7 @@ export function CommandPalette({
                 data-component="aiIncludeRaw"
               />
               <ShieldAlert size={13} strokeWidth={1.7} />
-              Send raw headers and bodies (explicit)
+              Send raw headers, bodies, and payloads (explicit)
             </label>
           </section>
 
@@ -672,7 +753,8 @@ export function CommandPalette({
             <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
               <strong>Context preview</strong>
               <span>
-                {preview.captureCount} captures · {preview.charCount} chars · {preview.redacted ? "redacted" : "raw"}
+                {preview.captureCount + (preview.webSocketEventCount || 0)} packets · {preview.charCount} chars ·{" "}
+                {preview.redacted ? "redacted" : "raw"}
               </span>
             </div>
             <pre className="max-h-64 overflow-auto border border-rule radar-panel p-3 text-[11px] leading-[1.5]">
