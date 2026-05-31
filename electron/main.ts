@@ -43,6 +43,9 @@ import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
 import { matchingInterceptRules, normalizeInterceptRules } from "../shared/interceptRules.js";
 import { applyMatchReplaceRules, normalizeMatchReplaceRules } from "../shared/matchReplace.js";
+import { annotationContext } from "../shared/evidenceTags.js";
+import { normalizeSavedFilters } from "../shared/savedFilters.js";
+import { filterCapturesByQuery, filterWebSocketEventsByQuery } from "../shared/trafficQuery.js";
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
 import { normalizeUrl as normalizeBrowserUrl } from "../shared/url.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
@@ -2076,6 +2079,32 @@ ipcMain.handle("capture:snapshot", () => {
   return listHttpCaptures(400);
 });
 
+ipcMain.handle("capture:query", (_event, query) => {
+  const result = filterCapturesByQuery(
+    listHttpCaptures(4000),
+    query,
+    localStore && localContext ? annotationContext(localStore.listEvidenceAnnotations(localContext.session.id)) : {}
+  );
+  if (!result.ok) {
+    return { ok: false, error: result.error, captures: [] };
+  }
+  return { ok: true, captures: result.captures.slice(0, 400) };
+});
+
+ipcMain.handle("capture:session", (_event, sessionId) => {
+  const id = String(sessionId || "").trim();
+  if (!id || !localStore || !localContext) {
+    return [];
+  }
+  const allowed = localStore.listSessions(localContext.profile.id).some((session) => session.id === id);
+  if (!allowed) {
+    return [];
+  }
+  return localStore
+    .listCaptures(id, 2000)
+    .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"));
+});
+
 ipcMain.handle("capture:delete", (_event, id) => {
   const captureId = String(id || "").trim();
   if (!captureId) {
@@ -2166,6 +2195,48 @@ ipcMain.handle("websocket:clear", () => {
     localStore.clearWebSocketEvents(localContext.session.id);
   }
   return { ok: true };
+});
+
+ipcMain.handle("websocket:query", (_event, query) => {
+  const result = filterWebSocketEventsByQuery(
+    listWebSocketEvents(HOT_WEBSOCKET_LIMIT),
+    query,
+    localStore && localContext ? annotationContext(localStore.listEvidenceAnnotations(localContext.session.id)) : {}
+  );
+  if (!result.ok) {
+    return { ok: false, error: result.error, events: [] };
+  }
+  return { ok: true, events: result.events };
+});
+
+ipcMain.handle("filters:get", () => {
+  return localStore && localContext ? localStore.listSavedFilters(localContext.workspace.id) : [];
+});
+
+ipcMain.handle("filters:set", (_event, filters) => {
+  const next = normalizeSavedFilters(filters);
+  return localStore && localContext ? localStore.setSavedFilters(localContext.workspace.id, next) : next;
+});
+
+ipcMain.handle("evidence:annotations:get", () => {
+  return localStore && localContext ? localStore.listEvidenceAnnotations(localContext.session.id) : [];
+});
+
+ipcMain.handle("evidence:annotations:save", (_event, annotation) => {
+  if (!localStore || !localContext) {
+    throw new Error("Local store is unavailable.");
+  }
+  return localStore.saveEvidenceAnnotation(localContext.session.id, annotation);
+});
+
+ipcMain.handle("evidence:annotations:save-many", (_event, annotations) => {
+  if (!localStore || !localContext) {
+    return [];
+  }
+  return localStore.saveEvidenceAnnotations(
+    localContext.session.id,
+    Array.isArray(annotations) ? annotations : []
+  );
 });
 
 ipcMain.handle("targets:get", () => allowlist);

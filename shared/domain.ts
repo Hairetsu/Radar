@@ -253,3 +253,24 @@ export type BurstResult = {
   failures: number;
   results: Array<ReplayResult & { index: number }>;
 };
+
+export type SavedFilterSurface = "traffic" | "websocket" | "both";
+
+export type SavedFilter = {
+  id: string;
+  name: string;
+  query: string;
+  surface: SavedFilterSurface;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EvidenceKind = "capture" | "websocket";
+
+export type EvidenceAnnotation = {
+  evidenceId: string;
+  kind: EvidenceKind;
+  tags: string[];
+  comment: string;
+  updatedAt: string;
+};

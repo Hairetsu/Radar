@@ -70,6 +70,7 @@ export const VIEW_AI_TASKS: Record<AiWorkView, AiTaskType[]> = {
   websocket: ["capture_summary", "report_notes"],
   intercept: ["capture_summary", "report_notes"],
   repeater: ["repeater_drafts"],
+  sitemap: ["capture_summary", "report_notes"],
   scope: ["scope_checklist", "browser_helper"],
   ssl: ["tls_review"]
 };
@@ -79,6 +80,7 @@ export const VIEW_AI_LABELS: Record<AiWorkView, string> = {
   websocket: "WebSocket analysis",
   intercept: "Intercept review",
   repeater: "Replay engineering",
+  sitemap: "Sitemap coverage",
   scope: "Scope planning",
   ssl: "TLS & proxy review"
 };
