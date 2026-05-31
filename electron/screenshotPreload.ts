@@ -2,7 +2,14 @@ import { contextBridge } from "electron";
 import type { AgentRun } from "../shared/agent-types.js";
 import type { AiSettings } from "../shared/ai-types.js";
 import type { RadarApi } from "../shared/radar-api.js";
-import type { BrowserState, CapturedRequest, LocalContext, ProxyState, SslEvent } from "../shared/domain.js";
+import type {
+  BrowserState,
+  CapturedRequest,
+  LocalContext,
+  ProxyState,
+  SslEvent,
+  WebSocketEvent
+} from "../shared/domain.js";
 
 const context: LocalContext = {
   profile: {
@@ -91,6 +98,24 @@ const sslEvents: SslEvent[] = [
   }
 ];
 
+const webSocketEvents: WebSocketEvent[] = [
+  {
+    id: "ws-ready",
+    requestId: "ws-local",
+    createdAt: "2026-05-25T00:00:05.000Z",
+    url: "ws://localhost:3000/socket",
+    host: "localhost:3000",
+    direction: "received",
+    opcode: 1,
+    payloadData: "{\"type\":\"ready\",\"channel\":\"audit\"}",
+    size: 34,
+    requestHeaders: { Upgrade: "websocket" },
+    responseHeaders: { Connection: "Upgrade" },
+    initiator: "script",
+    allowed: true
+  }
+];
+
 const browserState: BrowserState = {
   open: true,
   url: "http://localhost:3000/dashboard",
@@ -156,6 +181,11 @@ const radar: RadarApi = {
     return { ok: true };
   },
   getSslEvents: async () => sslEvents,
+  getWebSocketEvents: async () => webSocketEvents,
+  clearWebSocketEvents: async () => {
+    webSocketEvents.splice(0, webSocketEvents.length);
+    return { ok: true };
+  },
   getTargets: async () => targets,
   setTargets: async (nextTargets) => {
     targets = nextTargets;

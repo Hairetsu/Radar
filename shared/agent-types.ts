@@ -2,7 +2,7 @@ import type { ReplayDraft, ReplayResult, BrowserState, CapturedRequest } from ".
 
 export type AppMode = "manual-first" | "ai-first";
 
-export type AgentWorkbenchView = "traffic" | "repeater" | "scope" | "ssl";
+export type AgentWorkbenchView = "traffic" | "websocket" | "repeater" | "scope" | "ssl";
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
 

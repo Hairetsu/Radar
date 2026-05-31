@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   Activity,
   Braces,
@@ -27,7 +27,8 @@ import {
   Terminal,
   Trash2,
   UserRound,
-  Zap
+  Zap,
+  type LucideIcon
 } from "lucide-react";
 import { AiSettingsPanel } from "./ai/AiSettingsPanel";
 import { CommandPalette } from "./ai/CommandPalette";
@@ -39,7 +40,7 @@ import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Select } from "./components/ui/select";
 import { Textarea } from "./components/ui/textarea";
-import { TRAFFIC_SORT_FIELDS, useRadarWorkbench, viewMeta, WORK_VIEWS } from "./hooks/useRadarWorkbench";
+import { TRAFFIC_SORT_FIELDS, useRadarWorkbench, viewMeta, WORK_VIEWS, type WorkView } from "./hooks/useRadarWorkbench";
 import {
   bodyPreview,
   cn,
@@ -52,10 +53,10 @@ import {
   tlsLine,
   type RequestExportFormat
 } from "./lib";
-import type { CapturedRequest } from "./types";
+import type { CapturedRequest, WebSocketDirection, WebSocketEvent } from "./types";
 
 const shellClass =
-  "radar-shell relative grid h-full min-h-full cursor-default overflow-hidden [grid-template-columns:56px_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_28px] max-[1180px]:[grid-template-columns:1fr] max-[1180px]:[grid-template-rows:auto_minmax(0,1fr)_28px]";
+  "radar-shell relative grid h-full min-h-full cursor-default overflow-hidden [grid-template-columns:248px_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_28px] max-[1180px]:h-auto max-[1180px]:overflow-visible max-[1180px]:[grid-template-columns:1fr] max-[1180px]:[grid-template-rows:auto_auto_28px]";
 
 const revealClass = "opacity-0 animate-[enter_720ms_cubic-bezier(0.2,0.74,0.19,1)_forwards]";
 
@@ -63,30 +64,49 @@ const monoMuted = "font-mono text-[11px] text-muted";
 
 const ellipsisMono = cn(monoMuted, "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap");
 
-const viewButtonClass = (active: boolean) =>
+const sidebarViewIcons: Record<WorkView, LucideIcon> = {
+  traffic: Activity,
+  websocket: Braces,
+  repeater: Repeat2,
+  scope: Target,
+  ssl: LockKeyhole
+};
+
+const sidebarViewButtonClass = (active: boolean) =>
   cn(
-    "relative inline-flex shrink-0 items-center gap-2.5 border-0 border-r border-rule bg-transparent px-5 font-display text-[13px] font-semibold uppercase tracking-[0.08em] text-muted transition [font-stretch:75%]",
-    "hover:bg-signal/5 hover:text-bone hover:[&_.num]:text-signal",
+    "group relative h-auto w-full justify-start gap-3 overflow-hidden border border-transparent bg-transparent px-3.5 py-3 text-left font-sans normal-case tracking-[0] text-copy",
+    "before:absolute before:bottom-2 before:left-0 before:top-2 before:w-0 before:bg-signal before:transition-all before:duration-300 before:content-['']",
+    "hover:border-signal/30 hover:bg-signal/[0.06] hover:text-bone hover:before:w-[3px] hover:[&_.nav-num]:text-signal",
     active &&
-      "bg-signal/[0.06] text-bone after:absolute after:-bottom-px after:-left-px after:-right-px after:h-0.5 after:bg-signal after:shadow-[0_0_14px_color-mix(in_srgb,var(--color-signal)_60%,transparent)] after:content-[''] [&_.num]:text-signal"
+      "border-signal/45 bg-signal/[0.09] text-bone shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_34px_-26px_color-mix(in_srgb,var(--color-signal)_70%,transparent)] before:w-[3px] [&_.nav-icon]:border-signal/50 [&_.nav-icon]:bg-signal/10 [&_.nav-icon]:text-signal [&_.nav-num]:text-signal"
   );
 
 const detailTabClass = (active: boolean) =>
   cn(
-    "inline-flex h-[38px] items-center gap-2 border-0 border-r border-rule bg-transparent px-4 font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-muted transition",
+    "inline-flex h-[38px] items-center gap-2 border-0 border-r border-rule bg-transparent px-3 font-mono text-[9.5px] font-medium uppercase tracking-[0.16em] text-muted transition",
     "hover:bg-signal/5 hover:text-bone",
     active && "-mb-px border-b border-signal bg-signal/10 text-signal"
   );
 
 const trafficRowClass = (selected: boolean, focused: boolean) =>
   cn(
-    "radar-traffic-row relative grid h-[46px] w-full items-center gap-2 border-0 border-b border-rule bg-transparent px-4 py-2.5 text-left text-copy transition",
+    "radar-traffic-row relative grid h-[42px] w-full items-center gap-2 border-0 border-b border-rule bg-transparent px-3.5 py-2 text-left text-copy transition",
     "justify-stretch normal-case",
     "[grid-template-columns:64px_60px_minmax(120px,0.9fr)_minmax(180px,1.5fr)_90px_60px]",
     "before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0 before:bg-signal before:transition-all before:content-['']",
     "hover:bg-[var(--theme-row-hover)] hover:text-bone hover:before:w-[3px]",
     selected && "bg-[var(--theme-row-active)] text-bone before:w-[3px]",
     focused && "ring-1 ring-inset ring-signal/35"
+  );
+
+const websocketRowClass = (selected: boolean, focused: boolean) =>
+  cn(
+    "relative grid h-[52px] w-full items-center gap-2 border-0 border-b border-rule bg-transparent px-3.5 py-2 text-left text-copy transition",
+    "justify-stretch normal-case [grid-template-columns:88px_minmax(120px,0.9fr)_minmax(160px,1.4fr)_72px_72px]",
+    "before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0 before:bg-steel before:transition-all before:content-['']",
+    "hover:bg-steel/5 hover:text-bone hover:before:w-[3px]",
+    focused && "ring-1 ring-inset ring-steel/30",
+    selected && "bg-steel/[0.08] text-bone before:w-[3px]"
   );
 
 type RequestMenuState = {
@@ -102,6 +122,97 @@ const requestMenuActionClass =
 
 const requestMenuDangerClass =
   "hover:bg-rust/10 hover:text-rust focus-visible:bg-rust/10 focus-visible:text-rust [&_svg]:text-rust";
+
+function formatBytes(value: number) {
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)}mb`;
+  }
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(1)}kb`;
+  }
+  return `${value}b`;
+}
+
+function websocketDirectionTone(direction: WebSocketDirection): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (direction === "received") {
+    return "move";
+  }
+  if (direction === "sent") {
+    return "good";
+  }
+  if (direction === "error") {
+    return "danger";
+  }
+  if (direction === "closed") {
+    return "warn";
+  }
+  return "ghost";
+}
+
+function websocketFrameKind(event: WebSocketEvent) {
+  if (event.direction === "handshake") {
+    return event.status ? `HTTP ${event.status}` : "handshake";
+  }
+  if (event.direction === "closed") {
+    return "closed";
+  }
+  if (event.direction === "error") {
+    return "error";
+  }
+  if (event.opcode === 1) {
+    return "text";
+  }
+  if (event.opcode === 2) {
+    return "binary";
+  }
+  if (event.opcode === 8) {
+    return "close";
+  }
+  if (event.opcode === 9) {
+    return "ping";
+  }
+  if (event.opcode === 10) {
+    return "pong";
+  }
+  return `op ${event.opcode ?? "?"}`;
+}
+
+function websocketPayloadPreview(event: WebSocketEvent) {
+  if (event.error) {
+    return event.error;
+  }
+  if (event.payloadData) {
+    return event.payloadData.replace(/\s+/g, " ").trim();
+  }
+  return event.statusText || event.direction;
+}
+
+function websocketDetailText(event: WebSocketEvent | null) {
+  if (!event) {
+    return "";
+  }
+  return [
+    `${event.direction.toUpperCase()} ${event.url}`,
+    `ID: ${event.requestId}`,
+    `Host: ${event.host}`,
+    `Kind: ${websocketFrameKind(event)}`,
+    `Size: ${formatBytes(event.size)}`,
+    event.status ? `Status: ${event.status} ${event.statusText || ""}`.trim() : "",
+    event.error ? `Error: ${event.error}` : "",
+    event.initiator ? `Initiator: ${event.initiator}` : "",
+    "",
+    "Request headers:",
+    formatHeaders(event.requestHeaders || {}),
+    "",
+    "Response headers:",
+    formatHeaders(event.responseHeaders || {}),
+    "",
+    "Payload:",
+    bodyPreview(event.payloadData)
+  ]
+    .filter((line, index, lines) => line || lines[index - 1] !== "")
+    .join("\n");
+}
 
 function contextMenuPosition(event: MouseEvent<HTMLElement>) {
   const menuWidth = 264;
@@ -142,6 +253,11 @@ function timelineEntryText(entry: { note?: string; toolCall?: { tool: string }; 
 export function App() {
   const workbench = useRadarWorkbench();
   const [requestMenu, setRequestMenu] = useState<RequestMenuState | null>(null);
+  const [webSocketSearch, setWebSocketSearch] = useState("");
+  const [webSocketDirectionFilter, setWebSocketDirectionFilter] = useState<WebSocketDirection | "all">("all");
+  const [selectedWebSocketId, setSelectedWebSocketId] = useState("");
+  const [selectedWebSocketIds, setSelectedWebSocketIds] = useState<string[]>([]);
+  const webSocketSelectionAnchorRef = useRef("");
   const trafficFiltersActive = Boolean(
     workbench.trafficSearch.trim() ||
       workbench.trafficMethodFilter !== "all" ||
@@ -254,6 +370,94 @@ export function App() {
     : false;
   const activeAgentRun = workbench.activeAgentRun;
   const activeAgentRunning = activeAgentRun?.status === "queued" || activeAgentRun?.status === "running";
+  const sidebarViewStats: Record<WorkView, string> = {
+    traffic: `${workbench.trafficCaptures.length}/${workbench.scopedTrafficCaptures.length} in scope`,
+    websocket: `${workbench.webSocketEvents.length} frames`,
+    repeater: workbench.lastResponse ? `${workbench.lastResponse.status} ${elapsed(workbench.lastResponse.durationMs)}` : "manual replay",
+    scope: `${workbench.targets.length} targets`,
+    ssl: workbench.proxyState.running ? "proxy engaged" : `${workbench.sslEvents.length} tls events`
+  };
+  const filteredWebSocketEvents = useMemo(() => {
+    const query = webSocketSearch.trim().toLowerCase();
+    return workbench.webSocketEvents.filter((event) => {
+      const directionMatches = webSocketDirectionFilter === "all" || event.direction === webSocketDirectionFilter;
+      const searchMatches =
+        !query ||
+        [
+          event.url,
+          event.host,
+          event.requestId,
+          event.direction,
+          event.status,
+          event.statusText,
+          event.error,
+          event.payloadData,
+          formatHeaders(event.requestHeaders || {}),
+          formatHeaders(event.responseHeaders || {})
+        ]
+          .filter((value) => value !== null && value !== undefined)
+          .join("\n")
+          .toLowerCase()
+          .includes(query);
+      return directionMatches && searchMatches;
+    });
+  }, [webSocketDirectionFilter, webSocketSearch, workbench.webSocketEvents]);
+  const selectedWebSocketEvent =
+    filteredWebSocketEvents.find((event) => event.id === selectedWebSocketId) || filteredWebSocketEvents[0] || null;
+  const selectedWebSocketDetail = websocketDetailText(selectedWebSocketEvent);
+  const selectWebSocketEvent = (eventId: string, event?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => {
+    const meta = Boolean(event?.metaKey || event?.ctrlKey);
+    const shift = Boolean(event?.shiftKey);
+
+    setSelectedWebSocketId(eventId);
+    setSelectedWebSocketIds((current) => {
+      if (shift && webSocketSelectionAnchorRef.current) {
+        const ids = filteredWebSocketEvents.map((item) => item.id);
+        const start = ids.indexOf(webSocketSelectionAnchorRef.current);
+        const end = ids.indexOf(eventId);
+        if (start === -1 || end === -1) {
+          if (meta) {
+            return current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId];
+          }
+          webSocketSelectionAnchorRef.current = eventId;
+          return [eventId];
+        }
+        const from = Math.min(start, end);
+        const to = Math.max(start, end);
+        const range = ids.slice(from, to + 1);
+        return meta ? [...new Set([...current, ...range])] : range;
+      }
+      if (meta) {
+        return current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId];
+      }
+      webSocketSelectionAnchorRef.current = eventId;
+      return [eventId];
+    });
+  };
+  const webSocketConnectionCount = new Set(workbench.webSocketEvents.map((event) => event.requestId)).size;
+  const webSocketSentCount = workbench.webSocketEvents.filter((event) => event.direction === "sent").length;
+  const webSocketReceivedCount = workbench.webSocketEvents.filter((event) => event.direction === "received").length;
+  const webSocketErrorCount = workbench.webSocketEvents.filter((event) => event.direction === "error").length;
+  const webSocketPayloadBytes = workbench.webSocketEvents.reduce((total, event) => total + event.size, 0);
+  const copySelectedWebSocketDetail = async () => {
+    if (!selectedWebSocketDetail) {
+      return;
+    }
+    try {
+      await window.navigator.clipboard.writeText(selectedWebSocketDetail);
+      workbench.setNotice("WebSocket frame copied");
+    } catch {
+      workbench.setNotice("Copy failed");
+    }
+  };
+
+  useEffect(() => {
+    setSelectedWebSocketIds((current) => {
+      const visible = new Set(filteredWebSocketEvents.map((event) => event.id));
+      const next = current.filter((id) => visible.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [filteredWebSocketEvents]);
   const submitAgentGoal = (event: FormEvent) => {
     event.preventDefault();
     void workbench.startAgentRun();
@@ -266,36 +470,112 @@ export function App() {
       <aside
         className={cn(
           revealClass,
-          "relative z-[3] flex flex-col items-center justify-between border-r border-rule/80 py-4 [animation-delay:60ms] max-[1180px]:hidden radar-aside-bg radar-chrome",
-          "[grid-column:1/2] [grid-row:1/2]"
+          "relative z-[3] flex min-h-0 flex-col border-r border-rule/80 px-3 py-3 [animation-delay:60ms] radar-aside-bg radar-chrome",
+          "[grid-column:1/2] [grid-row:1/2]",
+          "max-[1180px]:grid max-[1180px]:grid-cols-[auto_minmax(0,1fr)_minmax(210px,auto)] max-[1180px]:items-center max-[1180px]:gap-3 max-[1180px]:border-r-0 max-[1180px]:border-b max-[1180px]:py-2",
+          "max-[760px]:grid-cols-1"
         )}
       >
-        <span className="font-display text-[22px] font-bold tracking-[0.04em] text-bone [font-stretch:75%]">
-          R<span className="text-signal">·</span>
-        </span>
-        <span className="font-mono text-[9.5px] uppercase tracking-[0.42em] text-muted [writing-mode:vertical-rl] [transform:rotate(180deg)]">
-          Radar <strong>// Bureau</strong> — Operational Surface Intelligence
-        </span>
-        <div className="flex flex-col items-center gap-3 font-mono text-[9px] tracking-[0.18em] text-muted">
-          {WORK_VIEWS.map((view) => (
-            <span
-              key={view}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center border border-rule/80 transition",
-                workbench.activeView === view && "border-signal/60 bg-signal/10 text-signal"
-              )}
-            >
-              {viewMeta[view].num}
+        <div className="flex items-center gap-3 border-b border-rule/80 pb-3 max-[1180px]:border-b-0 max-[1180px]:pb-0">
+          <span className="grid h-10 w-10 shrink-0 place-items-center border border-signal/45 bg-signal/10 font-display text-[22px] font-bold tracking-[0] text-bone shadow-[0_0_26px_-18px_var(--color-signal)] [font-stretch:75%]">
+            R<span className="text-signal">·</span>
+          </span>
+          <div className="min-w-0 max-[1180px]:hidden">
+            <strong className="block font-display text-[18px] font-semibold uppercase leading-none tracking-[0] text-bone [font-stretch:75%]">
+              Radar
+            </strong>
+            <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted">
+              Bureau console
             </span>
+          </div>
+        </div>
+
+        <nav
+          className="mt-4 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto max-[1180px]:mt-0 max-[1180px]:flex-row max-[1180px]:overflow-x-auto"
+          aria-label="Workbench views"
+          data-testid="viewSwitch"
+          data-component="viewSwitch"
+        >
+          {WORK_VIEWS.map((view) => (
+            <Button
+              key={view}
+              variant="ghost"
+              className={cn(sidebarViewButtonClass(workbench.activeView === view), "max-[1180px]:min-w-[184px]")}
+              onClick={() => workbench.setActiveView(view)}
+              aria-current={workbench.activeView === view ? "page" : undefined}
+              data-testid={`view-${view}`}
+              data-component="viewSwitchButton"
+            >
+              {(() => {
+                const ViewIcon = sidebarViewIcons[view];
+                return (
+                  <span className="nav-icon grid h-9 w-9 shrink-0 place-items-center border border-rule bg-ink/40 text-muted transition">
+                    <ViewIcon size={16} strokeWidth={1.7} />
+                  </span>
+                );
+              })()}
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="font-display text-[15px] font-semibold uppercase leading-none tracking-[0.04em] [font-stretch:75%]">
+                    {viewMeta[view].label}
+                  </span>
+                  <span className="nav-num font-mono text-[9px] font-semibold tracking-[0.18em] text-dim transition">
+                    {viewMeta[view].num}
+                  </span>
+                </span>
+                <span className="mt-1 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+                  {sidebarViewStats[view]}
+                </span>
+              </span>
+            </Button>
           ))}
+        </nav>
+
+        <div className="mt-4 grid gap-3 border-t border-rule/80 pt-3 max-[1180px]:mt-0 max-[1180px]:border-t-0 max-[1180px]:pt-0 max-[760px]:hidden">
+          <div className="grid gap-1.5">
+            <span className="font-mono text-[8.5px] uppercase tracking-[0.28em] text-muted">Session</span>
+            <Select
+              variant="compact"
+              className="h-[32px] w-full"
+              value={activeSession?.id || ""}
+              onChange={(event) => {
+                if (event.target.value && event.target.value !== activeSession?.id) {
+                  void workbench.loadLocalSession(event.target.value);
+                }
+              }}
+              aria-label="Session selector"
+              data-testid="sessionSelector"
+              data-component="sessionSelector"
+            >
+              {workbench.sessions.length === 0 && (
+                <option value={activeSession?.id || ""}>
+                  {activeSession?.name || "No sessions"}
+                </option>
+              )}
+              {workbench.sessions.length > 0 && activeSession && !activeSessionListed && (
+                <option value={activeSession.id}>{activeSession.name}</option>
+              )}
+              {workbench.sessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {session.name} - {session.captureCount} req
+                </option>
+              ))}
+            </Select>
+          </div>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border border-rule bg-ink/30 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+            {workbench.browserState.remoteDebuggingUrl ||
+              workbench.browserState.url ||
+              workbench.notice ||
+              "Awaiting target acquisition"}
+          </span>
         </div>
       </aside>
 
-      <section className="relative z-[2] flex min-h-0 min-w-0 flex-col overflow-hidden px-[18px] py-3.5 [grid-column:2/3] [grid-row:1/2] max-[1180px]:[grid-column:1/2] max-[1180px]:[grid-row:1/2] max-[640px]:px-4">
+      <section className="relative z-[2] flex min-h-0 min-w-0 flex-col overflow-hidden px-3.5 py-3 [grid-column:2/3] [grid-row:1/2] max-[1180px]:overflow-visible max-[1180px]:[grid-column:1/2] max-[1180px]:[grid-row:2/3] max-[640px]:px-3">
         <div
           className={cn(
             revealClass,
-            "flex items-center justify-between border-b border-dashed radar-confidential-rule px-0.5 pb-2.5 font-mono text-[9.5px] uppercase tracking-[0.5em] text-muted [animation-delay:60ms]",
+            "flex items-center justify-between border-b border-dashed radar-confidential-rule px-0.5 pb-2 font-mono text-[9.5px] uppercase tracking-[0.5em] text-muted [animation-delay:60ms]",
             "max-[640px]:grid max-[640px]:grid-cols-2 max-[640px]:gap-y-1 max-[640px]:text-[8.5px] max-[640px]:tracking-[0.28em]"
           )}
         >
@@ -315,13 +595,13 @@ export function App() {
         <header
           className={cn(
             revealClass,
-            "relative grid items-end gap-4 pb-3 pt-4 [animation-delay:140ms] [grid-template-columns:minmax(0,1fr)_auto_auto] max-[1180px]:grid-cols-1"
+            "relative grid items-center gap-3 pb-2 pt-3 [animation-delay:140ms] [grid-template-columns:minmax(0,1fr)_auto] max-[1180px]:grid-cols-1"
           )}
         >
           <div className="flex min-w-0 items-end gap-3 max-[640px]:items-center">
             <span
               className={cn(
-                "relative grid h-[58px] w-[58px] shrink-0 place-items-center border border-rule text-signal max-[640px]:h-12 max-[640px]:w-12",
+                "relative grid h-[42px] w-[42px] shrink-0 place-items-center border border-rule text-signal max-[640px]:h-12 max-[640px]:w-12",
                 "radar-input-gradient",
                 "before:pointer-events-none before:absolute before:inset-2 before:animate-[ping_3.2s_cubic-bezier(0.2,0.6,0.2,1)_infinite] before:rounded-full before:border before:border-signal/50 before:content-['']",
                 "after:pointer-events-none after:absolute after:inset-4 after:animate-[ping_3.2s_cubic-bezier(0.2,0.6,0.2,1)_infinite] after:rounded-full after:border after:border-signal/50 after:[animation-delay:1.6s] after:content-['']"
@@ -329,7 +609,7 @@ export function App() {
             >
               <RadarIcon size={22} strokeWidth={1.6} />
             </span>
-            <h1 className="font-display text-[clamp(38px,4.4vw,60px)] font-semibold uppercase leading-[0.78] tracking-[0] text-bone [font-stretch:75%] max-[640px]:text-[38px]">
+            <h1 className="font-display text-[clamp(30px,3vw,38px)] font-semibold uppercase leading-[0.78] tracking-[0] text-bone [font-stretch:75%] max-[640px]:text-[38px]">
               Rad<span className="font-bold italic text-signal">a</span>r
             </h1>
             <div className="flex min-w-0 flex-col gap-0.5 pb-1">
@@ -350,7 +630,7 @@ export function App() {
             <Button
               type="button"
               variant="solid"
-              className="h-[46px] px-5"
+              className="h-[38px] px-4"
               onClick={() => workbench.openBrowser()}
               data-testid="openBrowser"
               data-component="openBrowser"
@@ -360,7 +640,7 @@ export function App() {
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-stretch gap-1.5">
+          <div className="col-span-2 flex flex-wrap items-stretch justify-end gap-1.5 max-[1180px]:col-span-1 max-[1180px]:justify-start">
             <StatusPill live={workbench.browserState.open}>
               <CircleDot size={11} strokeWidth={1.8} />
               <strong className="font-semibold tracking-[0.05em] text-bone">
@@ -475,91 +755,27 @@ export function App() {
           </div>
         </header>
 
-        <nav
-          className={cn(
-            revealClass,
-            "relative mt-4 flex h-[46px] items-stretch overflow-x-auto overflow-y-hidden border-y border-rule radar-nav-texture [animation-delay:220ms]",
-          )}
-          data-testid="viewSwitch"
-          data-component="viewSwitch"
-        >
-          {WORK_VIEWS.map((view) => (
-            <Button
-              key={view}
-              variant="ghost"
-              className={viewButtonClass(workbench.activeView === view)}
-              onClick={() => workbench.setActiveView(view)}
-              data-testid={`view-${view}`}
-              data-component="viewSwitchButton"
-            >
-              <span className="num font-mono text-[9.5px] font-medium tracking-[0.18em] text-dim">
-                {viewMeta[view].num}
-              </span>
-              {viewMeta[view].label}
-            </Button>
-          ))}
-          <div className="ml-auto flex min-w-[260px] items-center gap-2 border-l border-rule px-3 max-[760px]:ml-0">
-            <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Session</span>
-            <Select
-              variant="compact"
-              className="h-[30px] min-w-[190px] max-w-[320px] flex-1"
-              value={activeSession?.id || ""}
-              onChange={(event) => {
-                if (event.target.value && event.target.value !== activeSession?.id) {
-                  void workbench.loadLocalSession(event.target.value);
-                }
-              }}
-              aria-label="Session selector"
-              data-testid="sessionSelector"
-              data-component="sessionSelector"
-            >
-              {workbench.sessions.length === 0 && (
-                <option value={activeSession?.id || ""}>
-                  {activeSession?.name || "No sessions"}
-                </option>
-              )}
-              {workbench.sessions.length > 0 && activeSession && !activeSessionListed && (
-                <option value={activeSession.id}>{activeSession.name}</option>
-              )}
-              {workbench.sessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {session.name} - {session.captureCount} req
-                </option>
-              ))}
-            </Select>
-          </div>
-          <span className="inline-flex min-w-0 items-center gap-3 px-4 font-mono text-[10px] tracking-[0.16em] text-muted max-[640px]:hidden">
-            <span className="h-1.5 w-1.5 animate-[pulse_1.6s_ease-in-out_infinite] rounded-full bg-signal" />
-            <span className="min-w-0 max-w-[42vw] overflow-hidden text-ellipsis whitespace-nowrap">
-              {workbench.browserState.remoteDebuggingUrl ||
-                workbench.browserState.url ||
-                workbench.notice ||
-                "Awaiting target acquisition"}
-            </span>
-          </span>
-        </nav>
-
         <section
           className={cn(
             revealClass,
-            "relative mt-4 grid min-h-0 min-w-0 flex-1 overflow-hidden border border-rule shadow-bureau [animation-delay:300ms] [grid-template-rows:auto_minmax(0,1fr)]",
+            "relative mt-3 grid min-h-0 min-w-0 flex-1 overflow-hidden border border-rule shadow-bureau [animation-delay:220ms] [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:min-h-[620px] max-[1180px]:overflow-visible",
             workbench.appMode === "ai-first" && "[grid-template-rows:auto_auto_minmax(0,1fr)]",
             "radar-workspace",
             "before:pointer-events-none before:absolute before:-left-px before:-top-px before:z-[4] before:h-3.5 before:w-3.5 before:border before:border-b-0 before:border-r-0 before:border-signal/55 before:content-['']",
             "after:pointer-events-none after:absolute after:-bottom-px after:-right-px after:z-[4] after:h-3.5 after:w-3.5 after:border after:border-l-0 after:border-t-0 after:border-signal/55 after:content-['']"
           )}
         >
-          <div className="relative flex items-end justify-between gap-4 border-b border-rule radar-panel-gradient px-6 pb-4 pt-5 after:absolute after:bottom-[-1px] after:left-6 after:right-6 after:h-px after:bg-[linear-gradient(90deg,var(--color-signal),transparent_50%)] after:content-[''] max-[640px]:flex-col max-[640px]:items-start max-[640px]:px-4">
-            <div className="flex items-end gap-5">
-              <span className="font-display text-[78px] font-bold leading-[0.78] tracking-[0] radar-hero-mark [font-stretch:75%] max-[1180px]:text-[50px]">
+          <div className="relative flex items-center justify-between gap-4 border-b border-rule radar-panel-gradient px-4 pb-3 pt-3 after:absolute after:bottom-[-1px] after:left-4 after:right-4 after:h-px after:bg-[linear-gradient(90deg,var(--color-signal),transparent_50%)] after:content-[''] max-[640px]:flex-col max-[640px]:items-start max-[640px]:px-4">
+            <div className="flex items-center gap-4">
+              <span className="font-display text-[52px] font-bold leading-[0.78] tracking-[0] radar-hero-mark [font-stretch:75%] max-[1180px]:text-[44px]">
                 {workbench.meta.num.replace(/(\d)$/, "")}
                 <em className="not-italic text-signal [-webkit-text-stroke:0]">{workbench.meta.num.slice(-1)}</em>
               </span>
               <div>
-                <span className="mb-1.5 block font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
+                <span className="mb-1 block font-mono text-[9px] font-semibold uppercase tracking-[0.36em] text-signal">
                   {workbench.meta.eyebrow}
                 </span>
-                <h2 className="font-display text-[36px] font-semibold uppercase leading-none tracking-[0] text-bone [font-stretch:75%]">
+                <h2 className="font-display text-[28px] font-semibold uppercase leading-none tracking-[0] text-bone [font-stretch:75%]">
                   {workbench.meta.title}
                 </h2>
               </div>
@@ -599,6 +815,23 @@ export function App() {
                     <Eraser size={15} strokeWidth={1.7} />
                   </Button>
                 </>
+              )}
+              {workbench.activeView === "websocket" && (
+                <Button
+                  variant="icon"
+                  size="icon"
+                  onClick={() => {
+                    void workbench.clearWebSocketEvents();
+                    setSelectedWebSocketId("");
+                    setSelectedWebSocketIds([]);
+                    webSocketSelectionAnchorRef.current = "";
+                  }}
+                  title="Clear WebSocket frames"
+                  data-testid="clearWebSocketEvents"
+                  data-component="clearWebSocketEvents"
+                >
+                  <Eraser size={15} strokeWidth={1.7} />
+                </Button>
               )}
               {workbench.activeView === "repeater" && (
                 <Button
@@ -727,9 +960,9 @@ export function App() {
           )}
 
           {workbench.activeView === "traffic" && (
-            <div className="grid min-h-0 [grid-template-columns:minmax(0,1.15fr)_minmax(380px,0.85fr)] max-[1180px]:grid-cols-1">
+            <div className="grid min-h-0 [grid-template-columns:minmax(0,1fr)_minmax(420px,0.75fr)] max-[1180px]:grid-cols-1">
               <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
-                <div className="grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-3 [grid-template-columns:120px_150px_112px_auto_minmax(140px,1fr)_auto_auto] max-[900px]:grid-cols-1">
+                <div className="radar-traffic-filter grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-2.5">
                   <Select
                     variant="compact"
                     value={workbench.trafficMethodFilter}
@@ -793,7 +1026,7 @@ export function App() {
                       <ArrowDownWideNarrow size={15} strokeWidth={1.7} />
                     )}
                   </Button>
-                  <div className="relative min-w-0">
+                  <div className="traffic-search relative min-w-0">
                     <Search
                       className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-signal"
                       size={13}
@@ -836,7 +1069,7 @@ export function App() {
                     <Activity size={18} strokeWidth={1.4} />
                     <span>
                       {workbench.scopedTrafficCaptures.length === 0
-                        ? "No in-scope transmissions intercepted"
+                        ? "No in-scope HTTP/S requests intercepted"
                         : "No captures match filters"}
                     </span>
                   </EmptyState>
@@ -899,7 +1132,7 @@ export function App() {
                     data-component="cloneToRepeater"
                   >
                     <Repeat2 size={13} strokeWidth={1.7} />
-                    To Repeater
+                    Repeater
                   </Button>
                   <Button
                     variant="ghost"
@@ -920,6 +1153,160 @@ export function App() {
                   data-testid="trafficDetailText"
                 >
                   {selectedDetailText}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {workbench.activeView === "websocket" && (
+            <div className="grid min-h-0 [grid-template-columns:minmax(0,1fr)_minmax(420px,0.78fr)] max-[1180px]:grid-cols-1">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
+                <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(5,minmax(0,1fr))] max-[900px]:grid-cols-2">
+                  {[
+                    ["Connections", webSocketConnectionCount],
+                    ["Frames", workbench.webSocketEvents.length],
+                    ["Outbound", webSocketSentCount],
+                    ["Inbound", webSocketReceivedCount],
+                    ["Payload", formatBytes(webSocketPayloadBytes)]
+                  ].map(([label, value]) => (
+                    <div key={label} className="radar-card-gradient px-4 py-3">
+                      <span className="block font-mono text-[8.5px] uppercase tracking-[0.28em] text-muted">
+                        {label}
+                      </span>
+                      <strong className="mt-1 block font-display text-[24px] font-semibold uppercase leading-none text-bone [font-stretch:75%]">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-2.5 [grid-template-columns:148px_minmax(180px,1fr)_auto] max-[900px]:grid-cols-1">
+                  <Select
+                    variant="compact"
+                    value={webSocketDirectionFilter}
+                    onChange={(event) => setWebSocketDirectionFilter(event.target.value as WebSocketDirection | "all")}
+                    aria-label="WebSocket direction filter"
+                    data-testid="webSocketDirectionFilter"
+                    data-component="webSocketDirectionFilter"
+                  >
+                    <option value="all">All frames</option>
+                    <option value="handshake">Handshake</option>
+                    <option value="sent">Sent</option>
+                    <option value="received">Received</option>
+                    <option value="error">Errors</option>
+                    <option value="closed">Closed</option>
+                  </Select>
+                  <div className="relative min-w-0">
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-steel"
+                      size={13}
+                      strokeWidth={1.8}
+                    />
+                    <Input
+                      variant="compact"
+                      className="w-full pl-8"
+                      value={webSocketSearch}
+                      onChange={(event) => setWebSocketSearch(event.target.value)}
+                      placeholder="Search payload / host / frame"
+                      spellCheck={false}
+                      aria-label="WebSocket search"
+                      data-testid="webSocketSearch"
+                      data-component="webSocketSearch"
+                    />
+                  </div>
+                  <Button
+                    variant="icon"
+                    size="icon"
+                    disabled={!webSocketSearch && webSocketDirectionFilter === "all"}
+                    onClick={() => {
+                      setWebSocketSearch("");
+                      setWebSocketDirectionFilter("all");
+                    }}
+                    title="Clear WebSocket filters"
+                    data-testid="clearWebSocketFilters"
+                    data-component="clearWebSocketFilters"
+                  >
+                    <Eraser size={15} strokeWidth={1.7} />
+                  </Button>
+                </div>
+
+                <div className="min-h-0 overflow-auto radar-traffic-list">
+                  {filteredWebSocketEvents.length === 0 && (
+                    <EmptyState>
+                      <Braces size={18} strokeWidth={1.4} />
+                      <span>
+                        {workbench.webSocketEvents.length === 0
+                          ? "No WebSocket frames intercepted"
+                          : "No WebSocket frames match filters"}
+                      </span>
+                    </EmptyState>
+                  )}
+                  {filteredWebSocketEvents.map((event) => {
+                    const selected = selectedWebSocketIds.includes(event.id);
+                    const focused = event.id === selectedWebSocketEvent?.id;
+                    return (
+                      <Button
+                        key={event.id}
+                        variant="ghost"
+                        className={websocketRowClass(selected, focused)}
+                        data-selected={selected ? "true" : "false"}
+                        onClick={(clickEvent) => selectWebSocketEvent(event.id, clickEvent)}
+                        data-testid={`webSocketRow-${event.id}`}
+                        data-component="webSocketRow"
+                      >
+                        <StatusBadge tone={websocketDirectionTone(event.direction)}>
+                          {event.direction}
+                        </StatusBadge>
+                        <span className={cn(ellipsisMono, "font-medium text-bone")}>{event.host || "socket"}</span>
+                        <span className={ellipsisMono}>{websocketPayloadPreview(event)}</span>
+                        <span className={ellipsisMono}>{websocketFrameKind(event)}</span>
+                        <span className={ellipsisMono}>{formatBytes(event.size)}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid min-h-0 radar-detail-pane [grid-template-rows:auto_auto_minmax(0,1fr)]">
+                <div className="flex items-stretch gap-0 border-b border-rule">
+                  <span className="inline-flex h-[38px] items-center gap-2 border-0 border-r border-rule bg-signal/10 px-3 font-mono text-[9.5px] font-medium uppercase tracking-[0.16em] text-signal">
+                    <Square size={9} strokeWidth={2} />
+                    Frame
+                  </span>
+                  <Button
+                    variant="ghost"
+                    className={detailTabClass(false)}
+                    onClick={() => void copySelectedWebSocketDetail()}
+                    disabled={!selectedWebSocketDetail}
+                    title="Copy WebSocket frame"
+                    data-testid="copyWebSocketDetail"
+                    data-component="copyWebSocketDetail"
+                  >
+                    <Copy size={13} strokeWidth={1.7} />
+                    Copy
+                  </Button>
+                </div>
+
+                <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(3,minmax(0,1fr))]">
+                  {[
+                    ["Errors", webSocketErrorCount],
+                    ["Selected", selectedWebSocketEvent ? websocketFrameKind(selectedWebSocketEvent) : "none"],
+                    ["Scope", selectedWebSocketEvent?.allowed ? "in" : "out"]
+                  ].map(([label, value]) => (
+                    <div key={label} className="bg-ink/35 px-3 py-2">
+                      <span className="block font-mono text-[8px] uppercase tracking-[0.24em] text-muted">{label}</span>
+                      <strong className="mt-1 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-bone">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <pre
+                  className="min-h-0 select-text cursor-text radar-pre-gradient px-5 py-4"
+                  data-testid="webSocketDetailText"
+                >
+                  {selectedWebSocketDetail}
                 </pre>
               </div>
             </div>
@@ -1245,7 +1632,9 @@ export function App() {
         view={workbench.activeView}
         onClose={() => workbench.setAiPaletteOpen(false)}
         captureIds={workbench.selectedIds}
-        captures={workbench.trafficCaptures}
+        captures={workbench.scopedTrafficCaptures}
+        webSocketEventIds={selectedWebSocketIds}
+        webSocketEvents={workbench.webSocketEvents}
         targets={workbench.targets}
         browserUrl={workbench.browserState.url || workbench.address}
         draft={workbench.draft}

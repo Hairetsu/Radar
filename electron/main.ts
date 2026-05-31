@@ -5,14 +5,31 @@ import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage } from "electron";
-import { generateCACertificate, generateSPKIFingerprint, getLocal } from "mockttp";
+import {
+  generateCACertificate,
+  generateSPKIFingerprint,
+  getLocal,
+  type CompletedRequest,
+  type CompletedResponse,
+  type WebSocketClose,
+  type WebSocketMessage
+} from "mockttp";
 import {
   DEFAULT_ALLOWLIST,
   isAllowedTarget,
   shouldTrustLocalCertificate
 } from "../shared/allowlist.js";
 import { toCaptureEntry, proxyRequestToCapture } from "../shared/capture.js";
-import type { BrowserState, CapturedRequest, LocalContext, ProxyState, ReplayDraft, SslEvent } from "../shared/domain.js";
+import type {
+  BrowserState,
+  CapturedRequest,
+  LocalContext,
+  ProxyState,
+  ReplayDraft,
+  SslEvent,
+  WebSocketDirection,
+  WebSocketEvent
+} from "../shared/domain.js";
 import type { AgentAuthStateSummary, AgentCookie, AgentStorageState } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
@@ -45,6 +62,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_BURST_COUNT = 50;
 const MAX_BURST_CONCURRENCY = 5;
 const HOT_CAPTURE_LIMIT = 500;
+const HOT_WEBSOCKET_LIMIT = 1000;
 
 const defaultAllowlist = DEFAULT_ALLOWLIST;
 
@@ -54,6 +72,8 @@ let chromeProcess: ChildProcess | null = null;
 let proxyServer: ReturnType<typeof getLocal> | undefined;
 let allowlist = [...defaultAllowlist];
 const captured = new Map<string, CapturedRequest>();
+const webSocketEvents: WebSocketEvent[] = [];
+const webSocketConnections = new Map<string, { url: string; initiator: string }>();
 const attachedContents = new Set<number>();
 const sslEvents: SslEvent[] = [];
 let lastCaptureChangeAt = Date.now();
@@ -149,6 +169,153 @@ function rememberSslEvent(event: SslEvent) {
   }
 }
 
+function websocketHost(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url || "websocket";
+  }
+}
+
+function websocketEvent({
+  requestId,
+  url,
+  direction,
+  opcode,
+  payloadData = "",
+  size,
+  status,
+  statusText,
+  error,
+  requestHeaders,
+  responseHeaders,
+  initiator
+}: {
+  requestId: string;
+  url: string;
+  direction: WebSocketDirection;
+  opcode?: number;
+  payloadData?: string;
+  size?: number;
+  status?: number;
+  statusText?: string;
+  error?: string;
+  requestHeaders?: Record<string, unknown>;
+  responseHeaders?: Record<string, unknown>;
+  initiator?: string;
+}): WebSocketEvent {
+  return {
+    id: `ws_${requestId}_${Date.now()}_${randomUUID()}`,
+    requestId,
+    createdAt: new Date().toISOString(),
+    url,
+    host: websocketHost(url),
+    direction,
+    opcode,
+    payloadData: truncateText(payloadData || ""),
+    size: typeof size === "number" ? size : Buffer.byteLength(payloadData || "", "utf8"),
+    status,
+    statusText,
+    error,
+    requestHeaders: safeJsonHeaders(requestHeaders || {}),
+    responseHeaders: safeJsonHeaders(responseHeaders || {}),
+    initiator,
+    allowed: isAllowedTarget(url, allowlist)
+  };
+}
+
+function rememberWebSocketConnection(requestId: string, url: string, initiator = "") {
+  webSocketConnections.set(requestId, { url, initiator });
+  while (webSocketConnections.size > HOT_WEBSOCKET_LIMIT) {
+    const oldest = webSocketConnections.keys().next().value;
+    if (!oldest) {
+      break;
+    }
+    webSocketConnections.delete(oldest);
+  }
+}
+
+function webSocketConnectionFor(requestId: string) {
+  return webSocketConnections.get(requestId) || { url: "", initiator: "proxy" };
+}
+
+function webSocketPayloadFromProxyMessage(message: WebSocketMessage) {
+  const buffer = Buffer.from(message.content);
+  if (!message.isBinary) {
+    return buffer.toString("utf8");
+  }
+  return buffer.length === 0 ? "[binary 0 bytes]" : `[binary ${buffer.length} bytes]\n${buffer.toString("base64")}`;
+}
+
+function rememberProxyWebSocketRequest(req: CompletedRequest) {
+  rememberWebSocketConnection(req.id, req.url, "proxy");
+  rememberWebSocketEvent(
+    websocketEvent({
+      requestId: req.id,
+      url: req.url,
+      direction: "handshake",
+      payloadData: "Client handshake",
+      requestHeaders: req.headers || {},
+      initiator: "proxy"
+    })
+  );
+}
+
+function rememberProxyWebSocketAccepted(res: CompletedResponse) {
+  const connection = webSocketConnectionFor(res.id);
+  rememberWebSocketEvent(
+    websocketEvent({
+      requestId: res.id,
+      url: connection.url,
+      direction: "handshake",
+      payloadData: "Server handshake",
+      status: res.statusCode,
+      statusText: res.statusMessage || "",
+      responseHeaders: res.headers || {},
+      initiator: connection.initiator
+    })
+  );
+}
+
+function rememberProxyWebSocketMessage(message: WebSocketMessage) {
+  const connection = webSocketConnectionFor(message.streamId);
+  rememberWebSocketEvent(
+    websocketEvent({
+      requestId: message.streamId,
+      url: connection.url,
+      direction: message.direction === "received" ? "sent" : "received",
+      opcode: message.isBinary ? 2 : 1,
+      payloadData: webSocketPayloadFromProxyMessage(message),
+      size: Buffer.from(message.content).length,
+      initiator: connection.initiator
+    })
+  );
+}
+
+function rememberProxyWebSocketClose(close: WebSocketClose) {
+  const connection = webSocketConnectionFor(close.streamId);
+  rememberWebSocketEvent(
+    websocketEvent({
+      requestId: close.streamId,
+      url: connection.url,
+      direction: "closed",
+      payloadData: close.closeReason || "WebSocket closed",
+      status: close.closeCode,
+      initiator: connection.initiator
+    })
+  );
+  webSocketConnections.delete(close.streamId);
+}
+
+function rememberWebSocketEvent(event: WebSocketEvent) {
+  webSocketEvents.unshift(event);
+  webSocketEvents.splice(HOT_WEBSOCKET_LIMIT);
+
+  if (localStore && localContext) {
+    localStore.insertWebSocketEvent(localContext.session.id, event);
+  }
+}
+
 function hydrateActiveLocalState() {
   if (!localStore || !localContext) {
     return;
@@ -156,11 +323,13 @@ function hydrateActiveLocalState() {
 
   allowlist = localStore.getTargets(localContext.workspace.id);
   captured.clear();
+  webSocketConnections.clear();
   for (const entry of localStore.listCaptures(localContext.session.id, HOT_CAPTURE_LIMIT).reverse()) {
     captured.set(entry.id, entry);
   }
 
   sslEvents.splice(0, sslEvents.length, ...localStore.listSslEvents(localContext.session.id, 80));
+  webSocketEvents.splice(0, webSocketEvents.length, ...localStore.listWebSocketEvents(localContext.session.id, HOT_WEBSOCKET_LIMIT));
 }
 
 function listHttpCaptures(limit = 400) {
@@ -174,6 +343,17 @@ function listHttpCaptures(limit = 400) {
     .filter((entry) => entry.url.startsWith("http://") || entry.url.startsWith("https://"))
     .slice(-limit)
     .reverse();
+}
+
+function listWebSocketEvents(limit = HOT_WEBSOCKET_LIMIT) {
+  if (localStore && localContext) {
+    return localStore.listWebSocketEvents(localContext.session.id, limit);
+  }
+  return webSocketEvents.slice(0, limit);
+}
+
+function webSocketEventMap() {
+  return new Map(listWebSocketEvents(HOT_WEBSOCKET_LIMIT).map((event) => [event.id, event]));
 }
 
 async function waitForNetworkIdle({ idleMs = 700, timeoutMs = 8000 }: { idleMs?: number; timeoutMs?: number }) {
@@ -1078,6 +1258,13 @@ async function startMitmProxy(port = 8088) {
     });
   });
 
+  await proxyServer.on("websocket-request", rememberProxyWebSocketRequest);
+  await proxyServer.on("websocket-accepted", rememberProxyWebSocketAccepted);
+  await proxyServer.on("websocket-message-received", rememberProxyWebSocketMessage);
+  await proxyServer.on("websocket-message-sent", rememberProxyWebSocketMessage);
+  await proxyServer.on("websocket-close", rememberProxyWebSocketClose);
+
+  await proxyServer.forAnyWebSocket().thenPassThrough();
   await proxyServer.forAnyRequest().thenPassThrough();
 
   proxyState = {
@@ -1146,6 +1333,97 @@ function attachDebugger(contentsId: number) {
         rules: allowlist
       });
       rememberCapture(next);
+      return;
+    }
+
+    if (method === "Network.webSocketCreated") {
+      rememberWebSocketEvent(
+        websocketEvent({
+          requestId: params.requestId,
+          url: params.url || "",
+          direction: "handshake",
+          payloadData: "WebSocket created",
+          initiator: params.initiator?.type || ""
+        })
+      );
+      return;
+    }
+
+    if (method === "Network.webSocketWillSendHandshakeRequest") {
+      const entry = captured.get(params.requestId);
+      rememberWebSocketEvent(
+        websocketEvent({
+          requestId: params.requestId,
+          url: entry?.url || "",
+          direction: "handshake",
+          payloadData: "Client handshake",
+          requestHeaders: params.request?.headers || {},
+          initiator: entry?.initiator || ""
+        })
+      );
+      return;
+    }
+
+    if (method === "Network.webSocketHandshakeResponseReceived") {
+      const entry = captured.get(params.requestId);
+      const response = params.response || {};
+      rememberWebSocketEvent(
+        websocketEvent({
+          requestId: params.requestId,
+          url: entry?.url || response.url || "",
+          direction: "handshake",
+          payloadData: "Server handshake",
+          status: response.status,
+          statusText: response.statusText || "",
+          responseHeaders: response.headers || {},
+          initiator: entry?.initiator || ""
+        })
+      );
+      return;
+    }
+
+    if (method === "Network.webSocketFrameSent" || method === "Network.webSocketFrameReceived") {
+      const entry = captured.get(params.requestId);
+      const frame = params.response || {};
+      rememberWebSocketEvent(
+        websocketEvent({
+          requestId: params.requestId,
+          url: entry?.url || "",
+          direction: method === "Network.webSocketFrameSent" ? "sent" : "received",
+          opcode: frame.opcode,
+          payloadData: frame.payloadData || "",
+          initiator: entry?.initiator || ""
+        })
+      );
+      return;
+    }
+
+    if (method === "Network.webSocketFrameError") {
+      const entry = captured.get(params.requestId);
+      rememberWebSocketEvent(
+        websocketEvent({
+          requestId: params.requestId,
+          url: entry?.url || "",
+          direction: "error",
+          error: params.errorMessage || "WebSocket frame error",
+          payloadData: params.errorMessage || "",
+          initiator: entry?.initiator || ""
+        })
+      );
+      return;
+    }
+
+    if (method === "Network.webSocketClosed") {
+      const entry = captured.get(params.requestId);
+      rememberWebSocketEvent(
+        websocketEvent({
+          requestId: params.requestId,
+          url: entry?.url || "",
+          direction: "closed",
+          payloadData: "WebSocket closed",
+          initiator: entry?.initiator || ""
+        })
+      );
       return;
     }
 
@@ -1359,6 +1637,18 @@ ipcMain.handle("capture:clear", () => {
 
 ipcMain.handle("ssl:snapshot", () => sslEvents.slice(0, 80));
 
+ipcMain.handle("websocket:snapshot", () => {
+  return listWebSocketEvents(HOT_WEBSOCKET_LIMIT);
+});
+
+ipcMain.handle("websocket:clear", () => {
+  webSocketEvents.splice(0, webSocketEvents.length);
+  if (localStore && localContext) {
+    localStore.clearWebSocketEvents(localContext.session.id);
+  }
+  return { ok: true };
+});
+
 ipcMain.handle("targets:get", () => allowlist);
 
 ipcMain.handle("targets:set", (_event, targets) => {
@@ -1399,6 +1689,7 @@ ipcMain.handle("ai:settings:set", (_event, settings) => saveAiSettings(app.getPa
 ipcMain.handle("ai:context:preview", (_event, payload) => {
   return previewAiContext({
     capturedMap: captured,
+    webSocketEventMap: webSocketEventMap(),
     allowlist,
     browserUrl: browserState.url || "",
     request: payload || {}
@@ -1408,6 +1699,7 @@ ipcMain.handle("ai:context:preview", (_event, payload) => {
 ipcMain.handle("ai:run", async (_event, payload) => {
   return runAiTask({
     capturedMap: captured,
+    webSocketEventMap: webSocketEventMap(),
     allowlist,
     browserUrl: browserState.url || "",
     userDataPath: app.getPath("userData"),

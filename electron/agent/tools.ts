@@ -143,7 +143,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
   }
 ];
 
-const WORK_VIEWS = ["traffic", "repeater", "scope", "ssl"] as const;
+const WORK_VIEWS = ["traffic", "websocket", "repeater", "scope", "ssl"] as const;
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
