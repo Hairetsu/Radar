@@ -36,7 +36,8 @@ import type {
   ReplayDraft,
   SslEvent,
   WebSocketDirection,
-  WebSocketEvent
+  WebSocketEvent,
+  WebSocketReplayDraft
 } from "../shared/domain.js";
 import type { AgentAuthStateSummary, AgentCookie, AgentStorageState } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
@@ -45,6 +46,8 @@ import { matchingInterceptRules, normalizeInterceptRules } from "../shared/inter
 import { applyMatchReplaceRules, normalizeMatchReplaceRules } from "../shared/matchReplace.js";
 import { annotationContext } from "../shared/evidenceTags.js";
 import { normalizeSavedFilters } from "../shared/savedFilters.js";
+import { prepareReplayDraft } from "../shared/replayVariables.js";
+import { normalizeWebSocketReplayDraft } from "../shared/websocketReplay.js";
 import { filterCapturesByQuery, filterWebSocketEventsByQuery } from "../shared/trafficQuery.js";
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
 import { normalizeUrl as normalizeBrowserUrl } from "../shared/url.js";
@@ -1358,7 +1361,11 @@ function createAgentRuntime() {
     },
     getCaptures: () => listHttpCaptures(400),
     getInterceptState: () => interceptStateSnapshot(),
-    sendReplay: (draft) => sendRequest(draft),
+    getReplayTabState: () => activeLocalStore().getReplayTabState(activeLocalContext().workspace.id),
+    setReplayTabState: (state) => activeLocalStore().setReplayTabState(activeLocalContext().workspace.id, state),
+    listReplayEnvironments: () => activeLocalStore().listReplayEnvironments(activeLocalContext().workspace.id),
+    listReplayCollections: () => activeLocalStore().listReplayCollections(activeLocalContext().workspace.id),
+    sendReplay: (draft) => sendRequest(typeof draft === "object" && draft && "draft" in draft ? draft : { draft }),
     waitForNetworkIdle,
     getPageText,
     getDomSummary,
@@ -1925,8 +1932,16 @@ function attachDebugger(contentsId: number) {
   });
 }
 
-async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft>[0]) {
-  const draft = normalizeDraft(input);
+async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft>[0] | { draft?: ReplayDraft; environmentId?: string }) {
+  const record = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : null;
+  const environmentId = record && "environmentId" in record ? String(record.environmentId || "") : "";
+  const draftInput = record && "draft" in record ? record.draft : input;
+  const environments = localStore && localContext ? localStore.listReplayEnvironments(localContext.workspace.id) : [];
+  const draft = prepareReplayDraft(draftInput as ReplayDraft, environments, environmentId);
+
+  if (!isAllowedTarget(draft.url, allowlist)) {
+    throw new Error("Replay URL is outside the current scope allowlist.");
+  }
 
   const started = Date.now();
   const abort = new AbortController();
@@ -1955,6 +1970,93 @@ async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function sendWebSocketReplay(input: WebSocketReplayDraft) {
+  const draft = normalizeWebSocketReplayDraft(input);
+  if (!draft) {
+    throw new Error("WebSocket replay draft was invalid.");
+  }
+  if (!isAllowedTarget(draft.url, allowlist)) {
+    throw new Error("WebSocket URL is outside the current scope allowlist.");
+  }
+
+  type ReplaySocket = {
+    addEventListener: (type: string, listener: (event?: { data?: unknown }) => void) => void;
+    send: (data: string) => void;
+    close: () => void;
+  };
+  const WebSocketCtor = (globalThis as unknown as { WebSocket?: new (url: string) => ReplaySocket }).WebSocket;
+  if (!WebSocketCtor) {
+    throw new Error("WebSocket support is not available in this runtime.");
+  }
+
+  const started = Date.now();
+  return await new Promise<{ ok: boolean; error?: string; handshakeStatus?: number; responsePayload?: string; durationMs: number }>(
+    (resolve) => {
+      let settled = false;
+      const finish = (result: { ok: boolean; error?: string; handshakeStatus?: number; responsePayload?: string; durationMs: number }) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(result);
+      };
+
+      const timeout = setTimeout(() => {
+        finish({ ok: false, error: "WebSocket replay timed out.", durationMs: Date.now() - started });
+        socket.close();
+      }, 15_000);
+
+      const socket = new WebSocketCtor(draft.url);
+      let responsePayload = "";
+
+      socket.addEventListener("open", () => {
+        socket.send(draft.payload);
+        rememberWebSocketEvent(
+          websocketEvent({
+            requestId: randomUUID(),
+            url: draft.url,
+            direction: "sent",
+            payloadData: draft.payload,
+            requestHeaders: draft.requestHeaders,
+            responseHeaders: {},
+            initiator: "repeater"
+          })
+        );
+      });
+
+      socket.addEventListener("message", (messageEvent) => {
+        responsePayload = truncateText(String(messageEvent?.data ?? "")).slice(0, 100_000);
+        rememberWebSocketEvent(
+          websocketEvent({
+            requestId: randomUUID(),
+            url: draft.url,
+            direction: "received",
+            payloadData: responsePayload,
+            requestHeaders: draft.requestHeaders,
+            responseHeaders: {},
+            initiator: "repeater"
+          })
+        );
+        clearTimeout(timeout);
+        socket.close();
+        finish({ ok: true, responsePayload, durationMs: Date.now() - started });
+      });
+
+      socket.addEventListener("error", () => {
+        clearTimeout(timeout);
+        finish({ ok: false, error: "WebSocket replay failed.", durationMs: Date.now() - started });
+      });
+
+      socket.addEventListener("close", () => {
+        clearTimeout(timeout);
+        if (!settled) {
+          finish({ ok: true, responsePayload, durationMs: Date.now() - started });
+        }
+      });
+    }
+  );
 }
 
 function delay(ms: number) {
@@ -2218,6 +2320,43 @@ ipcMain.handle("filters:set", (_event, filters) => {
   return localStore && localContext ? localStore.setSavedFilters(localContext.workspace.id, next) : next;
 });
 
+ipcMain.handle("repeater:tabs:get", () => {
+  return localStore && localContext ? localStore.getReplayTabState(localContext.workspace.id) : null;
+});
+
+ipcMain.handle("repeater:tabs:set", (_event, state) => {
+  if (!localStore || !localContext) {
+    throw new Error("Local store is unavailable.");
+  }
+  return localStore.setReplayTabState(localContext.workspace.id, state);
+});
+
+ipcMain.handle("repeater:environments:get", () => {
+  return localStore && localContext ? localStore.listReplayEnvironments(localContext.workspace.id) : [];
+});
+
+ipcMain.handle("repeater:environments:set", (_event, environments) => {
+  if (!localStore || !localContext) {
+    return [];
+  }
+  return localStore.setReplayEnvironments(localContext.workspace.id, environments);
+});
+
+ipcMain.handle("repeater:collections:get", () => {
+  return localStore && localContext ? localStore.listReplayCollections(localContext.workspace.id) : [];
+});
+
+ipcMain.handle("repeater:collections:set", (_event, collections) => {
+  if (!localStore || !localContext) {
+    return [];
+  }
+  return localStore.setReplayCollections(localContext.workspace.id, collections);
+});
+
+ipcMain.handle("repeater:websocket:send", async (_event, input) => {
+  return sendWebSocketReplay(input as WebSocketReplayDraft);
+});
+
 ipcMain.handle("evidence:annotations:get", () => {
   return localStore && localContext ? localStore.listEvidenceAnnotations(localContext.session.id) : [];
 });
@@ -2340,7 +2479,10 @@ ipcMain.handle("ai:models:refresh", async (_event, settings) => {
 });
 
 ipcMain.handle("repeater:burst", async (_event, input) => {
-  const draft = normalizeDraft(input.request || input);
+  const requestPayload = {
+    draft: input.request || input,
+    environmentId: String(input.environmentId || "")
+  };
   const count = Math.min(Math.max(Number(input.count || 1), 1), MAX_BURST_COUNT);
   const concurrency = Math.min(Math.max(Number(input.concurrency || 1), 1), MAX_BURST_CONCURRENCY);
   const delayMs = Math.min(Math.max(Number(input.delayMs || 0), 0), 10_000);
@@ -2364,7 +2506,7 @@ ipcMain.handle("repeater:burst", async (_event, input) => {
         await delay(delayMs);
       }
       try {
-        const response = await sendRequest(draft);
+        const response = await sendRequest(requestPayload);
         results[index] = { ...response, index: index + 1 };
       } catch (error) {
         results[index] = {

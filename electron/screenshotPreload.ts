@@ -13,6 +13,7 @@ import type {
   WebSocketEvent
 } from "../shared/domain.js";
 import { defaultProxyProfiles } from "../shared/proxyProfiles.js";
+import { defaultReplayTabState } from "../shared/replayTabs.js";
 
 const context: LocalContext = {
   profile: {
@@ -252,6 +253,12 @@ const radar: RadarApi = {
   queryWebSocketEvents: async () => ({ ok: true, events: webSocketEvents }),
   getSavedFilters: async () => [],
   setSavedFilters: async (filters) => filters,
+  getReplayTabState: async () => defaultReplayTabState(),
+  setReplayTabState: async (state) => state,
+  getReplayEnvironments: async () => [],
+  setReplayEnvironments: async (items) => items,
+  getReplayCollections: async () => [],
+  setReplayCollections: async (items) => items,
   getEvidenceAnnotations: async () => [],
   saveEvidenceAnnotation: async (annotation) => annotation,
   saveEvidenceAnnotations: async (annotations) => annotations,
@@ -269,6 +276,7 @@ const radar: RadarApi = {
     body: "{\"ok\":true}",
     bytes: 11
   }),
+  sendWebSocketReplay: async () => ({ ok: true, durationMs: 12, responsePayload: "{\"pong\":true}" }),
   runBurst: async () => ({ count: 1, concurrency: 1, averageMs: 92, failures: 0, results: [] }),
   getAiSettings: async () => aiSettings,
   setAiSettings: async (settings) => settings,

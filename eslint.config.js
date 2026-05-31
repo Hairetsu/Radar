@@ -49,7 +49,9 @@ export default [
       globals: {
         AbortController: "readonly",
         AbortSignal: "readonly",
+        atob: "readonly",
         Buffer: "readonly",
+        btoa: "readonly",
         clearTimeout: "readonly",
         console: "readonly",
         fetch: "readonly",

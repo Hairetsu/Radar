@@ -26,12 +26,17 @@ import type {
   ProxyProfile,
   ProxyProfileId,
   ProxyState,
+  ReplayCollection,
   ReplayDraft,
+  ReplayEnvironment,
   ReplayResult,
+  ReplayTabState,
   SavedFilter,
   EvidenceAnnotation,
   SslEvent,
-  WebSocketEvent
+  WebSocketEvent,
+  WebSocketReplayDraft,
+  WebSocketReplayResult
 } from "./domain.js";
 import type { AgentRun, AgentRunRequest } from "./agent-types.js";
 
@@ -77,17 +82,25 @@ export type RadarApi = {
   clearWebSocketEvents: () => Promise<{ ok: boolean }>;
   getSavedFilters: () => Promise<SavedFilter[]>;
   setSavedFilters: (filters: SavedFilter[]) => Promise<SavedFilter[]>;
+  getReplayTabState: () => Promise<ReplayTabState>;
+  setReplayTabState: (state: ReplayTabState) => Promise<ReplayTabState>;
+  getReplayEnvironments: () => Promise<ReplayEnvironment[]>;
+  setReplayEnvironments: (environments: ReplayEnvironment[]) => Promise<ReplayEnvironment[]>;
+  getReplayCollections: () => Promise<ReplayCollection[]>;
+  setReplayCollections: (collections: ReplayCollection[]) => Promise<ReplayCollection[]>;
   getEvidenceAnnotations: () => Promise<EvidenceAnnotation[]>;
   saveEvidenceAnnotation: (annotation: EvidenceAnnotation) => Promise<EvidenceAnnotation>;
   saveEvidenceAnnotations: (annotations: EvidenceAnnotation[]) => Promise<EvidenceAnnotation[]>;
   getTargets: () => Promise<string[]>;
   setTargets: (targets: string[]) => Promise<string[]>;
-  sendReplay: (request: ReplayDraft) => Promise<ReplayResult>;
+  sendReplay: (payload: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
+  sendWebSocketReplay: (draft: WebSocketReplayDraft) => Promise<WebSocketReplayResult>;
   runBurst: (payload: {
     request: ReplayDraft;
     count: number;
     concurrency: number;
     delayMs: number;
+    environmentId?: string;
   }) => Promise<BurstResult>;
   getAiSettings: () => Promise<AiSettings>;
   setAiSettings: (settings: AiSettings) => Promise<AiSettings>;

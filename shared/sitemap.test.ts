@@ -46,6 +46,12 @@ describe("buildSitemap", () => {
     expect(host.firstSeenAt).toBe("2026-01-01T00:00:00.000Z");
     expect(host.lastSeenAt).toBe("2026-01-03T00:00:00.000Z");
   });
+
+  it("uses unknown status family when status is missing", () => {
+    const tree = buildSitemap([capture({ status: null })]);
+    const host = tree.nodes[tree.roots[0]!];
+    expect(host.statusFamilies).toContain("unknown");
+  });
 });
 
 describe("sitemapQueryForNode", () => {

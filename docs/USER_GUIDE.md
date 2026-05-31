@@ -514,12 +514,15 @@ Repeater is for manual request editing and replay.
 
 ![Radar Repeater view](screens/radar-02-repeater.png)
 
+The tab bar at the top holds multiple named replay tabs. Create tabs with **+**, pin important tabs, close extras, and switch without losing each tab's draft. Each tab can bind to a workspace environment for `{{variable}}` substitution in the URL, headers, and body.
+
 The left side is the request editor:
 
 - Method selector.
 - URL input.
 - JSON headers editor.
 - Body editor.
+- Transform shortcuts for URL encode/decode, JSON format/minify, JWT decode, and cookie parse.
 - **Transmit** button.
 
 The right side is the burst and response area:
@@ -529,6 +532,21 @@ The right side is the burst and response area:
 - Delay.
 - **Saturate** button.
 - Last response status, latency, body preview, and burst failure count.
+- Replay history for the active tab with **Load** and diff selectors.
+- Response diff panel when two history entries are selected.
+- Collections and environment shortcuts when configured.
+
+### Replay History And Diff
+
+Each tab keeps a capped replay history. After **Transmit**, the request/response pair is stored on the active tab. Select two history rows with the diff radios to compare status, latency, headers, body length, and body text deltas.
+
+### Environments And Collections
+
+Workspace environments hold reusable variables such as hosts, tokens, and IDs. Bind an environment from the Repeater tab bar, then use `{{variable}}` placeholders in the editor. Collections store reusable request drafts; save the active tab into a collection or load saved items back into Repeater.
+
+### WebSocket Replay
+
+From the WebSocket view, select a sent or received frame and click **Replay** to load its payload into the Repeater WebSocket panel. Edit the payload and click **Send frame** for one bounded replay attempt. Radar records resulting frame evidence in the active session when the connection succeeds.
 
 ### Edit Headers
 

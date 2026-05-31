@@ -274,3 +274,67 @@ export type EvidenceAnnotation = {
   comment: string;
   updatedAt: string;
 };
+
+export type ReplayHistoryEntry = {
+  id: string;
+  sentAt: string;
+  draft: ReplayDraft;
+  result: ReplayResult;
+};
+
+export type ReplayTab = {
+  id: string;
+  name: string;
+  pinned: boolean;
+  draft: ReplayDraft;
+  history: ReplayHistoryEntry[];
+  environmentId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReplayTabState = {
+  tabs: ReplayTab[];
+  activeTabId: string;
+};
+
+export type ReplayEnvironment = {
+  id: string;
+  name: string;
+  variables: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReplayCollectionItem = {
+  id: string;
+  name: string;
+  draft: ReplayDraft;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReplayCollection = {
+  id: string;
+  name: string;
+  items: ReplayCollectionItem[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WebSocketReplayDraft = {
+  url: string;
+  payload: string;
+  requestHeaders: Record<string, string>;
+  sourceFrameId: string;
+  direction: "sent" | "received";
+};
+
+export type WebSocketReplayResult = {
+  ok: boolean;
+  error?: string;
+  handshakeStatus?: number;
+  responsePayload?: string;
+  durationMs: number;
+};
