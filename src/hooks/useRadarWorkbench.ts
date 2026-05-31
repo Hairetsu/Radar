@@ -2,16 +2,28 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import {
   DEFAULT_URL as defaultUrl,
   firstUrlFromText,
+  formatCapturedRequest,
   formatHeaders,
   isAllowedTarget,
   normalizeUrl,
   originFromUrl,
-  parseHeaders
+  parseHeaders,
+  type RequestExportFormat
 } from "../lib";
+import { buildSitemap, sitemapQueryForNode, type SitemapNode } from "../../shared/sitemap.js";
+import { endpointInventoryForNode } from "../../shared/endpointInventory.js";
+import { diffSessionCaptures, type SessionDiffResult } from "../../shared/sessionDiff.js";
+import { annotationContext } from "../../shared/evidenceTags.js";
+import {
+  filterCapturesByQuery,
+  filterWebSocketEventsByQuery,
+  TRAFFIC_QUERY_EXAMPLES
+} from "../../shared/trafficQuery.js";
 import type {
   BrowserState,
   BurstResult,
   CapturedRequest,
+  EvidenceAnnotation,
   InterceptQueueItem,
   InterceptResponseDraft,
   InterceptRule,
@@ -27,6 +39,7 @@ import type {
   ProxyState,
   ReplayDraft,
   ReplayResult,
+  SavedFilter,
   SslEvent,
   WebSocketEvent
 } from "../types";
@@ -34,9 +47,9 @@ import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
 import { useTheme } from "./useTheme";
 
-export type WorkView = "traffic" | "websocket" | "intercept" | "repeater" | "scope" | "ssl";
+export type WorkView = "traffic" | "websocket" | "intercept" | "repeater" | "scope" | "ssl" | "sitemap";
 
-export const WORK_VIEWS: WorkView[] = ["traffic", "websocket", "intercept", "repeater", "scope", "ssl"];
+export const WORK_VIEWS: WorkView[] = ["traffic", "websocket", "intercept", "repeater", "sitemap", "scope", "ssl"];
 
 export type TrafficSortField = "time" | "method" | "status" | "host" | "path" | "type" | "duration";
 
@@ -102,8 +115,9 @@ export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: s
   websocket: { num: "02", label: "WebSocket", eyebrow: "Streams // Frame analysis", title: "WebSocket" },
   intercept: { num: "03", label: "Intercept", eyebrow: "Proxy // Pause and mutate", title: "Intercept" },
   repeater: { num: "04", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
-  scope: { num: "05", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "06", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
+  sitemap: { num: "05", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
+  scope: { num: "06", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "07", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -171,33 +185,6 @@ function compareTrafficCaptures(
     result = left.id.localeCompare(right.id);
   }
   return direction === "asc" ? result : -result;
-}
-
-function serializeHeaders(headers: Record<string, string>) {
-  return Object.entries(headers)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join("\n");
-}
-
-function searchTextForCapture(capture: CapturedRequest) {
-  return [
-    capture.method,
-    capture.url,
-    capture.host,
-    capture.path,
-    capture.status,
-    capture.statusText,
-    capture.mimeType,
-    capture.type,
-    capture.source,
-    serializeHeaders(capture.requestHeaders),
-    capture.requestBody,
-    serializeHeaders(capture.responseHeaders),
-    capture.responseBody
-  ]
-    .filter((value) => value !== null && value !== undefined)
-    .join("\n")
-    .toLowerCase();
 }
 
 async function loadWebSocketEvents() {
@@ -310,6 +297,16 @@ export function useRadarWorkbench() {
   const [trafficMethodFilter, setTrafficMethodFilter] = useState("all");
   const [trafficTypeFilter, setTrafficTypeFilter] = useState("all");
   const [trafficSearch, setTrafficSearch] = useState("");
+  const [trafficQueryError, setTrafficQueryError] = useState("");
+  const [webSocketSearch, setWebSocketSearch] = useState("");
+  const [webSocketQueryError, setWebSocketQueryError] = useState("");
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [evidenceAnnotations, setEvidenceAnnotations] = useState<EvidenceAnnotation[]>([]);
+  const [selectedSitemapNodeId, setSelectedSitemapNodeId] = useState("");
+  const [diffBaselineSessionId, setDiffBaselineSessionId] = useState("");
+  const [sessionDiff, setSessionDiff] = useState<SessionDiffResult | null>(null);
+  const [sessionDiffPending, setSessionDiffPending] = useState(false);
+  const trafficSearchRef = useRef<HTMLInputElement | null>(null);
   const [trafficSortField, setTrafficSortField] = useState<TrafficSortField>("time");
   const [trafficSortDirection, setTrafficSortDirection] = useState<TrafficSortDirection>("desc");
   const [draft, setDraft] = useState<ReplayDraft>(emptyDraft);
@@ -365,7 +362,9 @@ export function useRadarWorkbench() {
           nextInterceptState,
           nextInterceptRules,
           nextMatchReplaceRules,
-          nextAgentRuns
+          nextAgentRuns,
+          nextSavedFilters,
+          nextEvidenceAnnotations
         ] = await Promise.all([
           window.radar.getTargets(),
           window.radar.getCaptures(),
@@ -376,7 +375,9 @@ export function useRadarWorkbench() {
           loadInterceptState(),
           loadInterceptRules(),
           loadMatchReplaceRules(),
-          window.radar.listAgentRuns()
+          window.radar.listAgentRuns(),
+          window.radar.getSavedFilters?.() ?? [],
+          window.radar.getEvidenceAnnotations?.() ?? []
         ]);
         setTargets(nextTargets);
         setTargetText(nextTargets.join("\n"));
@@ -391,6 +392,11 @@ export function useRadarWorkbench() {
         setMatchReplaceRules(nextMatchReplaceRules);
         setMatchReplaceRulesText(JSON.stringify(nextMatchReplaceRules, null, 2));
         setAgentRuns(nextAgentRuns);
+        setSavedFilters(nextSavedFilters);
+        setEvidenceAnnotations(nextEvidenceAnnotations);
+        setSessionDiff(null);
+        setDiffBaselineSessionId("");
+        setSelectedSitemapNodeId("");
         await refreshLocalLists(context);
       }
 
@@ -968,14 +974,256 @@ export function useRadarWorkbench() {
         }
         setNotice(note);
       }
+
+      if (entry.toolResult?.tool === "prepareTrafficQuery" && entry.toolResult.ok) {
+        setTrafficSearch(entry.toolResult.data.query);
+        setActiveView("traffic");
+        setNotice(entry.toolResult.data.reason);
+      }
+
+      if (entry.toolResult?.tool === "getSitemapCoverage" && entry.toolResult.ok) {
+        setActiveView("sitemap");
+      }
     }
 
     agentUiCursorRef.current = { runId: activeAgentRun.id, entryId: lastEntry.id };
   }, [activeAgentRun, appMode, hydrateInterceptDraft]);
 
+  const queryContext = useMemo(() => annotationContext(evidenceAnnotations), [evidenceAnnotations]);
+
   const scopedTrafficCaptures = useMemo(
     () => captures.filter((capture) => isAllowedTarget(capture.url, targets)),
     [captures, targets]
+  );
+
+  const scopedWebSocketEvents = useMemo(
+    () => webSocketEvents.filter((event) => isAllowedTarget(event.url, targets)),
+    [webSocketEvents, targets]
+  );
+
+  const trafficQueryResult = useMemo(
+    () => filterCapturesByQuery(scopedTrafficCaptures, trafficSearch, queryContext),
+    [scopedTrafficCaptures, trafficSearch, queryContext]
+  );
+
+  useEffect(() => {
+    setTrafficQueryError(trafficQueryResult.ok ? "" : trafficQueryResult.error);
+  }, [trafficQueryResult]);
+
+  const webSocketQueryResult = useMemo(
+    () => filterWebSocketEventsByQuery(scopedWebSocketEvents, webSocketSearch, queryContext),
+    [scopedWebSocketEvents, webSocketSearch, queryContext]
+  );
+
+  useEffect(() => {
+    setWebSocketQueryError(webSocketQueryResult.ok ? "" : webSocketQueryResult.error);
+  }, [webSocketQueryResult]);
+
+  const sitemap = useMemo(() => buildSitemap(scopedTrafficCaptures), [scopedTrafficCaptures]);
+
+  const selectedSitemapNode = useMemo(() => {
+    if (!selectedSitemapNodeId) {
+      return null;
+    }
+    return sitemap.nodes[selectedSitemapNodeId] || null;
+  }, [selectedSitemapNodeId, sitemap.nodes]);
+
+  const selectedSitemapInventory = useMemo(() => {
+    if (!selectedSitemapNode) {
+      return null;
+    }
+    return endpointInventoryForNode(selectedSitemapNode, scopedTrafficCaptures);
+  }, [selectedSitemapNode, scopedTrafficCaptures]);
+
+  const annotationByEvidenceId = useMemo(() => {
+    const map = new Map<string, EvidenceAnnotation>();
+    for (const annotation of evidenceAnnotations) {
+      map.set(`${annotation.kind}:${annotation.evidenceId}`, annotation);
+    }
+    return map;
+  }, [evidenceAnnotations]);
+
+  const getEvidenceAnnotation = useCallback(
+    (evidenceId: string, kind: EvidenceAnnotation["kind"]) =>
+      annotationByEvidenceId.get(`${kind}:${evidenceId}`) || {
+        evidenceId,
+        kind,
+        tags: [],
+        comment: "",
+        updatedAt: ""
+      },
+    [annotationByEvidenceId]
+  );
+
+  const saveEvidenceAnnotation = useCallback(async (annotation: EvidenceAnnotation) => {
+    if (!window.radar?.saveEvidenceAnnotation) {
+      setNotice("Run in Electron to save evidence annotations.");
+      return;
+    }
+    const saved = await window.radar.saveEvidenceAnnotation(annotation);
+    setEvidenceAnnotations((items) => {
+      const key = `${saved.kind}:${saved.evidenceId}`;
+      const next = items.filter((item) => `${item.kind}:${item.evidenceId}` !== key);
+      return [saved, ...next];
+    });
+    setNotice("Annotation saved");
+  }, []);
+
+  const saveSavedFilter = useCallback(
+    async (name: string, query: string, surface: SavedFilter["surface"] = "both") => {
+      if (!window.radar?.setSavedFilters) {
+        setNotice("Run in Electron to save filters.");
+        return;
+      }
+      const now = new Date().toISOString();
+      const next: SavedFilter[] = [
+        {
+          id: `filter-${Date.now()}`,
+          name: name.trim(),
+          query: query.trim(),
+          surface,
+          createdAt: now,
+          updatedAt: now
+        },
+        ...savedFilters
+      ];
+      const saved = await window.radar.setSavedFilters(next);
+      setSavedFilters(saved);
+      setNotice(`Saved filter: ${name.trim()}`);
+    },
+    [savedFilters]
+  );
+
+  const deleteSavedFilter = useCallback(
+    async (filterId: string) => {
+      if (!window.radar?.setSavedFilters) {
+        return;
+      }
+      const saved = await window.radar.setSavedFilters(savedFilters.filter((filter) => filter.id !== filterId));
+      setSavedFilters(saved);
+      setNotice("Filter deleted");
+    },
+    [savedFilters]
+  );
+
+  const applySavedFilter = useCallback((filter: SavedFilter) => {
+    if (filter.surface === "websocket") {
+      setWebSocketSearch(filter.query);
+      setActiveView("websocket");
+      return;
+    }
+    setTrafficSearch(filter.query);
+    setActiveView("traffic");
+  }, []);
+
+  const applySitemapNode = useCallback((node: SitemapNode) => {
+    setSelectedSitemapNodeId(node.id);
+    setTrafficSearch(sitemapQueryForNode(node));
+    setActiveView("traffic");
+  }, []);
+
+  const runSessionDiff = useCallback(async () => {
+    if (!window.radar?.getSessionCaptures || !diffBaselineSessionId || !localContext) {
+      return;
+    }
+    if (diffBaselineSessionId === localContext.session.id) {
+      setNotice("Choose a different baseline session.");
+      return;
+    }
+    setSessionDiffPending(true);
+    try {
+      const [baseline, comparison] = await Promise.all([
+        window.radar.getSessionCaptures(diffBaselineSessionId),
+        window.radar.getSessionCaptures(localContext.session.id)
+      ]);
+      const scopedBaseline = baseline.filter((capture) => isAllowedTarget(capture.url, targets));
+      const scopedComparison = comparison.filter((capture) => isAllowedTarget(capture.url, targets));
+      setSessionDiff(diffSessionCaptures(scopedBaseline, scopedComparison));
+      setNotice("Session diff ready");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Session diff failed");
+    } finally {
+      setSessionDiffPending(false);
+    }
+  }, [diffBaselineSessionId, localContext, targets]);
+
+  const bulkDeleteCaptures = useCallback(
+    async (captureIds: string[]) => {
+      for (const captureId of captureIds) {
+        await window.radar?.deleteCapture(captureId);
+      }
+      setCaptures((items) => items.filter((capture) => !captureIds.includes(capture.id)));
+      setSelectedIds((current) => current.filter((id) => !captureIds.includes(id)));
+      if (captureIds.includes(selectedId)) {
+        setSelectedId("");
+      }
+      if (localContext) {
+        await refreshLocalLists(localContext);
+      }
+      setNotice(`Deleted ${captureIds.length} capture${captureIds.length === 1 ? "" : "s"}`);
+    },
+    [localContext, refreshLocalLists, selectedId]
+  );
+
+  const bulkExportCaptures = useCallback(
+    async (captureIds: string[], format: RequestExportFormat = "raw") => {
+      const selected = captures.filter((capture) => captureIds.includes(capture.id));
+      if (selected.length === 0) {
+        return;
+      }
+      const text = selected.map((capture) => formatCapturedRequest(capture, format)).join("\n\n");
+      try {
+        await window.navigator.clipboard.writeText(text);
+        setNotice(`Exported ${selected.length} capture${selected.length === 1 ? "" : "s"}`);
+      } catch {
+        setNotice("Export failed");
+      }
+    },
+    [captures]
+  );
+
+  const bulkTagCaptures = useCallback(
+    async (captureIds: string[], tag: string) => {
+      if (!window.radar?.saveEvidenceAnnotations) {
+        setNotice("Run in Electron to bulk tag captures.");
+        return;
+      }
+      const normalizedTag = tag.trim().toLowerCase();
+      if (!normalizedTag) {
+        return;
+      }
+      const annotations = captureIds.map((captureId) => {
+        const existing = getEvidenceAnnotation(captureId, "capture");
+        const tags = existing.tags.includes(normalizedTag) ? existing.tags : [...existing.tags, normalizedTag];
+        return { ...existing, tags, updatedAt: new Date().toISOString() };
+      });
+      const saved = await window.radar.saveEvidenceAnnotations(annotations);
+      setEvidenceAnnotations(saved);
+      setNotice(`Tagged ${captureIds.length} capture${captureIds.length === 1 ? "" : "s"}`);
+    },
+    [getEvidenceAnnotation]
+  );
+
+  const bulkTagWebSocketEvents = useCallback(
+    async (eventIds: string[], tag: string) => {
+      if (!window.radar?.saveEvidenceAnnotations) {
+        setNotice("Run in Electron to bulk tag frames.");
+        return;
+      }
+      const normalizedTag = tag.trim().toLowerCase();
+      if (!normalizedTag) {
+        return;
+      }
+      const annotations = eventIds.map((evidenceId) => {
+        const existing = getEvidenceAnnotation(evidenceId, "websocket");
+        const tags = existing.tags.includes(normalizedTag) ? existing.tags : [...existing.tags, normalizedTag];
+        return { ...existing, tags, updatedAt: new Date().toISOString() };
+      });
+      const saved = await window.radar.saveEvidenceAnnotations(annotations);
+      setEvidenceAnnotations(saved);
+      setNotice(`Tagged ${eventIds.length} frame${eventIds.length === 1 ? "" : "s"}`);
+    },
+    [getEvidenceAnnotation]
   );
 
   const trafficMethods = useMemo(
@@ -992,24 +1240,26 @@ export function useRadarWorkbench() {
   );
 
   const trafficCaptures = useMemo(() => {
-    const query = trafficSearch.trim().toLowerCase();
-    const filtered = scopedTrafficCaptures.filter((capture) => {
+    const base = trafficQueryResult.ok ? trafficQueryResult.captures : [];
+    const filtered = base.filter((capture) => {
       const methodMatches = trafficMethodFilter === "all" || capture.method === trafficMethodFilter;
       const typeMatches = trafficTypeFilter === "all" || capture.type === trafficTypeFilter;
-      const searchMatches = !query || searchTextForCapture(capture).includes(query);
-      return methodMatches && typeMatches && searchMatches;
+      return methodMatches && typeMatches;
     });
     return [...filtered].sort((left, right) =>
       compareTrafficCaptures(left, right, trafficSortField, trafficSortDirection)
     );
   }, [
-    scopedTrafficCaptures,
+    trafficQueryResult,
     trafficMethodFilter,
-    trafficSearch,
     trafficTypeFilter,
     trafficSortField,
     trafficSortDirection
   ]);
+
+  const filteredWebSocketEvents = useMemo(() => {
+    return webSocketQueryResult.ok ? webSocketQueryResult.events : [];
+  }, [webSocketQueryResult]);
 
   const selected = useMemo(
     () => trafficCaptures.find((capture) => capture.id === selectedId) || trafficCaptures[0] || null,
@@ -1212,11 +1462,28 @@ export function useRadarWorkbench() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setAiPaletteOpen((open) => !open);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        if (activeView !== "traffic" && activeView !== "websocket" && activeView !== "sitemap") {
+          return;
+        }
+        event.preventDefault();
+        trafficSearchRef.current?.focus();
+        return;
+      }
+      if (event.key === "Escape") {
+        if (trafficSearch.trim() || webSocketSearch.trim() || trafficMethodFilter !== "all" || trafficTypeFilter !== "all") {
+          setTrafficSearch("");
+          setWebSocketSearch("");
+          setTrafficMethodFilter("all");
+          setTrafficTypeFilter("all");
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [activeView, trafficMethodFilter, trafficSearch, trafficTypeFilter, webSocketSearch]);
 
   const meta = viewMeta[activeView];
   const utc = clock.toISOString().replace("T", " ").slice(0, 19) + "Z";
@@ -1280,6 +1547,35 @@ export function useRadarWorkbench() {
     setTrafficTypeFilter,
     trafficSearch,
     setTrafficSearch,
+    trafficQueryError,
+    webSocketSearch,
+    setWebSocketSearch,
+    webSocketQueryError,
+    filteredWebSocketEvents,
+    trafficSearchRef,
+    savedFilters,
+    saveSavedFilter,
+    deleteSavedFilter,
+    applySavedFilter,
+    evidenceAnnotations,
+    getEvidenceAnnotation,
+    saveEvidenceAnnotation,
+    bulkDeleteCaptures,
+    bulkExportCaptures,
+    bulkTagCaptures,
+    bulkTagWebSocketEvents,
+    sitemap,
+    selectedSitemapNodeId,
+    setSelectedSitemapNodeId,
+    selectedSitemapNode,
+    selectedSitemapInventory,
+    applySitemapNode,
+    diffBaselineSessionId,
+    setDiffBaselineSessionId,
+    sessionDiff,
+    sessionDiffPending,
+    runSessionDiff,
+    trafficQueryExamples: TRAFFIC_QUERY_EXAMPLES,
     trafficSortField,
     setTrafficSortField,
     trafficSortDirection,

@@ -157,10 +157,22 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     description: "Produce evidence observations for permissive CORS response headers.",
     safety: "observe",
     schema: { targetOrigin: "origin optional" }
+  },
+  {
+    name: "getSitemapCoverage",
+    description: "Read scoped sitemap coverage for the active session without mutating evidence.",
+    safety: "observe",
+    schema: { limit: "number optional" }
+  },
+  {
+    name: "prepareTrafficQuery",
+    description: "Validate and prepare a traffic query for the operator-visible traffic filter bar.",
+    safety: "prepare",
+    schema: { query: "traffic query string", reason: "string" }
   }
 ];
 
-const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "scope", "ssl"] as const;
+const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "sitemap", "scope", "ssl"] as const;
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -270,6 +282,21 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
         tool: call.tool,
         input: {
           targetOrigin: String(input.targetOrigin || "")
+        }
+      };
+    case "getSitemapCoverage":
+      return {
+        tool: call.tool,
+        input: {
+          limit: clampNumber(input.limit, 12, 1, 40)
+        }
+      };
+    case "prepareTrafficQuery":
+      return {
+        tool: call.tool,
+        input: {
+          query: String(input.query || "").trim().slice(0, 400),
+          reason: String(input.reason || "").slice(0, 240)
         }
       };
     case "prepareInterceptEdit":

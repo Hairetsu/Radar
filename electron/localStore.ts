@@ -10,6 +10,7 @@ import { defaultProxyProfiles, normalizeProxyProfile } from "../shared/proxyProf
 import type {
   CaptureInterceptRecord,
   CapturedRequest,
+  EvidenceAnnotation,
   InterceptRule,
   LocalContext,
   LocalProfile,
@@ -19,13 +20,16 @@ import type {
   MatchReplaceHit,
   MatchReplaceRule,
   ProxyProfile,
+  SavedFilter,
   SslEvent,
   TlsDetails,
   WebSocketDirection,
   WebSocketEvent
 } from "../shared/domain.js";
+import { normalizeEvidenceAnnotation, normalizeEvidenceAnnotations } from "../shared/evidenceTags.js";
+import { normalizeSavedFilters } from "../shared/savedFilters.js";
 
-const SCHEMA_VERSION = "7";
+const SCHEMA_VERSION = "8";
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
@@ -597,6 +601,23 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (workspace_id, profile_id)
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_saved_filters (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      filter_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, position)
+    );
+
+    CREATE TABLE IF NOT EXISTS session_evidence_annotations (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      evidence_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('capture', 'websocket')),
+      tags_json TEXT NOT NULL,
+      comment TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, evidence_id, kind)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_captures_session_started
       ON captures(session_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_captures_session_host
@@ -973,6 +994,112 @@ export function openLocalStore(userDataPath: string) {
     return listProxyProfiles(workspaceId);
   };
 
+  const listSavedFilters = (workspaceId: string) => {
+    const rows = db
+      .prepare("SELECT filter_json FROM workspace_saved_filters WHERE workspace_id = ? ORDER BY position ASC")
+      .all(workspaceId) as Array<{ filter_json: string }>;
+    return normalizeSavedFilters(rows.map((row) => parseJsonObject(row.filter_json, null)).filter(Boolean));
+  };
+
+  const setSavedFilters = (workspaceId: string, filters: SavedFilter[]) => {
+    const next = normalizeSavedFilters(filters);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM workspace_saved_filters WHERE workspace_id = ?").run(workspaceId);
+      const insert = db.prepare(
+        "INSERT INTO workspace_saved_filters (workspace_id, position, filter_json) VALUES (?, ?, ?)"
+      );
+      next.forEach((filter, index) => insert.run(workspaceId, index, JSON.stringify(filter)));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return next;
+  };
+
+  const listEvidenceAnnotations = (sessionId: string) => {
+    const rows = db
+      .prepare(
+        "SELECT evidence_id, kind, tags_json, comment, updated_at FROM session_evidence_annotations WHERE session_id = ? ORDER BY updated_at DESC"
+      )
+      .all(sessionId) as Array<{
+      evidence_id: string;
+      kind: "capture" | "websocket";
+      tags_json: string;
+      comment: string;
+      updated_at: string;
+    }>;
+    return normalizeEvidenceAnnotations(
+      rows.map((row) => ({
+        evidenceId: row.evidence_id,
+        kind: row.kind,
+        tags: parseJsonObject<string[]>(row.tags_json, []),
+        comment: row.comment,
+        updatedAt: row.updated_at
+      }))
+    );
+  };
+
+  const saveEvidenceAnnotation = (sessionId: string, input: Partial<EvidenceAnnotation>) => {
+    const annotation = normalizeEvidenceAnnotation(input);
+    if (!annotation) {
+      throw new Error("Evidence annotation was invalid.");
+    }
+    db.prepare(`
+      INSERT INTO session_evidence_annotations (session_id, evidence_id, kind, tags_json, comment, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, evidence_id, kind) DO UPDATE SET
+        tags_json = excluded.tags_json,
+        comment = excluded.comment,
+        updated_at = excluded.updated_at
+    `).run(
+      sessionId,
+      annotation.evidenceId,
+      annotation.kind,
+      JSON.stringify(annotation.tags),
+      annotation.comment,
+      annotation.updatedAt
+    );
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(annotation.updatedAt, sessionId);
+    return annotation;
+  };
+
+  const saveEvidenceAnnotations = (sessionId: string, inputs: Partial<EvidenceAnnotation>[]) => {
+    const updatedAt = nowIso();
+    const next = inputs
+      .map((input) => normalizeEvidenceAnnotation(input, updatedAt))
+      .filter((item): item is EvidenceAnnotation => Boolean(item));
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const upsert = db.prepare(`
+        INSERT INTO session_evidence_annotations (session_id, evidence_id, kind, tags_json, comment, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_id, evidence_id, kind) DO UPDATE SET
+          tags_json = excluded.tags_json,
+          comment = excluded.comment,
+          updated_at = excluded.updated_at
+      `);
+      for (const annotation of next) {
+        upsert.run(
+          sessionId,
+          annotation.evidenceId,
+          annotation.kind,
+          JSON.stringify(annotation.tags),
+          annotation.comment,
+          annotation.updatedAt
+        );
+      }
+      db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(updatedAt, sessionId);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return listEvidenceAnnotations(sessionId);
+  };
+
   const upsertCapture = (sessionId: string, capture: CapturedRequest) => {
     db.prepare(`
       INSERT INTO captures (
@@ -1226,6 +1353,11 @@ export function openLocalStore(userDataPath: string) {
     setMatchReplaceRules,
     listProxyProfiles,
     saveProxyProfile,
+    listSavedFilters,
+    setSavedFilters,
+    listEvidenceAnnotations,
+    saveEvidenceAnnotation,
+    saveEvidenceAnnotations,
     upsertCapture,
     listCaptures,
     deleteCapture,

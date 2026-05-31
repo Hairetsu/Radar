@@ -9,7 +9,7 @@ import type {
 
 export type AppMode = "manual-first" | "ai-first";
 
-export type AgentWorkbenchView = "traffic" | "websocket" | "intercept" | "repeater" | "scope" | "ssl";
+export type AgentWorkbenchView = "traffic" | "websocket" | "intercept" | "repeater" | "sitemap" | "scope" | "ssl";
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
 
@@ -37,7 +37,9 @@ export type AgentToolName =
   | "compareAuthStates"
   | "analyzeSecurityHeaders"
   | "analyzeCookieFlags"
-  | "checkCorsPolicy";
+  | "checkCorsPolicy"
+  | "getSitemapCoverage"
+  | "prepareTrafficQuery";
 
 export type AgentClickableElement = {
   selector: string;
@@ -130,7 +132,9 @@ export type AgentToolCall =
   | { tool: "compareAuthStates"; input: { left: string; right: string } }
   | { tool: "analyzeSecurityHeaders"; input: { targetOrigin?: string } }
   | { tool: "analyzeCookieFlags"; input: { targetOrigin?: string } }
-  | { tool: "checkCorsPolicy"; input: { targetOrigin?: string } };
+  | { tool: "checkCorsPolicy"; input: { targetOrigin?: string } }
+  | { tool: "getSitemapCoverage"; input: { limit?: number } }
+  | { tool: "prepareTrafficQuery"; input: { query: string; reason: string } };
 
 export type AgentToolResult =
   | { tool: "showView"; ok: true; data: { view: AgentWorkbenchView } }
@@ -172,6 +176,17 @@ export type AgentToolResult =
   | { tool: "analyzeSecurityHeaders"; ok: true; data: { observations: AgentEvidenceObservation[] } }
   | { tool: "analyzeCookieFlags"; ok: true; data: { observations: AgentEvidenceObservation[] } }
   | { tool: "checkCorsPolicy"; ok: true; data: { observations: AgentEvidenceObservation[] } }
+  | {
+      tool: "getSitemapCoverage";
+      ok: true;
+      data: {
+        hostCount: number;
+        endpointCount: number;
+        hosts: Array<{ host: string; requestCount: number; paths: string[] }>;
+        suggestedQueries: string[];
+      };
+    }
+  | { tool: "prepareTrafficQuery"; ok: true; data: { query: string; reason: string } }
   | { tool: AgentToolName; ok: false; error: string };
 
 export type AgentDecisionFinding = {

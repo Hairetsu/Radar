@@ -46,6 +46,7 @@ After adding or changing a user-facing feature, update documentation in the same
 
 - Update `README.md` when the feature changes the product surface, install/run instructions, screenshots, stack, design notes, or high-level workflows.
 - Update `docs/USER_GUIDE.md` when the feature changes how a user installs, launches, configures, navigates, captures, replays, scopes, analyzes, exports, or troubleshoots Radar.
+- When completing a roadmap phase (`docs/PHASE_*.md`), update `README.md` and `docs/USER_GUIDE.md` in the same change so view numbering, workflows, and operator controls match the shipped phase.
 - Update `docs/CODE_CONVENTIONS.md` when the change introduces or modifies an engineering convention.
 - If screenshots become outdated, run `pnpm screenshots` and include the refreshed assets.
 - If a feature is intentionally internal-only and has no user-facing behavior, note that no README or user-guide change was needed.
