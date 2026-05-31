@@ -195,6 +195,8 @@ const radar: RadarApi = {
     return proxyProfiles;
   },
   getCaptures: async () => currentCaptures,
+  queryCaptures: async () => ({ ok: true, captures: currentCaptures }),
+  getSessionCaptures: async () => currentCaptures,
   deleteCapture: async (id) => {
     currentCaptures = currentCaptures.filter((capture) => capture.id !== id);
     return { ok: true };
@@ -247,6 +249,12 @@ const radar: RadarApi = {
     webSocketEvents.splice(0, webSocketEvents.length);
     return { ok: true };
   },
+  queryWebSocketEvents: async () => ({ ok: true, events: webSocketEvents }),
+  getSavedFilters: async () => [],
+  setSavedFilters: async (filters) => filters,
+  getEvidenceAnnotations: async () => [],
+  saveEvidenceAnnotation: async (annotation) => annotation,
+  saveEvidenceAnnotations: async (annotations) => annotations,
   getTargets: async () => targets,
   setTargets: async (nextTargets) => {
     targets = nextTargets;

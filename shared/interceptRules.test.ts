@@ -82,4 +82,38 @@ describe("intercept rules", () => {
       }
     ]);
   });
+
+  it("ignores disabled, mismatched, and out-of-stage rules", () => {
+    const rules = normalizeInterceptRules([
+      { id: "disabled", name: "Disabled", enabled: false, stage: "both" },
+      { id: "wrong-stage", name: "Wrong stage", stage: "response" },
+      { id: "wrong-method", name: "Wrong method", stage: "request", method: "GET" },
+      { id: "wrong-host", name: "Wrong host", stage: "request", host: "missing.test" },
+      { id: "wrong-status-on-request", name: "Wrong status", stage: "request", status: 401 },
+      { id: "catch-all", name: "Catch all", stage: "both" }
+    ]);
+
+    expect(matchingInterceptRules(rules, capture, "request")).toEqual([
+      {
+        ruleId: "catch-all",
+        name: "Catch all",
+        reason: "enabled catch-all"
+      }
+    ]);
+    expect(normalizeInterceptRules("bad")).toEqual([]);
+  });
+
+  it("matches content type and initiator filters", () => {
+    const rules = normalizeInterceptRules([
+      {
+        id: "typed",
+        name: "Typed",
+        stage: "request",
+        contentType: "json",
+        initiator: "fetch"
+      }
+    ]);
+    expect(matchingInterceptRules(rules, { ...capture, initiator: "fetch" }, "request")).toHaveLength(1);
+    expect(matchingInterceptRules(rules, { ...capture, initiator: "other" }, "request")).toHaveLength(0);
+  });
 });

@@ -28,6 +28,8 @@ import type {
   ProxyState,
   ReplayDraft,
   ReplayResult,
+  SavedFilter,
+  EvidenceAnnotation,
   SslEvent,
   WebSocketEvent
 } from "./domain.js";
@@ -56,6 +58,8 @@ export type RadarApi = {
   getProxyProfiles: () => Promise<ProxyProfile[]>;
   saveProxyProfile: (payload: { id: ProxyProfileId; notes: string }) => Promise<ProxyProfile[]>;
   getCaptures: () => Promise<CapturedRequest[]>;
+  queryCaptures: (query: string) => Promise<{ ok: boolean; error?: string; captures: CapturedRequest[] }>;
+  getSessionCaptures: (sessionId: string) => Promise<CapturedRequest[]>;
   deleteCapture: (id: string) => Promise<{ ok: boolean }>;
   clearCaptures: () => Promise<{ ok: boolean }>;
   getInterceptState: () => Promise<InterceptState>;
@@ -69,7 +73,13 @@ export type RadarApi = {
   setMatchReplaceRules: (rules: MatchReplaceRule[]) => Promise<MatchReplaceRule[]>;
   getSslEvents: () => Promise<SslEvent[]>;
   getWebSocketEvents: () => Promise<WebSocketEvent[]>;
+  queryWebSocketEvents: (query: string) => Promise<{ ok: boolean; error?: string; events: WebSocketEvent[] }>;
   clearWebSocketEvents: () => Promise<{ ok: boolean }>;
+  getSavedFilters: () => Promise<SavedFilter[]>;
+  setSavedFilters: (filters: SavedFilter[]) => Promise<SavedFilter[]>;
+  getEvidenceAnnotations: () => Promise<EvidenceAnnotation[]>;
+  saveEvidenceAnnotation: (annotation: EvidenceAnnotation) => Promise<EvidenceAnnotation>;
+  saveEvidenceAnnotations: (annotations: EvidenceAnnotation[]) => Promise<EvidenceAnnotation[]>;
   getTargets: () => Promise<string[]>;
   setTargets: (targets: string[]) => Promise<string[]>;
   sendReplay: (request: ReplayDraft) => Promise<ReplayResult>;

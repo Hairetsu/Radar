@@ -62,4 +62,17 @@ describe("match replace", () => {
     expect(result.capture.responseBody).toBe("{\"role\":\"admin\"}");
     expect(result.capture.requestBody).toBe(capture.requestBody);
   });
+
+  it("skips disabled, mismatched, and non-matching rules", () => {
+    const rules = normalizeMatchReplaceRules([
+      { id: "disabled", name: "Disabled", enabled: false, target: "body", match: "user", replace: "admin" },
+      { id: "wrong-stage", name: "Wrong stage", stage: "response", target: "body", match: "user", replace: "admin" },
+      { id: "no-hit", name: "No hit", target: "body", match: "missing", replace: "x" },
+      { id: "header-scan", name: "Header scan", target: "header", match: "missing", replace: "x" }
+    ]);
+    expect(normalizeMatchReplaceRules("bad")).toEqual([]);
+    const result = applyMatchReplaceRules(rules, capture, "request");
+    expect(result.changed).toBe(false);
+    expect(result.hits).toEqual([]);
+  });
 });

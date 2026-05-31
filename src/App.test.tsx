@@ -263,6 +263,7 @@ describe("App", () => {
   });
 
   it("shows websocket frames in the websocket analyzer tab", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
     const frame: WebSocketEvent = {
       id: "ws-frame-1",
       requestId: "request-ws-1",

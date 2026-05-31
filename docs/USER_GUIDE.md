@@ -2,7 +2,7 @@
 
 Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only; AI-First lets a scoped agent choose bounded tools while you watch.
 
-This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture, WebSocket analysis, request interception, repeater, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
+This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
 
 ## Table Of Contents
 
@@ -15,6 +15,7 @@ This guide covers the app as it exists now: the main console, profiles and sessi
 - [Opening The Radar Browser](#opening-the-radar-browser)
 - [HTTP And HTTPS Traffic](#http-and-https-traffic)
 - [WebSocket](#websocket)
+- [Sitemap](#sitemap)
 - [Intercept](#intercept)
 - [Repeater](#repeater)
 - [SSL And Proxy](#ssl-and-proxy)
@@ -31,7 +32,9 @@ Use Radar when you need a controlled local workbench for authorized web security
 
 - Launch an isolated browser profile through Radar.
 - Capture HTTP, HTTPS, and WebSocket traffic from the Radar browser or an external browser configured to use Radar's proxy.
-- Filter captured HTTP/S requests and WebSocket frames to an explicit scope allowlist.
+- Filter captured HTTP/S requests and WebSocket frames with a scoped query language or saved filters.
+- Map discovered hosts, paths, and endpoints in a sitemap with inventory and session diff.
+- Tag, comment on, and bulk-manage captured evidence.
 - Inspect selectable request, response, and frame evidence.
 - Copy evidence for notes or reports.
 - Clone captured requests into a manual repeater.
@@ -116,7 +119,7 @@ Useful source commands:
 
 ## Main Console Tour
 
-Radar opens into a six-view operator console.
+Radar opens into a seven-view operator console.
 
 Persistent areas:
 
@@ -131,12 +134,13 @@ Views:
 
 | View | Purpose |
 | --- | --- |
-| **01 HTTP(S)** | In-scope HTTP/S request log and request/response inspector. |
-| **02 WebSocket** | In-scope WebSocket handshakes, frames, payloads, errors, and closes. |
+| **01 HTTP(S)** | In-scope HTTP/S request log, query filters, tags/comments, and request/response inspector. |
+| **02 WebSocket** | In-scope WebSocket handshakes, frames, payloads, errors, closes, and query filters. |
 | **03 Intercept** | Scoped proxy request pause, edit, forward, drop, and resume controls. |
 | **04 Repeater** | Manual request editor, single replay, and burst replay. |
-| **05 Scope** | Engagement boundary and target allowlist. |
-| **06 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
+| **05 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
+| **06 Scope** | Engagement boundary and target allowlist. |
+| **07 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
 
 ## Profiles And Sessions
 
@@ -202,7 +206,7 @@ http://[::1]:*
 
 ### Add Targets
 
-Open **05 Scope**, then enter one target per line:
+Open **06 Scope**, then enter one target per line:
 
 ```text
 https://staging.example.com
@@ -295,28 +299,34 @@ HTTP(S) only lists captures that match the active scope rules and start with `ht
 
 ### Filter HTTP/S Traffic
 
-Use the toolbar to filter by:
+Use the toolbar to narrow by method, resource type, sort field, and sort direction. The search bar accepts a scoped query language or plain text.
 
-- Method.
-- Resource type.
-- Sort field.
-- Sort direction.
-- Search text.
+**Structured queries** use field predicates with optional comma-separated values:
 
-Search looks across:
+```text
+method:POST path:/api status:401,403 mime:json
+host:staging.example.com req.header:authorization
+tag:auth comment:session
+```
 
-- Method.
-- URL.
-- Host and path.
-- Status and status text.
-- MIME type.
-- Source.
-- Request headers.
-- Request body.
-- Response headers.
-- Response body.
+Supported fields include `method`, `host`, `path`, `url`, `status`, `mime`, `type`, `source`, `initiator`, `req.header`, `resp.header`, `req.body`, `resp.body`, `tag`, and `comment`. Combine terms with `AND`, `OR`, and `NOT`. Quote values that contain spaces.
 
-Click the eraser icon in the toolbar to clear active filters.
+**Plain text** without field syntax falls back to substring search across method, URL, host, path, status, MIME type, source, headers, and bodies.
+
+**Saved filters** persist per workspace. Save the current query from the filter chips, then reapply it later from the same chip row. Click the eraser icon to clear active filters.
+
+**Keyboard shortcuts:**
+
+- `Cmd+F` / `Ctrl+F` focuses the traffic search bar.
+- `Escape` clears the active query when the search bar is focused.
+
+### Tag And Comment On Captures
+
+Select a capture to open tag and comment fields above the detail pane. Tags and comments persist for the active session and can be queried with `tag:` and `comment:` predicates.
+
+### Bulk Actions
+
+Multi-select captures with Cmd/Ctrl-click and Shift-click. When more than one row is selected, the bulk action bar supports bulk tag, export, and delete.
 
 ### Select Captures For AI
 
@@ -381,12 +391,18 @@ The proxy has a dedicated WebSocket passthrough rule, so controlled Chrome and e
 
 ### Filter WebSocket Frames
 
-Use the toolbar to filter by:
+Use the toolbar to filter by direction: all, handshake, sent, received, error, or closed. The search bar accepts the same scoped query language as HTTP(S), with WebSocket-specific fields such as `direction`, `opcode`, `payload`, and `error`.
 
-- Direction: all, handshake, sent, received, error, or closed.
-- Search text across URL, host, payload, direction, opcode, status, and error.
+Examples:
 
-Click the eraser icon in the toolbar to clear active filters.
+```text
+direction:sent payload:ping
+host:staging.example.com direction:received
+```
+
+Plain text without field syntax falls back to substring search across URL, host, payload, direction, opcode, status, and error.
+
+Click the eraser icon in the toolbar to clear active filters. `Cmd+F` / `Ctrl+F` focuses the WebSocket search bar; `Escape` clears the active query when focused.
 
 ### Inspect A Frame
 
@@ -410,6 +426,45 @@ Click a frame to select one frame. Cmd/Ctrl-click toggles individual frames. Shi
 ### Clear WebSocket Frames
 
 Click the eraser icon in the WebSocket panel header. This clears WebSocket frame history for the active session and does not remove HTTP/S captures.
+
+## Sitemap
+
+Sitemap is the host, path, and endpoint map for scoped HTTP/S traffic in the active session.
+
+Open **05 Sitemap** to browse discovered structure without leaving Radar.
+
+### Tree Navigation
+
+The left tree groups:
+
+- Hosts.
+- Paths under each host.
+- Endpoint families by method and status.
+
+Select a node to inspect coverage counts and jump into matching HTTP(S) traffic with a prepared query.
+
+### Endpoint Inventory
+
+Selecting an endpoint opens inventory details for:
+
+- Query parameters seen in captured requests.
+- JSON body keys and form fields.
+- Content types.
+- Auth signals such as bearer tokens, cookies, and API keys.
+
+Use **Open in HTTP(S)** to apply a matching query in the traffic tab.
+
+### Session Diff
+
+The right pane compares the active session against an earlier session under the same profile. Pick a baseline session, then review:
+
+- Added endpoints.
+- Removed endpoints.
+- Status changes.
+- Header changes.
+- Response-shape changes.
+
+Session diff helps retests and regression checks without exporting captures manually.
 
 ## Intercept
 
@@ -585,7 +640,7 @@ This avoids changing system trust settings.
 
 Use this when you want another browser or tool to route traffic through Radar.
 
-1. Open **06 SSL**.
+1. Open **07 SSL**.
 2. Click **Engage Proxy**.
 3. Copy the displayed proxy URL.
 4. Configure your browser or tool to use that proxy.
@@ -613,7 +668,7 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 ## Manual-First And AI-First Modes
 
-Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, and report notes, but it does not execute browser navigation, intercept actions, or replay requests.
+Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, and report notes, but it does not execute browser navigation, intercept actions, or replay requests.
 
 Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt and run console above the normal views. Enter a scoped goal such as:
 
@@ -625,7 +680,7 @@ When a run starts, Radar records a live timeline. The agent chooses one tool act
 
 Available AI-First tools:
 
-- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Scope, and SSL.
+- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Sitemap, Scope, and SSL.
 - `getBrowserState` reads the launched browser state.
 - `openBrowser` and `navigateBrowser` drive in-scope browser navigation.
 - `waitForNetworkIdle` waits for captured HTTP/S traffic to settle after navigation.
@@ -635,6 +690,8 @@ Available AI-First tools:
 - `getCookies` and `getStorageState` inspect browser session state.
 - `saveAuthState`, `loadAuthState`, `listAuthStates`, and `compareAuthStates` manage named auth/session states for comparison workflows.
 - `getCaptures` reads run-scoped in-scope HTTP/S evidence across target redirects, with optional origin narrowing.
+- `getSitemapCoverage` summarizes host, path, and endpoint coverage from run-scoped HTTP/S captures.
+- `prepareTrafficQuery` loads a visible traffic query into the HTTP(S) filter bar without changing scope.
 - `getInterceptQueue` reads queued in-scope intercept items without forwarding or dropping.
 - `prepareInterceptEdit` loads a request or response edit into the visible Intercept controls for operator review.
 - `sendReplay` sends one policy-capped replay draft.
@@ -679,6 +736,7 @@ AI features are view-aware.
 | WebSocket | Capture Summary, Report Notes |
 | Intercept | Capture Summary, Report Notes |
 | Repeater | Repeater Drafts |
+| Sitemap | Capture Summary, Report Notes |
 | Scope | Scope Checklist, Browser Helper |
 | SSL | TLS Review |
 
@@ -812,7 +870,7 @@ Important local files and folders:
 
 | Item | Purpose |
 | --- | --- |
-| `radar-local.sqlite` | Profiles, workspaces, sessions, targets, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, SSL events, cached model lists, and AI-First agent run history. |
+| `radar-local.sqlite` | Profiles, workspaces, sessions, targets, saved filters, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, SSL events, cached model lists, and AI-First agent run history. |
 | `proxy-ca/radar-ca.pem` | Local proxy CA certificate. |
 | `proxy-ca/radar-ca-key.pem` | Local proxy CA private key. |
 | `profiles/<profile-id>/proxy-browser-profile` | Dedicated launched-browser profile. |
@@ -843,7 +901,7 @@ Privacy notes:
 
 ### Capture A Staging Target
 
-1. Open **05 Scope**.
+1. Open **06 Scope**.
 2. Add the staging origin, for example:
 
 ```text
@@ -857,11 +915,11 @@ https://staging.example.com
 
 ### Use An External Browser
 
-1. Open **06 SSL**.
+1. Open **07 SSL**.
 2. Click **Engage Proxy**.
 3. Configure the external browser to use the displayed proxy URL.
 4. For HTTPS, manually trust the displayed CA certificate in that browser.
-5. Add the target origin in **05 Scope**.
+5. Add the target origin in **06 Scope**.
 6. Browse the target.
 7. Inspect matching captures in **01 HTTP(S)** or matching frames in **02 WebSocket**.
 
@@ -882,7 +940,7 @@ https://staging.example.com
 
 1. Switch the top shell toggle from **Manual-First** to **AI-First**.
 2. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
-3. Click **Start Run**. Radar saves the goal's target origin into **05 Scope** before the agent chooses tools.
+3. Click **Start Run**. Radar saves the goal's target origin into **06 Scope** before the agent chooses tools.
 4. Watch the tool/action timeline update until the agent returns `finish`.
 5. Click **Stop** if the run should halt.
 6. Review draft findings in the AI-First findings inbox before using them.
@@ -905,13 +963,22 @@ https://staging.example.com
 4. Continue capturing.
 5. Use the session selector to compare or return to earlier sessions.
 
+### Map Endpoints With Sitemap
+
+1. Capture traffic in **01 HTTP(S)** under the active scope.
+2. Open **05 Sitemap**.
+3. Browse hosts and paths in the tree.
+4. Select an endpoint to review query params, body keys, and auth signals.
+5. Optionally pick an earlier session in the session diff panel to compare coverage.
+6. Click through to HTTP(S) with a prepared query when you want to inspect raw evidence.
+
 ## Troubleshooting
 
 ### No HTTP/S Traffic Appears
 
 Check:
 
-- The target URL is in **05 Scope**.
+- The target URL is in **06 Scope**.
 - You clicked **Commit** after editing scope.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -922,7 +989,7 @@ Check:
 
 Check:
 
-- The WebSocket URL is in **05 Scope** or matches an equivalent HTTP/S origin in scope.
+- The WebSocket URL is in **06 Scope** or matches an equivalent HTTP/S origin in scope.
 - The app is using `ws://` or `wss://`, not long-polling HTTP.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -944,7 +1011,7 @@ Radar needs a supported local browser. Install Chrome, Edge, Brave, or Chromium.
 
 ### HTTPS Pages Fail In An External Browser
 
-For external browsers, you must manually trust Radar's generated CA certificate. Open **06 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
+For external browsers, you must manually trust Radar's generated CA certificate. Open **07 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
 
 Radar does not install this certificate automatically.
 
@@ -1000,7 +1067,7 @@ Check:
 
 - AI settings are connected.
 - The goal includes a URL, domain, or the address bar contains the target you want to inspect.
-- If relying on the address bar instead of a goal target, the target origin is saved in **05 Scope**.
+- If relying on the address bar instead of a goal target, the target origin is saved in **06 Scope**.
 - The run timeline does not show invalid planner output, a policy block, or an AI provider error.
 - The run has not been stopped by switching back to Manual-First.
 
@@ -1039,6 +1106,10 @@ Keep raw context off unless you need exact headers or bodies.
 | --- | --- |
 | Capture | A recorded HTTP/HTTPS request and response. |
 | WebSocket frame | A recorded WebSocket handshake, sent frame, received frame, error, or close event. |
+| Traffic query | A scoped filter expression for HTTP(S) or WebSocket evidence using field predicates or plain-text fallback. |
+| Saved filter | A workspace-persisted traffic or WebSocket query reapplied from filter chips. |
+| Sitemap | A host/path/endpoint map built from scoped HTTP/S captures in the active session. |
+| Session diff | A comparison of endpoint coverage between two sessions under the same profile. |
 | Scope | The allowlist that controls visible HTTP/S and WebSocket evidence and AI context boundaries. |
 | Profile | A local operator/client context with its own workspace and browser profile. |
 | Session | An evidence ledger under a profile. |

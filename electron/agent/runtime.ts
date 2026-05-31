@@ -25,6 +25,8 @@ import type {
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeDraft } from "../../shared/draft.js";
+import { buildSitemap } from "../../shared/sitemap.js";
+import { parseTrafficQuery } from "../../shared/trafficQuery.js";
 import { DEFAULT_AGENT_POLICY, blockedToolReason, normalizeAgentPolicy } from "./policy.js";
 import { availableToolNames, normalizeAgentToolCall } from "./tools.js";
 
@@ -538,6 +540,51 @@ export class AgentRuntime {
         case "checkCorsPolicy": {
           const captures = runCaptures(run, this.deps.getCaptures(), this.deps.allowlist(), normalizedCall.input.targetOrigin || "");
           result = { tool: normalizedCall.tool, ok: true, data: { observations: checkCorsPolicy(captures) } };
+          break;
+        }
+        case "getSitemapCoverage": {
+          const captures = runCaptures(run, this.deps.getCaptures(), this.deps.allowlist(), "");
+          const sitemap = buildSitemap(captures);
+          const limit = normalizedCall.input.limit || 12;
+          const hosts = sitemap.roots.slice(0, limit).map((hostId) => {
+            const hostNode = sitemap.nodes[hostId];
+            return {
+              host: hostNode?.host || hostId,
+              requestCount: hostNode?.requestCount || 0,
+              paths: (hostNode?.childIds || [])
+                .slice(0, 8)
+                .map((pathId) => sitemap.nodes[pathId]?.path || pathId)
+            };
+          });
+          const endpointCount = Object.values(sitemap.nodes).filter((node) => node.kind === "endpoint").length;
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              hostCount: sitemap.roots.length,
+              endpointCount,
+              hosts,
+              suggestedQueries: hosts.flatMap((host) => [
+                `host:${host.host}`,
+                `host:${host.host} status:4xx`
+              ]).slice(0, 8)
+            }
+          };
+          break;
+        }
+        case "prepareTrafficQuery": {
+          const parsed = parseTrafficQuery(normalizedCall.input.query);
+          if (!parsed.ok) {
+            throw new Error(parsed.error);
+          }
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              query: normalizedCall.input.query,
+              reason: normalizedCall.input.reason || "Prepared traffic query for operator review."
+            }
+          };
           break;
         }
         case "sendReplay": {

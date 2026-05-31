@@ -13,6 +13,7 @@ import {
   FilePlus2,
   LockKeyhole,
   Palette,
+  Map,
   Play,
   Radar as RadarIcon,
   Replace,
@@ -70,6 +71,7 @@ const sidebarViewIcons: Record<WorkView, LucideIcon> = {
   websocket: Braces,
   intercept: FileLock2,
   repeater: Repeat2,
+  sitemap: Map,
   scope: Target,
   ssl: LockKeyhole
 };
@@ -291,7 +293,10 @@ function timelineEntryText(entry: { note?: string; toolCall?: { tool: string }; 
 export function App() {
   const workbench = useRadarWorkbench();
   const [requestMenu, setRequestMenu] = useState<RequestMenuState | null>(null);
-  const [webSocketSearch, setWebSocketSearch] = useState("");
+  const [savedFilterName, setSavedFilterName] = useState("");
+  const [bulkTagValue, setBulkTagValue] = useState("");
+  const [annotationTags, setAnnotationTags] = useState("");
+  const [annotationComment, setAnnotationComment] = useState("");
   const [webSocketDirectionFilter, setWebSocketDirectionFilter] = useState<WebSocketDirection | "all">("all");
   const [selectedWebSocketId, setSelectedWebSocketId] = useState("");
   const [selectedWebSocketIds, setSelectedWebSocketIds] = useState<string[]>([]);
@@ -406,6 +411,20 @@ export function App() {
       setRequestMenu(null);
     }
   }, [requestMenu, requestMenuCapture]);
+  const selectedCapture = workbench.selected;
+  const getEvidenceAnnotation = workbench.getEvidenceAnnotation;
+  const evidenceAnnotations = workbench.evidenceAnnotations;
+
+  useEffect(() => {
+    if (!selectedCapture) {
+      setAnnotationTags("");
+      setAnnotationComment("");
+      return;
+    }
+    const annotation = getEvidenceAnnotation(selectedCapture.id, "capture");
+    setAnnotationTags(annotation.tags.join(", "));
+    setAnnotationComment(annotation.comment);
+  }, [selectedCapture, getEvidenceAnnotation, evidenceAnnotations]);
   const activeSession = workbench.localContext?.session || null;
   const activeSessionListed = activeSession
     ? workbench.sessions.some((session) => session.id === activeSession.id)
@@ -414,39 +433,20 @@ export function App() {
   const activeAgentRunning = activeAgentRun?.status === "queued" || activeAgentRun?.status === "running";
   const sidebarViewStats: Record<WorkView, string> = {
     traffic: `${workbench.trafficCaptures.length}/${workbench.scopedTrafficCaptures.length} in scope`,
-    websocket: `${workbench.webSocketEvents.length} frames`,
+    websocket: `${workbench.filteredWebSocketEvents.length}/${workbench.webSocketEvents.length} frames`,
     intercept: workbench.interceptState.config.requestEnabled
       ? `${workbench.interceptState.queue.length} queued`
       : "requests off",
     repeater: workbench.lastResponse ? `${workbench.lastResponse.status} ${elapsed(workbench.lastResponse.durationMs)}` : "manual replay",
+    sitemap: `${workbench.sitemap.roots.length} hosts`,
     scope: `${workbench.targets.length} targets`,
     ssl: workbench.proxyState.running ? "proxy engaged" : `${workbench.sslEvents.length} tls events`
   };
   const filteredWebSocketEvents = useMemo(() => {
-    const query = webSocketSearch.trim().toLowerCase();
-    return workbench.webSocketEvents.filter((event) => {
-      const directionMatches = webSocketDirectionFilter === "all" || event.direction === webSocketDirectionFilter;
-      const searchMatches =
-        !query ||
-        [
-          event.url,
-          event.host,
-          event.requestId,
-          event.direction,
-          event.status,
-          event.statusText,
-          event.error,
-          event.payloadData,
-          formatHeaders(event.requestHeaders || {}),
-          formatHeaders(event.responseHeaders || {})
-        ]
-          .filter((value) => value !== null && value !== undefined)
-          .join("\n")
-          .toLowerCase()
-          .includes(query);
-      return directionMatches && searchMatches;
+    return workbench.filteredWebSocketEvents.filter((event) => {
+      return webSocketDirectionFilter === "all" || event.direction === webSocketDirectionFilter;
     });
-  }, [webSocketDirectionFilter, webSocketSearch, workbench.webSocketEvents]);
+  }, [webSocketDirectionFilter, workbench.filteredWebSocketEvents]);
   const selectedWebSocketEvent =
     filteredWebSocketEvents.find((event) => event.id === selectedWebSocketId) || filteredWebSocketEvents[0] || null;
   const selectedWebSocketDetail = websocketDetailText(selectedWebSocketEvent);
@@ -1117,17 +1117,23 @@ export function App() {
                       strokeWidth={1.8}
                     />
                     <Input
+                      ref={workbench.trafficSearchRef}
                       variant="compact"
                       className="w-full pl-8"
                       value={workbench.trafficSearch}
                       onChange={(event) => workbench.setTrafficSearch(event.target.value)}
-                      placeholder="Search req / resp / URL"
+                      placeholder="Query: method:POST path:/api status:401,403"
                       spellCheck={false}
-                      aria-label="Traffic search"
+                      aria-label="Traffic query"
                       data-testid="trafficSearch"
                       data-component="trafficSearch"
                     />
                   </div>
+                  {workbench.trafficQueryError && (
+                    <span className="font-mono text-[10px] text-bad" data-testid="trafficQueryError">
+                      {workbench.trafficQueryError}
+                    </span>
+                  )}
                   <span className="flex h-9 items-center whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
                     {workbench.trafficCaptures.length}/{workbench.scopedTrafficCaptures.length}
                   </span>
@@ -1147,6 +1153,108 @@ export function App() {
                     <Eraser size={15} strokeWidth={1.7} />
                   </Button>
                 </div>
+                {(workbench.trafficSearch.trim() || workbench.savedFilters.length > 0) && (
+                  <div className="flex flex-wrap items-center gap-2 border-b border-rule px-3 py-2">
+                    {workbench.trafficSearch.trim() && (
+                      <StatusPill live>
+                        {workbench.trafficSearch.trim()}
+                        <button
+                          type="button"
+                          className="ml-2 text-muted hover:text-bone"
+                          onClick={() => workbench.setTrafficSearch("")}
+                          aria-label="Remove query chip"
+                        >
+                          ×
+                        </button>
+                      </StatusPill>
+                    )}
+                    {workbench.savedFilters
+                      .filter((filter) => filter.surface !== "websocket")
+                      .slice(0, 6)
+                      .map((filter) => (
+                        <Button
+                          key={filter.id}
+                          variant="outline"
+                          size="compact"
+                          onClick={() => workbench.applySavedFilter(filter)}
+                          data-testid={`savedFilter-${filter.id}`}
+                        >
+                          {filter.name}
+                        </Button>
+                      ))}
+                    {workbench.trafficSearch.trim() && (
+                      <>
+                        <Input
+                          variant="compact"
+                          className="w-[140px]"
+                          value={savedFilterName}
+                          onChange={(event) => setSavedFilterName(event.target.value)}
+                          placeholder="Filter name"
+                          data-testid="savedFilterName"
+                        />
+                        <Button
+                          variant="outline"
+                          size="compact"
+                          disabled={!savedFilterName.trim()}
+                          onClick={() => {
+                            void workbench.saveSavedFilter(savedFilterName, workbench.trafficSearch, "traffic");
+                            setSavedFilterName("");
+                          }}
+                          data-testid="saveTrafficFilter"
+                        >
+                          Save
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+                {workbench.selectedIds.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 border-b border-rule bg-rust/5 px-3 py-2">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                      {workbench.selectedIds.length} selected
+                    </span>
+                    <Input
+                      variant="compact"
+                      className="w-[120px]"
+                      value={bulkTagValue}
+                      onChange={(event) => setBulkTagValue(event.target.value)}
+                      placeholder="tag"
+                      data-testid="bulkTagInput"
+                    />
+                    <Button
+                      variant="outline"
+                      size="compact"
+                      disabled={!bulkTagValue.trim()}
+                      onClick={() => {
+                        void workbench.bulkTagCaptures(workbench.selectedIds, bulkTagValue);
+                        setBulkTagValue("");
+                      }}
+                      data-testid="bulkTagCaptures"
+                    >
+                      Tag
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="compact"
+                      onClick={() => void workbench.bulkExportCaptures(workbench.selectedIds)}
+                      data-testid="bulkExportCaptures"
+                    >
+                      Export
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="compact"
+                      onClick={() => {
+                        if (window.confirm(`Delete ${workbench.selectedIds.length} captures?`)) {
+                          void workbench.bulkDeleteCaptures(workbench.selectedIds);
+                        }
+                      }}
+                      data-testid="bulkDeleteCaptures"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                )}
                 <div className="min-h-0 overflow-auto radar-traffic-list">
                 {workbench.trafficCaptures.length === 0 && (
                   <EmptyState>
@@ -1231,6 +1339,43 @@ export function App() {
                     Copy
                   </Button>
                 </div>
+                {workbench.selected && (
+                  <div className="grid gap-2 border-b border-rule px-4 py-3 [grid-template-columns:minmax(0,1fr)_minmax(0,1.2fr)_auto] max-[900px]:grid-cols-1">
+                    <Input
+                      variant="compact"
+                      value={annotationTags}
+                      onChange={(event) => setAnnotationTags(event.target.value)}
+                      placeholder="tags: review, auth"
+                      data-testid="captureTags"
+                    />
+                    <Input
+                      variant="compact"
+                      value={annotationComment}
+                      onChange={(event) => setAnnotationComment(event.target.value)}
+                      placeholder="comment"
+                      data-testid="captureComment"
+                    />
+                    <Button
+                      variant="outline"
+                      size="compact"
+                      onClick={() => {
+                        void workbench.saveEvidenceAnnotation({
+                          evidenceId: workbench.selected!.id,
+                          kind: "capture",
+                          tags: annotationTags
+                            .split(",")
+                            .map((tag) => tag.trim().toLowerCase())
+                            .filter(Boolean),
+                          comment: annotationComment,
+                          updatedAt: new Date().toISOString()
+                        });
+                      }}
+                      data-testid="saveCaptureAnnotation"
+                    >
+                      Save note
+                    </Button>
+                  </div>
+                )}
                 <pre
                   className="min-h-0 select-text cursor-text radar-pre-gradient px-5 py-4"
                   onContextMenu={(event) => openRequestMenu(event)}
@@ -1289,21 +1434,24 @@ export function App() {
                     <Input
                       variant="compact"
                       className="w-full pl-8"
-                      value={webSocketSearch}
-                      onChange={(event) => setWebSocketSearch(event.target.value)}
-                      placeholder="Search payload / host / frame"
+                      value={workbench.webSocketSearch}
+                      onChange={(event) => workbench.setWebSocketSearch(event.target.value)}
+                      placeholder="Query: direction:sent payload:ping"
                       spellCheck={false}
-                      aria-label="WebSocket search"
+                      aria-label="WebSocket query"
                       data-testid="webSocketSearch"
                       data-component="webSocketSearch"
                     />
                   </div>
+                  {workbench.webSocketQueryError && (
+                    <span className="font-mono text-[10px] text-bad">{workbench.webSocketQueryError}</span>
+                  )}
                   <Button
                     variant="icon"
                     size="icon"
-                    disabled={!webSocketSearch && webSocketDirectionFilter === "all"}
+                    disabled={!workbench.webSocketSearch && webSocketDirectionFilter === "all"}
                     onClick={() => {
-                      setWebSocketSearch("");
+                      workbench.setWebSocketSearch("");
                       setWebSocketDirectionFilter("all");
                     }}
                     title="Clear WebSocket filters"
@@ -1799,6 +1947,154 @@ export function App() {
                   <pre className="h-[380px] px-4 py-3">
                     {workbench.lastResponse ? bodyPreview(workbench.lastResponse.body) : ""}
                   </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {workbench.activeView === "sitemap" && (
+            <div className="grid min-h-0 [grid-template-columns:minmax(280px,0.55fr)_minmax(360px,1fr)] max-[1180px]:grid-cols-1">
+              <div className="min-h-0 overflow-auto border-r border-rule max-[1180px]:border-r-0 max-[1180px]:border-b">
+                {workbench.sitemap.roots.length === 0 && (
+                  <EmptyState>
+                    <Map size={18} strokeWidth={1.4} />
+                    <span>No scoped endpoints mapped yet</span>
+                  </EmptyState>
+                )}
+                {workbench.sitemap.roots.map((hostId) => {
+                  const hostNode = workbench.sitemap.nodes[hostId];
+                  if (!hostNode) {
+                    return null;
+                  }
+                  return (
+                    <div key={hostId} className="border-b border-rule">
+                      <Button
+                        variant="ghost"
+                        className="h-auto w-full justify-start rounded-none px-4 py-3 text-left"
+                        onClick={() => workbench.setSelectedSitemapNodeId(hostId)}
+                        data-testid={`sitemapHost-${hostId}`}
+                      >
+                        <strong className="font-mono text-[11px] text-bone">{hostNode.host}</strong>
+                        <span className="ml-2 font-mono text-[10px] text-muted">{hostNode.requestCount} reqs</span>
+                      </Button>
+                      {hostNode.childIds.map((pathId) => {
+                        const pathNode = workbench.sitemap.nodes[pathId];
+                        if (!pathNode) {
+                          return null;
+                        }
+                        return (
+                          <div key={pathId} className="border-t border-rule/70">
+                            <Button
+                              variant="ghost"
+                              className="h-auto w-full justify-start rounded-none py-2 pl-8 pr-4 text-left"
+                              onClick={() => workbench.setSelectedSitemapNodeId(pathId)}
+                              data-testid={`sitemapPath-${pathId}`}
+                            >
+                              <span className="font-mono text-[10px] text-copy">{pathNode.path}</span>
+                            </Button>
+                            {pathNode.childIds.map((endpointId) => {
+                              const endpointNode = workbench.sitemap.nodes[endpointId];
+                              if (!endpointNode) {
+                                return null;
+                              }
+                              return (
+                                <Button
+                                  key={endpointId}
+                                  variant="ghost"
+                                  className="h-auto w-full justify-start rounded-none py-2 pl-12 pr-4 text-left"
+                                  onClick={() => workbench.applySitemapNode(endpointNode)}
+                                  data-testid={`sitemapEndpoint-${endpointId}`}
+                                >
+                                  <span className="font-mono text-[10px] text-signal">{endpointNode.methods.join(", ")}</span>
+                                  <span className="ml-2 font-mono text-[10px] text-muted">{endpointNode.statusFamilies.join(", ")}</span>
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="grid min-h-0 gap-4 overflow-auto p-4 [grid-template-rows:auto_auto_minmax(0,1fr)]">
+                <div className="grid gap-2 border border-rule p-3">
+                  <FieldLabel>Session diff</FieldLabel>
+                  <div className="flex flex-wrap gap-2">
+                    <Select
+                      variant="compact"
+                      value={workbench.diffBaselineSessionId}
+                      onChange={(event) => workbench.setDiffBaselineSessionId(event.target.value)}
+                      data-testid="diffBaselineSession"
+                    >
+                      <option value="">Baseline session</option>
+                      {workbench.sessions
+                        .filter((session) => session.id !== workbench.localContext?.session.id)
+                        .map((session) => (
+                          <option key={session.id} value={session.id}>
+                            {session.name}
+                          </option>
+                        ))}
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="compact"
+                      disabled={!workbench.diffBaselineSessionId || workbench.sessionDiffPending}
+                      onClick={() => void workbench.runSessionDiff()}
+                      data-testid="runSessionDiff"
+                    >
+                      Compare
+                    </Button>
+                  </div>
+                  {workbench.sessionDiff && (
+                    <div className="max-h-40 overflow-auto font-mono text-[10px] text-muted">
+                      {workbench.sessionDiff.entries.slice(0, 40).map((entry, index) => (
+                        <div key={`${entry.host}-${entry.path}-${entry.method}-${index}`} className="border-b border-rule/60 py-1">
+                          <ToneText tone={entry.kind === "added" ? "good" : "danger"}>
+                            {entry.kind}
+                          </ToneText>{" "}
+                          {entry.method} {entry.host}{entry.path} — {entry.detail}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {workbench.selectedSitemapNode && workbench.selectedSitemapInventory && (
+                  <div className="grid gap-3 border border-rule p-4 font-mono text-[10px] text-muted">
+                    <strong className="text-bone">
+                      {workbench.selectedSitemapNode.host}
+                      {workbench.selectedSitemapNode.path}
+                    </strong>
+                    <span>Methods: {workbench.selectedSitemapNode.methods.join(", ") || "—"}</span>
+                    <span>Status families: {workbench.selectedSitemapNode.statusFamilies.join(", ") || "—"}</span>
+                    <span>Query params: {workbench.selectedSitemapInventory.queryParams.join(", ") || "—"}</span>
+                    <span>Body keys: {workbench.selectedSitemapInventory.bodyKeys.join(", ") || "—"}</span>
+                    <span>Auth signals: {workbench.selectedSitemapInventory.authSignals.join(", ") || "—"}</span>
+                    <Button
+                      variant="outline"
+                      size="compact"
+                      onClick={() => workbench.applySitemapNode(workbench.selectedSitemapNode!)}
+                      data-testid="openSitemapInTraffic"
+                    >
+                      Open in traffic
+                    </Button>
+                  </div>
+                )}
+                <div className="border border-rule p-3 font-mono text-[10px] text-muted">
+                  <FieldLabel>Query examples</FieldLabel>
+                  {workbench.trafficQueryExamples.map((example) => (
+                    <button
+                      key={example}
+                      type="button"
+                      className="mt-2 block w-full text-left text-copy hover:text-signal"
+                      onClick={() => {
+                        workbench.setTrafficSearch(example);
+                        workbench.setActiveView("traffic");
+                      }}
+                    >
+                      {example}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
