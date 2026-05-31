@@ -83,6 +83,158 @@ describe("localStore", () => {
     reopened.close();
   });
 
+  it("persists intercept metadata with captured requests", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const capture: CapturedRequest = {
+      id: "cap-intercept-1",
+      startedAt: "2026-05-25T12:00:00.000Z",
+      method: "POST",
+      url: "https://example.com/login",
+      host: "example.com",
+      path: "/login",
+      requestHeaders: { "Content-Type": "application/json" },
+      requestBody: "{\"role\":\"admin\"}",
+      status: 200,
+      statusText: "OK",
+      mimeType: "application/json",
+      type: "Fetch",
+      responseHeaders: {},
+      responseBody: "{\"ok\":true}",
+      durationMs: 80,
+      allowed: true,
+      source: "proxy",
+      tls: null,
+      intercept: [
+        {
+          stage: "request",
+          queuedAt: "2026-05-25T12:00:00.000Z",
+          resolvedAt: "2026-05-25T12:00:05.000Z",
+          resolution: "edited",
+          edited: true,
+          note: "Operator edited and forwarded the queued request."
+        }
+      ]
+    };
+
+    store.upsertCapture(context.session.id, capture);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listCaptures(context.session.id, 10)).toEqual([capture]);
+    reopened.close();
+  });
+
+  it("persists intercept rules per workspace", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const rules = [
+      {
+        id: "rule-login",
+        name: "Login JSON",
+        enabled: true,
+        stage: "request" as const,
+        method: "POST",
+        path: "/login",
+        createdAt: "2026-05-25T12:00:00.000Z",
+        updatedAt: "2026-05-25T12:00:00.000Z"
+      }
+    ];
+
+    store.setInterceptRules(context.workspace.id, rules);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listInterceptRules(context.workspace.id)).toEqual(rules);
+    reopened.close();
+  });
+
+  it("persists match and replace rules plus rewrite metadata", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const rules = [
+      {
+        id: "rewrite-token",
+        name: "Swap Token",
+        enabled: true,
+        stage: "request" as const,
+        target: "header" as const,
+        headerName: "authorization",
+        match: "old-token",
+        replace: "new-token",
+        createdAt: "2026-05-25T12:00:00.000Z",
+        updatedAt: "2026-05-25T12:00:00.000Z"
+      }
+    ];
+    const capture: CapturedRequest = {
+      id: "cap-rewrite-1",
+      startedAt: "2026-05-25T12:00:00.000Z",
+      method: "POST",
+      url: "https://example.com/login",
+      host: "example.com",
+      path: "/login",
+      requestHeaders: { Authorization: "Bearer new-token" },
+      requestBody: "{\"role\":\"user\"}",
+      status: 200,
+      statusText: "OK",
+      mimeType: "application/json",
+      type: "Fetch",
+      responseHeaders: {},
+      responseBody: "{\"ok\":true}",
+      durationMs: 80,
+      allowed: true,
+      source: "proxy",
+      tls: null,
+      rewrites: [
+        {
+          ruleId: "rewrite-token",
+          name: "Swap Token",
+          stage: "request",
+          target: "header",
+          detail: "authorization: old-token"
+        }
+      ]
+    };
+
+    store.setMatchReplaceRules(context.workspace.id, rules);
+    store.upsertCapture(context.session.id, capture);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listMatchReplaceRules(context.workspace.id)).toEqual(rules);
+    expect(reopened.listCaptures(context.session.id, 10)).toEqual([capture]);
+    reopened.close();
+  });
+
+  it("persists proxy profile notes per workspace", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+
+    expect(store.listProxyProfiles(context.workspace.id).map((profile) => profile.id)).toEqual([
+      "radar-browser",
+      "external-browser",
+      "cli",
+      "mobile-device"
+    ]);
+
+    store.saveProxyProfile(context.workspace.id, {
+      id: "cli",
+      notes: "export HTTPS_PROXY=http://127.0.0.1:8088"
+    });
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listProxyProfiles(context.workspace.id)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "cli",
+          notes: "export HTTPS_PROXY=http://127.0.0.1:8088"
+        })
+      ])
+    );
+    reopened.close();
+  });
+
   it("creates, saves, and loads profiles with isolated workspace targets", () => {
     const store = makeStore();
     const first = store.getActiveContext();

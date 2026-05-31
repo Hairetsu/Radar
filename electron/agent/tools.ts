@@ -1,10 +1,10 @@
 import type { AgentToolCall, AgentToolName, AgentWorkbenchView } from "../../shared/agent-types.js";
-import { normalizeDraft } from "../../shared/draft.js";
+import { MAX_REPLAY_BODY, normalizeDraft } from "../../shared/draft.js";
 
 export type AgentToolDefinition = {
   name: AgentToolName;
   description: string;
-  safety: "view" | "observe" | "navigate" | "replay";
+  safety: "view" | "observe" | "navigate" | "replay" | "prepare";
   schema: Record<string, unknown>;
 };
 
@@ -13,7 +13,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     name: "showView",
     description: "Move the visible workbench to a Radar evidence view.",
     safety: "view",
-    schema: { view: "traffic|repeater|scope|ssl", reason: "string" }
+    schema: { view: "traffic|websocket|intercept|repeater|scope|ssl", reason: "string" }
   },
   {
     name: "getBrowserState",
@@ -118,6 +118,23 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     schema: { limit: "number optional", targetOrigin: "origin optional" }
   },
   {
+    name: "getInterceptQueue",
+    description: "Read queued in-scope intercept items without forwarding, dropping, or mutating traffic.",
+    safety: "observe",
+    schema: { limit: "number optional" }
+  },
+  {
+    name: "prepareInterceptEdit",
+    description: "Prepare request or response edits for a queued intercept item; the operator must still forward or drop manually.",
+    safety: "prepare",
+    schema: {
+      id: "intercept queue item id",
+      draft: { method: "HTTP method", url: "http(s) URL inside scope", headers: {}, body: "" },
+      response: { status: "number", statusText: "string", headers: {}, body: "" },
+      note: "string optional"
+    }
+  },
+  {
     name: "sendReplay",
     description: "Send one policy-capped replay draft to an in-scope URL.",
     safety: "replay",
@@ -143,7 +160,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
   }
 ];
 
-const WORK_VIEWS = ["traffic", "websocket", "repeater", "scope", "ssl"] as const;
+const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "scope", "ssl"] as const;
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -160,6 +177,20 @@ function clampNumber(value: unknown, fallback: number, min: number, max: number)
 function normalizeHeaders(value: unknown) {
   const input = objectValue(value);
   return Object.fromEntries(Object.entries(input).map(([key, item]) => [key, String(item)]));
+}
+
+function normalizeResponseDraft(value: unknown) {
+  const input = objectValue(value);
+  return {
+    status: clampNumber(input.status, 200, 100, 599),
+    statusText: String(input.statusText || "").slice(0, 120),
+    headers: normalizeHeaders(input.headers),
+    body: String(input.body || "").slice(0, MAX_REPLAY_BODY)
+  };
+}
+
+function hasObjectKeys(value: unknown) {
+  return Object.keys(objectValue(value)).length > 0;
 }
 
 function assertUrl(value: unknown) {
@@ -218,14 +249,42 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
         }
       };
     case "getCaptures":
+      return {
+        tool: call.tool,
+        input: {
+          limit: clampNumber(input.limit, 20, 1, 100),
+          targetOrigin: String(input.targetOrigin || "")
+        }
+      };
+    case "getInterceptQueue":
+      return {
+        tool: call.tool,
+        input: {
+          limit: clampNumber(input.limit, 20, 1, 100)
+        }
+      };
     case "analyzeSecurityHeaders":
     case "analyzeCookieFlags":
     case "checkCorsPolicy":
       return {
         tool: call.tool,
         input: {
-          ...(call.tool === "getCaptures" ? { limit: clampNumber(input.limit, 20, 1, 100) } : {}),
           targetOrigin: String(input.targetOrigin || "")
+        }
+      };
+    case "prepareInterceptEdit":
+      return {
+        tool: call.tool,
+        input: {
+          id: String(input.id || "").trim(),
+          draft: hasObjectKeys(input.draft)
+            ? normalizeDraft({
+                ...objectValue(input.draft),
+                headers: normalizeHeaders(objectValue(input.draft).headers)
+              })
+            : undefined,
+          response: hasObjectKeys(input.response) ? normalizeResponseDraft(input.response) : undefined,
+          note: String(input.note || "").slice(0, 240)
         }
       };
     case "clickElement":

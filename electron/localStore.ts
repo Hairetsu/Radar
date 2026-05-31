@@ -6,20 +6,26 @@ import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
 import type { AgentFinding, AgentPolicy, AgentRun, AgentRunStatus, AgentTimelineEntry } from "../shared/agent-types.js";
 import type { AiModelOption } from "../shared/ai-types.js";
 import { sanitizeModelOption } from "../shared/ai-models.js";
+import { defaultProxyProfiles, normalizeProxyProfile } from "../shared/proxyProfiles.js";
 import type {
+  CaptureInterceptRecord,
   CapturedRequest,
+  InterceptRule,
   LocalContext,
   LocalProfile,
   LocalSession,
   LocalSessionSummary,
   LocalWorkspace,
+  MatchReplaceHit,
+  MatchReplaceRule,
+  ProxyProfile,
   SslEvent,
   TlsDetails,
   WebSocketDirection,
   WebSocketEvent
 } from "../shared/domain.js";
 
-const SCHEMA_VERSION = "4";
+const SCHEMA_VERSION = "7";
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
@@ -76,6 +82,8 @@ type CaptureRow = {
   frame_url: string | null;
   initiator: string | null;
   tls_json: string | null;
+  intercept_json: string | null;
+  rewrite_json: string | null;
 };
 
 type SslEventRow = {
@@ -118,6 +126,20 @@ type AgentRunRow = {
   timeline_json: string;
   findings_json: string;
   error: string | null;
+};
+
+type InterceptRuleRow = {
+  rule_json: string;
+};
+
+type MatchReplaceRuleRow = {
+  rule_json: string;
+};
+
+type ProxyProfileRow = {
+  profile_id: string;
+  notes: string;
+  updated_at: string;
 };
 
 function nowIso() {
@@ -170,6 +192,107 @@ function parseTlsJson(value: string | null): TlsDetails | null {
     };
   } catch {
     return null;
+  }
+}
+
+function parseInterceptJson(value: string | null): CaptureInterceptRecord[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return undefined;
+    }
+    const records: CaptureInterceptRecord[] = [];
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        continue;
+      }
+      const record = entry as Partial<Record<keyof CaptureInterceptRecord, unknown>>;
+      const stage = record.stage === "response" ? "response" : "request";
+      const resolution =
+        record.resolution === "forwarded" ||
+        record.resolution === "dropped" ||
+        record.resolution === "edited" ||
+        record.resolution === "resumed"
+          ? record.resolution
+          : "queued";
+      const queuedAt = typeof record.queuedAt === "string" ? record.queuedAt : "";
+      if (!queuedAt) {
+        continue;
+      }
+      const nextRecord: CaptureInterceptRecord = {
+        stage,
+        queuedAt,
+        resolution,
+        edited: Boolean(record.edited)
+      };
+      if (typeof record.resolvedAt === "string") {
+        nextRecord.resolvedAt = record.resolvedAt;
+      }
+      if (typeof record.note === "string") {
+        nextRecord.note = record.note;
+      }
+      if (Array.isArray(record.ruleHits)) {
+        nextRecord.ruleHits = record.ruleHits
+          .map((hit) => {
+            if (!hit || typeof hit !== "object" || Array.isArray(hit)) {
+              return null;
+            }
+            const item = hit as Record<string, unknown>;
+            return {
+              ruleId: String(item.ruleId || ""),
+              name: String(item.name || ""),
+              reason: String(item.reason || "")
+            };
+          })
+          .filter((hit): hit is NonNullable<CaptureInterceptRecord["ruleHits"]>[number] =>
+            Boolean(hit?.ruleId && hit.name)
+          );
+      }
+      records.push(nextRecord);
+    }
+    return records.length > 0 ? records : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseRewriteJson(value: string | null): MatchReplaceHit[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return undefined;
+    }
+    const hits = parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+          return null;
+        }
+        const hit = entry as Partial<Record<keyof MatchReplaceHit, unknown>>;
+        const stage = hit.stage === "response" ? "response" : "request";
+        const target = hit.target === "header" ? "header" : "body";
+        const ruleId = String(hit.ruleId || "");
+        const name = String(hit.name || "");
+        if (!ruleId || !name) {
+          return null;
+        }
+        return {
+          ruleId,
+          name,
+          stage,
+          target,
+          detail: String(hit.detail || "")
+        };
+      })
+      .filter((hit): hit is MatchReplaceHit => Boolean(hit));
+    return hits.length > 0 ? hits : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -229,7 +352,7 @@ function toSessionSummary(row: SessionSummaryRow): LocalSessionSummary {
 }
 
 function toCapture(row: CaptureRow): CapturedRequest {
-  return {
+  const capture: CapturedRequest = {
     id: row.id,
     startedAt: row.started_at,
     method: row.method,
@@ -254,6 +377,15 @@ function toCapture(row: CaptureRow): CapturedRequest {
     initiator: row.initiator || undefined,
     tls: parseTlsJson(row.tls_json)
   };
+  const intercept = parseInterceptJson(row.intercept_json);
+  if (intercept) {
+    capture.intercept = intercept;
+  }
+  const rewrites = parseRewriteJson(row.rewrite_json);
+  if (rewrites) {
+    capture.rewrites = rewrites;
+  }
+  return capture;
 }
 
 function toSslEvent(row: SslEventRow): SslEvent {
@@ -381,6 +513,8 @@ export function openLocalStore(userDataPath: string) {
       frame_url TEXT,
       initiator TEXT,
       tls_json TEXT,
+      intercept_json TEXT,
+      rewrite_json TEXT,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (session_id, id)
     );
@@ -441,6 +575,28 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (session_id, id)
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_intercept_rules (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      rule_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, position)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_match_replace_rules (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      rule_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, position)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_proxy_profiles (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      profile_id TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, profile_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_captures_session_started
       ON captures(session_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_captures_session_host
@@ -466,7 +622,9 @@ export function openLocalStore(userDataPath: string) {
     ["agent_run_id", "TEXT"],
     ["navigation_id", "TEXT"],
     ["frame_url", "TEXT"],
-    ["initiator", "TEXT"]
+    ["initiator", "TEXT"],
+    ["intercept_json", "TEXT"],
+    ["rewrite_json", "TEXT"]
   ];
   for (const [name, type] of captureColumnMigrations) {
     if (!captureColumns.has(name)) {
@@ -728,15 +886,102 @@ export function openLocalStore(userDataPath: string) {
     return rows.map((row) => row.target);
   };
 
+  const listInterceptRules = (workspaceId: string) => {
+    const rows = db
+      .prepare("SELECT rule_json FROM workspace_intercept_rules WHERE workspace_id = ? ORDER BY position ASC")
+      .all(workspaceId) as InterceptRuleRow[];
+    return rows
+      .map((row) => parseJsonObject<InterceptRule | null>(row.rule_json, null))
+      .filter((rule): rule is InterceptRule => Boolean(rule));
+  };
+
+  const setInterceptRules = (workspaceId: string, rules: InterceptRule[]) => {
+    const next = rules.slice(0, 40);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM workspace_intercept_rules WHERE workspace_id = ?").run(workspaceId);
+      const insert = db.prepare(
+        "INSERT INTO workspace_intercept_rules (workspace_id, position, rule_json) VALUES (?, ?, ?)"
+      );
+      next.forEach((rule, index) => insert.run(workspaceId, index, JSON.stringify(rule)));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return next;
+  };
+
+  const listMatchReplaceRules = (workspaceId: string) => {
+    const rows = db
+      .prepare("SELECT rule_json FROM workspace_match_replace_rules WHERE workspace_id = ? ORDER BY position ASC")
+      .all(workspaceId) as MatchReplaceRuleRow[];
+    return rows
+      .map((row) => parseJsonObject<MatchReplaceRule | null>(row.rule_json, null))
+      .filter((rule): rule is MatchReplaceRule => Boolean(rule));
+  };
+
+  const setMatchReplaceRules = (workspaceId: string, rules: MatchReplaceRule[]) => {
+    const next = rules.slice(0, 40);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM workspace_match_replace_rules WHERE workspace_id = ?").run(workspaceId);
+      const insert = db.prepare(
+        "INSERT INTO workspace_match_replace_rules (workspace_id, position, rule_json) VALUES (?, ?, ?)"
+      );
+      next.forEach((rule, index) => insert.run(workspaceId, index, JSON.stringify(rule)));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return next;
+  };
+
+  const listProxyProfiles = (workspaceId: string): ProxyProfile[] => {
+    const rows = db
+      .prepare("SELECT profile_id, notes, updated_at FROM workspace_proxy_profiles WHERE workspace_id = ?")
+      .all(workspaceId) as ProxyProfileRow[];
+    const saved = new Map(rows.map((row) => [row.profile_id, row]));
+    return defaultProxyProfiles().map((profile) => {
+      const row = saved.get(profile.id);
+      return row
+        ? {
+            ...profile,
+            notes: row.notes,
+            updatedAt: row.updated_at
+          }
+        : profile;
+    });
+  };
+
+  const saveProxyProfile = (workspaceId: string, input: { id?: unknown; notes?: unknown }) => {
+    const profile = normalizeProxyProfile(input);
+    if (!profile) {
+      throw new Error("Proxy profile id was not recognized.");
+    }
+    db.prepare(`
+      INSERT INTO workspace_proxy_profiles (workspace_id, profile_id, notes, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(workspace_id, profile_id) DO UPDATE SET
+        notes = excluded.notes,
+        updated_at = excluded.updated_at
+    `).run(workspaceId, profile.id, profile.notes, profile.updatedAt);
+    db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(profile.updatedAt, workspaceId);
+    return listProxyProfiles(workspaceId);
+  };
+
   const upsertCapture = (sessionId: string, capture: CapturedRequest) => {
     db.prepare(`
       INSERT INTO captures (
         session_id, id, started_at, method, url, host, path,
         request_headers_json, request_body, status, status_text, mime_type, resource_type,
         response_headers_json, response_body, duration_ms, encoded_data_length, allowed,
-        source, agent_run_id, navigation_id, frame_url, initiator, tls_json, updated_at
+        source, agent_run_id, navigation_id, frame_url, initiator, tls_json, intercept_json, rewrite_json, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(session_id, id) DO UPDATE SET
         started_at = excluded.started_at,
         method = excluded.method,
@@ -760,6 +1005,8 @@ export function openLocalStore(userDataPath: string) {
         frame_url = excluded.frame_url,
         initiator = excluded.initiator,
         tls_json = excluded.tls_json,
+        intercept_json = excluded.intercept_json,
+        rewrite_json = excluded.rewrite_json,
         updated_at = excluded.updated_at
     `).run(
       sessionId,
@@ -786,6 +1033,8 @@ export function openLocalStore(userDataPath: string) {
       capture.frameUrl || null,
       capture.initiator || null,
       capture.tls ? JSON.stringify(capture.tls) : null,
+      capture.intercept ? JSON.stringify(capture.intercept) : null,
+      capture.rewrites ? JSON.stringify(capture.rewrites) : null,
       nowIso()
     );
     db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
@@ -971,6 +1220,12 @@ export function openLocalStore(userDataPath: string) {
     loadSession,
     getTargets,
     setTargets,
+    listInterceptRules,
+    setInterceptRules,
+    listMatchReplaceRules,
+    setMatchReplaceRules,
+    listProxyProfiles,
+    saveProxyProfile,
     upsertCapture,
     listCaptures,
     deleteCapture,

@@ -1,8 +1,15 @@
-import type { ReplayDraft, ReplayResult, BrowserState, CapturedRequest } from "./domain.js";
+import type {
+  BrowserState,
+  CapturedRequest,
+  InterceptQueueItem,
+  InterceptResponseDraft,
+  ReplayDraft,
+  ReplayResult
+} from "./domain.js";
 
 export type AppMode = "manual-first" | "ai-first";
 
-export type AgentWorkbenchView = "traffic" | "websocket" | "repeater" | "scope" | "ssl";
+export type AgentWorkbenchView = "traffic" | "websocket" | "intercept" | "repeater" | "scope" | "ssl";
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
 
@@ -12,6 +19,8 @@ export type AgentToolName =
   | "openBrowser"
   | "navigateBrowser"
   | "getCaptures"
+  | "getInterceptQueue"
+  | "prepareInterceptEdit"
   | "sendReplay"
   | "waitForNetworkIdle"
   | "getPageText"
@@ -100,6 +109,11 @@ export type AgentToolCall =
   | { tool: "openBrowser"; input: { url: string } }
   | { tool: "navigateBrowser"; input: { url: string } }
   | { tool: "getCaptures"; input: { limit?: number; targetOrigin?: string } }
+  | { tool: "getInterceptQueue"; input: { limit?: number } }
+  | {
+      tool: "prepareInterceptEdit";
+      input: { id: string; draft?: ReplayDraft; response?: InterceptResponseDraft; note?: string };
+    }
   | { tool: "sendReplay"; input: { draft: ReplayDraft } }
   | { tool: "waitForNetworkIdle"; input: { idleMs?: number; timeoutMs?: number } }
   | { tool: "getPageText"; input: Record<string, never> }
@@ -124,6 +138,12 @@ export type AgentToolResult =
   | { tool: "openBrowser"; ok: true; data: BrowserState }
   | { tool: "navigateBrowser"; ok: true; data: BrowserState }
   | { tool: "getCaptures"; ok: true; data: { captures: CapturedRequest[] } }
+  | { tool: "getInterceptQueue"; ok: true; data: { queue: InterceptQueueItem[] } }
+  | {
+      tool: "prepareInterceptEdit";
+      ok: true;
+      data: { item: InterceptQueueItem; draft?: ReplayDraft; response?: InterceptResponseDraft; note: string };
+    }
   | { tool: "sendReplay"; ok: true; data: ReplayResult }
   | { tool: "waitForNetworkIdle"; ok: true; data: { idle: boolean; waitedMs: number } }
   | { tool: "getPageText"; ok: true; data: { url: string; title: string; text: string } }

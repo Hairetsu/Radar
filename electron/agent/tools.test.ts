@@ -15,6 +15,8 @@ describe("agent tools", () => {
         "analyzeSecurityHeaders",
         "waitForNetworkIdle",
         "getCaptures",
+        "getInterceptQueue",
+        "prepareInterceptEdit",
         "sendReplay"
       ])
     );
@@ -34,6 +36,28 @@ describe("agent tools", () => {
     expect(normalizeAgentToolCall({ tool: "compareAuthStates", input: { left: " guest ", right: " admin " } })).toEqual({
       tool: "compareAuthStates",
       input: { left: "guest", right: "admin" }
+    });
+    expect(normalizeAgentToolCall({ tool: "getInterceptQueue", input: { limit: 999 } })).toEqual({
+      tool: "getInterceptQueue",
+      input: { limit: 100 }
+    });
+    expect(
+      normalizeAgentToolCall({
+        tool: "prepareInterceptEdit",
+        input: {
+          id: " intercept-1 ",
+          draft: { method: "POST", url: "https://allowed.test/login", headers: { A: 1 }, body: "x" },
+          note: "load this mutation"
+        }
+      })
+    ).toEqual({
+      tool: "prepareInterceptEdit",
+      input: {
+        id: "intercept-1",
+        draft: { method: "POST", url: "https://allowed.test/login", headers: { A: "1" }, body: "x" },
+        response: undefined,
+        note: "load this mutation"
+      }
     });
   });
 

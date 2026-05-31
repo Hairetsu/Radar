@@ -14,10 +14,17 @@ import type {
   BrowserState,
   BurstResult,
   CapturedRequest,
+  InterceptConfig,
+  InterceptResponseDraft,
+  InterceptRule,
+  InterceptState,
   LocalContext,
   LocalProfile,
   LocalSession,
   LocalSessionSummary,
+  MatchReplaceRule,
+  ProxyProfile,
+  ProxyProfileId,
   ProxyState,
   ReplayDraft,
   ReplayResult,
@@ -46,9 +53,20 @@ export type RadarApi = {
   startProxy: (port?: number) => Promise<ProxyState>;
   stopProxy: () => Promise<ProxyState>;
   getProxyState: () => Promise<ProxyState>;
+  getProxyProfiles: () => Promise<ProxyProfile[]>;
+  saveProxyProfile: (payload: { id: ProxyProfileId; notes: string }) => Promise<ProxyProfile[]>;
   getCaptures: () => Promise<CapturedRequest[]>;
   deleteCapture: (id: string) => Promise<{ ok: boolean }>;
   clearCaptures: () => Promise<{ ok: boolean }>;
+  getInterceptState: () => Promise<InterceptState>;
+  setInterceptConfig: (config: Partial<InterceptConfig>) => Promise<InterceptState>;
+  forwardIntercept: (payload: { id: string; draft?: ReplayDraft; response?: InterceptResponseDraft }) => Promise<InterceptState>;
+  dropIntercept: (id: string) => Promise<InterceptState>;
+  resumeAllIntercepts: () => Promise<InterceptState>;
+  getInterceptRules: () => Promise<InterceptRule[]>;
+  setInterceptRules: (rules: InterceptRule[]) => Promise<InterceptRule[]>;
+  getMatchReplaceRules: () => Promise<MatchReplaceRule[]>;
+  setMatchReplaceRules: (rules: MatchReplaceRule[]) => Promise<MatchReplaceRule[]>;
   getSslEvents: () => Promise<SslEvent[]>;
   getWebSocketEvents: () => Promise<WebSocketEvent[]>;
   clearWebSocketEvents: () => Promise<{ ok: boolean }>;

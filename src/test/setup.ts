@@ -154,7 +154,36 @@ const radarApi = {
     caFingerprint: ""
   })),
   getCaptures: vi.fn(async () => []),
+  getProxyProfiles: vi.fn(async () => []),
+  saveProxyProfile: vi.fn(async () => []),
   deleteCapture: vi.fn(async () => ({ ok: true })),
+  getInterceptState: vi.fn(async () => ({
+    config: { requestEnabled: false, responseEnabled: false },
+    queue: []
+  })),
+  setInterceptConfig: vi.fn(async (config) => ({
+    config: {
+      requestEnabled: typeof config.requestEnabled === "boolean" ? config.requestEnabled : false,
+      responseEnabled: typeof config.responseEnabled === "boolean" ? config.responseEnabled : false
+    },
+    queue: []
+  })),
+  forwardIntercept: vi.fn(async () => ({
+    config: { requestEnabled: true, responseEnabled: false },
+    queue: []
+  })),
+  dropIntercept: vi.fn(async () => ({
+    config: { requestEnabled: true, responseEnabled: false },
+    queue: []
+  })),
+  resumeAllIntercepts: vi.fn(async () => ({
+    config: { requestEnabled: true, responseEnabled: false },
+    queue: []
+  })),
+  getInterceptRules: vi.fn(async () => []),
+  setInterceptRules: vi.fn(async (rules) => rules),
+  getMatchReplaceRules: vi.fn(async () => []),
+  setMatchReplaceRules: vi.fn(async (rules) => rules),
   getSslEvents: vi.fn(async () => []),
   getWebSocketEvents: vi.fn(async () => []),
   clearWebSocketEvents: vi.fn(async () => ({ ok: true })),

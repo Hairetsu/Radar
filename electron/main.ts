@@ -23,7 +23,15 @@ import { toCaptureEntry, proxyRequestToCapture } from "../shared/capture.js";
 import type {
   BrowserState,
   CapturedRequest,
+  CaptureInterceptRecord,
+  InterceptConfig,
+  InterceptQueueItem,
+  InterceptResponseDraft,
+  InterceptResolution,
+  InterceptRule,
+  InterceptState,
   LocalContext,
+  MatchReplaceRule,
   ProxyState,
   ReplayDraft,
   SslEvent,
@@ -33,6 +41,8 @@ import type {
 import type { AgentAuthStateSummary, AgentCookie, AgentStorageState } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
+import { matchingInterceptRules, normalizeInterceptRules } from "../shared/interceptRules.js";
+import { applyMatchReplaceRules, normalizeMatchReplaceRules } from "../shared/matchReplace.js";
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
 import { normalizeUrl as normalizeBrowserUrl } from "../shared/url.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
@@ -63,6 +73,7 @@ const MAX_BURST_COUNT = 50;
 const MAX_BURST_CONCURRENCY = 5;
 const HOT_CAPTURE_LIMIT = 500;
 const HOT_WEBSOCKET_LIMIT = 1000;
+const MAX_INTERCEPT_QUEUE = 80;
 
 const defaultAllowlist = DEFAULT_ALLOWLIST;
 
@@ -76,6 +87,7 @@ const webSocketEvents: WebSocketEvent[] = [];
 const webSocketConnections = new Map<string, { url: string; initiator: string }>();
 const attachedContents = new Set<number>();
 const sslEvents: SslEvent[] = [];
+const interceptQueue = new Map<string, PendingIntercept>();
 let lastCaptureChangeAt = Date.now();
 let localStore: LocalStore | null = null;
 let localContext: LocalContext | null = null;
@@ -96,6 +108,56 @@ let proxyState: ProxyState = {
   caCertPath: "",
   caKeyPath: "",
   caFingerprint: ""
+};
+let interceptConfig: InterceptConfig = {
+  requestEnabled: false,
+  responseEnabled: false
+};
+let interceptRules: InterceptRule[] = [];
+let matchReplaceRules: MatchReplaceRule[] = [];
+
+type ProxyRequestCallbackResult =
+  | void
+  | {
+      method?: string;
+      url?: string;
+      headers?: Record<string, string>;
+      body?: string;
+      response?: "close" | "reset";
+    };
+
+type ProxyResponseCallbackResult =
+  | void
+  | "close"
+  | "reset"
+  | {
+      statusCode?: number;
+      statusMessage?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    };
+
+type PendingIntercept = {
+  item: InterceptQueueItem;
+} & (
+  | {
+      item: InterceptQueueItem & { stage: "request" };
+      resolve: (result: ProxyRequestCallbackResult) => void;
+    }
+  | {
+      item: InterceptQueueItem & { stage: "response" };
+      resolve: (result: ProxyResponseCallbackResult) => void;
+    }
+);
+
+type ProxyPassThroughResponse = {
+  id: string;
+  statusCode: number;
+  statusMessage?: string;
+  headers?: Record<string, unknown>;
+  body: {
+    getText: () => Promise<string | undefined>;
+  };
 };
 
 function activeLocalContext() {
@@ -138,6 +200,23 @@ function activateLocalContext(nextContext: LocalContext) {
 }
 
 function rememberCapture(entry: CapturedRequest) {
+  const existing = captured.get(entry.id);
+  if (existing?.intercept && !entry.intercept) {
+    entry.intercept = existing.intercept;
+  }
+  if (existing?.rewrites && !entry.rewrites) {
+    if (existing.rewrites.some((hit) => hit.stage === "request")) {
+      entry.requestHeaders = existing.requestHeaders;
+      entry.requestBody = existing.requestBody;
+    }
+    if (existing.rewrites.some((hit) => hit.stage === "response")) {
+      entry.status = existing.status;
+      entry.statusText = existing.statusText;
+      entry.responseHeaders = existing.responseHeaders;
+      entry.responseBody = existing.responseBody;
+    }
+    entry.rewrites = existing.rewrites;
+  }
   if (activeAgentRunId && !entry.agentRunId) {
     entry.agentRunId = activeAgentRunId;
   }
@@ -158,6 +237,369 @@ function rememberCapture(entry: CapturedRequest) {
   if (localStore && localContext) {
     localStore.upsertCapture(localContext.session.id, entry);
   }
+}
+
+function parseCaptureUrlParts(url: string) {
+  try {
+    const parsed = new URL(url);
+    return {
+      host: parsed.host,
+      path: `${parsed.pathname}${parsed.search}`
+    };
+  } catch {
+    return {
+      host: url || "request",
+      path: "/"
+    };
+  }
+}
+
+function interceptStateSnapshot(): InterceptState {
+  return {
+    config: { ...interceptConfig },
+    queue: Array.from(interceptQueue.values()).map((pending) => ({ ...pending.item }))
+  };
+}
+
+function updateCaptureIntercept(
+  captureId: string,
+  stage: "request" | "response",
+  queuedAt: string,
+  resolution: InterceptResolution,
+  edited: boolean,
+  note: string,
+  ruleHits = [] as CaptureInterceptRecord["ruleHits"]
+) {
+  const entry = captured.get(captureId);
+  if (!entry) {
+    return;
+  }
+  const record: CaptureInterceptRecord = {
+    stage,
+    queuedAt,
+    resolvedAt: resolution === "queued" ? undefined : new Date().toISOString(),
+    resolution,
+    edited,
+    note,
+    ruleHits
+  };
+  const existing = entry.intercept || [];
+  entry.intercept = [...existing.filter((item) => item.stage !== stage || item.queuedAt !== queuedAt), record];
+  rememberCapture(entry);
+}
+
+function applyDraftToCapture(captureId: string, draft: ReplayDraft) {
+  const entry = captured.get(captureId);
+  if (!entry) {
+    return;
+  }
+  const parts = parseCaptureUrlParts(draft.url);
+  entry.method = draft.method;
+  entry.url = draft.url;
+  entry.host = parts.host;
+  entry.path = parts.path;
+  entry.requestHeaders = draft.headers;
+  entry.requestBody = draft.body;
+  entry.allowed = isAllowedTarget(draft.url, allowlist);
+  rememberCapture(entry);
+}
+
+function normalizeResponseDraft(input: InterceptResponseDraft): InterceptResponseDraft {
+  return {
+    status: Math.min(Math.max(Math.round(Number(input.status || 200)), 100), 599),
+    statusText: String(input.statusText || "").slice(0, 120),
+    headers: safeJsonHeaders(input.headers || {}),
+    body: truncateText(typeof input.body === "string" ? input.body : "")
+  };
+}
+
+function applyResponseDraftToCapture(captureId: string, draft: InterceptResponseDraft) {
+  const entry = captured.get(captureId);
+  if (!entry) {
+    return;
+  }
+  entry.status = draft.status;
+  entry.statusText = draft.statusText;
+  entry.responseHeaders = draft.headers;
+  entry.responseBody = draft.body;
+  rememberCapture(entry);
+}
+
+function queuedItemChanged(item: InterceptQueueItem, draft: ReplayDraft) {
+  return (
+    item.method !== draft.method ||
+    item.url !== draft.url ||
+    item.body !== draft.body ||
+    JSON.stringify(item.headers) !== JSON.stringify(draft.headers)
+  );
+}
+
+function queuedResponseChanged(item: InterceptQueueItem, draft: InterceptResponseDraft) {
+  return (
+    item.status !== draft.status ||
+    (item.statusText || "") !== draft.statusText ||
+    item.body !== draft.body ||
+    JSON.stringify(item.headers) !== JSON.stringify(draft.headers)
+  );
+}
+
+function shouldQueueForRules(capture: CapturedRequest, stage: "request" | "response") {
+  const enabledRules = interceptRules.filter((rule) => rule.enabled);
+  if (enabledRules.length === 0) {
+    return { queue: true, hits: [] };
+  }
+  const hits = matchingInterceptRules(enabledRules, capture, stage);
+  return { queue: hits.length > 0, hits };
+}
+
+function applyScopedMatchReplace(capture: CapturedRequest, stage: "request" | "response") {
+  if (!capture.allowed) {
+    return { capture, hits: [], changed: false };
+  }
+  return applyMatchReplaceRules(matchReplaceRules, capture, stage);
+}
+
+function requestTransformFromCapture(capture: CapturedRequest): Exclude<ProxyRequestCallbackResult, void> {
+  return {
+    method: capture.method,
+    url: capture.url,
+    headers: capture.requestHeaders,
+    body: capture.requestBody
+  };
+}
+
+function responseTransformFromCapture(capture: CapturedRequest): Exclude<ProxyResponseCallbackResult, void | "close" | "reset"> {
+  return {
+    statusCode: capture.status || 200,
+    statusMessage: capture.statusText,
+    headers: capture.responseHeaders,
+    body: capture.responseBody
+  };
+}
+
+function resolveInterceptItem(
+  id: string,
+  resolution: Exclude<InterceptResolution, "queued">,
+  draftInput?: ReplayDraft,
+  responseInput?: InterceptResponseDraft
+) {
+  const pending = interceptQueue.get(id);
+  if (!pending) {
+    throw new Error("Intercept queue item was not found.");
+  }
+
+  const item = pending.item;
+  const draft = draftInput ? normalizeDraft(draftInput) : normalizeDraft(item);
+  const responseDraft = responseInput
+    ? normalizeResponseDraft(responseInput)
+    : normalizeResponseDraft({
+        status: item.status || 200,
+        statusText: item.statusText || "",
+        headers: item.headers,
+        body: item.body
+      });
+  const edited = item.stage === "response" ? queuedResponseChanged(item, responseDraft) : queuedItemChanged(item, draft);
+  const hasRewrites = Boolean(item.rewrites?.length);
+
+  if (item.stage === "request" && resolution !== "dropped" && !isAllowedTarget(draft.url, allowlist)) {
+    throw new Error(`Edited intercept URL is out of scope: ${draft.url}`);
+  }
+
+  interceptQueue.delete(id);
+
+  if (resolution === "dropped") {
+    const entry = captured.get(item.captureId);
+    if (entry) {
+      entry.status = 0;
+      entry.statusText = "Dropped by Radar intercept";
+      entry.durationMs = Date.now() - new Date(item.queuedAt).getTime();
+      rememberCapture(entry);
+    }
+    updateCaptureIntercept(
+      item.captureId,
+      item.stage,
+      item.queuedAt,
+      "dropped",
+      edited,
+      `Operator dropped the queued ${item.stage}.`,
+      item.ruleHits
+    );
+    if (item.stage === "response") {
+      pending.resolve("close");
+    } else {
+      pending.resolve({ response: "close" });
+    }
+    return interceptStateSnapshot();
+  }
+
+  if (item.stage === "response") {
+    applyResponseDraftToCapture(item.captureId, responseDraft);
+  } else if (edited || hasRewrites) {
+    applyDraftToCapture(item.captureId, draft);
+  }
+  updateCaptureIntercept(
+    item.captureId,
+    item.stage,
+    item.queuedAt,
+    resolution === "resumed" ? "resumed" : edited ? "edited" : "forwarded",
+    edited,
+    edited ? `Operator edited and forwarded the queued ${item.stage}.` : `Operator forwarded the queued ${item.stage}.`,
+    item.ruleHits
+  );
+  if (item.stage === "response") {
+    pending.resolve(
+      edited || hasRewrites
+        ? {
+            statusCode: responseDraft.status,
+            statusMessage: responseDraft.statusText,
+            headers: responseDraft.headers,
+            body: responseDraft.body
+          }
+        : undefined
+    );
+  } else {
+    pending.resolve(edited || hasRewrites ? draft : undefined);
+  }
+  return interceptStateSnapshot();
+}
+
+async function queueInterceptRequest(req: CompletedRequest): Promise<ProxyRequestCallbackResult> {
+  if (!req.url?.startsWith("http")) {
+    return undefined;
+  }
+
+  if (!isAllowedTarget(req.url, allowlist)) {
+    return undefined;
+  }
+
+  const bodyText = truncateText(await req.body.getText().catch(() => ""));
+  let capture = proxyRequestToCapture({ req, bodyText, rules: allowlist });
+  const rewriteResult = applyScopedMatchReplace(capture, "request");
+  capture = rewriteResult.capture;
+  if (rewriteResult.changed) {
+    rememberCapture(capture);
+  }
+
+  const rewriteTransform = rewriteResult.changed ? requestTransformFromCapture(capture) : undefined;
+
+  if (!interceptConfig.requestEnabled || interceptQueue.size >= MAX_INTERCEPT_QUEUE) {
+    return rewriteTransform;
+  }
+
+  const ruleDecision = shouldQueueForRules(capture, "request");
+  if (!ruleDecision.queue) {
+    return rewriteTransform;
+  }
+  const queuedAt = new Date().toISOString();
+  capture.intercept = [
+    {
+      stage: "request",
+      queuedAt,
+      resolution: "queued",
+      edited: false,
+      note: "Scoped proxy request paused before upstream.",
+      ruleHits: ruleDecision.hits
+    }
+  ];
+  rememberCapture(capture);
+
+  const { host, path: requestPath } = parseCaptureUrlParts(capture.url);
+  const item: InterceptQueueItem & { stage: "request" } = {
+    id: `intercept_${randomUUID()}`,
+    captureId: capture.id,
+    stage: "request",
+    queuedAt,
+    method: capture.method,
+    url: capture.url,
+    host,
+    path: requestPath,
+    headers: capture.requestHeaders,
+    body: capture.requestBody,
+    allowed: capture.allowed,
+    source: "proxy",
+    note: "Paused before upstream",
+    ruleHits: ruleDecision.hits,
+    rewrites: rewriteResult.hits
+  };
+
+  return new Promise<ProxyRequestCallbackResult>((resolve) => {
+    interceptQueue.set(item.id, { item, resolve });
+  });
+}
+
+async function queueInterceptResponse(
+  res: ProxyPassThroughResponse,
+  req: CompletedRequest
+): Promise<ProxyResponseCallbackResult> {
+  if (!req.url?.startsWith("http")) {
+    return undefined;
+  }
+
+  if (!isAllowedTarget(req.url, allowlist)) {
+    return undefined;
+  }
+
+  const bodyText = truncateText(await res.body.getText().catch(() => ""));
+  let capture = captured.get(req.id) || proxyRequestToCapture({ req, bodyText: "", rules: allowlist });
+  capture.status = res.statusCode;
+  capture.statusText = res.statusMessage || "";
+  capture.responseHeaders = safeJsonHeaders(res.headers || {});
+  capture.responseBody = bodyText;
+  const rewriteResult = applyScopedMatchReplace(capture, "response");
+  capture = rewriteResult.capture;
+  if (rewriteResult.changed) {
+    rememberCapture(capture);
+  }
+
+  const rewriteTransform = rewriteResult.changed ? responseTransformFromCapture(capture) : undefined;
+
+  if (!interceptConfig.responseEnabled || interceptQueue.size >= MAX_INTERCEPT_QUEUE) {
+    return rewriteTransform;
+  }
+
+  const ruleDecision = shouldQueueForRules(capture, "response");
+  if (!ruleDecision.queue) {
+    rememberCapture(capture);
+    return rewriteTransform;
+  }
+  const queuedAt = new Date().toISOString();
+  capture.intercept = [
+    ...(capture.intercept || []),
+    {
+      stage: "response",
+      queuedAt,
+      resolution: "queued",
+      edited: false,
+      note: "Scoped proxy response paused before client delivery.",
+      ruleHits: ruleDecision.hits
+    }
+  ];
+  rememberCapture(capture);
+
+  const { host, path: requestPath } = parseCaptureUrlParts(capture.url);
+  const item: InterceptQueueItem & { stage: "response" } = {
+    id: `intercept_${randomUUID()}`,
+    captureId: capture.id,
+    stage: "response",
+    queuedAt,
+    method: capture.method,
+    url: capture.url,
+    host,
+    path: requestPath,
+    headers: capture.responseHeaders,
+    body: capture.responseBody,
+    allowed: capture.allowed,
+    source: "proxy",
+    note: "Paused before client",
+    status: capture.status || 200,
+    statusText: capture.statusText,
+    ruleHits: ruleDecision.hits,
+    rewrites: rewriteResult.hits
+  };
+
+  return new Promise<ProxyResponseCallbackResult>((resolve) => {
+    interceptQueue.set(item.id, { item, resolve });
+  });
 }
 
 function rememberSslEvent(event: SslEvent) {
@@ -322,6 +764,8 @@ function hydrateActiveLocalState() {
   }
 
   allowlist = localStore.getTargets(localContext.workspace.id);
+  interceptRules = localStore.listInterceptRules(localContext.workspace.id);
+  matchReplaceRules = localStore.listMatchReplaceRules(localContext.workspace.id);
   captured.clear();
   webSocketConnections.clear();
   for (const entry of localStore.listCaptures(localContext.session.id, HOT_CAPTURE_LIMIT).reverse()) {
@@ -910,6 +1354,7 @@ function createAgentRuntime() {
       return openRealChrome(url);
     },
     getCaptures: () => listHttpCaptures(400),
+    getInterceptState: () => interceptStateSnapshot(),
     sendReplay: (draft) => sendRequest(draft),
     waitForNetworkIdle,
     getPageText,
@@ -1265,7 +1710,10 @@ async function startMitmProxy(port = 8088) {
   await proxyServer.on("websocket-close", rememberProxyWebSocketClose);
 
   await proxyServer.forAnyWebSocket().thenPassThrough();
-  await proxyServer.forAnyRequest().thenPassThrough();
+  await proxyServer.forAnyRequest().waitForRequestBody().thenPassThrough({
+    beforeRequest: queueInterceptRequest,
+    beforeResponse: queueInterceptResponse
+  });
 
   proxyState = {
     ...ca,
@@ -1610,6 +2058,20 @@ ipcMain.handle("proxy:stop", () => stopMitmProxy());
 
 ipcMain.handle("proxy:state", () => proxyState);
 
+ipcMain.handle("proxy:profiles:get", () => {
+  if (!localStore || !localContext) {
+    return [];
+  }
+  return localStore.listProxyProfiles(localContext.workspace.id);
+});
+
+ipcMain.handle("proxy:profiles:save", (_event, payload) => {
+  return activeLocalStore().saveProxyProfile(activeLocalContext().workspace.id, {
+    id: payload?.id,
+    notes: payload?.notes
+  });
+});
+
 ipcMain.handle("capture:snapshot", () => {
   return listHttpCaptures(400);
 });
@@ -1633,6 +2095,63 @@ ipcMain.handle("capture:clear", () => {
     localStore.clearCaptures(localContext.session.id);
   }
   return { ok: true };
+});
+
+ipcMain.handle("intercept:state", () => interceptStateSnapshot());
+
+ipcMain.handle("intercept:config", (_event, config) => {
+  const next = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  const payload = next as Partial<InterceptConfig>;
+  interceptConfig = {
+    requestEnabled:
+      typeof payload.requestEnabled === "boolean" ? payload.requestEnabled : interceptConfig.requestEnabled,
+    responseEnabled:
+      typeof payload.responseEnabled === "boolean" ? payload.responseEnabled : interceptConfig.responseEnabled
+  };
+  return interceptStateSnapshot();
+});
+
+ipcMain.handle("intercept:forward", (_event, payload) => {
+  const id = String(payload?.id || "").trim();
+  if (!id) {
+    throw new Error("Intercept queue item id is required.");
+  }
+  const draft =
+    payload?.draft && typeof payload.draft === "object" && !Array.isArray(payload.draft)
+      ? (payload.draft as ReplayDraft)
+      : undefined;
+  const response =
+    payload?.response && typeof payload.response === "object" && !Array.isArray(payload.response)
+      ? (payload.response as InterceptResponseDraft)
+      : undefined;
+  return resolveInterceptItem(id, draft || response ? "edited" : "forwarded", draft, response);
+});
+
+ipcMain.handle("intercept:drop", (_event, id) => {
+  return resolveInterceptItem(String(id || "").trim(), "dropped");
+});
+
+ipcMain.handle("intercept:resume-all", () => {
+  for (const id of Array.from(interceptQueue.keys())) {
+    resolveInterceptItem(id, "resumed");
+  }
+  return interceptStateSnapshot();
+});
+
+ipcMain.handle("intercept:rules:get", () => interceptRules);
+
+ipcMain.handle("intercept:rules:set", (_event, rules) => {
+  const next = normalizeInterceptRules(rules);
+  interceptRules = localStore && localContext ? localStore.setInterceptRules(localContext.workspace.id, next) : next;
+  return interceptRules;
+});
+
+ipcMain.handle("match-replace:rules:get", () => matchReplaceRules);
+
+ipcMain.handle("match-replace:rules:set", (_event, rules) => {
+  const next = normalizeMatchReplaceRules(rules);
+  matchReplaceRules = localStore && localContext ? localStore.setMatchReplaceRules(localContext.workspace.id, next) : next;
+  return matchReplaceRules;
 });
 
 ipcMain.handle("ssl:snapshot", () => sslEvents.slice(0, 80));
