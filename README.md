@@ -11,7 +11,7 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 - WebSocket analyzer with handshake, sent, received, error, and close frames; the same scoped query language; direction filters; frame detail copy; and proxy-backed passthrough so controlled Chrome can load WebSocket apps.
 - Sitemap view with host/path/endpoint tree navigation, endpoint inventory (query params, body keys, auth signals), session diff against an earlier session, and one-click jump into filtered HTTP(S) traffic.
 - Intercept view for pausing scoped proxy requests and responses, editing request method/URL/headers/body or response status/headers/body, forwarding, dropping, resuming queued items, applying persisted intercept and match/replace rules, and preserving mutation evidence in HTTP history.
-- Clone captured requests into a repeater with full header and body editing.
+- Clone captured requests into a repeater with full header and body editing, multiple named tabs, per-tab replay history, response diffing, environment variables, collections, request transforms, and WebSocket frame replay.
 - Single replay plus capped burst replay (count, parallelism, delay) for hardening checks.
 - Scope-filtered HTTP/S and WebSocket evidence for focusing on selected targets.
 - Local HTTPS proxy mode for external browsers, with a Radar-generated CA, SPKI fingerprint, and per-workspace setup notes for browser, CLI, and device clients.
@@ -87,7 +87,7 @@ Scoped proxy request and response queue. Turn **Requests On** to pause in-scope 
 
 ![Radar Repeater view](docs/screens/radar-02-repeater.png)
 
-Manual replay surface. Left: method selector, URL line, JSON-edited headers, free-form body, and **Transmit** for a single round trip. Right: the Saturate burst panel (count / parallel / delay) and a response well showing the most recent status, latency, body, and any flagged failures from a burst. **Trust Origin** in the panel header pushes the current URL's origin into the scope allowlist in one click.
+Manual replay surface with multiple tabs, per-tab history, response diffing, environment variables, collections, request transforms, and optional WebSocket frame replay. Left: method selector, URL line, JSON-edited headers, free-form body, transform shortcuts, and **Transmit** for a single round trip. Right: the Saturate burst panel (count / parallel / delay), response well, replay history, diff panel, and collection/environment shortcuts. **Trust Origin** in the panel header pushes the current URL's origin into the scope allowlist in one click.
 
 ### 05 — Sitemap
 

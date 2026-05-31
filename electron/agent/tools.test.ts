@@ -17,7 +17,10 @@ describe("agent tools", () => {
         "getCaptures",
         "getInterceptQueue",
         "prepareInterceptEdit",
-        "sendReplay"
+        "sendReplay",
+        "getReplayContext",
+        "prepareReplayTab",
+        "compareReplayResults"
       ])
     );
     expect(toolSchemas()).toHaveProperty("getDomSummary");
@@ -58,6 +61,38 @@ describe("agent tools", () => {
         response: undefined,
         note: "load this mutation"
       }
+    });
+    expect(
+      normalizeAgentToolCall({
+        tool: "prepareReplayTab",
+        input: {
+          name: " Auth ",
+          draft: { method: "GET", url: "https://allowed.test/profile", headers: { A: 1 }, body: "" },
+          environmentId: " env-1 ",
+          note: "review this"
+        }
+      })
+    ).toEqual({
+      tool: "prepareReplayTab",
+      input: {
+        name: "Auth",
+        draft: { method: "GET", url: "https://allowed.test/profile", headers: { A: "1" }, body: "" },
+        environmentId: "env-1",
+        note: "review this"
+      }
+    });
+    expect(
+      normalizeAgentToolCall({
+        tool: "compareReplayResults",
+        input: { leftHistoryId: " left ", rightHistoryId: " right ", tabId: " tab-1 " }
+      })
+    ).toEqual({
+      tool: "compareReplayResults",
+      input: { leftHistoryId: "left", rightHistoryId: "right", tabId: "tab-1" }
+    });
+    expect(normalizeAgentToolCall({ tool: "getReplayContext", input: {} })).toEqual({
+      tool: "getReplayContext",
+      input: {}
     });
   });
 

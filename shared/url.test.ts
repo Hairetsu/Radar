@@ -28,5 +28,6 @@ describe("url", () => {
     expect(firstUrlFromText("Inspect hairetsu.com for API hardening")).toBe("https://hairetsu.com");
     expect(firstUrlFromText("Try localhost:3000/admin.")).toBe("https://localhost:3000/admin");
     expect(firstUrlFromText("Email ops@example.com for access")).toBe("");
+    expect(firstUrlFromText("See https://example.com/path).")).toBe("https://example.com/path");
   });
 });

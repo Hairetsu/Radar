@@ -42,13 +42,20 @@ export type {
   ProxyProfile,
   ProxyProfileId,
   ProxyState,
+  ReplayCollection,
   ReplayDraft,
+  ReplayEnvironment,
+  ReplayHistoryEntry,
   ReplayResult,
+  ReplayTab,
+  ReplayTabState,
   SavedFilter,
   SslEvent,
   TlsDetails,
   WebSocketDirection,
-  WebSocketEvent
+  WebSocketEvent,
+  WebSocketReplayDraft,
+  WebSocketReplayResult
 } from "../shared/domain";
 
 export type {

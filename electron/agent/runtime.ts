@@ -20,12 +20,16 @@ import type {
   InterceptResponseDraft,
   InterceptState,
   ReplayDraft,
-  ReplayResult
+  ReplayEnvironment,
+  ReplayResult,
+  ReplayTabState
 } from "../../shared/domain.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeDraft } from "../../shared/draft.js";
 import { buildSitemap } from "../../shared/sitemap.js";
+import { diffReplayHistory } from "../../shared/replayDiff.js";
+import { createReplayTab, normalizeReplayTabState } from "../../shared/replayTabs.js";
 import { parseTrafficQuery } from "../../shared/trafficQuery.js";
 import { DEFAULT_AGENT_POLICY, blockedToolReason, normalizeAgentPolicy } from "./policy.js";
 import { availableToolNames, normalizeAgentToolCall } from "./tools.js";
@@ -41,7 +45,11 @@ type AgentRuntimeDeps = {
   navigateBrowser: (url: string) => Promise<BrowserState>;
   getCaptures: () => CapturedRequest[];
   getInterceptState: () => InterceptState;
-  sendReplay: (draft: ReplayDraft) => Promise<ReplayResult>;
+  getReplayTabState: () => ReplayTabState;
+  setReplayTabState: (state: ReplayTabState) => ReplayTabState;
+  listReplayEnvironments: () => ReplayEnvironment[];
+  listReplayCollections: () => Array<{ id: string; name: string; items: unknown[] }>;
+  sendReplay: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
   waitForNetworkIdle: (input: { idleMs?: number; timeoutMs?: number }) => Promise<{ idle: boolean; waitedMs: number }>;
   getPageText: () => Promise<{ url: string; title: string; text: string }>;
   getDomSummary: () => Promise<{
@@ -587,9 +595,81 @@ export class AgentRuntime {
           };
           break;
         }
+        case "getReplayContext": {
+          const tabState = this.deps.getReplayTabState();
+          const environments = this.deps.listReplayEnvironments();
+          const collections = this.deps.listReplayCollections();
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              tabState,
+              environments: environments.map((environment) => ({
+                id: environment.id,
+                name: environment.name,
+                variableCount: Object.keys(environment.variables).length
+              })),
+              collections: collections.map((collection) => ({
+                id: collection.id,
+                name: collection.name,
+                itemCount: collection.items.length
+              }))
+            }
+          };
+          break;
+        }
+        case "prepareReplayTab": {
+          const current = this.deps.getReplayTabState();
+          const tab = createReplayTab(normalizedCall.input.name || `AI ${current.tabs.length + 1}`, normalizedCall.input.draft);
+          const next = normalizeReplayTabState({
+            tabs: [...current.tabs, { ...tab, environmentId: normalizedCall.input.environmentId || "" }],
+            activeTabId: tab.id
+          });
+          this.deps.setReplayTabState(next);
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              tabId: tab.id,
+              name: tab.name,
+              draft: tab.draft,
+              environmentId: normalizedCall.input.environmentId || "",
+              note: normalizedCall.input.note || "Prepared replay tab for operator review."
+            }
+          };
+          break;
+        }
+        case "compareReplayResults": {
+          const tabState = this.deps.getReplayTabState();
+          const tab =
+            tabState.tabs.find((item) => item.id === (normalizedCall.input.tabId || tabState.activeTabId)) ||
+            tabState.tabs[0];
+          if (!tab) {
+            throw new Error("No repeater tab is available.");
+          }
+          const left = tab.history.find((entry) => entry.id === normalizedCall.input.leftHistoryId);
+          const right = tab.history.find((entry) => entry.id === normalizedCall.input.rightHistoryId);
+          if (!left || !right) {
+            throw new Error("Replay history entries were not found in the selected tab.");
+          }
+          const summary = diffReplayHistory(left, right);
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              statusChanged: summary.statusChanged,
+              statusBefore: summary.statusBefore,
+              statusAfter: summary.statusAfter,
+              latencyDeltaMs: summary.latencyDeltaMs,
+              bodyLengthDelta: summary.bodyLengthDelta,
+              identical: summary.identical
+            }
+          };
+          break;
+        }
         case "sendReplay": {
           counters.replayCount += 1;
-          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.sendReplay(normalizeDraft(normalizedCall.input.draft)) };
+          result = { tool: normalizedCall.tool, ok: true, data: await this.deps.sendReplay(normalizedCall.input.draft) };
           break;
         }
       }

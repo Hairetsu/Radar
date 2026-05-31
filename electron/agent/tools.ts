@@ -169,6 +169,29 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     description: "Validate and prepare a traffic query for the operator-visible traffic filter bar.",
     safety: "prepare",
     schema: { query: "traffic query string", reason: "string" }
+  },
+  {
+    name: "getReplayContext",
+    description: "Read scoped repeater tabs, environments, and collections without mutating replay state.",
+    safety: "observe",
+    schema: {}
+  },
+  {
+    name: "prepareReplayTab",
+    description: "Prepare a replay draft in a visible repeater tab; the operator still confirms transmit.",
+    safety: "prepare",
+    schema: {
+      name: "tab name optional",
+      draft: { method: "HTTP method", url: "http(s) URL inside scope", headers: {}, body: "" },
+      environmentId: "environment id optional",
+      note: "string optional"
+    }
+  },
+  {
+    name: "compareReplayResults",
+    description: "Compare two replay history entries from the active or specified repeater tab.",
+    safety: "observe",
+    schema: { leftHistoryId: "history id", rightHistoryId: "history id", tabId: "tab id optional" }
   }
 ];
 
@@ -340,5 +363,29 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
           })
         }
       };
+    case "prepareReplayTab":
+      return {
+        tool: call.tool,
+        input: {
+          name: String(input.name || "").trim().slice(0, 60),
+          draft: normalizeDraft({
+            ...objectValue(input.draft),
+            headers: normalizeHeaders(objectValue(input.draft).headers)
+          }),
+          environmentId: String(input.environmentId || "").trim().slice(0, 80),
+          note: String(input.note || "").slice(0, 240)
+        }
+      };
+    case "compareReplayResults":
+      return {
+        tool: call.tool,
+        input: {
+          leftHistoryId: String(input.leftHistoryId || "").trim(),
+          rightHistoryId: String(input.rightHistoryId || "").trim(),
+          tabId: String(input.tabId || "").trim()
+        }
+      };
+    case "getReplayContext":
+      return { tool: call.tool, input: {} };
   }
 }

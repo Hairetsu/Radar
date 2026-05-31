@@ -14,6 +14,16 @@ import { buildSitemap, sitemapQueryForNode, type SitemapNode } from "../../share
 import { endpointInventoryForNode } from "../../shared/endpointInventory.js";
 import { diffSessionCaptures, type SessionDiffResult } from "../../shared/sessionDiff.js";
 import { annotationContext } from "../../shared/evidenceTags.js";
+import { diffReplayHistory, type ReplayDiffSummary } from "../../shared/replayDiff.js";
+import {
+  appendReplayHistory,
+  createReplayTab,
+  defaultReplayTabState,
+  normalizeReplayTabState
+} from "../../shared/replayTabs.js";
+import { createCollectionItem } from "../../shared/replayCollections.js";
+import { createReplayEnvironment } from "../../shared/replayVariables.js";
+import { webSocketFrameToDraft } from "../../shared/websocketReplay.js";
 import {
   filterCapturesByQuery,
   filterWebSocketEventsByQuery,
@@ -37,11 +47,17 @@ import type {
   ProxyProfile,
   ProxyProfileId,
   ProxyState,
+  ReplayCollection,
   ReplayDraft,
+  ReplayEnvironment,
+  ReplayHistoryEntry,
   ReplayResult,
+  ReplayTabState,
   SavedFilter,
   SslEvent,
-  WebSocketEvent
+  WebSocketEvent,
+  WebSocketReplayDraft,
+  WebSocketReplayResult
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
@@ -309,8 +325,40 @@ export function useRadarWorkbench() {
   const trafficSearchRef = useRef<HTMLInputElement | null>(null);
   const [trafficSortField, setTrafficSortField] = useState<TrafficSortField>("time");
   const [trafficSortDirection, setTrafficSortDirection] = useState<TrafficSortDirection>("desc");
-  const [draft, setDraft] = useState<ReplayDraft>(emptyDraft);
+  const [replayTabState, setReplayTabState] = useState<ReplayTabState>(() => defaultReplayTabState());
+  const [replayEnvironments, setReplayEnvironments] = useState<ReplayEnvironment[]>([]);
+  const [replayCollections, setReplayCollections] = useState<ReplayCollection[]>([]);
+  const [diffLeftHistoryId, setDiffLeftHistoryId] = useState("");
+  const [diffRightHistoryId, setDiffRightHistoryId] = useState("");
+  const [webSocketReplayDraft, setWebSocketReplayDraft] = useState<WebSocketReplayDraft | null>(null);
+  const [webSocketReplayResult, setWebSocketReplayResult] = useState<WebSocketReplayResult | null>(null);
   const [headersText, setHeadersText] = useState(formatHeaders(emptyDraft.headers));
+  const activeReplayTab = useMemo(
+    () => replayTabState.tabs.find((tab) => tab.id === replayTabState.activeTabId) || replayTabState.tabs[0],
+    [replayTabState]
+  );
+  const draft = activeReplayTab?.draft ?? emptyDraft;
+
+  const persistReplayTabState = useCallback(async (next: ReplayTabState) => {
+    const normalized = normalizeReplayTabState(next);
+    setReplayTabState(normalized);
+    await window.radar?.setReplayTabState(normalized);
+    return normalized;
+  }, []);
+
+  const setDraft = useCallback(
+    (nextDraft: ReplayDraft) => {
+      void persistReplayTabState({
+        ...replayTabState,
+        tabs: replayTabState.tabs.map((tab) =>
+          tab.id === replayTabState.activeTabId
+            ? { ...tab, draft: nextDraft, updatedAt: new Date().toISOString() }
+            : tab
+        )
+      });
+    },
+    [persistReplayTabState, replayTabState]
+  );
   const [activeView, setActiveView] = useState<WorkView>("traffic");
   const [activeDetail, setActiveDetail] = useState<"request" | "response">("request");
   const [lastResponse, setLastResponse] = useState<ReplayResult | null>(null);
@@ -364,7 +412,10 @@ export function useRadarWorkbench() {
           nextMatchReplaceRules,
           nextAgentRuns,
           nextSavedFilters,
-          nextEvidenceAnnotations
+          nextEvidenceAnnotations,
+          nextReplayTabState,
+          nextReplayEnvironments,
+          nextReplayCollections
         ] = await Promise.all([
           window.radar.getTargets(),
           window.radar.getCaptures(),
@@ -377,7 +428,10 @@ export function useRadarWorkbench() {
           loadMatchReplaceRules(),
           window.radar.listAgentRuns(),
           window.radar.getSavedFilters?.() ?? [],
-          window.radar.getEvidenceAnnotations?.() ?? []
+          window.radar.getEvidenceAnnotations?.() ?? [],
+          window.radar.getReplayTabState?.() ?? defaultReplayTabState(),
+          window.radar.getReplayEnvironments?.() ?? [],
+          window.radar.getReplayCollections?.() ?? []
         ]);
         setTargets(nextTargets);
         setTargetText(nextTargets.join("\n"));
@@ -394,6 +448,16 @@ export function useRadarWorkbench() {
         setAgentRuns(nextAgentRuns);
         setSavedFilters(nextSavedFilters);
         setEvidenceAnnotations(nextEvidenceAnnotations);
+        const normalizedTabs = normalizeReplayTabState(nextReplayTabState);
+        setReplayTabState(normalizedTabs);
+        setReplayEnvironments(nextReplayEnvironments);
+        setReplayCollections(nextReplayCollections);
+        const activeTab = normalizedTabs.tabs.find((tab) => tab.id === normalizedTabs.activeTabId) || normalizedTabs.tabs[0];
+        setHeadersText(formatHeaders(activeTab?.draft.headers || emptyDraft.headers));
+        setDiffLeftHistoryId("");
+        setDiffRightHistoryId("");
+        setWebSocketReplayDraft(null);
+        setWebSocketReplayResult(null);
         setSessionDiff(null);
         setDiffBaselineSessionId("");
         setSelectedSitemapNodeId("");
@@ -460,7 +524,7 @@ export function useRadarWorkbench() {
     setLastResponse(null);
     setLastBurst(null);
     setActiveView("repeater");
-  }, []);
+  }, [setDraft]);
 
   const prepareAiNavigate = useCallback((url: string) => {
     setAddress(normalizeUrl(url));
@@ -481,7 +545,7 @@ export function useRadarWorkbench() {
     setLastBurst(null);
     setActiveView("repeater");
     setNotice("Loaded in repeater");
-  }, []);
+  }, [setDraft]);
 
   const sendReplayAction = useCallback(async () => {
     if (!window.radar) {
@@ -491,13 +555,23 @@ export function useRadarWorkbench() {
     try {
       setNotice("");
       const request = { ...draft, headers: parseHeaders(headersText) };
-      const response = await window.radar.sendReplay(request);
+      const response = await window.radar.sendReplay({
+        draft: request,
+        environmentId: activeReplayTab?.environmentId || ""
+      });
       setLastResponse(response);
       setLastBurst(null);
+      if (activeReplayTab) {
+        const nextTab = appendReplayHistory(activeReplayTab, request, response);
+        await persistReplayTabState({
+          ...replayTabState,
+          tabs: replayTabState.tabs.map((tab) => (tab.id === nextTab.id ? nextTab : tab))
+        });
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Replay failed");
     }
-  }, [draft, headersText]);
+  }, [activeReplayTab, draft, headersText, persistReplayTabState, replayTabState]);
 
   const runBurstAction = useCallback(async () => {
     if (!window.radar) {
@@ -511,17 +585,192 @@ export function useRadarWorkbench() {
         request,
         count,
         concurrency,
-        delayMs
+        delayMs,
+        environmentId: activeReplayTab?.environmentId || ""
       });
       setLastBurst(response);
       setLastResponse(response.results[response.results.length - 1] || null);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Burst failed");
     }
-  }, [concurrency, count, delayMs, draft, headersText]);
+  }, [concurrency, count, delayMs, draft, headersText, activeReplayTab?.environmentId]);
 
   const sendReplayMutation = useAsyncAction(sendReplayAction);
   const runBurstMutation = useAsyncAction(runBurstAction);
+
+  const selectReplayTab = useCallback(
+    async (tabId: string) => {
+      const next = normalizeReplayTabState({ ...replayTabState, activeTabId: tabId });
+      const tab = next.tabs.find((item) => item.id === tabId);
+      setHeadersText(formatHeaders(tab?.draft.headers || emptyDraft.headers));
+      setLastResponse(tab?.history[0]?.result || null);
+      setLastBurst(null);
+      setDiffLeftHistoryId("");
+      setDiffRightHistoryId("");
+      await persistReplayTabState(next);
+    },
+    [persistReplayTabState, replayTabState]
+  );
+
+  const createReplayTabAction = useCallback(
+    async (name?: string) => {
+      const tab = createReplayTab(name || `Request ${replayTabState.tabs.length + 1}`);
+      const next = normalizeReplayTabState({
+        tabs: [...replayTabState.tabs, tab],
+        activeTabId: tab.id
+      });
+      setHeadersText(formatHeaders(tab.draft.headers));
+      setLastResponse(null);
+      setLastBurst(null);
+      await persistReplayTabState(next);
+    },
+    [persistReplayTabState, replayTabState.tabs]
+  );
+
+  const renameReplayTab = useCallback(
+    async (tabId: string, name: string) => {
+      await persistReplayTabState({
+        ...replayTabState,
+        tabs: replayTabState.tabs.map((tab) =>
+          tab.id === tabId ? { ...tab, name: name.trim() || tab.name, updatedAt: new Date().toISOString() } : tab
+        )
+      });
+    },
+    [persistReplayTabState, replayTabState]
+  );
+
+  const closeReplayTab = useCallback(
+    async (tabId: string) => {
+      if (replayTabState.tabs.length <= 1) {
+        return;
+      }
+      const tabs = replayTabState.tabs.filter((tab) => tab.id !== tabId);
+      const activeTabId = replayTabState.activeTabId === tabId ? tabs[0].id : replayTabState.activeTabId;
+      const next = normalizeReplayTabState({ tabs, activeTabId });
+      const tab = next.tabs.find((item) => item.id === activeTabId);
+      setHeadersText(formatHeaders(tab?.draft.headers || emptyDraft.headers));
+      setLastResponse(tab?.history[0]?.result || null);
+      await persistReplayTabState(next);
+    },
+    [persistReplayTabState, replayTabState]
+  );
+
+  const toggleReplayTabPin = useCallback(
+    async (tabId: string) => {
+      await persistReplayTabState({
+        ...replayTabState,
+        tabs: replayTabState.tabs.map((tab) =>
+          tab.id === tabId ? { ...tab, pinned: !tab.pinned, updatedAt: new Date().toISOString() } : tab
+        )
+      });
+    },
+    [persistReplayTabState, replayTabState]
+  );
+
+  const setReplayTabEnvironment = useCallback(
+    async (environmentId: string) => {
+      await persistReplayTabState({
+        ...replayTabState,
+        tabs: replayTabState.tabs.map((tab) =>
+          tab.id === replayTabState.activeTabId ? { ...tab, environmentId, updatedAt: new Date().toISOString() } : tab
+        )
+      });
+    },
+    [persistReplayTabState, replayTabState]
+  );
+
+  const loadReplayHistoryEntry = useCallback((entry: ReplayHistoryEntry) => {
+    setDraft(entry.draft);
+    setHeadersText(formatHeaders(entry.draft.headers));
+    setLastResponse(entry.result);
+    setLastBurst(null);
+    setNotice("Loaded replay history entry");
+  }, [setDraft]);
+
+  const replayDiff = useMemo<ReplayDiffSummary | null>(() => {
+    if (!activeReplayTab || !diffLeftHistoryId || !diffRightHistoryId) {
+      return null;
+    }
+    const left = activeReplayTab.history.find((entry) => entry.id === diffLeftHistoryId);
+    const right = activeReplayTab.history.find((entry) => entry.id === diffRightHistoryId);
+    if (!left || !right) {
+      return null;
+    }
+    return diffReplayHistory(left, right);
+  }, [activeReplayTab, diffLeftHistoryId, diffRightHistoryId]);
+
+  const saveReplayEnvironments = useCallback(async (next: ReplayEnvironment[]) => {
+    const saved = (await window.radar?.setReplayEnvironments(next)) || next;
+    setReplayEnvironments(saved);
+    setNotice("Environments saved");
+  }, []);
+
+  const saveReplayCollectionsState = useCallback(async (next: ReplayCollection[]) => {
+    const saved = (await window.radar?.setReplayCollections(next)) || next;
+    setReplayCollections(saved);
+    setNotice("Collections saved");
+  }, []);
+
+  const saveDraftToCollection = useCallback(
+    async (collectionId: string, itemName: string) => {
+      const item = createCollectionItem(itemName, { ...draft, headers: parseHeaders(headersText) });
+      const next = replayCollections.map((collection) =>
+        collection.id === collectionId
+          ? { ...collection, items: [item, ...collection.items], updatedAt: new Date().toISOString() }
+          : collection
+      );
+      await saveReplayCollectionsState(next);
+    },
+    [draft, headersText, replayCollections, saveReplayCollectionsState]
+  );
+
+  const loadCollectionItem = useCallback(
+    (itemDraft: ReplayDraft) => {
+      setDraft(itemDraft);
+      setHeadersText(formatHeaders(itemDraft.headers));
+      setLastResponse(null);
+      setLastBurst(null);
+      setActiveView("repeater");
+      setNotice("Loaded collection item");
+    },
+    [setDraft]
+  );
+
+  const createReplayEnvironmentAction = useCallback(
+    async (name: string) => {
+      const environment = createReplayEnvironment(name);
+      await saveReplayEnvironments([environment, ...replayEnvironments]);
+      return environment;
+    },
+    [replayEnvironments, saveReplayEnvironments]
+  );
+
+  const loadWebSocketFrameToRepeater = useCallback((event: WebSocketEvent) => {
+    const nextDraft = webSocketFrameToDraft(event);
+    if (!nextDraft) {
+      setNotice("This frame cannot be replayed.");
+      return;
+    }
+    setWebSocketReplayDraft(nextDraft);
+    setWebSocketReplayResult(null);
+    setActiveView("repeater");
+    setNotice("Loaded WebSocket frame in repeater");
+  }, []);
+
+  const sendWebSocketReplayAction = useCallback(async () => {
+    if (!window.radar?.sendWebSocketReplay || !webSocketReplayDraft) {
+      setNotice("Run in Electron to replay WebSocket frames.");
+      return;
+    }
+    try {
+      const result = await window.radar.sendWebSocketReplay(webSocketReplayDraft);
+      setWebSocketReplayResult(result);
+      setWebSocketEvents(await loadWebSocketEvents());
+      setNotice(result.ok ? "WebSocket replay sent" : result.error || "WebSocket replay failed");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "WebSocket replay failed");
+    }
+  }, [webSocketReplayDraft]);
 
   const clearCaptures = useCallback(async () => {
     await window.radar?.clearCaptures();
@@ -984,10 +1233,35 @@ export function useRadarWorkbench() {
       if (entry.toolResult?.tool === "getSitemapCoverage" && entry.toolResult.ok) {
         setActiveView("sitemap");
       }
+
+      if (entry.toolResult?.tool === "prepareReplayTab" && entry.toolResult.ok) {
+        const { tabId, draft: preparedDraft, note } = entry.toolResult.data;
+        void window.radar?.getReplayTabState().then((state) => {
+          if (!state) {
+            return;
+          }
+          setReplayTabState(state);
+          const tab = state.tabs.find((item) => item.id === tabId);
+          setHeadersText(formatHeaders(tab?.draft.headers || preparedDraft.headers));
+          setLastResponse(null);
+          setLastBurst(null);
+        });
+        setActiveView("repeater");
+        setNotice(note);
+      }
+
+      if (entry.toolResult?.tool === "compareReplayResults" && entry.toolResult.ok) {
+        setActiveView("repeater");
+        setNotice(
+          entry.toolResult.data.identical
+            ? "Compared replay results: no differences"
+            : `Compared replay results: status ${entry.toolResult.data.statusBefore} → ${entry.toolResult.data.statusAfter}`
+        );
+      }
     }
 
     agentUiCursorRef.current = { runId: activeAgentRun.id, entryId: lastEntry.id };
-  }, [activeAgentRun, appMode, hydrateInterceptDraft]);
+  }, [activeAgentRun, appMode, hydrateInterceptDraft, setDraft]);
 
   const queryContext = useMemo(() => annotationContext(evidenceAnnotations), [evidenceAnnotations]);
 
@@ -1584,6 +1858,32 @@ export function useRadarWorkbench() {
     trafficTypes,
     draft,
     setDraft,
+    replayTabState,
+    activeReplayTab,
+    selectReplayTab,
+    createReplayTab: createReplayTabAction,
+    renameReplayTab,
+    closeReplayTab,
+    toggleReplayTabPin,
+    setReplayTabEnvironment,
+    loadReplayHistoryEntry,
+    diffLeftHistoryId,
+    setDiffLeftHistoryId,
+    diffRightHistoryId,
+    setDiffRightHistoryId,
+    replayDiff,
+    replayEnvironments,
+    saveReplayEnvironments,
+    createReplayEnvironment: createReplayEnvironmentAction,
+    replayCollections,
+    saveReplayCollections: saveReplayCollectionsState,
+    saveDraftToCollection,
+    loadCollectionItem,
+    webSocketReplayDraft,
+    setWebSocketReplayDraft,
+    webSocketReplayResult,
+    loadWebSocketFrameToRepeater,
+    sendWebSocketReplay: sendWebSocketReplayAction,
     headersText,
     setHeadersText,
     activeView,
