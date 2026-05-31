@@ -12,11 +12,18 @@ import type {
   BrowserState,
   BurstResult,
   CapturedRequest,
+  InterceptQueueItem,
+  InterceptResponseDraft,
+  InterceptRule,
+  InterceptState,
   AgentRun,
   AppMode,
   LocalContext,
   LocalProfile,
   LocalSessionSummary,
+  MatchReplaceRule,
+  ProxyProfile,
+  ProxyProfileId,
   ProxyState,
   ReplayDraft,
   ReplayResult,
@@ -27,9 +34,9 @@ import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
 import { useTheme } from "./useTheme";
 
-export type WorkView = "traffic" | "websocket" | "repeater" | "scope" | "ssl";
+export type WorkView = "traffic" | "websocket" | "intercept" | "repeater" | "scope" | "ssl";
 
-export const WORK_VIEWS: WorkView[] = ["traffic", "websocket", "repeater", "scope", "ssl"];
+export const WORK_VIEWS: WorkView[] = ["traffic", "websocket", "intercept", "repeater", "scope", "ssl"];
 
 export type TrafficSortField = "time" | "method" | "status" | "host" | "path" | "type" | "duration";
 
@@ -71,6 +78,14 @@ const defaultProxyState: ProxyState = {
   caFingerprint: ""
 };
 
+const defaultInterceptState: InterceptState = {
+  config: {
+    requestEnabled: false,
+    responseEnabled: false
+  },
+  queue: []
+};
+
 function storedAppMode(): AppMode {
   if (typeof window === "undefined") {
     return "manual-first";
@@ -85,9 +100,10 @@ function isActiveAgentRun(run: AgentRun | null | undefined) {
 export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: string; title: string }> = {
   traffic: { num: "01", label: "HTTP(S)", eyebrow: "HTTP / HTTPS // Request capture", title: "HTTP / HTTPS Traffic" },
   websocket: { num: "02", label: "WebSocket", eyebrow: "Streams // Frame analysis", title: "WebSocket" },
-  repeater: { num: "03", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
-  scope: { num: "04", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "05", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
+  intercept: { num: "03", label: "Intercept", eyebrow: "Proxy // Pause and mutate", title: "Intercept" },
+  repeater: { num: "04", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
+  scope: { num: "05", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "06", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -195,6 +211,68 @@ async function loadWebSocketEvents() {
   }
 }
 
+async function loadInterceptState() {
+  if (!window.radar?.getInterceptState) {
+    return defaultInterceptState;
+  }
+  try {
+    return await window.radar.getInterceptState();
+  } catch {
+    return defaultInterceptState;
+  }
+}
+
+function interceptDraftFromItem(item: InterceptQueueItem): ReplayDraft {
+  return {
+    method: item.method,
+    url: item.url,
+    headers: item.headers,
+    body: item.body
+  };
+}
+
+function interceptResponseFromItem(item: InterceptQueueItem): InterceptResponseDraft {
+  return {
+    status: item.status || 200,
+    statusText: item.statusText || "",
+    headers: item.headers,
+    body: item.body
+  };
+}
+
+async function loadInterceptRules() {
+  if (!window.radar?.getInterceptRules) {
+    return [];
+  }
+  try {
+    return await window.radar.getInterceptRules();
+  } catch {
+    return [];
+  }
+}
+
+async function loadMatchReplaceRules() {
+  if (!window.radar?.getMatchReplaceRules) {
+    return [];
+  }
+  try {
+    return await window.radar.getMatchReplaceRules();
+  } catch {
+    return [];
+  }
+}
+
+async function loadProxyProfiles() {
+  if (!window.radar?.getProxyProfiles) {
+    return [];
+  }
+  try {
+    return await window.radar.getProxyProfiles();
+  } catch {
+    return [];
+  }
+}
+
 export function useRadarWorkbench() {
   const [address, setAddress] = useState(defaultUrl);
   const [captures, setCaptures] = useState<CapturedRequest[]>([]);
@@ -210,6 +288,20 @@ export function useRadarWorkbench() {
   const [newSessionName, setNewSessionName] = useState("");
   const [browserState, setBrowserState] = useState<BrowserState>(defaultBrowserState);
   const [proxyState, setProxyState] = useState<ProxyState>(defaultProxyState);
+  const [proxyProfiles, setProxyProfiles] = useState<ProxyProfile[]>([]);
+  const [selectedProxyProfileId, setSelectedProxyProfileId] = useState<ProxyProfileId>("radar-browser");
+  const [proxyProfileNotes, setProxyProfileNotes] = useState("");
+  const [interceptState, setInterceptState] = useState<InterceptState>(defaultInterceptState);
+  const [interceptSelectedId, setInterceptSelectedId] = useState("");
+  const [interceptDraft, setInterceptDraft] = useState<ReplayDraft>(emptyDraft);
+  const [interceptHeadersText, setInterceptHeadersText] = useState(formatHeaders(emptyDraft.headers));
+  const [interceptResponseStatus, setInterceptResponseStatus] = useState(200);
+  const [interceptResponseStatusText, setInterceptResponseStatusText] = useState("");
+  const [interceptRules, setInterceptRules] = useState<InterceptRule[]>([]);
+  const [interceptRulesText, setInterceptRulesText] = useState("[]");
+  const [matchReplaceRules, setMatchReplaceRules] = useState<MatchReplaceRule[]>([]);
+  const [matchReplaceRulesText, setMatchReplaceRulesText] = useState("[]");
+  const interceptDraftItemRef = useRef("");
   const [selectedId, setSelectedId] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const selectionAnchorRef = useRef("");
@@ -263,21 +355,41 @@ export function useRadarWorkbench() {
       setLastBurst(null);
 
       if (window.radar) {
-        const [nextTargets, nextCaptures, nextSslEvents, nextWebSocketEvents, nextBrowserState, nextAgentRuns] =
-          await Promise.all([
-            window.radar.getTargets(),
-            window.radar.getCaptures(),
-            window.radar.getSslEvents(),
-            loadWebSocketEvents(),
-            window.radar.getBrowserState(),
-            window.radar.listAgentRuns()
-          ]);
+        const [
+          nextTargets,
+          nextCaptures,
+          nextSslEvents,
+          nextWebSocketEvents,
+          nextBrowserState,
+          nextProxyProfiles,
+          nextInterceptState,
+          nextInterceptRules,
+          nextMatchReplaceRules,
+          nextAgentRuns
+        ] = await Promise.all([
+          window.radar.getTargets(),
+          window.radar.getCaptures(),
+          window.radar.getSslEvents(),
+          loadWebSocketEvents(),
+          window.radar.getBrowserState(),
+          loadProxyProfiles(),
+          loadInterceptState(),
+          loadInterceptRules(),
+          loadMatchReplaceRules(),
+          window.radar.listAgentRuns()
+        ]);
         setTargets(nextTargets);
         setTargetText(nextTargets.join("\n"));
         setCaptures(nextCaptures);
         setSslEvents(nextSslEvents);
         setWebSocketEvents(nextWebSocketEvents);
         setBrowserState(nextBrowserState);
+        setProxyProfiles(nextProxyProfiles);
+        setInterceptState(nextInterceptState);
+        setInterceptRules(nextInterceptRules);
+        setInterceptRulesText(JSON.stringify(nextInterceptRules, null, 2));
+        setMatchReplaceRules(nextMatchReplaceRules);
+        setMatchReplaceRulesText(JSON.stringify(nextMatchReplaceRules, null, 2));
         setAgentRuns(nextAgentRuns);
         await refreshLocalLists(context);
       }
@@ -418,6 +530,147 @@ export function useRadarWorkbench() {
     setWebSocketEvents([]);
   }, []);
 
+  const hydrateInterceptDraft = useCallback((item: InterceptQueueItem) => {
+    const nextDraft = interceptDraftFromItem(item);
+    const nextResponse = interceptResponseFromItem(item);
+    setInterceptSelectedId(item.id);
+    setInterceptDraft(nextDraft);
+    setInterceptHeadersText(formatHeaders(nextDraft.headers));
+    setInterceptResponseStatus(nextResponse.status);
+    setInterceptResponseStatusText(nextResponse.statusText);
+    interceptDraftItemRef.current = item.id;
+  }, []);
+
+  const selectInterceptItem = useCallback(
+    (itemId: string) => {
+      const item = interceptState.queue.find((entry) => entry.id === itemId);
+      if (item) {
+        hydrateInterceptDraft(item);
+      }
+    },
+    [hydrateInterceptDraft, interceptState.queue]
+  );
+
+  const setRequestInterceptEnabled = useCallback(async (enabled: boolean) => {
+    if (!window.radar?.setInterceptConfig) {
+      setNotice("Run in Electron to control interception.");
+      return;
+    }
+    const state = await window.radar.setInterceptConfig({ requestEnabled: enabled });
+    setInterceptState(state);
+    setNotice(enabled ? "Request interception enabled" : "Request interception disabled");
+  }, []);
+
+  const setResponseInterceptEnabled = useCallback(async (enabled: boolean) => {
+    if (!window.radar?.setInterceptConfig) {
+      setNotice("Run in Electron to control interception.");
+      return;
+    }
+    const state = await window.radar.setInterceptConfig({ responseEnabled: enabled });
+    setInterceptState(state);
+    setNotice(enabled ? "Response interception enabled" : "Response interception disabled");
+  }, []);
+
+  const forwardIntercept = useCallback(async () => {
+    if (!window.radar?.forwardIntercept || !interceptSelectedId) {
+      return;
+    }
+    try {
+      const selectedItem = interceptState.queue.find((item) => item.id === interceptSelectedId);
+      const headers = parseHeaders(interceptHeadersText);
+      const payload =
+        selectedItem?.stage === "response"
+          ? {
+              id: interceptSelectedId,
+              response: {
+                status: interceptResponseStatus,
+                statusText: interceptResponseStatusText,
+                headers,
+                body: interceptDraft.body
+              }
+            }
+          : {
+              id: interceptSelectedId,
+              draft: { ...interceptDraft, headers }
+            };
+      const state = await window.radar.forwardIntercept(payload);
+      setInterceptState(state);
+      interceptDraftItemRef.current = "";
+      setNotice(`Queued ${selectedItem?.stage || "item"} forwarded`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Forward failed");
+    }
+  }, [
+    interceptDraft,
+    interceptHeadersText,
+    interceptResponseStatus,
+    interceptResponseStatusText,
+    interceptSelectedId,
+    interceptState.queue
+  ]);
+
+  const dropIntercept = useCallback(async () => {
+    if (!window.radar?.dropIntercept || !interceptSelectedId) {
+      return;
+    }
+    try {
+      const state = await window.radar.dropIntercept(interceptSelectedId);
+      setInterceptState(state);
+      interceptDraftItemRef.current = "";
+      setNotice("Queued item dropped");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Drop failed");
+    }
+  }, [interceptSelectedId]);
+
+  const resumeAllIntercepts = useCallback(async () => {
+    if (!window.radar?.resumeAllIntercepts) {
+      return;
+    }
+    const state = await window.radar.resumeAllIntercepts();
+    setInterceptState(state);
+    interceptDraftItemRef.current = "";
+    setNotice("Queued requests resumed");
+  }, []);
+
+  const saveInterceptRules = useCallback(async () => {
+    if (!window.radar?.setInterceptRules) {
+      setNotice("Run in Electron to save intercept rules.");
+      return;
+    }
+    try {
+      const parsed: unknown = JSON.parse(interceptRulesText || "[]");
+      if (!Array.isArray(parsed)) {
+        throw new Error("Intercept rules must be a JSON array.");
+      }
+      const saved = await window.radar.setInterceptRules(parsed as InterceptRule[]);
+      setInterceptRules(saved);
+      setInterceptRulesText(JSON.stringify(saved, null, 2));
+      setNotice(`Saved ${saved.length} intercept rule${saved.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Intercept rules were not valid JSON");
+    }
+  }, [interceptRulesText]);
+
+  const saveMatchReplaceRules = useCallback(async () => {
+    if (!window.radar?.setMatchReplaceRules) {
+      setNotice("Run in Electron to save match/replace rules.");
+      return;
+    }
+    try {
+      const parsed: unknown = JSON.parse(matchReplaceRulesText || "[]");
+      if (!Array.isArray(parsed)) {
+        throw new Error("Match/replace rules must be a JSON array.");
+      }
+      const saved = await window.radar.setMatchReplaceRules(parsed as MatchReplaceRule[]);
+      setMatchReplaceRules(saved);
+      setMatchReplaceRulesText(JSON.stringify(saved, null, 2));
+      setNotice(`Saved ${saved.length} rewrite rule${saved.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Match/replace rules were not valid JSON");
+    }
+  }, [matchReplaceRulesText]);
+
   const deleteCapture = useCallback(
     async (captureId: string) => {
       if (!captureId) {
@@ -555,6 +808,29 @@ export function useRadarWorkbench() {
     setNotice("Proxy stopped");
   }, []);
 
+  const selectedProxyProfile = useMemo(
+    () => proxyProfiles.find((profile) => profile.id === selectedProxyProfileId) || proxyProfiles[0] || null,
+    [proxyProfiles, selectedProxyProfileId]
+  );
+
+  useEffect(() => {
+    setProxyProfileNotes(selectedProxyProfile?.notes || "");
+  }, [selectedProxyProfile]);
+
+  const selectProxyProfile = useCallback((id: ProxyProfileId) => {
+    setSelectedProxyProfileId(id);
+  }, []);
+
+  const saveProxyProfile = useCallback(async () => {
+    if (!window.radar?.saveProxyProfile) {
+      setNotice("Run in Electron to save proxy profile notes.");
+      return;
+    }
+    const saved = await window.radar.saveProxyProfile({ id: selectedProxyProfileId, notes: proxyProfileNotes });
+    setProxyProfiles(saved);
+    setNotice("Proxy profile notes saved");
+  }, [proxyProfileNotes, selectedProxyProfileId]);
+
   const activeAgentRun = agentRuns[0] || null;
 
   const setAppMode = useCallback(
@@ -657,10 +933,45 @@ export function useRadarWorkbench() {
           selectionAnchorRef.current = firstCapture.id;
         }
       }
+
+      if (entry.toolResult?.tool === "getInterceptQueue" && entry.toolResult.ok) {
+        const queue = entry.toolResult.data.queue;
+        setActiveView("intercept");
+        setInterceptState((current) => ({ ...current, queue }));
+        const firstItem = queue[0];
+        if (firstItem) {
+          hydrateInterceptDraft(firstItem);
+        }
+      }
+
+      if (entry.toolResult?.tool === "prepareInterceptEdit" && entry.toolResult.ok) {
+        const { item, draft: preparedDraft, response, note } = entry.toolResult.data;
+        setActiveView("intercept");
+        setInterceptState((current) => ({
+          ...current,
+          queue: current.queue.some((queued) => queued.id === item.id)
+            ? current.queue.map((queued) => (queued.id === item.id ? item : queued))
+            : [item, ...current.queue]
+        }));
+        setInterceptSelectedId(item.id);
+        interceptDraftItemRef.current = item.id;
+        if (response) {
+          setInterceptDraft({ method: item.method, url: item.url, headers: response.headers, body: response.body });
+          setInterceptHeadersText(formatHeaders(response.headers));
+          setInterceptResponseStatus(response.status);
+          setInterceptResponseStatusText(response.statusText);
+        } else if (preparedDraft) {
+          setInterceptDraft(preparedDraft);
+          setInterceptHeadersText(formatHeaders(preparedDraft.headers));
+          setInterceptResponseStatus(item.status || 200);
+          setInterceptResponseStatusText(item.statusText || "");
+        }
+        setNotice(note);
+      }
     }
 
     agentUiCursorRef.current = { runId: activeAgentRun.id, entryId: lastEntry.id };
-  }, [activeAgentRun, appMode]);
+  }, [activeAgentRun, appMode, hydrateInterceptDraft]);
 
   const scopedTrafficCaptures = useMemo(
     () => captures.filter((capture) => isAllowedTarget(capture.url, targets)),
@@ -760,11 +1071,25 @@ export function useRadarWorkbench() {
         return;
       }
       const context = await window.radar.getLocalContext();
-      const [items, nextProfiles, nextSessions, nextWebSocketEvents, nextAgentRuns] = await Promise.all([
+      const [
+        items,
+        nextProfiles,
+        nextSessions,
+        nextWebSocketEvents,
+        nextProxyProfiles,
+        nextInterceptState,
+        nextInterceptRules,
+        nextMatchReplaceRules,
+        nextAgentRuns
+      ] = await Promise.all([
         window.radar.getTargets(),
         window.radar.listLocalProfiles(),
         window.radar.listLocalSessions(context.profile.id),
         loadWebSocketEvents(),
+        loadProxyProfiles(),
+        loadInterceptState(),
+        loadInterceptRules(),
+        loadMatchReplaceRules(),
         window.radar.listAgentRuns()
       ]);
       if (cancelled) {
@@ -778,6 +1103,12 @@ export function useRadarWorkbench() {
       setProfiles(nextProfiles);
       setSessions(nextSessions);
       setWebSocketEvents(nextWebSocketEvents);
+      setProxyProfiles(nextProxyProfiles);
+      setInterceptState(nextInterceptState);
+      setInterceptRules(nextInterceptRules);
+      setInterceptRulesText(JSON.stringify(nextInterceptRules, null, 2));
+      setMatchReplaceRules(nextMatchReplaceRules);
+      setMatchReplaceRulesText(JSON.stringify(nextMatchReplaceRules, null, 2));
       setAgentRuns(nextAgentRuns);
     };
     load();
@@ -818,21 +1149,30 @@ export function useRadarWorkbench() {
       if (!window.radar || cancelled) {
         return;
       }
-      const [nextCaptures, nextSslEvents, nextWebSocketEvents, nextBrowserState, nextProxyState, nextAgentRuns] =
-        await Promise.all([
-          window.radar.getCaptures(),
-          window.radar.getSslEvents(),
-          loadWebSocketEvents(),
-          window.radar.getBrowserState(),
-          window.radar.getProxyState(),
-          window.radar.listAgentRuns()
-        ]);
+      const [
+        nextCaptures,
+        nextSslEvents,
+        nextWebSocketEvents,
+        nextBrowserState,
+        nextProxyState,
+        nextInterceptState,
+        nextAgentRuns
+      ] = await Promise.all([
+        window.radar.getCaptures(),
+        window.radar.getSslEvents(),
+        loadWebSocketEvents(),
+        window.radar.getBrowserState(),
+        window.radar.getProxyState(),
+        loadInterceptState(),
+        window.radar.listAgentRuns()
+      ]);
       if (!cancelled) {
         setCaptures(nextCaptures);
         setSslEvents(nextSslEvents);
         setWebSocketEvents(nextWebSocketEvents);
         setBrowserState(nextBrowserState);
         setProxyState(nextProxyState);
+        setInterceptState(nextInterceptState);
         setAgentRuns(nextAgentRuns);
       }
     };
@@ -849,6 +1189,23 @@ export function useRadarWorkbench() {
     const id = setInterval(() => setClock(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  const selectedInterceptItem = useMemo(
+    () => interceptState.queue.find((item) => item.id === interceptSelectedId) || interceptState.queue[0] || null,
+    [interceptSelectedId, interceptState.queue]
+  );
+
+  useEffect(() => {
+    if (!selectedInterceptItem) {
+      if (interceptDraftItemRef.current) {
+        interceptDraftItemRef.current = "";
+      }
+      return;
+    }
+    if (interceptDraftItemRef.current !== selectedInterceptItem.id) {
+      hydrateInterceptDraft(selectedInterceptItem);
+    }
+  }, [hydrateInterceptDraft, selectedInterceptItem]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -886,6 +1243,29 @@ export function useRadarWorkbench() {
     setNewSessionName,
     browserState,
     proxyState,
+    proxyProfiles,
+    selectedProxyProfile,
+    selectedProxyProfileId,
+    proxyProfileNotes,
+    setProxyProfileNotes,
+    interceptState,
+    interceptSelectedId,
+    interceptDraft,
+    setInterceptDraft,
+    interceptHeadersText,
+    setInterceptHeadersText,
+    interceptResponseStatus,
+    setInterceptResponseStatus,
+    interceptResponseStatusText,
+    setInterceptResponseStatusText,
+    interceptRules,
+    interceptRulesText,
+    setInterceptRulesText,
+    matchReplaceRules,
+    matchReplaceRulesText,
+    setMatchReplaceRulesText,
+    selectedInterceptItem,
+    selectInterceptItem,
     selectedId,
     setSelectedId,
     selectedIds,
@@ -965,6 +1345,15 @@ export function useRadarWorkbench() {
     loadLocalSession,
     ensureProxyCa,
     startProxy,
-    stopProxy
+    stopProxy,
+    selectProxyProfile,
+    saveProxyProfile,
+    setRequestInterceptEnabled,
+    setResponseInterceptEnabled,
+    forwardIntercept,
+    dropIntercept,
+    resumeAllIntercepts,
+    saveInterceptRules,
+    saveMatchReplaceRules
   };
 }

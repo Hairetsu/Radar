@@ -6,6 +6,14 @@ describe("resultPreview", () => {
     expect(resultPreview({ ok: false, auditId: "a1", error: "boom" })).toBe("boom");
   });
 
+  it("returns default failure text when output is missing", () => {
+    expect(resultPreview({ ok: true, auditId: "a1" })).toBe("AI request failed.");
+  });
+
+  it("returns default failure text when error is missing", () => {
+    expect(resultPreview({ ok: false, auditId: "a1" })).toBe("AI request failed.");
+  });
+
   it("formats capture summary", () => {
     const text = resultPreview({
       ok: true,
@@ -68,6 +76,18 @@ describe("resultPreview", () => {
     });
     expect(text).toContain("[navigate] Open home");
     expect(text).toContain("http://localhost");
+  });
+
+  it("formats browser helper steps without urls", () => {
+    const text = resultPreview({
+      ok: true,
+      auditId: "a1",
+      output: {
+        task: "browser_helper",
+        data: { steps: [{ label: "Wait for load", action: "observe" }] }
+      }
+    });
+    expect(text).toBe("1. [observe] Wait for load");
   });
 
   it("formats tls review output", () => {

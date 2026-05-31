@@ -68,6 +68,7 @@ export const AI_TASK_TYPES: AiTaskType[] = [
 export const VIEW_AI_TASKS: Record<AiWorkView, AiTaskType[]> = {
   traffic: ["capture_summary", "report_notes"],
   websocket: ["capture_summary", "report_notes"],
+  intercept: ["capture_summary", "report_notes"],
   repeater: ["repeater_drafts"],
   scope: ["scope_checklist", "browser_helper"],
   ssl: ["tls_review"]
@@ -76,6 +77,7 @@ export const VIEW_AI_TASKS: Record<AiWorkView, AiTaskType[]> = {
 export const VIEW_AI_LABELS: Record<AiWorkView, string> = {
   traffic: "Traffic analysis",
   websocket: "WebSocket analysis",
+  intercept: "Intercept review",
   repeater: "Replay engineering",
   scope: "Scope planning",
   ssl: "TLS & proxy review"

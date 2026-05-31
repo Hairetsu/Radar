@@ -34,6 +34,8 @@ function urlForTool(call: AgentToolCall) {
       return call.input.url;
     case "sendReplay":
       return call.input.draft.url;
+    case "prepareInterceptEdit":
+      return call.input.draft?.url || "";
     default:
       return "";
   }

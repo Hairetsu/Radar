@@ -312,6 +312,7 @@ export function CommandPalette({
     switch (view) {
       case "traffic":
       case "websocket":
+      case "intercept":
         if (selectedPacketCount === 0) {
           return "No packets selected";
         }

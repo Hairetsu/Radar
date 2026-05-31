@@ -15,6 +15,7 @@ import {
   Palette,
   Play,
   Radar as RadarIcon,
+  Replace,
   Repeat2,
   Search,
   ArrowDownWideNarrow,
@@ -67,6 +68,7 @@ const ellipsisMono = cn(monoMuted, "min-w-0 overflow-hidden text-ellipsis whites
 const sidebarViewIcons: Record<WorkView, LucideIcon> = {
   traffic: Activity,
   websocket: Braces,
+  intercept: FileLock2,
   repeater: Repeat2,
   scope: Target,
   ssl: LockKeyhole
@@ -107,6 +109,15 @@ const websocketRowClass = (selected: boolean, focused: boolean) =>
     "hover:bg-steel/5 hover:text-bone hover:before:w-[3px]",
     focused && "ring-1 ring-inset ring-steel/30",
     selected && "bg-steel/[0.08] text-bone before:w-[3px]"
+  );
+
+const interceptRowClass = (selected: boolean) =>
+  cn(
+    "relative grid h-[58px] w-full items-center gap-2 border-0 border-b border-rule bg-transparent px-3.5 py-2 text-left text-copy transition",
+    "justify-stretch normal-case [grid-template-columns:76px_minmax(120px,0.8fr)_minmax(180px,1.4fr)_92px]",
+    "before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0 before:bg-rust before:transition-all before:content-['']",
+    "hover:bg-rust/5 hover:text-bone hover:before:w-[3px]",
+    selected && "bg-rust/[0.08] text-bone before:w-[3px]"
   );
 
 type RequestMenuState = {
@@ -214,6 +225,33 @@ function websocketDetailText(event: WebSocketEvent | null) {
     .join("\n");
 }
 
+function interceptEvidenceText(capture: CapturedRequest | null) {
+  if (!capture?.intercept?.length) {
+    return "";
+  }
+  return capture.intercept
+    .map((record) => {
+      const resolved = record.resolvedAt ? ` -> ${record.resolvedAt}` : "";
+      const edited = record.edited ? " edited" : "";
+      return `${record.stage}: ${record.resolution}${edited} (${record.queuedAt}${resolved})${record.note ? `\n${record.note}` : ""}`;
+    })
+    .join("\n");
+}
+
+function rewriteEvidenceText(capture: CapturedRequest | null) {
+  if (!capture?.rewrites?.length) {
+    return "";
+  }
+  return capture.rewrites
+    .map((hit) => `${hit.stage} rewrite: ${hit.name} (${hit.target}; ${hit.detail})`)
+    .join("\n");
+}
+
+function evidenceMetadataText(capture: CapturedRequest | null) {
+  const text = [interceptEvidenceText(capture), rewriteEvidenceText(capture)].filter(Boolean).join("\n");
+  return text ? `\n${text}` : "";
+}
+
 function contextMenuPosition(event: MouseEvent<HTMLElement>) {
   const menuWidth = 264;
   const menuHeight = 404;
@@ -265,10 +303,14 @@ export function App() {
   );
   const selectedDetailText = workbench.selected
     ? workbench.activeDetail === "request"
-      ? `${workbench.selected.method} ${workbench.selected.url}\n${tlsLine(workbench.selected)}\n\n${formatHeaders(
+      ? `${workbench.selected.method} ${workbench.selected.url}\n${tlsLine(workbench.selected)}${evidenceMetadataText(
+          workbench.selected
+        )}\n\n${formatHeaders(
           workbench.selected.requestHeaders
         )}\n\n${bodyPreview(workbench.selected.requestBody)}`
-      : `${workbench.selected.status || ""} ${workbench.selected.statusText}\n${tlsLine(workbench.selected)}\n\n${formatHeaders(
+      : `${workbench.selected.status || ""} ${workbench.selected.statusText}\n${tlsLine(
+          workbench.selected
+        )}${evidenceMetadataText(workbench.selected)}\n\n${formatHeaders(
           workbench.selected.responseHeaders
         )}\n\n${bodyPreview(workbench.selected.responseBody)}`
     : "";
@@ -373,6 +415,9 @@ export function App() {
   const sidebarViewStats: Record<WorkView, string> = {
     traffic: `${workbench.trafficCaptures.length}/${workbench.scopedTrafficCaptures.length} in scope`,
     websocket: `${workbench.webSocketEvents.length} frames`,
+    intercept: workbench.interceptState.config.requestEnabled
+      ? `${workbench.interceptState.queue.length} queued`
+      : "requests off",
     repeater: workbench.lastResponse ? `${workbench.lastResponse.status} ${elapsed(workbench.lastResponse.durationMs)}` : "manual replay",
     scope: `${workbench.targets.length} targets`,
     ssl: workbench.proxyState.running ? "proxy engaged" : `${workbench.sslEvents.length} tls events`
@@ -833,6 +878,45 @@ export function App() {
                   <Eraser size={15} strokeWidth={1.7} />
                 </Button>
               )}
+              {workbench.activeView === "intercept" && (
+                <>
+                  <Button
+                    variant={workbench.interceptState.config.requestEnabled ? "solid" : "outline"}
+                    type="button"
+                    onClick={() =>
+                      void workbench.setRequestInterceptEnabled(!workbench.interceptState.config.requestEnabled)
+                    }
+                    data-testid="toggleRequestIntercept"
+                    data-component="toggleRequestIntercept"
+                  >
+                    <FileLock2 size={14} strokeWidth={1.7} />
+                    {workbench.interceptState.config.requestEnabled ? "Requests On" : "Requests Off"}
+                  </Button>
+                  <Button
+                    variant={workbench.interceptState.config.responseEnabled ? "solid" : "outline"}
+                    type="button"
+                    onClick={() =>
+                      void workbench.setResponseInterceptEnabled(!workbench.interceptState.config.responseEnabled)
+                    }
+                    data-testid="toggleResponseIntercept"
+                    data-component="toggleResponseIntercept"
+                  >
+                    <FileLock2 size={14} strokeWidth={1.7} />
+                    {workbench.interceptState.config.responseEnabled ? "Responses On" : "Responses Off"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={workbench.interceptState.queue.length === 0}
+                    onClick={() => void workbench.resumeAllIntercepts()}
+                    data-testid="resumeAllIntercepts"
+                    data-component="resumeAllIntercepts"
+                  >
+                    <Play size={14} strokeWidth={1.7} />
+                    Resume All
+                  </Button>
+                </>
+              )}
               {workbench.activeView === "repeater" && (
                 <Button
                   variant="outline"
@@ -961,7 +1045,7 @@ export function App() {
 
           {workbench.activeView === "traffic" && (
             <div className="grid min-h-0 [grid-template-columns:minmax(0,1fr)_minmax(420px,0.75fr)] max-[1180px]:grid-cols-1">
-              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_minmax(180px,0.42fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
                 <div className="radar-traffic-filter grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-2.5">
                   <Select
                     variant="compact"
@@ -1312,6 +1396,269 @@ export function App() {
             </div>
           )}
 
+          {workbench.activeView === "intercept" && (
+            <div className="grid min-h-0 [grid-template-columns:minmax(0,0.95fr)_minmax(420px,1.05fr)] max-[1180px]:grid-cols-1">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_minmax(340px,0.9fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
+                <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(4,minmax(0,1fr))]">
+                  {[
+                    ["Mode", workbench.interceptState.config.requestEnabled ? "request" : "standby"],
+                    ["Queued", workbench.interceptState.queue.length],
+                    ["Rules", workbench.interceptRules.length],
+                    ["Rewrites", workbench.matchReplaceRules.length]
+                  ].map(([label, value]) => (
+                    <div key={label} className="radar-card-gradient px-4 py-3">
+                      <span className="block font-mono text-[8.5px] uppercase tracking-[0.28em] text-muted">
+                        {label}
+                      </span>
+                      <strong className="mt-1 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[22px] font-semibold uppercase leading-none text-bone [font-stretch:75%]">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto radar-traffic-list" data-testid="interceptQueue">
+                  {workbench.interceptState.queue.length === 0 && (
+                    <EmptyState>
+                      <FileLock2 size={18} strokeWidth={1.4} />
+                      <span>
+                        {workbench.interceptState.config.requestEnabled || workbench.interceptState.config.responseEnabled
+                          ? "No scoped traffic paused"
+                          : "Request and response interception are disabled"}
+                      </span>
+                    </EmptyState>
+                  )}
+                  {workbench.interceptState.queue.map((item) => (
+                    <Button
+                      key={item.id}
+                      variant="ghost"
+                      className={interceptRowClass(item.id === workbench.selectedInterceptItem?.id)}
+                      onClick={() => workbench.selectInterceptItem(item.id)}
+                      data-selected={item.id === workbench.selectedInterceptItem?.id ? "true" : "false"}
+                      data-testid={`interceptRow-${item.id}`}
+                      data-component="interceptRow"
+                    >
+                      <StatusBadge tone="warn">{item.stage === "response" ? item.status || "resp" : item.method}</StatusBadge>
+                      <span className={cn(ellipsisMono, "font-medium text-bone")}>{item.host}</span>
+                      <span className={ellipsisMono}>{item.path}</span>
+                      <span className={ellipsisMono}>{item.stage}</span>
+                    </Button>
+                  ))}
+                </div>
+                <div className="grid min-h-0 border-t border-rule [grid-template-rows:auto_minmax(0,1fr)_auto_auto_minmax(0,1fr)_auto]">
+                  <div className="flex items-center justify-between gap-3 border-b border-rule bg-rust/5 px-3 py-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Intercept Rules JSON</span>
+                    <StatusBadge tone={workbench.interceptRules.length > 0 ? "warn" : "ghost"}>
+                      {workbench.interceptRules.length}
+                    </StatusBadge>
+                  </div>
+                  <Textarea
+                    variant="code"
+                    className="min-h-0 border-0"
+                    value={workbench.interceptRulesText}
+                    onChange={(event) => workbench.setInterceptRulesText(event.target.value)}
+                    spellCheck={false}
+                    data-testid="interceptRulesText"
+                    data-component="interceptRulesText"
+                  />
+                  <div className="border-t border-rule px-3 py-2">
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="w-full justify-start"
+                      onClick={() => void workbench.saveInterceptRules()}
+                      data-testid="saveInterceptRules"
+                      data-component="saveInterceptRules"
+                    >
+                      <FileLock2 size={14} strokeWidth={1.7} />
+                      Save Rules
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-b border-rule bg-ink/30 px-3 py-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Match / Replace JSON</span>
+                    <StatusBadge tone={workbench.matchReplaceRules.length > 0 ? "warn" : "ghost"}>
+                      {workbench.matchReplaceRules.length}
+                    </StatusBadge>
+                  </div>
+                  <Textarea
+                    variant="code"
+                    className="min-h-0 border-0"
+                    value={workbench.matchReplaceRulesText}
+                    onChange={(event) => workbench.setMatchReplaceRulesText(event.target.value)}
+                    spellCheck={false}
+                    data-testid="matchReplaceRulesText"
+                    data-component="matchReplaceRulesText"
+                  />
+                  <div className="border-t border-rule px-3 py-2">
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="w-full justify-start"
+                      onClick={() => void workbench.saveMatchReplaceRules()}
+                      data-testid="saveMatchReplaceRules"
+                      data-component="saveMatchReplaceRules"
+                    >
+                      <Replace size={14} strokeWidth={1.7} />
+                      Save Rewrites
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 radar-detail-pane [grid-template-rows:auto_minmax(0,1fr)_auto]">
+                <div className="flex items-center justify-between gap-3 border-b border-rule px-4 py-2">
+                  <div className="min-w-0">
+                    <span className="block font-mono text-[9px] uppercase tracking-[0.28em] text-rust">
+                      {workbench.selectedInterceptItem?.stage === "response" ? "Queued Response Editor" : "Queued Request Editor"}
+                    </span>
+                    <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] text-bone">
+                      {workbench.selectedInterceptItem
+                        ? `${workbench.selectedInterceptItem.host}${workbench.selectedInterceptItem.path}`
+                        : "No queued item selected"}
+                    </strong>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <StatusBadge tone={workbench.selectedInterceptItem ? "warn" : "ghost"}>
+                      {workbench.selectedInterceptItem?.ruleHits?.length
+                        ? `${workbench.selectedInterceptItem.ruleHits.length} rule`
+                        : workbench.selectedInterceptItem
+                          ? "paused"
+                          : "idle"}
+                    </StatusBadge>
+                    {workbench.selectedInterceptItem?.rewrites?.length ? (
+                      <StatusBadge tone="warn">{workbench.selectedInterceptItem.rewrites.length} rewrite</StatusBadge>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="min-h-0 overflow-auto">
+                  {workbench.selectedInterceptItem?.stage === "response" ? (
+                    <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:110px_minmax(0,1fr)]">
+                      <Input
+                        variant="compact"
+                        type="number"
+                        min={100}
+                        max={599}
+                        value={workbench.interceptResponseStatus}
+                        disabled={!workbench.selectedInterceptItem}
+                        onChange={(event) => workbench.setInterceptResponseStatus(Number(event.target.value))}
+                        data-testid="interceptStatus"
+                        data-component="interceptStatus"
+                      />
+                      <Input
+                        value={workbench.interceptResponseStatusText}
+                        disabled={!workbench.selectedInterceptItem}
+                        onChange={(event) => workbench.setInterceptResponseStatusText(event.target.value)}
+                        spellCheck={false}
+                        data-testid="interceptStatusText"
+                        data-component="interceptStatusText"
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:110px_minmax(0,1fr)]">
+                      <Select
+                        variant="method"
+                        value={workbench.interceptDraft.method}
+                        disabled={!workbench.selectedInterceptItem}
+                        onChange={(event) =>
+                          workbench.setInterceptDraft({ ...workbench.interceptDraft, method: event.target.value })
+                        }
+                        data-testid="interceptMethod"
+                        data-component="interceptMethod"
+                      >
+                        {["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
+                          <option key={method}>{method}</option>
+                        ))}
+                      </Select>
+                      <Input
+                        value={workbench.interceptDraft.url}
+                        disabled={!workbench.selectedInterceptItem}
+                        onChange={(event) =>
+                          workbench.setInterceptDraft({ ...workbench.interceptDraft, url: event.target.value })
+                        }
+                        spellCheck={false}
+                        data-testid="interceptUrl"
+                        data-component="interceptUrl"
+                      />
+                    </div>
+                  )}
+
+                  <FieldLabel htmlFor="interceptHeaders">
+                    {workbench.selectedInterceptItem?.stage === "response" ? "Response Headers" : "Request Headers"}
+                  </FieldLabel>
+                  <Textarea
+                    id="interceptHeaders"
+                    variant="code"
+                    className="h-[170px]"
+                    value={workbench.interceptHeadersText}
+                    disabled={!workbench.selectedInterceptItem}
+                    onChange={(event) => workbench.setInterceptHeadersText(event.target.value)}
+                    spellCheck={false}
+                    data-testid="interceptHeaders"
+                    data-component="interceptHeaders"
+                  />
+
+                  <FieldLabel htmlFor="interceptBody">
+                    {workbench.selectedInterceptItem?.stage === "response" ? "Response Body" : "Request Body"}
+                  </FieldLabel>
+                  <Textarea
+                    id="interceptBody"
+                    variant="code"
+                    className="h-[220px]"
+                    value={workbench.interceptDraft.body}
+                    disabled={!workbench.selectedInterceptItem}
+                    onChange={(event) =>
+                      workbench.setInterceptDraft({ ...workbench.interceptDraft, body: event.target.value })
+                    }
+                    spellCheck={false}
+                    data-testid="interceptBody"
+                    data-component="interceptBody"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 border-t border-rule radar-form-gradient px-5 py-4">
+                  <Button
+                    variant="solid"
+                    type="button"
+                    disabled={!workbench.selectedInterceptItem}
+                    onClick={() => void workbench.forwardIntercept()}
+                    data-testid="forwardIntercept"
+                    data-component="forwardIntercept"
+                  >
+                    <Send size={14} strokeWidth={1.8} />
+                    Forward
+                  </Button>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={!workbench.selectedInterceptItem}
+                    onClick={() => void workbench.dropIntercept()}
+                    data-testid="dropIntercept"
+                    data-component="dropIntercept"
+                  >
+                    <Trash2 size={14} strokeWidth={1.8} />
+                    Drop
+                  </Button>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={!workbench.selectedInterceptItem}
+                    onClick={() => {
+                      if (workbench.selectedInterceptItem) {
+                        workbench.selectInterceptItem(workbench.selectedInterceptItem.id);
+                      }
+                    }}
+                    data-testid="resetInterceptDraft"
+                    data-component="resetInterceptDraft"
+                  >
+                    <Eraser size={14} strokeWidth={1.7} />
+                    Reset
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {workbench.activeView === "repeater" && (
             <div className="grid min-h-0 [grid-template-columns:minmax(0,1.05fr)_minmax(360px,0.95fr)] max-[1180px]:grid-cols-1">
               <div className="min-h-0 overflow-auto border-r border-rule max-[1180px]:border-r-0 max-[1180px]:border-b">
@@ -1563,11 +1910,66 @@ export function App() {
                   </div>
                 ))}
               </div>
-              <pre className="min-h-0 border border-rule radar-panel p-3">
-                {workbench.selected
-                  ? `${workbench.selected.url}\n${tlsLine(workbench.selected)}`
-                  : ""}
-              </pre>
+              <div className="grid min-h-0 gap-4 [grid-template-rows:minmax(320px,0.9fr)_minmax(160px,0.55fr)]">
+                <div className="grid min-h-0 border border-rule radar-panel [grid-template-rows:auto_auto_minmax(0,1fr)_auto]">
+                  <div className="flex items-center justify-between gap-3 border-b border-rule bg-rust/5 px-4 py-3">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-muted">Proxy Profiles</span>
+                    <StatusBadge tone={workbench.selectedProxyProfile?.notes ? "warn" : "ghost"}>
+                      {workbench.selectedProxyProfile?.label || "No profile"}
+                    </StatusBadge>
+                  </div>
+                  <div className="grid gap-2 p-3 [grid-template-columns:repeat(2,minmax(0,1fr))] max-[640px]:grid-cols-1">
+                    {workbench.proxyProfiles.map((profile) => (
+                      <Button
+                        key={profile.id}
+                        variant={profile.id === workbench.selectedProxyProfileId ? "solid" : "outline"}
+                        type="button"
+                        className="h-auto min-h-12 justify-start whitespace-normal text-left"
+                        onClick={() => workbench.selectProxyProfile(profile.id)}
+                        data-testid={`proxyProfile-${profile.id}`}
+                        data-component="proxyProfile"
+                      >
+                        <Settings2 size={14} strokeWidth={1.7} />
+                        {profile.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="grid min-h-0 gap-2 px-4 pb-3">
+                    <span className="font-mono text-[10px] leading-relaxed tracking-[0.04em] text-muted">
+                      {workbench.selectedProxyProfile?.hint || "Select a client profile to keep setup notes."}
+                    </span>
+                    <Textarea
+                      variant="code"
+                      className="min-h-0"
+                      value={workbench.proxyProfileNotes}
+                      onChange={(event) => workbench.setProxyProfileNotes(event.target.value)}
+                      spellCheck={false}
+                      data-testid="proxyProfileNotes"
+                      data-component="proxyProfileNotes"
+                    />
+                  </div>
+                  <div className="border-t border-rule px-4 py-3">
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="w-full justify-start"
+                      onClick={() => void workbench.saveProxyProfile()}
+                      disabled={!workbench.selectedProxyProfile}
+                      data-testid="saveProxyProfile"
+                      data-component="saveProxyProfile"
+                    >
+                      <FilePlus2 size={14} strokeWidth={1.7} />
+                      Save Profile Notes
+                    </Button>
+                  </div>
+                </div>
+
+                <pre className="min-h-0 border border-rule radar-panel p-3">
+                  {workbench.selected
+                    ? `${workbench.selected.url}\n${tlsLine(workbench.selected)}`
+                    : ""}
+                </pre>
+              </div>
             </div>
           )}
         </section>

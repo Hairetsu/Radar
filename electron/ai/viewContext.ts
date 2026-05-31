@@ -36,6 +36,11 @@ export function contextBlockedReason({
         return "Select at least one WebSocket frame or HTTP capture.";
       }
       return undefined;
+    case "intercept":
+      if (packetCount === 0) {
+        return "Select at least one intercepted HTTP capture.";
+      }
+      return undefined;
     case "traffic":
     default:
       if (packetCount === 0) {

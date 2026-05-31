@@ -14,7 +14,14 @@ import type {
   AgentToolCall,
   AgentToolResult
 } from "../../shared/agent-types.js";
-import type { BrowserState, CapturedRequest, ReplayDraft, ReplayResult } from "../../shared/domain.js";
+import type {
+  BrowserState,
+  CapturedRequest,
+  InterceptResponseDraft,
+  InterceptState,
+  ReplayDraft,
+  ReplayResult
+} from "../../shared/domain.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeDraft } from "../../shared/draft.js";
@@ -31,6 +38,7 @@ type AgentRuntimeDeps = {
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
   getCaptures: () => CapturedRequest[];
+  getInterceptState: () => InterceptState;
   sendReplay: (draft: ReplayDraft) => Promise<ReplayResult>;
   waitForNetworkIdle: (input: { idleMs?: number; timeoutMs?: number }) => Promise<{ idle: boolean; waitedMs: number }>;
   getPageText: () => Promise<{ url: string; title: string; text: string }>;
@@ -140,6 +148,16 @@ function sameOrigin(value: string, targetOrigin: string) {
 function headerValue(headers: Record<string, string>, name: string) {
   const found = Object.entries(headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
   return found?.[1] || "";
+}
+
+function responseDraftFromIntercept(input: Partial<InterceptResponseDraft>, fallback: InterceptResponseDraft): InterceptResponseDraft {
+  const numericStatus = Number(input.status ?? fallback.status);
+  return {
+    status: Number.isFinite(numericStatus) ? Math.max(100, Math.min(Math.round(numericStatus), 599)) : fallback.status,
+    statusText: String(input.statusText ?? fallback.statusText).slice(0, 120),
+    headers: input.headers || fallback.headers,
+    body: typeof input.body === "string" ? input.body : fallback.body
+  };
 }
 
 function runCaptures(run: AgentRun, captures: CapturedRequest[], rules: string[], targetOrigin: string) {
@@ -467,6 +485,46 @@ export class AgentRuntime {
             };
           }
           break;
+        case "getInterceptQueue": {
+          const state = this.deps.getInterceptState();
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: { queue: state.queue.slice(0, normalizedCall.input.limit || run.policy.maxCaptureSample) }
+          };
+          break;
+        }
+        case "prepareInterceptEdit": {
+          const state = this.deps.getInterceptState();
+          const item = state.queue.find((entry) => entry.id === normalizedCall.input.id);
+          if (!item) {
+            throw new Error("Intercept queue item was not found.");
+          }
+          if (item.stage === "response") {
+            const response = responseDraftFromIntercept(normalizedCall.input.response || {}, {
+              status: item.status || 200,
+              statusText: item.statusText || "",
+              headers: item.headers,
+              body: item.body
+            });
+            result = {
+              tool: normalizedCall.tool,
+              ok: true,
+              data: { item, response, note: normalizedCall.input.note || "Prepared response edit for operator review." }
+            };
+          } else {
+            const draft = normalizeDraft(normalizedCall.input.draft || item);
+            if (!isAllowedTarget(draft.url, this.deps.allowlist())) {
+              throw new Error(`Prepared intercept URL is out of scope: ${draft.url}`);
+            }
+            result = {
+              tool: normalizedCall.tool,
+              ok: true,
+              data: { item, draft, note: normalizedCall.input.note || "Prepared request edit for operator review." }
+            };
+          }
+          break;
+        }
         case "analyzeSecurityHeaders": {
           const captures = runCaptures(run, this.deps.getCaptures(), this.deps.allowlist(), normalizedCall.input.targetOrigin || "");
           result = { tool: normalizedCall.tool, ok: true, data: { observations: analyzeSecurityHeaders(captures) } };
