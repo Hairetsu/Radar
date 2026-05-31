@@ -42,6 +42,27 @@ export type SslEvent = {
   createdAt: string;
 };
 
+export type WebSocketDirection = "handshake" | "sent" | "received" | "error" | "closed";
+
+export type WebSocketEvent = {
+  id: string;
+  requestId: string;
+  createdAt: string;
+  url: string;
+  host: string;
+  direction: WebSocketDirection;
+  opcode?: number;
+  payloadData: string;
+  size: number;
+  status?: number;
+  statusText?: string;
+  error?: string;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
+  initiator?: string;
+  allowed: boolean;
+};
+
 export type LocalProfile = {
   id: string;
   name: string;

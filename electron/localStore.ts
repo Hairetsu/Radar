@@ -14,10 +14,12 @@ import type {
   LocalSessionSummary,
   LocalWorkspace,
   SslEvent,
-  TlsDetails
+  TlsDetails,
+  WebSocketDirection,
+  WebSocketEvent
 } from "../shared/domain.js";
 
-const SCHEMA_VERSION = "3";
+const SCHEMA_VERSION = "4";
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
@@ -84,6 +86,25 @@ type SslEventRow = {
   subject_name: string | null;
   issuer_name: string | null;
   created_at: string;
+};
+
+type WebSocketEventRow = {
+  id: string;
+  request_id: string;
+  created_at: string;
+  url: string;
+  host: string;
+  direction: WebSocketDirection;
+  opcode: number | null;
+  payload_data: string;
+  size: number;
+  status: number | null;
+  status_text: string | null;
+  error: string | null;
+  request_headers_json: string;
+  response_headers_json: string;
+  initiator: string | null;
+  allowed: number;
 };
 
 type AgentRunRow = {
@@ -247,6 +268,27 @@ function toSslEvent(row: SslEventRow): SslEvent {
   };
 }
 
+function toWebSocketEvent(row: WebSocketEventRow): WebSocketEvent {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    createdAt: row.created_at,
+    url: row.url,
+    host: row.host,
+    direction: row.direction,
+    opcode: row.opcode ?? undefined,
+    payloadData: row.payload_data,
+    size: row.size,
+    status: row.status ?? undefined,
+    statusText: row.status_text || undefined,
+    error: row.error || undefined,
+    requestHeaders: parseRecordJson(row.request_headers_json),
+    responseHeaders: parseRecordJson(row.response_headers_json),
+    initiator: row.initiator || undefined,
+    allowed: row.allowed === 1
+  };
+}
+
 function toAgentRun(row: AgentRunRow): AgentRun {
   return {
     id: row.id,
@@ -355,6 +397,27 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (session_id, id)
     );
 
+    CREATE TABLE IF NOT EXISTS websocket_events (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      url TEXT NOT NULL,
+      host TEXT NOT NULL,
+      direction TEXT NOT NULL CHECK (direction IN ('handshake', 'sent', 'received', 'error', 'closed')),
+      opcode INTEGER,
+      payload_data TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      status INTEGER,
+      status_text TEXT,
+      error TEXT,
+      request_headers_json TEXT NOT NULL,
+      response_headers_json TEXT NOT NULL,
+      initiator TEXT,
+      allowed INTEGER NOT NULL,
+      PRIMARY KEY (session_id, id)
+    );
+
     CREATE TABLE IF NOT EXISTS ai_models (
       provider TEXT NOT NULL,
       model_id TEXT NOT NULL,
@@ -384,6 +447,10 @@ export function openLocalStore(userDataPath: string) {
       ON captures(session_id, host, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ssl_events_session_created
       ON ssl_events(session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_websocket_events_session_created
+      ON websocket_events(session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_websocket_events_session_request
+      ON websocket_events(session_id, request_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_agent_runs_session_updated
       ON agent_runs(session_id, updated_at DESC);
   `);
@@ -766,6 +833,47 @@ export function openLocalStore(userDataPath: string) {
     return rows.map(toSslEvent);
   };
 
+  const insertWebSocketEvent = (sessionId: string, event: WebSocketEvent) => {
+    db.prepare(`
+      INSERT OR REPLACE INTO websocket_events (
+        session_id, id, request_id, created_at, url, host, direction, opcode, payload_data, size,
+        status, status_text, error, request_headers_json, response_headers_json, initiator, allowed
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      sessionId,
+      event.id,
+      event.requestId,
+      event.createdAt,
+      event.url,
+      event.host,
+      event.direction,
+      event.opcode ?? null,
+      event.payloadData,
+      event.size,
+      event.status ?? null,
+      event.statusText ?? null,
+      event.error ?? null,
+      JSON.stringify(event.requestHeaders || {}),
+      JSON.stringify(event.responseHeaders || {}),
+      event.initiator ?? null,
+      event.allowed ? 1 : 0
+    );
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+  };
+
+  const listWebSocketEvents = (sessionId: string, limit = 1000) => {
+    const rows = db
+      .prepare("SELECT * FROM websocket_events WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT ?")
+      .all(sessionId, Math.max(1, Math.min(Number(limit) || 1000, 5000))) as WebSocketEventRow[];
+    return rows.map(toWebSocketEvent);
+  };
+
+  const clearWebSocketEvents = (sessionId: string) => {
+    db.prepare("DELETE FROM websocket_events WHERE session_id = ?").run(sessionId);
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+  };
+
   const saveAiModels = (provider: string, models: AiModelOption[]) => {
     const nextProvider = provider.trim();
     if (!nextProvider) {
@@ -869,6 +977,9 @@ export function openLocalStore(userDataPath: string) {
     clearCaptures,
     insertSslEvent,
     listSslEvents,
+    insertWebSocketEvent,
+    listWebSocketEvents,
+    clearWebSocketEvents,
     saveAiModels,
     listAiModels,
     upsertAgentRun,

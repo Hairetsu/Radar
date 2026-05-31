@@ -4,7 +4,7 @@ export type AiProviderId = "openai" | "anthropic" | "openai-compatible" | "codex
 
 export type AiConnectPresetId = "codex" | "cursor_cli";
 
-export type AiWorkView = "traffic" | "repeater" | "scope" | "ssl";
+export type AiWorkView = "traffic" | "websocket" | "repeater" | "scope" | "ssl";
 
 export type AiSettings = {
   provider: AiProviderId;
@@ -55,6 +55,7 @@ export type AiRunRequest = {
   skillId?: string;
   view?: AiWorkView;
   captureIds: string[];
+  webSocketEventIds?: string[];
   includeRaw: boolean;
   userPrompt?: string;
   viewContext?: AiViewContext;
@@ -68,6 +69,7 @@ export type AiAuditEntry = {
   provider: AiProviderId;
   model: string;
   captureIds: string[];
+  webSocketEventIds?: string[];
   redacted: boolean;
   promptChars: number;
   resultChars: number;
@@ -77,6 +79,7 @@ export type AiAuditEntry = {
 
 export type AiContextPreview = {
   captureCount: number;
+  webSocketEventCount?: number;
   charCount: number;
   previewText: string;
   redacted: boolean;

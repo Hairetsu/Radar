@@ -3,7 +3,7 @@ import type { AiCustomSkill, AiTaskType } from "../../shared/ai-types.js";
 const TASK_INSTRUCTIONS: Record<AiTaskType, string> = {
   capture_summary: `Return JSON only:
 {"summary":"string","observations":["string"],"uncertainties":["string"]}
-Summarize the selected HTTP captures. Note headers, TLS, status, timing. Flag security-relevant signals. Do not claim confirmed vulnerabilities; list uncertainties instead.`,
+Summarize the selected HTTP captures and WebSocket frames. Note headers, TLS, status, timing, directions, opcodes, and payload signals. Flag security-relevant signals. Do not claim confirmed vulnerabilities; list uncertainties instead.`,
 
   repeater_drafts: `Return JSON only:
 {"drafts":[{"label":"string","rationale":"string","draft":{"method":"GET","url":"https://...","headers":{},"body":""}}]}
@@ -14,8 +14,8 @@ Propose 2-4 safe manual test variants (auth/header/param/body tweaks). Never cla
 Create a short manual checklist (3-6 items) derived from the scope targets and any capture context. Only suggest tests for origins in the allowlist. No automated exploitation steps.`,
 
   report_notes: `Return JSON only:
-{"notes":"string","evidenceRefs":["capture:id"],"uncertainties":["string"]}
-Write concise report notes referencing capture IDs. Mark unknowns in uncertainties. No definitive vuln claims.`,
+{"notes":"string","evidenceRefs":["capture:id or websocket:id"],"uncertainties":["string"]}
+Write concise report notes referencing capture IDs and WebSocket frame IDs. Mark unknowns in uncertainties. No definitive vuln claims.`,
 
   browser_helper: `Return JSON only:
 {"steps":[{"label":"string","action":"navigate|observe","url":"optional"}]}

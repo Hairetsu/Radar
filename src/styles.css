@@ -533,6 +533,30 @@
     color: var(--theme-copy);
   }
 
+  .radar-traffic-filter {
+    grid-template-columns: 112px 132px 108px auto minmax(130px, 1fr) auto auto;
+  }
+
+  @media (max-width: 1420px) {
+    .radar-traffic-filter {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .radar-traffic-filter .traffic-search {
+      grid-column: span 2 / span 2;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .radar-traffic-filter {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .radar-traffic-filter .traffic-search {
+      grid-column: auto;
+    }
+  }
+
   .radar-status-live {
     box-shadow: 0 0 10px color-mix(in srgb, currentColor 70%, transparent);
   }

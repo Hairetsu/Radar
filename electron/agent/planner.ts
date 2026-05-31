@@ -25,7 +25,7 @@ Return JSON only in one of these forms:
 {"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action"}
 {"action":"finish","rationale":"why the run is complete","findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"notes":"string","uncertainties":["string"]}]}`;
 
-const WORK_VIEWS: AgentWorkbenchView[] = ["traffic", "repeater", "scope", "ssl"];
+const WORK_VIEWS: AgentWorkbenchView[] = ["traffic", "websocket", "repeater", "scope", "ssl"];
 
 function clip(value: unknown, max = 700) {
   const text = String(value ?? "");

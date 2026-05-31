@@ -1,21 +1,24 @@
-import type { CapturedRequest, ReplayDraft, SslEvent } from "../../shared/domain.js";
+import type { CapturedRequest, ReplayDraft, SslEvent, WebSocketEvent } from "../../shared/domain.js";
 import type { AiViewContext, AiWorkView } from "../../shared/ai-types.js";
 
 export function contextBlockedReason({
   view,
   captures,
+  webSocketEvents = [],
   viewContext
 }: {
   view?: AiWorkView;
   captures: CapturedRequest[];
+  webSocketEvents?: WebSocketEvent[];
   viewContext?: AiViewContext;
 }) {
   const activeView = view || viewContext?.view;
+  const packetCount = captures.length + webSocketEvents.length;
 
   switch (activeView) {
     case "repeater":
-      if (captures.length === 0 && !viewContext?.draft?.url?.trim()) {
-        return "Load a repeater draft or select a capture in Traffic.";
+      if (packetCount === 0 && !viewContext?.draft?.url?.trim()) {
+        return "Load a repeater draft or select a packet in Traffic or WebSocket.";
       }
       return undefined;
     case "scope":
@@ -28,10 +31,15 @@ export function contextBlockedReason({
         return "Record SSL events or select a capture with TLS details.";
       }
       return undefined;
+    case "websocket":
+      if (packetCount === 0) {
+        return "Select at least one WebSocket frame or HTTP capture.";
+      }
+      return undefined;
     case "traffic":
     default:
-      if (captures.length === 0) {
-        return "Select at least one capture in Traffic.";
+      if (packetCount === 0) {
+        return "Select at least one HTTP capture or WebSocket frame.";
       }
       return undefined;
   }

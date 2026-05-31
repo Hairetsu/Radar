@@ -156,6 +156,8 @@ const radarApi = {
   getCaptures: vi.fn(async () => []),
   deleteCapture: vi.fn(async () => ({ ok: true })),
   getSslEvents: vi.fn(async () => []),
+  getWebSocketEvents: vi.fn(async () => []),
+  clearWebSocketEvents: vi.fn(async () => ({ ok: true })),
   getTargets: vi.fn(async () => []),
   onCapture: vi.fn(() => () => undefined),
   onSslEvent: vi.fn(() => () => undefined),
@@ -177,6 +179,7 @@ const radarApi = {
   setAiSettings: vi.fn(async () => undefined),
   previewAiContext: vi.fn(async () => ({
     captureCount: 1,
+    webSocketEventCount: 0,
     charCount: 120,
     previewText: "RADAR AI CONTEXT",
     redacted: true

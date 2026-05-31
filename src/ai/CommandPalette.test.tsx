@@ -31,6 +31,8 @@ const baseProps = {
       source: "browser" as const
     }
   ],
+  webSocketEventIds: [],
+  webSocketEvents: [],
   targets: ["http://localhost:*"],
   browserUrl: "http://localhost:3000",
   draft: {
@@ -60,7 +62,7 @@ describe("CommandPalette", () => {
   });
 
   it("lists scope tasks for scope view", async () => {
-    render(<CommandPalette {...baseProps} view="scope" captureIds={[]} />);
+    render(<CommandPalette {...baseProps} view="scope" captureIds={[]} webSocketEventIds={[]} />);
     expect(await screen.findByText("Scope Checklist")).toBeInTheDocument();
     expect(screen.getByText("Browser Helper")).toBeInTheDocument();
   });
@@ -92,19 +94,71 @@ describe("CommandPalette", () => {
       />
     );
 
-    expect(await screen.findByText("Captures (1/2)")).toBeInTheDocument();
+    expect(await screen.findByText("Packets (1/2)")).toBeInTheDocument();
     expect(screen.getByTestId("aiCaptureCheckbox-cap-1")).toBeChecked();
     expect(screen.getByTestId("aiCaptureCheckbox-cap-2")).not.toBeChecked();
 
     await user.click(screen.getByTestId("aiCaptureCheckbox-cap-2"));
-    expect(screen.getByText("Captures (2/2)")).toBeInTheDocument();
-    expect(screen.getByText("2 captures selected")).toBeInTheDocument();
+    expect(screen.getByText("Packets (2/2)")).toBeInTheDocument();
+    expect(screen.getByText("2 packets selected")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("aiClearCaptures"));
-    expect(screen.getByText("Captures (0/2)")).toBeInTheDocument();
-    expect(screen.getByText("No captures selected")).toBeInTheDocument();
+    await user.click(screen.getByTestId("aiClearPackets"));
+    expect(screen.getByText("Packets (0/2)")).toBeInTheDocument();
+    expect(screen.getByText("No packets selected")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("aiSelectAllCaptures"));
-    expect(screen.getByText("Captures (2/2)")).toBeInTheDocument();
+    await user.click(screen.getByTestId("aiSelectAllPackets"));
+    expect(screen.getByText("Packets (2/2)")).toBeInTheDocument();
+  });
+
+  it("supports selecting websocket packets for websocket tasks", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPalette
+        {...baseProps}
+        view="websocket"
+        captureIds={[]}
+        webSocketEventIds={["ws-1"]}
+        webSocketEvents={[
+          {
+            id: "ws-1",
+            requestId: "stream-1",
+            createdAt: new Date().toISOString(),
+            url: "wss://localhost:3000/socket",
+            host: "localhost:3000",
+            direction: "received",
+            opcode: 1,
+            payloadData: "{\"event\":\"ready\"}",
+            size: 17,
+            requestHeaders: {},
+            responseHeaders: {},
+            allowed: true
+          },
+          {
+            id: "ws-2",
+            requestId: "stream-1",
+            createdAt: new Date().toISOString(),
+            url: "wss://localhost:3000/socket",
+            host: "localhost:3000",
+            direction: "sent",
+            opcode: 1,
+            payloadData: "{\"event\":\"ack\"}",
+            size: 15,
+            requestHeaders: {},
+            responseHeaders: {},
+            allowed: true
+          }
+        ]}
+      />
+    );
+
+    expect(await screen.findByText("Packets (1/3)")).toBeInTheDocument();
+    expect(screen.getByTestId("aiWebSocketCheckbox-ws-1")).toBeChecked();
+    expect(screen.getByTestId("aiWebSocketCheckbox-ws-2")).not.toBeChecked();
+
+    await user.click(screen.getByTestId("aiWebSocketCheckbox-ws-2"));
+    expect(screen.getByText("Packets (2/3)")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("aiSelectAllPackets"));
+    expect(screen.getByText("Packets (3/3)")).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import type { CapturedRequest } from "../../shared/domain.js";
+import type { CapturedRequest, WebSocketEvent } from "../../shared/domain.js";
 import type { AiConnectPresetId, AiRunRequest, AiRunResult } from "../../shared/ai-types.js";
 import { pushAudit, snapshotAudit } from "./audit.js";
 import { buildContextPayload } from "./context.js";
@@ -17,8 +17,17 @@ function resolveCaptures(capturedMap: Map<string, CapturedRequest>, captureIds: 
   return ids.map((id) => capturedMap.get(id)).filter((entry): entry is CapturedRequest => Boolean(entry));
 }
 
+function resolveWebSocketEvents(webSocketEventMap: Map<string, WebSocketEvent>, eventIds: string[]) {
+  const ids = Array.isArray(eventIds) ? eventIds.filter(Boolean) : [];
+  if (ids.length === 0) {
+    return [];
+  }
+  return ids.map((id) => webSocketEventMap.get(id)).filter((entry): entry is WebSocketEvent => Boolean(entry));
+}
+
 function buildUserMessage({
   captures,
+  webSocketEvents,
   allowlist,
   browserUrl,
   includeRaw,
@@ -26,6 +35,7 @@ function buildUserMessage({
   userPrompt
 }: {
   captures: CapturedRequest[];
+  webSocketEvents: WebSocketEvent[];
   allowlist: string[];
   browserUrl: string;
   includeRaw: boolean;
@@ -33,9 +43,10 @@ function buildUserMessage({
   userPrompt?: string;
 }) {
   const captureText =
-    captures.length > 0
+    captures.length > 0 || webSocketEvents.length > 0
       ? buildContextPayload({
           captures,
+          webSocketEvents,
           targets: allowlist,
           browserUrl,
           includeRaw: Boolean(includeRaw)
@@ -46,7 +57,7 @@ function buildUserMessage({
           `browser_url: ${browserUrl || "(none)"}`,
           `redacted: ${includeRaw ? "no" : "yes"}`,
           "",
-          "No captures selected."
+          "No packets selected."
         ].join("\n");
 
   const userParts = [appendViewContext(captureText, viewContext)];
@@ -58,22 +69,26 @@ function buildUserMessage({
 
 export function previewContext({
   capturedMap,
+  webSocketEventMap = new Map(),
   allowlist,
   browserUrl,
   request
 }: {
   capturedMap: Map<string, CapturedRequest>;
+  webSocketEventMap?: Map<string, WebSocketEvent>;
   allowlist: string[];
   browserUrl: string;
   request: Partial<AiRunRequest>;
 }) {
   const captures = resolveCaptures(capturedMap, request.captureIds || []);
+  const webSocketEvents = resolveWebSocketEvents(webSocketEventMap, request.webSocketEventIds || []);
   const viewContext = request.viewContext || (request.view ? { view: request.view } : undefined);
-  const blockedReason = contextBlockedReason({ view: request.view, captures, viewContext });
+  const blockedReason = contextBlockedReason({ view: request.view, captures, webSocketEvents, viewContext });
 
   if (blockedReason) {
     return {
       captureCount: captures.length,
+      webSocketEventCount: webSocketEvents.length,
       charCount: 0,
       previewText: "",
       redacted: !request.includeRaw,
@@ -83,6 +98,7 @@ export function previewContext({
 
   const previewText = buildUserMessage({
     captures,
+    webSocketEvents,
     allowlist,
     browserUrl,
     includeRaw: Boolean(request.includeRaw),
@@ -92,6 +108,7 @@ export function previewContext({
 
   return {
     captureCount: captures.length,
+    webSocketEventCount: webSocketEvents.length,
     charCount: previewText.length,
     previewText,
     redacted: !request.includeRaw
@@ -100,12 +117,14 @@ export function previewContext({
 
 export async function runAiTask({
   capturedMap,
+  webSocketEventMap = new Map(),
   allowlist,
   browserUrl,
   userDataPath,
   request
 }: {
   capturedMap: Map<string, CapturedRequest>;
+  webSocketEventMap?: Map<string, WebSocketEvent>;
   allowlist: string[];
   browserUrl: string;
   userDataPath: string;
@@ -114,13 +133,14 @@ export async function runAiTask({
   const task = request.task;
   const includeRaw = Boolean(request.includeRaw);
   const captures = resolveCaptures(capturedMap, request.captureIds || []);
+  const webSocketEvents = resolveWebSocketEvents(webSocketEventMap, request.webSocketEventIds || []);
   const viewContext = request.viewContext || (request.view ? { view: request.view } : undefined);
 
   if (!task) {
     throw new Error("AI task is required.");
   }
 
-  const blockedReason = contextBlockedReason({ view: request.view, captures, viewContext });
+  const blockedReason = contextBlockedReason({ view: request.view, captures, webSocketEvents, viewContext });
   if (blockedReason) {
     throw new Error(blockedReason);
   }
@@ -144,6 +164,7 @@ export async function runAiTask({
   const settings = loadSettings(userDataPath);
   const userMessage = buildUserMessage({
     captures,
+    webSocketEvents,
     allowlist,
     browserUrl,
     includeRaw,
@@ -160,6 +181,7 @@ export async function runAiTask({
     provider: settings.provider,
     model: settings.model,
     captureIds: captures.map((capture) => capture.id),
+    webSocketEventIds: webSocketEvents.map((event) => event.id),
     redacted: !includeRaw,
     promptChars: userMessage.length + system.length
   };

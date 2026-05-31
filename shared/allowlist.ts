@@ -24,29 +24,32 @@ export function ruleAllows(url: URL, rule: string) {
   }
 
   const target = `${url.protocol}//${url.host}`;
+  const equivalentHttpProtocol = url.protocol === "ws:" ? "http:" : url.protocol === "wss:" ? "https:" : url.protocol;
+  const equivalentTarget = `${equivalentHttpProtocol}//${url.host}`;
   if (trimmed.includes("*")) {
-    return wildcardToRegExp(trimmed).test(target) || wildcardToRegExp(trimmed).test(url.href);
+    const pattern = wildcardToRegExp(trimmed);
+    return pattern.test(target) || pattern.test(equivalentTarget) || pattern.test(url.href);
   }
 
   try {
     const parsedRule = new URL(trimmed);
-    return parsedRule.origin === url.origin;
+    return parsedRule.origin === url.origin || parsedRule.origin === equivalentTarget;
   } catch {
     return trimmed.toLowerCase() === url.hostname.toLowerCase();
   }
 }
 
-function parseHttpUrl(urlString: string): URL | null {
+function parseScopedUrl(urlString: string): URL | null {
   try {
     const parsed = new URL(urlString);
-    return ["http:", "https:"].includes(parsed.protocol) ? parsed : null;
+    return ["http:", "https:", "ws:", "wss:"].includes(parsed.protocol) ? parsed : null;
   } catch {
     return null;
   }
 }
 
 export function isAllowedTarget(urlString: string, rules = DEFAULT_ALLOWLIST) {
-  const parsed = parseHttpUrl(urlString);
+  const parsed = parseScopedUrl(urlString);
   if (!parsed) {
     return false;
   }
@@ -56,6 +59,6 @@ export function isAllowedTarget(urlString: string, rules = DEFAULT_ALLOWLIST) {
 }
 
 export function shouldTrustLocalCertificate(urlString: string) {
-  const parsed = parseHttpUrl(urlString);
+  const parsed = parseScopedUrl(urlString);
   return parsed?.protocol === "https:" && isLocalHost(parsed.hostname) ? true : false;
 }

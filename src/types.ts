@@ -30,7 +30,9 @@ export type {
   ReplayDraft,
   ReplayResult,
   SslEvent,
-  TlsDetails
+  TlsDetails,
+  WebSocketDirection,
+  WebSocketEvent
 } from "../shared/domain";
 
 export type {

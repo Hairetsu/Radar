@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { CapturedRequest } from "./types";
+import type { CapturedRequest, WebSocketEvent } from "./types";
 
 const capture = (id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest => {
   const parsed = new URL(url);
@@ -35,6 +35,7 @@ afterEach(() => {
   vi.mocked(window.radar!.getTargets).mockResolvedValue([]);
   vi.mocked(window.radar!.setTargets).mockClear();
   vi.mocked(window.radar!.setTargets).mockResolvedValue(undefined as unknown as string[]);
+  vi.mocked(window.radar!.getWebSocketEvents).mockResolvedValue([]);
   vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([]);
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
@@ -52,12 +53,30 @@ afterEach(() => {
 describe("App", () => {
   it("renders the workbench shell", async () => {
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Traffic" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "HTTP / HTTPS Traffic" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /open browser/i })).toBeInTheDocument();
     expect(screen.queryByTestId("markTarget")).not.toBeInTheDocument();
     expect(screen.getByText(/Attack Surface Workbench/i)).toBeInTheDocument();
     expect(screen.getByTestId("aiConnectionIndicator")).toBeInTheDocument();
     expect(screen.getByTestId("openProfileSessionPanel")).toBeInTheDocument();
+  });
+
+  it("hydrates profiles and http captures when websocket ipc is unavailable", async () => {
+    const originalWebSocketSnapshot = window.radar!.getWebSocketEvents;
+    const legacyRadar = window.radar as unknown as { getWebSocketEvents?: unknown };
+    try {
+      legacyRadar.getWebSocketEvents = undefined;
+      vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
+      vi.mocked(window.radar!.getCaptures).mockResolvedValue([capture("allowed", "https://allowed.test/path")]);
+
+      render(<App />);
+
+      expect(await screen.findByTestId("trafficRow-allowed")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("openProfileSessionPanel"));
+      expect(await screen.findByTestId("profileSessionPanel")).toBeInTheDocument();
+    } finally {
+      legacyRadar.getWebSocketEvents = originalWebSocketSnapshot;
+    }
   });
 
   it("switches to AI-First and starts an agent run from a goal", async () => {
@@ -217,6 +236,36 @@ describe("App", () => {
     await waitFor(() => {
       expect(window.radar!.loadLocalSession).toHaveBeenCalledWith("session-archive");
     });
+  });
+
+  it("shows websocket frames in the websocket analyzer tab", async () => {
+    const frame: WebSocketEvent = {
+      id: "ws-frame-1",
+      requestId: "request-ws-1",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      url: "wss://allowed.test/socket",
+      host: "allowed.test",
+      direction: "received",
+      opcode: 1,
+      payloadData: "{\"type\":\"ready\"}",
+      size: 16,
+      responseHeaders: { Upgrade: "websocket" },
+      requestHeaders: { Connection: "Upgrade" },
+      allowed: true
+    };
+    vi.mocked(window.radar!.getWebSocketEvents).mockResolvedValue([frame]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-websocket"));
+
+    expect(await screen.findByRole("heading", { name: "WebSocket" })).toBeInTheDocument();
+    expect(screen.getByTestId("webSocketRow-ws-frame-1")).toBeInTheDocument();
+    expect(screen.getByTestId("webSocketDetailText")).toHaveTextContent("wss://allowed.test/socket");
+
+    fireEvent.change(screen.getByTestId("webSocketDirectionFilter"), { target: { value: "sent" } });
+    expect(screen.queryByTestId("webSocketRow-ws-frame-1")).not.toBeInTheDocument();
+    expect(screen.getByText("No WebSocket frames match filters")).toBeInTheDocument();
   });
 
   it("filters the traffic list to current scope", async () => {

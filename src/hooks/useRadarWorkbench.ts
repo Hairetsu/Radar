@@ -20,15 +20,16 @@ import type {
   ProxyState,
   ReplayDraft,
   ReplayResult,
-  SslEvent
+  SslEvent,
+  WebSocketEvent
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
 import { useTheme } from "./useTheme";
 
-export type WorkView = "traffic" | "repeater" | "scope" | "ssl";
+export type WorkView = "traffic" | "websocket" | "repeater" | "scope" | "ssl";
 
-export const WORK_VIEWS: WorkView[] = ["traffic", "repeater", "scope", "ssl"];
+export const WORK_VIEWS: WorkView[] = ["traffic", "websocket", "repeater", "scope", "ssl"];
 
 export type TrafficSortField = "time" | "method" | "status" | "host" | "path" | "type" | "duration";
 
@@ -82,10 +83,11 @@ function isActiveAgentRun(run: AgentRun | null | undefined) {
 }
 
 export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: string; title: string }> = {
-  traffic: { num: "01", label: "Traffic", eyebrow: "Capture // Live wire", title: "Traffic" },
-  repeater: { num: "02", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
-  scope: { num: "03", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "04", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
+  traffic: { num: "01", label: "HTTP(S)", eyebrow: "HTTP / HTTPS // Request capture", title: "HTTP / HTTPS Traffic" },
+  websocket: { num: "02", label: "WebSocket", eyebrow: "Streams // Frame analysis", title: "WebSocket" },
+  repeater: { num: "03", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
+  scope: { num: "04", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "05", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -182,10 +184,22 @@ function searchTextForCapture(capture: CapturedRequest) {
     .toLowerCase();
 }
 
+async function loadWebSocketEvents() {
+  if (!window.radar?.getWebSocketEvents) {
+    return [];
+  }
+  try {
+    return await window.radar.getWebSocketEvents();
+  } catch {
+    return [];
+  }
+}
+
 export function useRadarWorkbench() {
   const [address, setAddress] = useState(defaultUrl);
   const [captures, setCaptures] = useState<CapturedRequest[]>([]);
   const [sslEvents, setSslEvents] = useState<SslEvent[]>([]);
+  const [webSocketEvents, setWebSocketEvents] = useState<WebSocketEvent[]>([]);
   const [localContext, setLocalContext] = useState<LocalContext | null>(null);
   const [profiles, setProfiles] = useState<LocalProfile[]>([]);
   const [sessions, setSessions] = useState<LocalSessionSummary[]>([]);
@@ -249,17 +263,20 @@ export function useRadarWorkbench() {
       setLastBurst(null);
 
       if (window.radar) {
-        const [nextTargets, nextCaptures, nextSslEvents, nextBrowserState, nextAgentRuns] = await Promise.all([
-          window.radar.getTargets(),
-          window.radar.getCaptures(),
-          window.radar.getSslEvents(),
-          window.radar.getBrowserState(),
-          window.radar.listAgentRuns()
-        ]);
+        const [nextTargets, nextCaptures, nextSslEvents, nextWebSocketEvents, nextBrowserState, nextAgentRuns] =
+          await Promise.all([
+            window.radar.getTargets(),
+            window.radar.getCaptures(),
+            window.radar.getSslEvents(),
+            loadWebSocketEvents(),
+            window.radar.getBrowserState(),
+            window.radar.listAgentRuns()
+          ]);
         setTargets(nextTargets);
         setTargetText(nextTargets.join("\n"));
         setCaptures(nextCaptures);
         setSslEvents(nextSslEvents);
+        setWebSocketEvents(nextWebSocketEvents);
         setBrowserState(nextBrowserState);
         setAgentRuns(nextAgentRuns);
         await refreshLocalLists(context);
@@ -394,6 +411,11 @@ export function useRadarWorkbench() {
     setSelectedId("");
     setSelectedIds([]);
     selectionAnchorRef.current = "";
+  }, []);
+
+  const clearWebSocketEvents = useCallback(async () => {
+    await window.radar?.clearWebSocketEvents?.();
+    setWebSocketEvents([]);
   }, []);
 
   const deleteCapture = useCallback(
@@ -738,10 +760,11 @@ export function useRadarWorkbench() {
         return;
       }
       const context = await window.radar.getLocalContext();
-      const [items, nextProfiles, nextSessions, nextAgentRuns] = await Promise.all([
+      const [items, nextProfiles, nextSessions, nextWebSocketEvents, nextAgentRuns] = await Promise.all([
         window.radar.getTargets(),
         window.radar.listLocalProfiles(),
         window.radar.listLocalSessions(context.profile.id),
+        loadWebSocketEvents(),
         window.radar.listAgentRuns()
       ]);
       if (cancelled) {
@@ -754,6 +777,7 @@ export function useRadarWorkbench() {
       setTargetText(items.join("\n"));
       setProfiles(nextProfiles);
       setSessions(nextSessions);
+      setWebSocketEvents(nextWebSocketEvents);
       setAgentRuns(nextAgentRuns);
     };
     load();
@@ -794,16 +818,19 @@ export function useRadarWorkbench() {
       if (!window.radar || cancelled) {
         return;
       }
-      const [nextCaptures, nextSslEvents, nextBrowserState, nextProxyState, nextAgentRuns] = await Promise.all([
-        window.radar.getCaptures(),
-        window.radar.getSslEvents(),
-        window.radar.getBrowserState(),
-        window.radar.getProxyState(),
-        window.radar.listAgentRuns()
-      ]);
+      const [nextCaptures, nextSslEvents, nextWebSocketEvents, nextBrowserState, nextProxyState, nextAgentRuns] =
+        await Promise.all([
+          window.radar.getCaptures(),
+          window.radar.getSslEvents(),
+          loadWebSocketEvents(),
+          window.radar.getBrowserState(),
+          window.radar.getProxyState(),
+          window.radar.listAgentRuns()
+        ]);
       if (!cancelled) {
         setCaptures(nextCaptures);
         setSslEvents(nextSslEvents);
+        setWebSocketEvents(nextWebSocketEvents);
         setBrowserState(nextBrowserState);
         setProxyState(nextProxyState);
         setAgentRuns(nextAgentRuns);
@@ -843,6 +870,7 @@ export function useRadarWorkbench() {
     setAddress,
     captures,
     sslEvents,
+    webSocketEvents,
     localContext,
     profiles,
     sessions,
@@ -925,6 +953,7 @@ export function useRadarWorkbench() {
     runBurstPending: runBurstMutation.isPending,
     replayPending,
     clearCaptures,
+    clearWebSocketEvents,
     deleteCapture,
     createLocalProfile,
     saveLocalProfile,
