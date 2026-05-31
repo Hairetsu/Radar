@@ -489,4 +489,50 @@ describe("localStore", () => {
 
     store.close();
   });
+
+  it("persists repeater tabs, environments, and collections per workspace", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const tabState = store.getReplayTabState(context.workspace.id);
+    store.setReplayTabState(context.workspace.id, {
+      ...tabState,
+      tabs: tabState.tabs.map((tab, index) =>
+        index === 0 ? { ...tab, name: "Auth tab", draft: { ...tab.draft, url: "https://example.test/login" } } : tab
+      )
+    });
+    store.setReplayEnvironments(context.workspace.id, [
+      {
+        id: "env-1",
+        name: "Staging",
+        variables: { token: "abc" },
+        createdAt: "2026-05-25T12:00:00.000Z",
+        updatedAt: "2026-05-25T12:00:00.000Z"
+      }
+    ]);
+    store.setReplayCollections(context.workspace.id, [
+      {
+        id: "collection-1",
+        name: "Auth",
+        items: [
+          {
+            id: "item-1",
+            name: "Login",
+            draft: { method: "POST", url: "https://example.test/login", headers: {}, body: "{}" },
+            tags: [],
+            createdAt: "2026-05-25T12:00:00.000Z",
+            updatedAt: "2026-05-25T12:00:00.000Z"
+          }
+        ],
+        createdAt: "2026-05-25T12:00:00.000Z",
+        updatedAt: "2026-05-25T12:00:00.000Z"
+      }
+    ]);
+
+    store.close();
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.getReplayTabState(context.workspace.id).tabs[0].name).toBe("Auth tab");
+    expect(reopened.listReplayEnvironments(context.workspace.id)[0]?.name).toBe("Staging");
+    expect(reopened.listReplayCollections(context.workspace.id)[0]?.items[0]?.name).toBe("Login");
+    reopened.close();
+  });
 });

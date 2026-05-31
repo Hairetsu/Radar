@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   Activity,
+  Plus,
+  Pin,
+  X,
+  History,
+  GitCompare,
+  Variable,
+  FolderOpen,
   Braces,
   Bot,
   Code2,
@@ -42,6 +49,7 @@ import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Select } from "./components/ui/select";
 import { Textarea } from "./components/ui/textarea";
+import { jsonFormat, jsonMinify, jwtDecode, parseCookieHeader, urlDecode, urlEncode } from "../shared/requestTransforms.js";
 import { TRAFFIC_SORT_FIELDS, useRadarWorkbench, viewMeta, WORK_VIEWS, type WorkView } from "./hooks/useRadarWorkbench";
 import {
   bodyPreview,
@@ -1517,6 +1525,17 @@ export function App() {
                     <Copy size={13} strokeWidth={1.7} />
                     Copy
                   </Button>
+                  <Button
+                    variant="ghost"
+                    className={detailTabClass(false)}
+                    onClick={() => selectedWebSocketEvent && workbench.loadWebSocketFrameToRepeater(selectedWebSocketEvent)}
+                    disabled={!selectedWebSocketEvent}
+                    title="Load frame in repeater"
+                    data-testid="replayWebSocketFrame"
+                  >
+                    <Repeat2 size={13} strokeWidth={1.7} />
+                    Replay
+                  </Button>
                 </div>
 
                 <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(3,minmax(0,1fr))]">
@@ -1808,8 +1827,134 @@ export function App() {
           )}
 
           {workbench.activeView === "repeater" && (
-            <div className="grid min-h-0 [grid-template-columns:minmax(0,1.05fr)_minmax(360px,0.95fr)] max-[1180px]:grid-cols-1">
+            <div className="grid min-h-0 [grid-template-rows:auto_minmax(0,1fr)]">
+              <div className="flex flex-wrap items-center gap-2 border-b border-rule px-4 py-3">
+                {workbench.replayTabState.tabs.map((tab) => (
+                  <Button
+                    key={tab.id}
+                    variant={tab.id === workbench.replayTabState.activeTabId ? "solid" : "ghost"}
+                    className="h-8 gap-1.5 px-3"
+                    onClick={() => void workbench.selectReplayTab(tab.id)}
+                    data-testid={`repeaterTab-${tab.id}`}
+                  >
+                    {tab.pinned && <Pin size={12} strokeWidth={1.8} />}
+                    {tab.name}
+                    {workbench.replayTabState.tabs.length > 1 && (
+                      <X
+                        size={12}
+                        strokeWidth={1.8}
+                        className="opacity-60 hover:opacity-100"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void workbench.closeReplayTab(tab.id);
+                        }}
+                      />
+                    )}
+                  </Button>
+                ))}
+                <Button variant="ghost" className="h-8 px-2" onClick={() => void workbench.createReplayTab()} data-testid="createReplayTab">
+                  <Plus size={14} strokeWidth={1.8} />
+                </Button>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <Select
+                    variant="compact"
+                    value={workbench.activeReplayTab?.environmentId || ""}
+                    onChange={(event) => void workbench.setReplayTabEnvironment(event.target.value)}
+                    data-testid="repeaterEnvironment"
+                  >
+                    <option value="">No environment</option>
+                    {workbench.replayEnvironments.map((environment) => (
+                      <option key={environment.id} value={environment.id}>
+                        {environment.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    className="h-8"
+                    onClick={() => void workbench.toggleReplayTabPin(workbench.activeReplayTab?.id || "")}
+                    data-testid="pinReplayTab"
+                  >
+                    <Pin size={14} strokeWidth={1.8} />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 [grid-template-columns:minmax(0,1.05fr)_minmax(360px,0.95fr)] max-[1180px]:grid-cols-1">
               <div className="min-h-0 overflow-auto border-r border-rule max-[1180px]:border-r-0 max-[1180px]:border-b">
+                <div className="flex flex-wrap gap-2 px-5 pt-4">
+                  {(
+                    [
+                      {
+                        label: "URL encode",
+                        action: () =>
+                          workbench.setDraft({
+                            ...workbench.draft,
+                            url: urlEncode(workbench.draft.url).value || workbench.draft.url
+                          })
+                      },
+                      {
+                        label: "URL decode",
+                        action: () =>
+                          workbench.setDraft({
+                            ...workbench.draft,
+                            url: urlDecode(workbench.draft.url).value || workbench.draft.url
+                          })
+                      },
+                      {
+                        label: "JSON format",
+                        action: () =>
+                          workbench.setDraft({
+                            ...workbench.draft,
+                            body: jsonFormat(workbench.draft.body).value || workbench.draft.body
+                          })
+                      },
+                      {
+                        label: "JSON minify",
+                        action: () =>
+                          workbench.setDraft({
+                            ...workbench.draft,
+                            body: jsonMinify(workbench.draft.body).value || workbench.draft.body
+                          })
+                      }
+                    ] as const
+                  ).map(({ label, action }) => (
+                    <Button key={label} variant="ghost" className="h-7 px-2 text-[11px]" onClick={action}>
+                      {label}
+                    </Button>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    className="h-7 px-2 text-[11px]"
+                    onClick={() => {
+                      const auth = workbench.draft.headers.Authorization || workbench.draft.headers.authorization || "";
+                      const decoded = jwtDecode(auth.replace(/^Bearer\s+/i, ""));
+                      if (decoded.ok) {
+                        workbench.setNotice(`JWT payload loaded into body preview`);
+                        workbench.setDraft({ ...workbench.draft, body: decoded.payload });
+                      } else {
+                        workbench.setNotice(decoded.error || "JWT decode failed");
+                      }
+                    }}
+                  >
+                    JWT decode
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="h-7 px-2 text-[11px]"
+                    onClick={() => {
+                      const cookie = workbench.draft.headers.Cookie || workbench.draft.headers.cookie || "";
+                      const parsed = parseCookieHeader(cookie);
+                      if (parsed.ok) {
+                        workbench.setDraft({ ...workbench.draft, body: parsed.value });
+                      } else {
+                        workbench.setNotice(parsed.error || "Cookie parse failed");
+                      }
+                    }}
+                  >
+                    Parse cookies
+                  </Button>
+                </div>
                 <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:110px_minmax(0,1fr)]">
                   <Select
                     variant="method"
@@ -1944,11 +2089,142 @@ export function App() {
                     <span>{elapsed(workbench.lastResponse?.durationMs)}</span>
                     {workbench.lastBurst && <span>{workbench.lastBurst.failures} flagged</span>}
                   </div>
-                  <pre className="h-[380px] px-4 py-3">
+                  <pre className="h-[220px] px-4 py-3">
                     {workbench.lastResponse ? bodyPreview(workbench.lastResponse.body) : ""}
                   </pre>
                 </div>
+
+                {workbench.activeReplayTab && workbench.activeReplayTab.history.length > 0 && (
+                  <div className="border-t border-rule px-5 py-4">
+                    <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-muted">
+                      <History size={13} strokeWidth={1.7} />
+                      Replay history
+                    </div>
+                    <div className="grid gap-2">
+                      {workbench.activeReplayTab.history.slice(0, 8).map((entry) => (
+                        <div key={entry.id} className="flex flex-wrap items-center gap-2 rounded border border-rule px-3 py-2 text-[12px]">
+                          <span>{entry.result.status}</span>
+                          <span className="text-muted">{elapsed(entry.result.durationMs)}</span>
+                          <span className="truncate text-muted">{entry.draft.method} {entry.draft.url}</span>
+                          <Button variant="ghost" className="ml-auto h-7 px-2" onClick={() => workbench.loadReplayHistoryEntry(entry)}>
+                            Load
+                          </Button>
+                          <input
+                            type="radio"
+                            name="diffLeft"
+                            checked={workbench.diffLeftHistoryId === entry.id}
+                            onChange={() => workbench.setDiffLeftHistoryId(entry.id)}
+                            aria-label="Diff left"
+                          />
+                          <input
+                            type="radio"
+                            name="diffRight"
+                            checked={workbench.diffRightHistoryId === entry.id}
+                            onChange={() => workbench.setDiffRightHistoryId(entry.id)}
+                            aria-label="Diff right"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {workbench.replayDiff && (
+                  <div className="border-t border-rule px-5 py-4">
+                    <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-muted">
+                      <GitCompare size={13} strokeWidth={1.7} />
+                      Response diff
+                    </div>
+                    <div className="grid gap-1 text-[12px] text-muted">
+                      <span>Status: {workbench.replayDiff.statusBefore} → {workbench.replayDiff.statusAfter}</span>
+                      <span>Latency delta: {workbench.replayDiff.latencyDeltaMs} ms</span>
+                      <span>Body length delta: {workbench.replayDiff.bodyLengthDelta}</span>
+                      {workbench.replayDiff.headerDiffs
+                        .filter((entry) => entry.change !== "same")
+                        .slice(0, 6)
+                        .map((entry) => (
+                          <span key={entry.key}>
+                            {entry.key}: {entry.change}
+                          </span>
+                        ))}
+                    </div>
+                    <pre className="mt-3 max-h-[160px] overflow-auto rounded border border-rule px-3 py-2 text-[11px]">
+                      {workbench.replayDiff.bodyTextDiff.join("\n")}
+                    </pre>
+                  </div>
+                )}
+
+                {(workbench.replayEnvironments.length > 0 || workbench.replayCollections.length > 0) && (
+                  <div className="border-t border-rule px-5 py-4">
+                    <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-muted">
+                      <FolderOpen size={13} strokeWidth={1.7} />
+                      Collections
+                    </div>
+                    {workbench.replayCollections.map((collection) => (
+                      <div key={collection.id} className="mb-3">
+                        <div className="mb-1 font-semibold">{collection.name}</div>
+                        <div className="flex flex-wrap gap-2">
+                          {collection.items.slice(0, 6).map((item) => (
+                            <Button key={item.id} variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => workbench.loadCollectionItem(item.draft)}>
+                              {item.name}
+                            </Button>
+                          ))}
+                          <Button
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => void workbench.saveDraftToCollection(collection.id, workbench.activeReplayTab?.name || "Request")}
+                          >
+                            Save tab
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => void workbench.createReplayEnvironment(`Env ${workbench.replayEnvironments.length + 1}`)}
+                      >
+                        <Variable size={12} />
+                        New environment
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {workbench.webSocketReplayDraft && (
+                  <div className="border-t border-rule px-5 py-4">
+                    <FieldLabel htmlFor="wsReplayPayload">WebSocket replay</FieldLabel>
+                    <Textarea
+                      id="wsReplayPayload"
+                      variant="code"
+                      className="h-[120px]"
+                      value={workbench.webSocketReplayDraft.payload}
+                      onChange={(event) =>
+                        workbench.setWebSocketReplayDraft(
+                          workbench.webSocketReplayDraft
+                            ? { ...workbench.webSocketReplayDraft, payload: event.target.value }
+                            : null
+                        )
+                      }
+                      spellCheck={false}
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <Button variant="solid" onClick={() => void workbench.sendWebSocketReplay()}>
+                        Send frame
+                      </Button>
+                      {workbench.webSocketReplayResult && (
+                        <span className="self-center text-[12px] text-muted">
+                          {workbench.webSocketReplayResult.ok
+                            ? `Reply in ${workbench.webSocketReplayResult.durationMs} ms`
+                            : workbench.webSocketReplayResult.error}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
+            </div>
             </div>
           )}
 

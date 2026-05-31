@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { defaultReplayTabState } from "../../shared/replayTabs.js";
 import "@testing-library/jest-dom/vitest";
 
 const radarApi = {
@@ -192,6 +193,12 @@ const radarApi = {
   clearWebSocketEvents: vi.fn(async () => ({ ok: true })),
   getSavedFilters: vi.fn(async () => []),
   setSavedFilters: vi.fn(async (filters) => filters),
+  getReplayTabState: vi.fn(async () => defaultReplayTabState()),
+  setReplayTabState: vi.fn(async (state) => state),
+  getReplayEnvironments: vi.fn(async () => []),
+  setReplayEnvironments: vi.fn(async (items) => items),
+  getReplayCollections: vi.fn(async () => []),
+  setReplayCollections: vi.fn(async (items) => items),
   getEvidenceAnnotations: vi.fn(async () => []),
   saveEvidenceAnnotation: vi.fn(async (annotation) => annotation),
   saveEvidenceAnnotations: vi.fn(async (annotations) => annotations),
@@ -205,7 +212,8 @@ const radarApi = {
   startProxy: vi.fn(async () => undefined),
   stopProxy: vi.fn(async () => undefined),
   setTargets: vi.fn(async () => undefined),
-  sendReplay: vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", durationMs: 10 })),
+  sendReplay: vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", bytes: 0, durationMs: 10 })),
+  sendWebSocketReplay: vi.fn(async () => ({ ok: true, durationMs: 10, responsePayload: "" })),
   runBurst: vi.fn(async () => ({ count: 1, concurrency: 1, averageMs: 10, results: [], failures: 0 })),
   getAiSettings: vi.fn(async () => ({
     provider: "openai",

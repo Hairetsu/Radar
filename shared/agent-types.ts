@@ -4,7 +4,8 @@ import type {
   InterceptQueueItem,
   InterceptResponseDraft,
   ReplayDraft,
-  ReplayResult
+  ReplayResult,
+  ReplayTabState
 } from "./domain.js";
 
 export type AppMode = "manual-first" | "ai-first";
@@ -39,7 +40,10 @@ export type AgentToolName =
   | "analyzeCookieFlags"
   | "checkCorsPolicy"
   | "getSitemapCoverage"
-  | "prepareTrafficQuery";
+  | "prepareTrafficQuery"
+  | "getReplayContext"
+  | "prepareReplayTab"
+  | "compareReplayResults";
 
 export type AgentClickableElement = {
   selector: string;
@@ -134,7 +138,10 @@ export type AgentToolCall =
   | { tool: "analyzeCookieFlags"; input: { targetOrigin?: string } }
   | { tool: "checkCorsPolicy"; input: { targetOrigin?: string } }
   | { tool: "getSitemapCoverage"; input: { limit?: number } }
-  | { tool: "prepareTrafficQuery"; input: { query: string; reason: string } };
+  | { tool: "prepareTrafficQuery"; input: { query: string; reason: string } }
+  | { tool: "getReplayContext"; input: Record<string, never> }
+  | { tool: "prepareReplayTab"; input: { name?: string; draft: ReplayDraft; environmentId?: string; note?: string } }
+  | { tool: "compareReplayResults"; input: { leftHistoryId: string; rightHistoryId: string; tabId?: string } };
 
 export type AgentToolResult =
   | { tool: "showView"; ok: true; data: { view: AgentWorkbenchView } }
@@ -187,6 +194,32 @@ export type AgentToolResult =
       };
     }
   | { tool: "prepareTrafficQuery"; ok: true; data: { query: string; reason: string } }
+  | {
+      tool: "getReplayContext";
+      ok: true;
+      data: {
+        tabState: ReplayTabState;
+        environments: Array<{ id: string; name: string; variableCount: number }>;
+        collections: Array<{ id: string; name: string; itemCount: number }>;
+      };
+    }
+  | {
+      tool: "prepareReplayTab";
+      ok: true;
+      data: { tabId: string; name: string; draft: ReplayDraft; environmentId: string; note: string };
+    }
+  | {
+      tool: "compareReplayResults";
+      ok: true;
+      data: {
+        statusChanged: boolean;
+        statusBefore: number;
+        statusAfter: number;
+        latencyDeltaMs: number;
+        bodyLengthDelta: number;
+        identical: boolean;
+      };
+    }
   | { tool: AgentToolName; ok: false; error: string };
 
 export type AgentDecisionFinding = {

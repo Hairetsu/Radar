@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { defaultReplayTabState } from "../../shared/replayTabs.js";
 import type { AgentDecision, AgentDecisionContext, AgentRun } from "../../shared/agent-types.js";
 import type { CapturedRequest, InterceptQueueItem } from "../../shared/domain.js";
 import { AgentRuntime } from "./runtime.js";
@@ -33,6 +34,7 @@ function makeRuntime(
     allowlist?: string[];
     captures?: CapturedRequest[];
     interceptQueue?: InterceptQueueItem[];
+    replayTabState?: ReturnType<typeof defaultReplayTabState>;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
   } = {}
 ) {
@@ -116,6 +118,10 @@ function makeRuntime(
       config: { requestEnabled: true, responseEnabled: true },
       queue: options.interceptQueue || []
     }),
+    getReplayTabState: () => options.replayTabState || defaultReplayTabState(),
+    setReplayTabState: (state) => state,
+    listReplayEnvironments: () => [],
+    listReplayCollections: () => [],
     sendReplay,
     waitForNetworkIdle,
     getPageText,
@@ -468,5 +474,83 @@ describe("AgentRuntime", () => {
     expect(observations?.map((item) => item.name)).toEqual(
       expect.arrayContaining(["content-security-policy", "sid", "access-control-allow-origin"])
     );
+  });
+
+  it("exposes replay context and prepares visible replay tabs", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "getReplayContext", input: {} } },
+      {
+        action: "tool",
+        call: {
+          tool: "prepareReplayTab",
+          input: {
+            name: "Auth",
+            draft: { method: "GET", url: "https://hairetsu.com/account", headers: {}, body: "" },
+            note: "Review auth replay"
+          }
+        }
+      },
+      { action: "finish", rationale: "Done.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+    const run = runtime.start({ goal: "Review auth replay", startUrl: "https://hairetsu.com" });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const contextResult = runs
+      .get(run.id)
+      ?.timeline.find((entry) => entry.toolResult?.tool === "getReplayContext" && entry.toolResult.ok);
+    expect(contextResult?.toolResult?.ok).toBe(true);
+    const prepareResult = runs
+      .get(run.id)
+      ?.timeline.find((entry) => entry.toolResult?.tool === "prepareReplayTab" && entry.toolResult.ok);
+    expect(prepareResult?.toolResult?.data.note).toBe("Review auth replay");
+  });
+
+  it("compares replay history entries from the active tab", async () => {
+    const tabState = defaultReplayTabState();
+    tabState.tabs[0].history = [
+      {
+        id: "left",
+        sentAt: "2026-01-01T00:00:00.000Z",
+        draft: { method: "GET", url: "https://hairetsu.com", headers: {}, body: "" },
+        result: { ok: true, status: 200, statusText: "OK", durationMs: 1, headers: {}, body: "a", bytes: 1 }
+      },
+      {
+        id: "right",
+        sentAt: "2026-01-02T00:00:00.000Z",
+        draft: { method: "GET", url: "https://hairetsu.com", headers: {}, body: "" },
+        result: { ok: false, status: 403, statusText: "Forbidden", durationMs: 2, headers: {}, body: "b", bytes: 1 }
+      }
+    ];
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: {
+          tool: "compareReplayResults",
+          input: { leftHistoryId: "left", rightHistoryId: "right" }
+        }
+      },
+      { action: "finish", rationale: "Done.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      replayTabState: tabState,
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+    const run = runtime.start({ goal: "Compare replay history", startUrl: "https://hairetsu.com" });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const compareResult = runs
+      .get(run.id)
+      ?.timeline.find((entry) => entry.toolResult?.tool === "compareReplayResults" && entry.toolResult.ok);
+    expect(compareResult?.toolResult?.data.statusChanged).toBe(true);
   });
 });
