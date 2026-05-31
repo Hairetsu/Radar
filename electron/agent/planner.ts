@@ -20,12 +20,13 @@ Stop only when you have enough evidence, there are no useful in-scope actions le
 The capturedTraffic field already contains the current run's in-scope HTTP evidence across redirects and canonical hostnames.
 Do not repeat getCaptures just to reread the same capturedTraffic. Use getCaptures only when you need a fresh sample after navigation, clicking, form submission, or replay.
 If page/DOM tools fail because the Chrome debugging endpoint is unavailable, choose openBrowser with browserState.url or startUrl to reopen the controlled browser, then continue.
+For queued intercept traffic, use getInterceptQueue to inspect and prepareInterceptEdit to load visible draft edits. Never forward or drop intercepted traffic; those actions are operator-confirmed.
 
 Return JSON only in one of these forms:
 {"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action"}
 {"action":"finish","rationale":"why the run is complete","findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"notes":"string","uncertainties":["string"]}]}`;
 
-const WORK_VIEWS: AgentWorkbenchView[] = ["traffic", "websocket", "repeater", "scope", "ssl"];
+const WORK_VIEWS: AgentWorkbenchView[] = ["traffic", "websocket", "intercept", "repeater", "scope", "ssl"];
 
 function clip(value: unknown, max = 700) {
   const text = String(value ?? "");
@@ -39,6 +40,14 @@ function compactCapturedTraffic(capture: AgentCapturedTrafficContext, includeRaw
     responseHeaders: includeRaw ? capture.responseHeaders : redactHeaders(capture.responseHeaders),
     requestBodyPreview: includeRaw ? clip(capture.requestBodyPreview) : clip(redactBody(capture.requestBodyPreview)),
     responseBodyPreview: includeRaw ? clip(capture.responseBodyPreview) : clip(redactBody(capture.responseBodyPreview))
+  };
+}
+
+function compactInterceptItem<T extends { headers: Record<string, string>; body: string }>(item: T, includeRaw: boolean) {
+  return {
+    ...item,
+    headers: includeRaw ? item.headers : redactHeaders(item.headers),
+    body: includeRaw ? clip(item.body) : clip(redactBody(item.body))
   };
 }
 
@@ -84,6 +93,41 @@ function compactToolResult(result: AgentDecisionContext["timeline"][number]["too
         headers: result.data.headers,
         bodyPreview: clip(result.data.body),
         durationMs: result.data.durationMs
+      }
+    };
+  }
+
+  if (result.tool === "getInterceptQueue") {
+    return {
+      tool: result.tool,
+      ok: true,
+      data: {
+        queue: result.data.queue.map((item) => compactInterceptItem(item, includeRaw))
+      }
+    };
+  }
+
+  if (result.tool === "prepareInterceptEdit") {
+    return {
+      tool: result.tool,
+      ok: true,
+      data: {
+        item: compactInterceptItem(result.data.item, includeRaw),
+        draft: result.data.draft
+          ? {
+              ...result.data.draft,
+              headers: includeRaw ? result.data.draft.headers : redactHeaders(result.data.draft.headers),
+              body: includeRaw ? clip(result.data.draft.body) : clip(redactBody(result.data.draft.body))
+            }
+          : undefined,
+        response: result.data.response
+          ? {
+              ...result.data.response,
+              headers: includeRaw ? result.data.response.headers : redactHeaders(result.data.response.headers),
+              body: includeRaw ? clip(result.data.response.body) : clip(redactBody(result.data.response.body))
+            }
+          : undefined,
+        note: result.data.note
       }
     };
   }
@@ -239,6 +283,13 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
           targetOrigin: String(input.targetOrigin || "")
         }
       };
+    case "getInterceptQueue":
+      return {
+        tool,
+        input: {
+          limit: Number.isFinite(Number(input.limit)) ? Math.max(1, Math.min(Math.round(Number(input.limit)), 100)) : undefined
+        }
+      };
     case "analyzeSecurityHeaders":
     case "analyzeCookieFlags":
     case "checkCorsPolicy":
@@ -251,6 +302,32 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
             ...objectValue(input.draft),
             headers: stringRecord(objectValue(input.draft).headers)
           })
+        }
+      };
+    case "prepareInterceptEdit":
+      return {
+        tool,
+        input: {
+          id: String(input.id || "").trim(),
+          draft:
+            input.draft && typeof input.draft === "object"
+              ? normalizeDraft({
+                  ...objectValue(input.draft),
+                  headers: stringRecord(objectValue(input.draft).headers)
+                })
+              : undefined,
+          response:
+            input.response && typeof input.response === "object"
+              ? {
+                  status: Number.isFinite(Number(objectValue(input.response).status))
+                    ? Math.max(100, Math.min(Math.round(Number(objectValue(input.response).status)), 599))
+                    : 200,
+                  statusText: String(objectValue(input.response).statusText || "").slice(0, 120),
+                  headers: stringRecord(objectValue(input.response).headers),
+                  body: String(objectValue(input.response).body || "")
+                }
+              : undefined,
+          note: String(input.note || "").slice(0, 240)
         }
       };
     default:

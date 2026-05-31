@@ -32,6 +32,30 @@ const capture = (id: string, url: string, overrides: Partial<CapturedRequest> = 
 afterEach(() => {
   window.localStorage.clear();
   vi.mocked(window.radar!.getCaptures).mockResolvedValue([]);
+  vi.mocked(window.radar!.getInterceptState).mockResolvedValue({
+    config: { requestEnabled: false, responseEnabled: false },
+    queue: []
+  });
+  vi.mocked(window.radar!.setInterceptConfig).mockClear();
+  vi.mocked(window.radar!.setInterceptConfig).mockImplementation(async (config) => ({
+    config: {
+      requestEnabled: typeof config.requestEnabled === "boolean" ? config.requestEnabled : false,
+      responseEnabled: typeof config.responseEnabled === "boolean" ? config.responseEnabled : false
+    },
+    queue: []
+  }));
+  vi.mocked(window.radar!.forwardIntercept).mockClear();
+  vi.mocked(window.radar!.dropIntercept).mockClear();
+  vi.mocked(window.radar!.resumeAllIntercepts).mockClear();
+  vi.mocked(window.radar!.getInterceptRules).mockResolvedValue([]);
+  vi.mocked(window.radar!.setInterceptRules).mockClear();
+  vi.mocked(window.radar!.setInterceptRules).mockImplementation(async (rules) => rules);
+  vi.mocked(window.radar!.getMatchReplaceRules).mockResolvedValue([]);
+  vi.mocked(window.radar!.setMatchReplaceRules).mockClear();
+  vi.mocked(window.radar!.setMatchReplaceRules).mockImplementation(async (rules) => rules);
+  vi.mocked(window.radar!.getProxyProfiles).mockResolvedValue([]);
+  vi.mocked(window.radar!.saveProxyProfile).mockClear();
+  vi.mocked(window.radar!.saveProxyProfile).mockResolvedValue([]);
   vi.mocked(window.radar!.getTargets).mockResolvedValue([]);
   vi.mocked(window.radar!.setTargets).mockClear();
   vi.mocked(window.radar!.setTargets).mockResolvedValue(undefined as unknown as string[]);
@@ -266,6 +290,236 @@ describe("App", () => {
     fireEvent.change(screen.getByTestId("webSocketDirectionFilter"), { target: { value: "sent" } });
     expect(screen.queryByTestId("webSocketRow-ws-frame-1")).not.toBeInTheDocument();
     expect(screen.getByText("No WebSocket frames match filters")).toBeInTheDocument();
+  });
+
+  it("queues and edits scoped requests in the intercept view", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
+    vi.mocked(window.radar!.getInterceptState).mockResolvedValue({
+      config: { requestEnabled: true, responseEnabled: false },
+      queue: [
+        {
+          id: "intercept-1",
+          captureId: "cap-intercept-1",
+          stage: "request",
+          queuedAt: "2026-05-25T00:00:00.000Z",
+          method: "POST",
+          url: "https://allowed.test/login",
+          host: "allowed.test",
+          path: "/login",
+          headers: { "Content-Type": "application/json" },
+          body: "{\"role\":\"user\"}",
+          allowed: true,
+          source: "proxy",
+          note: "Paused before upstream"
+        }
+      ]
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-intercept"));
+    expect(await screen.findByRole("heading", { name: "Intercept" })).toBeInTheDocument();
+    expect(screen.getByTestId("interceptRow-intercept-1")).toHaveAttribute("data-selected", "true");
+    expect(screen.getByTestId("interceptBody")).toHaveValue("{\"role\":\"user\"}");
+
+    fireEvent.change(screen.getByTestId("interceptBody"), { target: { value: "{\"role\":\"admin\"}" } });
+    fireEvent.click(screen.getByTestId("forwardIntercept"));
+
+    await waitFor(() => {
+      expect(window.radar!.forwardIntercept).toHaveBeenCalledWith({
+        id: "intercept-1",
+        draft: {
+          method: "POST",
+          url: "https://allowed.test/login",
+          headers: { "Content-Type": "application/json" },
+          body: "{\"role\":\"admin\"}"
+        }
+      });
+    });
+  });
+
+  it("queues and edits scoped responses in the intercept view", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
+    vi.mocked(window.radar!.getInterceptState).mockResolvedValue({
+      config: { requestEnabled: false, responseEnabled: true },
+      queue: [
+        {
+          id: "intercept-response-1",
+          captureId: "cap-intercept-response-1",
+          stage: "response",
+          queuedAt: "2026-05-25T00:00:00.000Z",
+          method: "POST",
+          url: "https://allowed.test/login",
+          host: "allowed.test",
+          path: "/login",
+          headers: { "content-type": "application/json" },
+          body: "{\"ok\":true}",
+          allowed: true,
+          source: "proxy",
+          note: "Paused before client",
+          status: 200,
+          statusText: "OK"
+        }
+      ]
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-intercept"));
+    expect(await screen.findByTestId("interceptRow-intercept-response-1")).toHaveAttribute("data-selected", "true");
+    expect(screen.getByTestId("interceptStatus")).toHaveValue(200);
+
+    fireEvent.change(screen.getByTestId("interceptStatus"), { target: { value: "401" } });
+    fireEvent.change(screen.getByTestId("interceptStatusText"), { target: { value: "Unauthorized" } });
+    fireEvent.click(screen.getByTestId("forwardIntercept"));
+
+    await waitFor(() => {
+      expect(window.radar!.forwardIntercept).toHaveBeenCalledWith({
+        id: "intercept-response-1",
+        response: {
+          status: 401,
+          statusText: "Unauthorized",
+          headers: { "content-type": "application/json" },
+          body: "{\"ok\":true}"
+        }
+      });
+    });
+  });
+
+  it("saves intercept rules from the intercept view", async () => {
+    vi.mocked(window.radar!.getInterceptRules).mockResolvedValue([
+      {
+        id: "rule-login",
+        name: "Login JSON",
+        enabled: true,
+        stage: "request",
+        method: "POST",
+        path: "/login",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-intercept"));
+    expect((await screen.findByTestId("interceptRulesText") as HTMLTextAreaElement).value).toContain("Login JSON");
+
+    fireEvent.change(screen.getByTestId("interceptRulesText"), {
+      target: {
+        value: JSON.stringify([
+          {
+            id: "rule-admin",
+            name: "Admin responses",
+            enabled: true,
+            stage: "response",
+            status: 403,
+            createdAt: "2026-05-25T00:00:00.000Z",
+            updatedAt: "2026-05-25T00:00:00.000Z"
+          }
+        ])
+      }
+    });
+    fireEvent.click(screen.getByTestId("saveInterceptRules"));
+
+    await waitFor(() => {
+      expect(window.radar!.setInterceptRules).toHaveBeenCalledWith([
+        expect.objectContaining({ id: "rule-admin", name: "Admin responses", stage: "response", status: 403 })
+      ]);
+    });
+  });
+
+  it("saves match and replace rules from the intercept view", async () => {
+    vi.mocked(window.radar!.getMatchReplaceRules).mockResolvedValue([
+      {
+        id: "rewrite-role",
+        name: "Promote Role",
+        enabled: true,
+        stage: "response",
+        target: "body",
+        match: "\"user\"",
+        replace: "\"admin\"",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-intercept"));
+    expect((await screen.findByTestId("matchReplaceRulesText") as HTMLTextAreaElement).value).toContain("Promote Role");
+
+    fireEvent.change(screen.getByTestId("matchReplaceRulesText"), {
+      target: {
+        value: JSON.stringify([
+          {
+            id: "rewrite-token",
+            name: "Swap Token",
+            enabled: true,
+            stage: "request",
+            target: "header",
+            headerName: "authorization",
+            match: "old-token",
+            replace: "new-token",
+            createdAt: "2026-05-25T00:00:00.000Z",
+            updatedAt: "2026-05-25T00:00:00.000Z"
+          }
+        ])
+      }
+    });
+    fireEvent.click(screen.getByTestId("saveMatchReplaceRules"));
+
+    await waitFor(() => {
+      expect(window.radar!.setMatchReplaceRules).toHaveBeenCalledWith([
+        expect.objectContaining({ id: "rewrite-token", name: "Swap Token", target: "header" })
+      ]);
+    });
+  });
+
+  it("saves proxy profile notes from the SSL view", async () => {
+    vi.mocked(window.radar!.getProxyProfiles).mockResolvedValue([
+      {
+        id: "radar-browser",
+        label: "Radar Browser",
+        hint: "Use Open Browser.",
+        notes: "",
+        updatedAt: ""
+      },
+      {
+        id: "cli",
+        label: "CLI Tools",
+        hint: "Export proxy variables.",
+        notes: "old note",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ]);
+    vi.mocked(window.radar!.saveProxyProfile).mockResolvedValue([
+      {
+        id: "cli",
+        label: "CLI Tools",
+        hint: "Export proxy variables.",
+        notes: "export HTTPS_PROXY=http://127.0.0.1:8088",
+        updatedAt: "2026-05-25T00:01:00.000Z"
+      }
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-ssl"));
+    fireEvent.click(await screen.findByTestId("proxyProfile-cli"));
+    expect(screen.getByTestId("proxyProfileNotes")).toHaveValue("old note");
+
+    fireEvent.change(screen.getByTestId("proxyProfileNotes"), {
+      target: { value: "export HTTPS_PROXY=http://127.0.0.1:8088" }
+    });
+    fireEvent.click(screen.getByTestId("saveProxyProfile"));
+
+    await waitFor(() => {
+      expect(window.radar!.saveProxyProfile).toHaveBeenCalledWith({
+        id: "cli",
+        notes: "export HTTPS_PROXY=http://127.0.0.1:8088"
+      });
+    });
   });
 
   it("filters the traffic list to current scope", async () => {

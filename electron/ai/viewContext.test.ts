@@ -92,6 +92,85 @@ describe("viewContext", () => {
     ).toBeUndefined();
   });
 
+  it("requires websocket frames or captures on websocket view", () => {
+    expect(
+      contextBlockedReason({
+        view: "websocket",
+        captures: [],
+        viewContext: { view: "websocket" }
+      })
+    ).toContain("Select at least one WebSocket frame or HTTP capture");
+  });
+
+  it("requires intercepted captures on intercept view", () => {
+    expect(
+      contextBlockedReason({
+        view: "intercept",
+        captures: [],
+        viewContext: { view: "intercept" }
+      })
+    ).toContain("Select at least one intercepted HTTP capture");
+  });
+
+  it("allows intercept view with captures", () => {
+    expect(
+      contextBlockedReason({
+        view: "intercept",
+        captures: [
+          {
+            id: "cap-1",
+            startedAt: "",
+            method: "GET",
+            url: "http://localhost",
+            host: "localhost",
+            path: "/",
+            requestHeaders: {},
+            requestBody: "",
+            status: 200,
+            statusText: "OK",
+            mimeType: "",
+            type: "Document",
+            responseHeaders: {},
+            responseBody: "",
+            durationMs: 1,
+            allowed: true,
+            source: "browser"
+          }
+        ],
+        viewContext: { view: "intercept" }
+      })
+    ).toBeUndefined();
+  });
+
+  it("allows traffic view with captures", () => {
+    expect(
+      contextBlockedReason({
+        captures: [
+          {
+            id: "cap-1",
+            startedAt: "",
+            method: "GET",
+            url: "http://localhost",
+            host: "localhost",
+            path: "/",
+            requestHeaders: {},
+            requestBody: "",
+            status: 200,
+            statusText: "OK",
+            mimeType: "",
+            type: "Document",
+            responseHeaders: {},
+            responseBody: "",
+            durationMs: 1,
+            allowed: true,
+            source: "browser"
+          }
+        ],
+        viewContext: { view: "traffic" }
+      })
+    ).toBeUndefined();
+  });
+
   it("allows websocket view with websocket frames only", () => {
     expect(
       contextBlockedReason({

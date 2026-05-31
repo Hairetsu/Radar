@@ -6,6 +6,45 @@ export type TlsDetails = {
   validTo: number;
 };
 
+export type InterceptStage = "request" | "response";
+
+export type InterceptResolution = "queued" | "forwarded" | "dropped" | "edited" | "resumed";
+
+export type CaptureInterceptRecord = {
+  stage: InterceptStage;
+  queuedAt: string;
+  resolvedAt?: string;
+  resolution: InterceptResolution;
+  edited: boolean;
+  note?: string;
+  ruleHits?: InterceptRuleHit[];
+};
+
+export type MatchReplaceStage = InterceptStage;
+
+export type MatchReplaceTarget = "header" | "body";
+
+export type MatchReplaceRule = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  stage: MatchReplaceStage;
+  target: MatchReplaceTarget;
+  match: string;
+  replace: string;
+  headerName?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MatchReplaceHit = {
+  ruleId: string;
+  name: string;
+  stage: MatchReplaceStage;
+  target: MatchReplaceTarget;
+  detail: string;
+};
+
 export type CapturedRequest = {
   id: string;
   startedAt: string;
@@ -30,6 +69,8 @@ export type CapturedRequest = {
   frameUrl?: string;
   initiator?: string;
   tls?: TlsDetails | null;
+  intercept?: CaptureInterceptRecord[];
+  rewrites?: MatchReplaceHit[];
 };
 
 export type SslEvent = {
@@ -119,11 +160,80 @@ export type ProxyState = {
   caFingerprint: string;
 };
 
+export type ProxyProfileId = "radar-browser" | "external-browser" | "cli" | "mobile-device";
+
+export type ProxyProfile = {
+  id: ProxyProfileId;
+  label: string;
+  hint: string;
+  notes: string;
+  updatedAt: string;
+};
+
 export type ReplayDraft = {
   method: string;
   url: string;
   headers: Record<string, string>;
   body: string;
+};
+
+export type InterceptResponseDraft = {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+};
+
+export type InterceptRuleStage = InterceptStage | "both";
+
+export type InterceptRule = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  stage: InterceptRuleStage;
+  method?: string;
+  host?: string;
+  path?: string;
+  contentType?: string;
+  status?: number;
+  initiator?: string;
+  requestHeader?: string;
+  responseHeader?: string;
+  body?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InterceptRuleHit = {
+  ruleId: string;
+  name: string;
+  reason: string;
+};
+
+export type InterceptQueueItem = ReplayDraft & {
+  id: string;
+  captureId: string;
+  stage: InterceptStage;
+  queuedAt: string;
+  host: string;
+  path: string;
+  allowed: boolean;
+  source: "proxy";
+  note: string;
+  status?: number;
+  statusText?: string;
+  ruleHits?: InterceptRuleHit[];
+  rewrites?: MatchReplaceHit[];
+};
+
+export type InterceptConfig = {
+  requestEnabled: boolean;
+  responseEnabled: boolean;
+};
+
+export type InterceptState = {
+  config: InterceptConfig;
+  queue: InterceptQueueItem[];
 };
 
 export type ReplayResult = {

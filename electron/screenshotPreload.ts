@@ -5,11 +5,14 @@ import type { RadarApi } from "../shared/radar-api.js";
 import type {
   BrowserState,
   CapturedRequest,
+  InterceptState,
   LocalContext,
+  ProxyProfile,
   ProxyState,
   SslEvent,
   WebSocketEvent
 } from "../shared/domain.js";
+import { defaultProxyProfiles } from "../shared/proxyProfiles.js";
 
 const context: LocalContext = {
   profile: {
@@ -147,6 +150,19 @@ const aiSettings: AiSettings = {
 
 let currentCaptures = [...captures];
 let targets = ["http://localhost:*", "http://127.0.0.1:*", "http://[::1]:*"];
+let proxyProfiles: ProxyProfile[] = defaultProxyProfiles().map((profile) =>
+  profile.id === "cli"
+    ? {
+        ...profile,
+        notes: "HTTPS_PROXY=http://127.0.0.1:8088\nNODE_EXTRA_CA_CERTS=/tmp/radar-ca.pem",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    : profile
+);
+let interceptState: InterceptState = {
+  config: { requestEnabled: false, responseEnabled: false },
+  queue: []
+};
 const agentRuns: AgentRun[] = [];
 
 const radar: RadarApi = {
@@ -171,6 +187,13 @@ const radar: RadarApi = {
   startProxy: async () => proxyState,
   stopProxy: async () => ({ ...proxyState, running: false }),
   getProxyState: async () => proxyState,
+  getProxyProfiles: async () => proxyProfiles,
+  saveProxyProfile: async (payload) => {
+    proxyProfiles = proxyProfiles.map((profile) =>
+      profile.id === payload.id ? { ...profile, notes: payload.notes, updatedAt: "2026-05-25T00:02:00.000Z" } : profile
+    );
+    return proxyProfiles;
+  },
   getCaptures: async () => currentCaptures,
   deleteCapture: async (id) => {
     currentCaptures = currentCaptures.filter((capture) => capture.id !== id);
@@ -180,6 +203,44 @@ const radar: RadarApi = {
     currentCaptures = [];
     return { ok: true };
   },
+  getInterceptState: async () => interceptState,
+  setInterceptConfig: async (config) => {
+    interceptState = {
+      ...interceptState,
+      config: {
+        requestEnabled:
+          typeof config.requestEnabled === "boolean" ? config.requestEnabled : interceptState.config.requestEnabled,
+        responseEnabled:
+          typeof config.responseEnabled === "boolean" ? config.responseEnabled : interceptState.config.responseEnabled
+      }
+    };
+    return interceptState;
+  },
+  forwardIntercept: async (payload) => {
+    interceptState = {
+      ...interceptState,
+      queue: interceptState.queue.filter((item) => item.id !== payload.id)
+    };
+    return interceptState;
+  },
+  dropIntercept: async (id) => {
+    interceptState = {
+      ...interceptState,
+      queue: interceptState.queue.filter((item) => item.id !== id)
+    };
+    return interceptState;
+  },
+  resumeAllIntercepts: async () => {
+    interceptState = {
+      ...interceptState,
+      queue: []
+    };
+    return interceptState;
+  },
+  getInterceptRules: async () => [],
+  setInterceptRules: async (rules) => rules,
+  getMatchReplaceRules: async () => [],
+  setMatchReplaceRules: async (rules) => rules,
   getSslEvents: async () => sslEvents,
   getWebSocketEvents: async () => webSocketEvents,
   clearWebSocketEvents: async () => {

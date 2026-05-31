@@ -51,6 +51,37 @@ describe("agent planner", () => {
     });
   });
 
+  it("normalizes prepare-only intercept decisions", () => {
+    expect(
+      normalizeAgentDecision({
+        action: "tool",
+        tool: "prepareInterceptEdit",
+        input: {
+          id: "intercept-1",
+          response: { status: 401, statusText: "Unauthorized", headers: { "content-type": "application/json" }, body: "{\"ok\":false}" },
+          note: "Load a visible response denial draft."
+        }
+      })
+    ).toEqual({
+      action: "tool",
+      call: {
+        tool: "prepareInterceptEdit",
+        input: {
+          id: "intercept-1",
+          draft: undefined,
+          response: {
+            status: 401,
+            statusText: "Unauthorized",
+            headers: { "content-type": "application/json" },
+            body: "{\"ok\":false}"
+          },
+          note: "Load a visible response denial draft."
+        }
+      },
+      rationale: ""
+    });
+  });
+
   it("normalizes finish decisions", () => {
     expect(
       normalizeAgentDecision(

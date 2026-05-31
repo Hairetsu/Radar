@@ -4,19 +4,20 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 
 ## MVP Surface
 
-- Caido-style sidebar workspace with dedicated HTTP(S), WebSocket, Repeater, Scope, and SSL tabs.
+- Sidebar workspace with dedicated HTTP(S), WebSocket, Intercept, Repeater, Scope, and SSL tabs.
 - Radar Browser launcher using a supported local Chrome, Edge, Brave, or Chromium binary with a Radar-owned profile and Radar proxy wiring.
 - Persistent local profiles and sessions for separating clients, projects, retests, captures, targets, SSL events, WebSocket frames, and AI-First run history.
 - HTTP/S capture history with method/type filters, request/response string search, selectable copyable details, multi-select, right-click request actions, TLS metadata, and source attribution (browser / proxy / repeater).
 - WebSocket analyzer with handshake, sent, received, error, and close frames; payload search; direction filters; frame detail copy; and proxy-backed passthrough so controlled Chrome can load WebSocket apps.
+- Intercept view for pausing scoped proxy requests and responses, editing request method/URL/headers/body or response status/headers/body, forwarding, dropping, resuming queued items, applying persisted intercept and match/replace rules, and preserving mutation evidence in HTTP history.
 - Clone captured requests into a repeater with full header and body editing.
 - Single replay plus capped burst replay (count, parallelism, delay) for hardening checks.
 - Scope-filtered HTTP/S and WebSocket evidence for focusing on selected targets.
-- Local HTTPS proxy mode for external browsers, with a Radar-generated CA and SPKI fingerprint.
+- Local HTTPS proxy mode for external browsers, with a Radar-generated CA, SPKI fingerprint, and per-workspace setup notes for browser, CLI, and device clients.
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
 - Manual-First / AI-First mode toggle: keep direct operator control, or hand a scoped goal to an autonomous run console with a live stop button.
 - Command-palette AI with per-view skills, provider adapters, context preview, selectable HTTP/S and WebSocket packets, prepare-only outputs, and session audit trail.
-- AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect run-scoped HTTP/S capture context across redirects, recover the controlled browser when CDP drops, send strictly capped replay probes, record timeline entries, and produce draft findings inside local session history.
+- AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect run-scoped HTTP/S capture context across redirects, read intercept queues, prepare visible intercept edits without forwarding/dropping, recover the controlled browser when CDP drops, send strictly capped replay probes, record timeline entries, and produce draft findings inside local session history.
 - Switchable Bureau, Vellum, and Specter themes with high-contrast text selection for request/response inspection.
 
 ## Stack
@@ -61,7 +62,7 @@ Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* —
 
 ## Workspace Tour
 
-The renderer is a five-view operator console with a Manual-First / AI-First toggle. Persistent across all views: a left sidebar with the Radar lockup, profile/session controls, view navigation, live per-view counts, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / ws / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
+The renderer is a six-view operator console with a Manual-First / AI-First toggle. Persistent across all views: a left sidebar with the Radar lockup, profile/session controls, view navigation, live per-view counts, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / ws / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
 
 For a full user-facing guide to the app, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
@@ -77,23 +78,27 @@ HTTP and HTTPS capture log filtered to the current scope. WebSocket frames are i
 
 WebSocket traffic analysis for streams that are separate from ordinary HTTP/S requests. Radar records client handshakes, server handshake responses, sent frames, received frames, frame errors, and clean close events from the proxy path, with CDP-backed frame capture for Electron-attached pages. The tab shows connection, frame, inbound/outbound, error, and payload totals; direction filters; payload/host/frame search; frame size and opcode; selectable frame details; and copy support for the active frame. Click selects one frame; Cmd/Ctrl-click toggles frames; Shift-click selects a range for AI context. **Clear WebSocket frames** clears frame history for the active session without touching HTTP/S captures.
 
-### 03 — Repeater
+### 03 — Intercept
+
+Scoped proxy request and response queue. Turn **Requests On** to pause in-scope HTTP/S requests before upstream delivery, or **Responses On** to pause responses before they return to the client. Optional per-workspace JSON rules narrow queueing by method, host, path, content type, status, initiator, headers, or body. Match/replace rules can rewrite scoped request or response headers and bodies in the pass-through path and record each fired rule as evidence metadata. Edit request method/URL/headers/body or response status/headers/body, then **Forward** or **Drop** the selected queued item. **Resume All** forwards everything currently paused. Radar records queued, edited, forwarded, dropped, resumed, rule-hit, and rewrite metadata on the matching HTTP history entry.
+
+### 04 — Repeater
 
 ![Radar Repeater view](docs/screens/radar-02-repeater.png)
 
 Manual replay surface. Left: method selector, URL line, JSON-edited headers, free-form body, and **Transmit** for a single round trip. Right: the Saturate burst panel (count / parallel / delay) and a response well showing the most recent status, latency, body, and any flagged failures from a burst. **Trust Origin** in the panel header pushes the current URL's origin into the scope allowlist in one click.
 
-### 04 — Scope
+### 05 — Scope
 
 ![Radar Scope view](docs/screens/radar-03-scope.png)
 
 The engagement boundary. Newline-delimited origins filter HTTP/S captures and WebSocket frame visibility; defaults are local development origins. WebSocket URLs match equivalent HTTP origins, so `https://example.test` brings `wss://example.test` evidence into scope. Edit and **Commit** to persist. The **AI command palette** strip below the editor opens the same palette as **⌘K** / **Ctrl+K** or the **AI** button in the panel header.
 
-### 05 — SSL
+### 06 — SSL
 
 ![Radar SSL / Proxy view](docs/screens/radar-04-ssl.png)
 
-Crypto and proxy interception. The summary strip shows current proxy URL, generated CA path, and active browser profile. Below: **Engage Proxy** / **Disengage** / **Forge CA** controls plus a printout of HTTP proxy address, CA cert path, SPKI fingerprint, Chrome CDP endpoint, and selected browser binary. The lower panes hold the certificate event log (trusted vs. blocked endpoints) and a TLS detail pane for the currently selected capture.
+Crypto and proxy interception. The summary strip shows current proxy URL, generated CA path, and active browser profile. Below: **Engage Proxy** / **Disengage** / **Forge CA** controls plus a printout of HTTP proxy address, CA cert path, SPKI fingerprint, Chrome CDP endpoint, and selected browser binary. The lower panes hold the certificate event log, local-only proxy profile notes for Radar Browser / external browser / CLI / mobile-device setup, and a TLS detail pane for the currently selected capture.
 
 ### Profiles And Sessions
 
@@ -103,9 +108,9 @@ Use the sidebar profile/session panel to create, rename, save, and load profiles
 
 ### Modes — Manual-First And AI-First
 
-Manual-First is the default. The HTTP(S), WebSocket, Repeater, Scope, and SSL views remain the primary controls, and the AI command palette stays prepare-only: it can summarize, draft, and suggest, but the operator clicks navigation and replay controls.
+Manual-First is the default. The HTTP(S), WebSocket, Intercept, Repeater, Scope, and SSL views remain the primary controls, and the AI command palette stays prepare-only: it can summarize, draft, and suggest, but the operator clicks navigation, intercept, and replay controls.
 
-AI-First adds a goal prompt and autonomous run console above the existing views. A run can move the visible workbench through Scope, HTTP(S), WebSocket, Repeater, and SSL, launch or inspect the browser, sample captures, load replay drafts, send a single capped replay probe, and write draft findings. The operator watches the timeline and can hit **Stop** at any time.
+AI-First adds a goal prompt and autonomous run console above the existing views. A run can move the visible workbench through Scope, HTTP(S), WebSocket, Intercept, Repeater, and SSL, launch or inspect the browser, sample captures, read queued intercept items, load visible intercept edit drafts, load replay drafts, send a single capped replay probe, and write draft findings. Intercept forwarding and dropping remain Manual-First operator actions. The operator watches the timeline and can hit **Stop** at any time.
 
 ### AI — Command Palette
 
@@ -151,6 +156,8 @@ Radar has two HTTPS/WebSocket interception paths:
 - **Radar Browser mode** — **Open Browser** launches a supported local Chrome, Edge, Brave, or Chromium binary with a dedicated Radar profile, remote debugging on `127.0.0.1:9223`, and the Radar proxy attached. Radar's CA fingerprint is supplied as a launch-scoped certificate exception so HTTPS works without touching the system trust store.
 - **External browser proxy** — engage the proxy from the SSL view, point your browser at `http://127.0.0.1:8088`, then manually trust the generated `radar-ca.pem` shown in the UI.
 
+The SSL view also stores workspace-local notes for Radar Browser, external browser, CLI tools, and mobile/device proxy setup so client-specific proxy instructions stay with the active workspace.
+
 Mockttp rules are registered separately for HTTP/S requests and WebSocket upgrades. HTTP/S evidence stays in the HTTP(S) tab; WebSocket handshakes and frames stay in the WebSocket tab.
 
 Radar never installs a root certificate automatically. On macOS, Radar launches the isolated browser with Chrome's mock-keychain flag where supported so it does not request your login keychain password or share system Chrome's saved secrets.
@@ -163,7 +170,7 @@ The interface is a themed "operator console" aesthetic:
 - **Vellum**: Instrument Serif / Hanken Grotesk / DM Mono with vermillion ink on sunlit paper.
 - **Specter**: Unbounded / Sora / Space Mono with chartreuse acid over midnight plum.
 - Theme tokens live in `src/styles.css` as CSS variables that feed Tailwind's `@theme`; layout and surfaces are Tailwind utilities in components.
-- Asymmetric layout: Caido-style left sidebar with profile/session controls and live view counts, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, dense evidence grids, and a bottom telemetry ticker.
+- Asymmetric layout: left sidebar with profile/session controls and live view counts, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, dense evidence grids, and a bottom telemetry ticker.
 - Motion via Tailwind utilities and keyframes in `src/styles.css`: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button.
 - Text selection is explicitly high-contrast in every theme so request and response evidence can be copied without losing readability.
 
@@ -181,7 +188,7 @@ electron/
   screenshot.ts   Headless screenshot runner for README assets
   ai/             Provider adapters, context builder, connect presets, audit trail
 src/
-  App.tsx         Bureau-style operator console (5 views + AI palette)
+  App.tsx         Bureau-style operator console (6 views + AI palette)
   ai/             Command palette UI and AI types
   components/
     ui/           shadcn-style primitives (Button, Input, Select, Textarea)

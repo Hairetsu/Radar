@@ -31,6 +31,22 @@ Use the existing folders as ownership boundaries:
 
 When adding a feature, start with the shared types and pure helpers, then wire Electron IPC, then expose the typed preload API, then update hooks/UI, then tests.
 
+## Feature Mode Contract
+
+Every user-facing feature should be designed for both Radar operating modes:
+
+- **Manual-First** is the human-operated path. It should expose the complete feature through direct controls, visible state, and operator-confirmed actions.
+- **AI-First** is the agent-operated path. It should interact with features through bounded tool calls, typed inputs, normalized outputs, visible timeline entries, and the same policy checks as manual workflows.
+
+When adding or changing a feature:
+
+- Decide whether AI-First needs a new tool, a new tool parameter, or additional read-only context.
+- Reuse the same shared helpers, IPC contracts, Electron operations, validation, scope checks, replay caps, and persistence paths that Manual-First uses.
+- Keep AI-First behavior observable in the live app: tool calls should switch visible tabs when relevant, inspect visible evidence panes, load drafts into visible controls, record timeline entries, and persist run history in the local session.
+- Avoid invisible background AI workflows for user-facing actions. If a background step is unavoidable, surface its status, result, and next user-visible effect in the AI-First console.
+- Do not create separate AI-only shortcuts that bypass the renderer/main/shared architecture or the user's visible app state.
+- If AI-First support is intentionally out of scope for a feature, document the reason in the change notes and keep the Manual-First path complete.
+
 ## TypeScript And Modules
 
 - Write strict TypeScript. Do not use `: any`; use `unknown`, `Record<string, unknown>`, explicit unions, and type guards instead.
@@ -240,6 +256,7 @@ Before considering a change complete:
 
 - Shared contracts are updated first if data crosses renderer/main boundaries.
 - Core behavior is expressed as small, functional helpers instead of class-based abstractions.
+- Manual-First usage is complete, and AI-First tool-calling impact has been implemented or explicitly ruled out.
 - No new `: any` annotations are introduced; untrusted values use `unknown` and are narrowed before use.
 - Electron handlers validate, clamp, and normalize untrusted inputs.
 - Renderer code remains Electron-free except for `window.radar`.

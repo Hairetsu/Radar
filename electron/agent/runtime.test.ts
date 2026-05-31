@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentDecision, AgentDecisionContext, AgentRun } from "../../shared/agent-types.js";
-import type { CapturedRequest } from "../../shared/domain.js";
+import type { CapturedRequest, InterceptQueueItem } from "../../shared/domain.js";
 import { AgentRuntime } from "./runtime.js";
 
 function capture(id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest {
@@ -32,6 +32,7 @@ function makeRuntime(
   options: {
     allowlist?: string[];
     captures?: CapturedRequest[];
+    interceptQueue?: InterceptQueueItem[];
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
   } = {}
 ) {
@@ -111,6 +112,10 @@ function makeRuntime(
     openBrowser,
     navigateBrowser,
     getCaptures: () => (options.captures || []).map((item) => ({ ...item, agentRunId: item.agentRunId || activeRunId })),
+    getInterceptState: () => ({
+      config: { requestEnabled: true, responseEnabled: true },
+      queue: options.interceptQueue || []
+    }),
     sendReplay,
     waitForNetworkIdle,
     getPageText,
@@ -305,6 +310,60 @@ describe("AgentRuntime", () => {
     expect(navigateBrowser).toHaveBeenCalledWith("https://hairetsu.com/login");
     expect(navigateBrowser).not.toHaveBeenCalledWith("https://hairetsu.com/api");
     expect(runs.get(run.id)?.findings[0]?.title).toBe("Draft");
+  });
+
+  it("lets AI read intercept queue and prepare edits without forwarding traffic", async () => {
+    const queueItem: InterceptQueueItem = {
+      id: "intercept-1",
+      captureId: "cap-1",
+      stage: "request",
+      queuedAt: "2026-05-25T00:00:00.000Z",
+      method: "POST",
+      url: "https://hairetsu.com/login",
+      host: "hairetsu.com",
+      path: "/login",
+      headers: { "Content-Type": "application/json" },
+      body: "{\"role\":\"user\"}",
+      allowed: true,
+      source: "proxy",
+      note: "Paused before upstream"
+    };
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "showView", input: { view: "intercept", reason: "Inspect queued request." } } },
+      { action: "tool", call: { tool: "getInterceptQueue", input: { limit: 5 } } },
+      {
+        action: "tool",
+        call: {
+          tool: "prepareInterceptEdit",
+          input: {
+            id: "intercept-1",
+            draft: {
+              method: "POST",
+              url: "https://hairetsu.com/login",
+              headers: { "Content-Type": "application/json" },
+              body: "{\"role\":\"admin\"}"
+            },
+            note: "Prepare an operator-reviewed role mutation."
+          }
+        }
+      },
+      { action: "finish", rationale: "Prepared visible edit.", findings: [] }
+    ];
+    const { runtime, runs, sendReplay } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      interceptQueue: [queueItem],
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({ goal: "Prepare an intercept edit for https://hairetsu.com", startUrl: "https://hairetsu.com" });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const prepared = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "prepareInterceptEdit")?.toolResult;
+    expect(prepared?.ok && prepared.data.draft?.body).toBe("{\"role\":\"admin\"}");
+    expect(sendReplay).not.toHaveBeenCalled();
   });
 
   it("fails instead of falling back when the agent cannot choose an action", async () => {
