@@ -48,5 +48,24 @@ describe("agent policy", () => {
 
     expect(reason).toBe("Autonomous run exceeded its replay budget.");
   });
-});
 
+  it("blocks out-of-scope automate preparation", () => {
+    const reason = blockedToolReason({
+      call: {
+        tool: "prepareAutomateDraft",
+        input: {
+          draft: { method: "GET", url: "https://blocked.test/api?x={{payload:x}}", headers: {}, body: "" },
+          payloads: ["admin"],
+          rules: []
+        }
+      },
+      allowlist: ["https://allowed.test"],
+      policy: normalizeAgentPolicy(),
+      replayCount: 0,
+      stepCount: 0,
+      startedAt: Date.now()
+    });
+
+    expect(reason).toContain("Blocked out-of-scope URL");
+  });
+});

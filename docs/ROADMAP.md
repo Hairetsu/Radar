@@ -30,6 +30,7 @@ Radar already has a strong MVP foundation:
 - Dedicated Radar browser profile with proxy wiring and certificate handling.
 - Local SQLite persistence for profiles, sessions, captures, WebSocket frames, SSL events, and AI-First runs.
 - Manual replay plus capped burst replay.
+- Automate v1 with explicit payload markers, saved payload sets, scoped attack sessions, visible pause/stop/retry controls, result clustering, match/extract rules, and Repeater promotion.
 - WebSocket frame inspection separate from HTTP/S evidence.
 - AI command palette with redacted context previews, local/custom provider support, and prepare-only tasks.
 - AI-First autonomous run loop with scoped browser tools, run-scoped capture reads, capped replay, security header/cookie/CORS checks, auth state helpers, and local timeline persistence.
@@ -56,7 +57,7 @@ The gap is breadth and depth around professional testing operations: intercept c
 | WebSockets | Frame log and inspection | Replay/edit WebSocket messages, conversation grouping, protocol helpers |
 | Sitemap | Not yet present | Host/path tree, endpoint inventory, parameter discovery, diff between sessions |
 | Replay | Single editor, replay, burst | Multi-tab repeater, history per tab, response diffing, variables, environments, collections |
-| Automate | Capped burst only | Payload positions, wordlists, attack sessions, filters, result clustering, throttling |
+| Automate | Payload positions, payload sets, bounded sessions, result filters, clustering, match/extract rules | Finding promotion and reusable active workflow integration |
 | Match & Replace | Not yet present | Request/response rewrite rules with scope, conditions, and audit logs |
 | Findings | AI draft findings in runs | Manual and AI findings inbox, severity, evidence, reproduction, status, export |
 | Workflows | AI tool loop only | Visual or declarative workflow engine for passive/active checks and repeatable testing |
@@ -298,9 +299,9 @@ This order keeps Radar's security boundary clear and prevents AI features from b
 4. Query language and saved filters.
 5. Sitemap.
 6. Multi-tab repeater with response diff.
-7. Findings inbox.
-8. Report export.
-9. Automate v1.
+7. Automate v1.
+8. Findings inbox.
+9. Report export.
 10. Workflow definitions.
 11. Plugin/SDK foundation.
 12. Advanced API/auth testing helpers.
@@ -331,21 +332,21 @@ This order keeps Radar's security boundary clear and prevents AI features from b
 - Variables and environments.
 - Collections.
 
-### 0.5 - Findings
+### 0.5 - Automate
+
+- Payload positions.
+- Wordlists.
+- Attack sessions.
+- Result clustering.
+- Repeater promotion.
+
+### 0.6 - Findings
 
 - Findings inbox.
 - Evidence linking.
 - Report notes to Markdown/HTML.
 - Retest status.
 - AI draft finding review flow.
-
-### 0.6 - Automate
-
-- Payload positions.
-- Wordlists.
-- Attack sessions.
-- Result clustering.
-- Finding promotion.
 
 ### 0.7 - Workflows
 

@@ -18,6 +18,20 @@ export type {
 } from "./ai/types";
 
 export type {
+  AutomateCluster,
+  AutomateExtract,
+  AutomateLimits,
+  AutomatePayloadLocation,
+  AutomatePayloadPosition,
+  AutomatePayloadSet,
+  AutomatePayloadSetSource,
+  AutomateResult,
+  AutomateResultMarker,
+  AutomateRule,
+  AutomateRuleKind,
+  AutomateRuleTarget,
+  AutomateRunStatus,
+  AutomateSession,
   BrowserState,
   BurstResult,
   CapturedRequest,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
 import type { AgentDecision, AgentDecisionContext, AgentRun } from "../../shared/agent-types.js";
-import type { CapturedRequest, InterceptQueueItem } from "../../shared/domain.js";
+import type { AutomatePayloadSet, AutomateSession, CapturedRequest, InterceptQueueItem } from "../../shared/domain.js";
 import { AgentRuntime } from "./runtime.js";
 
 function capture(id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest {
@@ -35,6 +35,8 @@ function makeRuntime(
     captures?: CapturedRequest[];
     interceptQueue?: InterceptQueueItem[];
     replayTabState?: ReturnType<typeof defaultReplayTabState>;
+    automatePayloadSets?: AutomatePayloadSet[];
+    automateSessions?: AutomateSession[];
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
   } = {}
 ) {
@@ -122,6 +124,8 @@ function makeRuntime(
     setReplayTabState: (state) => state,
     listReplayEnvironments: () => [],
     listReplayCollections: () => [],
+    listAutomatePayloadSets: () => options.automatePayloadSets || [],
+    listAutomateSessions: () => options.automateSessions || [],
     sendReplay,
     waitForNetworkIdle,
     getPageText,
@@ -552,5 +556,97 @@ describe("AgentRuntime", () => {
       .get(run.id)
       ?.timeline.find((entry) => entry.toolResult?.tool === "compareReplayResults" && entry.toolResult.ok);
     expect(compareResult?.toolResult?.data.statusChanged).toBe(true);
+  });
+
+  it("lets AI prepare automate controls and analyze completed sessions without starting runs", async () => {
+    const automateSession: AutomateSession = {
+      id: "automate-1",
+      name: "Role probes",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:01:00.000Z",
+      status: "completed",
+      draft: { method: "GET", url: "https://hairetsu.com/api?role={{payload:role}}", headers: {}, body: "" },
+      environmentId: "",
+      payloads: ["admin"],
+      positions: [
+        {
+          id: "url:role:1",
+          name: "role",
+          location: "url",
+          occurrence: 1,
+          marker: "{{payload:role}}",
+          preview: "role={{payload:role}}"
+        }
+      ],
+      limits: { count: 1, concurrency: 1, delayMs: 0, timeoutMs: 1000 },
+      rules: [],
+      results: [
+        {
+          id: "result-1",
+          index: 1,
+          createdAt: "2026-01-01T00:01:00.000Z",
+          payload: "admin",
+          request: { method: "GET", url: "https://hairetsu.com/api?role=admin", headers: {}, body: "" },
+          ok: false,
+          status: 500,
+          statusText: "Server Error",
+          length: 5,
+          latencyMs: 12,
+          wordCount: 1,
+          headers: {},
+          bodyPreview: "error",
+          matchedRules: [],
+          extracts: [],
+          clusterId: "cluster-1"
+        }
+      ],
+      clusters: [
+        {
+          id: "cluster-1",
+          fingerprint: "5xx:tiny:a:b",
+          statusFamily: "5xx",
+          count: 1,
+          representativeResultId: "result-1",
+          averageLength: 5,
+          averageLatencyMs: 12,
+          labels: []
+        }
+      ]
+    };
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "getAutomateContext", input: {} } },
+      {
+        action: "tool",
+        call: {
+          tool: "prepareAutomateDraft",
+          input: {
+            name: "Role probes",
+            draft: { method: "GET", url: "https://hairetsu.com/api?role={{payload:role}}", headers: {}, body: "" },
+            payloads: ["admin"],
+            note: "Review payload markers"
+          }
+        }
+      },
+      { action: "tool", call: { tool: "analyzeAutomateResults", input: { sessionId: "automate-1" } } },
+      { action: "finish", rationale: "Done.", findings: [] }
+    ];
+    const { runtime, runs, sendReplay } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      automatePayloadSets: [{ id: "payloads", name: "Roles", source: "inline", payloads: ["admin"], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+      automateSessions: [automateSession],
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({ goal: "Prepare Automate role probes", startUrl: "https://hairetsu.com" });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    expect(sendReplay).not.toHaveBeenCalled();
+    const prepareResult = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "prepareAutomateDraft")?.toolResult;
+    expect(prepareResult?.ok && prepareResult.data.payloads).toEqual(["admin"]);
+    const analysis = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "analyzeAutomateResults")?.toolResult;
+    expect(analysis?.ok && analysis.data.outlierResultIds).toEqual(["result-1"]);
   });
 });

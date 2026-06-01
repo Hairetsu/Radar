@@ -36,6 +36,8 @@ function urlForTool(call: AgentToolCall) {
       return call.input.draft.url;
     case "prepareInterceptEdit":
       return call.input.draft?.url || "";
+    case "prepareAutomateDraft":
+      return call.input.draft.url;
     default:
       return "";
   }

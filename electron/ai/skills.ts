@@ -2,7 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AiCustomSkill, AiWorkView } from "../../shared/ai-types.js";
 
-const VALID_VIEWS = new Set<AiWorkView>(["traffic", "websocket", "intercept", "repeater", "scope", "ssl"]);
+const VALID_VIEWS = new Set<AiWorkView>([
+  "traffic",
+  "websocket",
+  "intercept",
+  "repeater",
+  "automate",
+  "sitemap",
+  "scope",
+  "ssl"
+]);
 
 function skillsPath(userDataPath: string) {
   return path.join(userDataPath, "ai-skills.json");
