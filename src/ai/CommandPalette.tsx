@@ -318,6 +318,7 @@ export function CommandPalette({
         }
         break;
       case "repeater":
+      case "automate":
         return draft.url ? `${draft.method} ${draft.url}` : "Empty repeater draft";
       case "scope":
         return `${targets.length} scope targets`;

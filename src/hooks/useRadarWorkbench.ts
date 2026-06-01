@@ -25,6 +25,19 @@ import { createCollectionItem } from "../../shared/replayCollections.js";
 import { createReplayEnvironment } from "../../shared/replayVariables.js";
 import { webSocketFrameToDraft } from "../../shared/websocketReplay.js";
 import {
+  assignmentsForPayload,
+  createAutomatePayloadSet,
+  createAutomatePayloadMarker,
+  findAutomatePayloadPositions,
+  insertAutomatePayloadMarker,
+  materializeAutomateDraft,
+  normalizeAutomateLimits,
+  normalizeAutomatePayloads,
+  normalizeAutomatePayloadSets,
+  normalizeAutomateRules,
+  type AutomatePayloadLocation
+} from "../../shared/automate.js";
+import {
   filterCapturesByQuery,
   filterWebSocketEventsByQuery,
   TRAFFIC_QUERY_EXAMPLES
@@ -57,15 +70,28 @@ import type {
   SslEvent,
   WebSocketEvent,
   WebSocketReplayDraft,
-  WebSocketReplayResult
+  WebSocketReplayResult,
+  AutomateLimits,
+  AutomatePayloadSet,
+  AutomateResult,
+  AutomateSession
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
 import { useTheme } from "./useTheme";
 
-export type WorkView = "traffic" | "websocket" | "intercept" | "repeater" | "scope" | "ssl" | "sitemap";
+export type WorkView = "traffic" | "websocket" | "intercept" | "repeater" | "automate" | "scope" | "ssl" | "sitemap";
 
-export const WORK_VIEWS: WorkView[] = ["traffic", "websocket", "intercept", "repeater", "sitemap", "scope", "ssl"];
+export const WORK_VIEWS: WorkView[] = [
+  "traffic",
+  "websocket",
+  "intercept",
+  "repeater",
+  "automate",
+  "sitemap",
+  "scope",
+  "ssl"
+];
 
 export type TrafficSortField = "time" | "method" | "status" | "host" | "path" | "type" | "duration";
 
@@ -107,6 +133,56 @@ const defaultProxyState: ProxyState = {
   caFingerprint: ""
 };
 
+const defaultAutomateRulesText = JSON.stringify(
+  [
+    { id: "rule-status-500", name: "Server errors", enabled: true, kind: "match", target: "status", status: 500 },
+    { id: "rule-error-copy", name: "Error copy", enabled: true, kind: "match", target: "body", pattern: "error" }
+  ],
+  null,
+  2
+);
+
+const defaultAutomateLimits: AutomateLimits = {
+  count: 10,
+  concurrency: 1,
+  delayMs: 100,
+  timeoutMs: 10000
+};
+
+function parseAutomateRulesText(text: string) {
+  try {
+    const parsed: unknown = JSON.parse(text || "[]");
+    return normalizeAutomateRules(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function automatePayloadSetText(payloadSet: AutomatePayloadSet | null) {
+  return payloadSet ? payloadSet.payloads.join("\n") : "";
+}
+
+function sortAutomateResults(results: AutomateResult[], sort: string) {
+  const sorted = [...results];
+  if (sort === "status") {
+    return sorted.sort((left, right) => right.status - left.status || left.index - right.index);
+  }
+  if (sort === "length") {
+    return sorted.sort((left, right) => right.length - left.length || left.index - right.index);
+  }
+  if (sort === "latency") {
+    return sorted.sort((left, right) => right.latencyMs - left.latencyMs || left.index - right.index);
+  }
+  if (sort === "matches") {
+    return sorted.sort(
+      (left, right) =>
+        right.matchedRules.length + right.extracts.length - (left.matchedRules.length + left.extracts.length) ||
+        left.index - right.index
+    );
+  }
+  return sorted.sort((left, right) => left.index - right.index);
+}
+
 const defaultInterceptState: InterceptState = {
   config: {
     requestEnabled: false,
@@ -131,9 +207,10 @@ export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: s
   websocket: { num: "02", label: "WebSocket", eyebrow: "Streams // Frame analysis", title: "WebSocket" },
   intercept: { num: "03", label: "Intercept", eyebrow: "Proxy // Pause and mutate", title: "Intercept" },
   repeater: { num: "04", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
-  sitemap: { num: "05", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
-  scope: { num: "06", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "07", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
+  automate: { num: "05", label: "Automate", eyebrow: "Payloads // Bounded runs", title: "Automate" },
+  sitemap: { num: "06", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
+  scope: { num: "07", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "08", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -360,6 +437,21 @@ export function useRadarWorkbench() {
     [persistReplayTabState, replayTabState]
   );
   const [activeView, setActiveView] = useState<WorkView>("traffic");
+  const [automateMarkerName, setAutomateMarkerName] = useState("probe");
+  const [automateHeaderName, setAutomateHeaderName] = useState("X-Radar-Payload");
+  const [automatePayloadText, setAutomatePayloadText] = useState("test\nadmin\ntrue");
+  const [automatePayloadSets, setAutomatePayloadSets] = useState<AutomatePayloadSet[]>([]);
+  const [selectedAutomatePayloadSetId, setSelectedAutomatePayloadSetId] = useState("");
+  const [automatePayloadSetName, setAutomatePayloadSetName] = useState("Probe deck");
+  const [automateWordlistPath, setAutomateWordlistPath] = useState("");
+  const [automateSessionName, setAutomateSessionName] = useState("Payload run");
+  const [automateLimits, setAutomateLimits] = useState<AutomateLimits>(defaultAutomateLimits);
+  const [automateRulesText, setAutomateRulesText] = useState(defaultAutomateRulesText);
+  const [automateSessions, setAutomateSessions] = useState<AutomateSession[]>([]);
+  const [activeAutomateSessionId, setActiveAutomateSessionId] = useState("");
+  const [selectedAutomateResultId, setSelectedAutomateResultId] = useState("");
+  const [automateResultFilter, setAutomateResultFilter] = useState("all");
+  const [automateResultSort, setAutomateResultSort] = useState("index");
   const [activeDetail, setActiveDetail] = useState<"request" | "response">("request");
   const [lastResponse, setLastResponse] = useState<ReplayResult | null>(null);
   const [lastBurst, setLastBurst] = useState<BurstResult | null>(null);
@@ -375,6 +467,267 @@ export function useRadarWorkbench() {
   const agentUiCursorRef = useRef<{ runId: string; entryId: string } | null>(null);
   const ai = useAiConnection();
   const appearance = useTheme();
+
+  const automateBaseDraft = useMemo(() => {
+    try {
+      return { ...draft, headers: parseHeaders(headersText) };
+    } catch {
+      return draft;
+    }
+  }, [draft, headersText]);
+
+  const automateMarkerPreview = useMemo(
+    () => createAutomatePayloadMarker(automateMarkerName),
+    [automateMarkerName]
+  );
+
+  const automatePositions = useMemo(() => findAutomatePayloadPositions(automateBaseDraft), [automateBaseDraft]);
+
+  const automatePayloads = useMemo(() => normalizeAutomatePayloads(automatePayloadText), [automatePayloadText]);
+
+  const automatePreviewDraft = useMemo(() => {
+    if (automatePositions.length === 0 || automatePayloads.length === 0) {
+      return automateBaseDraft;
+    }
+    return materializeAutomateDraft(
+      automateBaseDraft,
+      assignmentsForPayload(automatePositions, automatePayloads[0])
+    );
+  }, [automateBaseDraft, automatePayloads, automatePositions]);
+
+  const selectedAutomatePayloadSet = useMemo(
+    () => automatePayloadSets.find((payloadSet) => payloadSet.id === selectedAutomatePayloadSetId) || null,
+    [automatePayloadSets, selectedAutomatePayloadSetId]
+  );
+
+  const automateRules = useMemo(() => parseAutomateRulesText(automateRulesText), [automateRulesText]);
+
+  const activeAutomateSession = useMemo(
+    () =>
+      automateSessions.find((session) => session.id === activeAutomateSessionId) ||
+      automateSessions[0] ||
+      null,
+    [activeAutomateSessionId, automateSessions]
+  );
+
+  const filteredAutomateResults = useMemo(() => {
+    const results = activeAutomateSession?.results || [];
+    const filtered = results.filter((result) => {
+      if (automateResultFilter === "failures") {
+        return !result.ok || result.status >= 400 || Boolean(result.error);
+      }
+      if (automateResultFilter === "matches") {
+        return result.matchedRules.length > 0 || result.extracts.length > 0;
+      }
+      if (automateResultFilter === "outliers") {
+        const cluster = activeAutomateSession?.clusters.find((item) => item.id === result.clusterId);
+        return cluster?.count === 1;
+      }
+      return true;
+    });
+    return sortAutomateResults(filtered, automateResultSort);
+  }, [activeAutomateSession, automateResultFilter, automateResultSort]);
+
+  const selectedAutomateResult = useMemo(
+    () =>
+      activeAutomateSession?.results.find((result) => result.id === selectedAutomateResultId) ||
+      filteredAutomateResults[0] ||
+      null,
+    [activeAutomateSession, filteredAutomateResults, selectedAutomateResultId]
+  );
+
+  const insertAutomateMarker = useCallback(
+    (location: AutomatePayloadLocation) => {
+      const next = insertAutomatePayloadMarker(automateBaseDraft, location, automateMarkerName, automateHeaderName);
+      setDraft(next);
+      setHeadersText(formatHeaders(next.headers));
+      setActiveView("automate");
+      setNotice(`Marked ${location} payload position`);
+    },
+    [automateBaseDraft, automateHeaderName, automateMarkerName, setDraft]
+  );
+
+  const loadAutomatePreviewIntoRepeater = useCallback(() => {
+    if (automatePositions.length === 0 || automatePayloads.length === 0) {
+      setNotice("Add a payload marker and payload first.");
+      return;
+    }
+    setDraft(automatePreviewDraft);
+    setHeadersText(formatHeaders(automatePreviewDraft.headers));
+    setLastResponse(null);
+    setLastBurst(null);
+    setActiveView("repeater");
+    setNotice("Loaded Automate preview in Repeater");
+  }, [automatePayloads.length, automatePositions.length, automatePreviewDraft, setDraft]);
+
+  const selectAutomatePayloadSet = useCallback(
+    (id: string) => {
+      setSelectedAutomatePayloadSetId(id);
+      const payloadSet = automatePayloadSets.find((item) => item.id === id) || null;
+      if (payloadSet) {
+        setAutomatePayloadText(automatePayloadSetText(payloadSet));
+        setAutomatePayloadSetName(payloadSet.name);
+        setAutomateWordlistPath(payloadSet.wordlistPath || "");
+        setNotice(`Loaded payload set ${payloadSet.name}`);
+      }
+    },
+    [automatePayloadSets]
+  );
+
+  const saveAutomatePayloadSet = useCallback(async () => {
+    const payloadSet = createAutomatePayloadSet({
+      name: automatePayloadSetName,
+      payloads: automatePayloads,
+      source: "inline"
+    });
+    if (!payloadSet) {
+      setNotice("Add at least one payload before saving a set.");
+      return;
+    }
+    const next = normalizeAutomatePayloadSets([
+      payloadSet,
+      ...automatePayloadSets.filter((item) => item.id !== payloadSet.id && item.name !== payloadSet.name)
+    ]);
+    const saved = (await window.radar?.setAutomatePayloadSets?.(next)) || next;
+    setAutomatePayloadSets(saved);
+    setSelectedAutomatePayloadSetId(payloadSet.id);
+    setNotice(`Saved payload set ${payloadSet.name}`);
+  }, [automatePayloadSetName, automatePayloadSets, automatePayloads]);
+
+  const saveAutomateWordlistReference = useCallback(async () => {
+    const payloadSet = createAutomatePayloadSet({
+      name: automatePayloadSetName || "Wordlist reference",
+      payloads: automatePayloads,
+      source: "wordlist",
+      wordlistPath: automateWordlistPath
+    });
+    if (!payloadSet) {
+      setNotice("Add a wordlist path or sample payloads before saving.");
+      return;
+    }
+    const next = normalizeAutomatePayloadSets([
+      payloadSet,
+      ...automatePayloadSets.filter((item) => item.id !== payloadSet.id && item.name !== payloadSet.name)
+    ]);
+    const saved = (await window.radar?.setAutomatePayloadSets?.(next)) || next;
+    setAutomatePayloadSets(saved);
+    setSelectedAutomatePayloadSetId(payloadSet.id);
+    setNotice(`Saved wordlist reference ${payloadSet.name}`);
+  }, [automatePayloadSetName, automatePayloadSets, automatePayloads, automateWordlistPath]);
+
+  const updateAutomateLimits = useCallback((patch: Partial<AutomateLimits>) => {
+    setAutomateLimits((current) => normalizeAutomateLimits({ ...current, ...patch }));
+  }, []);
+
+  const refreshAutomateSessions = useCallback(async () => {
+    if (!window.radar?.listAutomateSessions) {
+      return [];
+    }
+    const sessions = await window.radar.listAutomateSessions();
+    setAutomateSessions(sessions);
+    return sessions;
+  }, []);
+
+  const startAutomateSession = useCallback(async () => {
+    if (!window.radar?.startAutomateSession) {
+      setNotice("Run in Electron to start Automate sessions.");
+      return;
+    }
+    if (automatePositions.length === 0) {
+      setNotice("Add at least one payload marker before starting.");
+      return;
+    }
+    if (automatePayloads.length === 0) {
+      setNotice("Add at least one payload before starting.");
+      return;
+    }
+    const session = await window.radar.startAutomateSession({
+      name: automateSessionName,
+      draft: automateBaseDraft,
+      environmentId: activeReplayTab?.environmentId || "",
+      payloadSetId: selectedAutomatePayloadSetId || undefined,
+      payloads: automatePayloads,
+      positions: automatePositions,
+      limits: automateLimits,
+      rules: automateRules
+    });
+    setAutomateSessions((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+    setActiveAutomateSessionId(session.id);
+    setSelectedAutomateResultId("");
+    setActiveView("automate");
+    setNotice(`Automate started with ${session.payloads.length} payloads`);
+  }, [
+    activeReplayTab?.environmentId,
+    automateBaseDraft,
+    automateLimits,
+    automatePayloads,
+    automatePositions,
+    automateRules,
+    automateSessionName,
+    selectedAutomatePayloadSetId
+  ]);
+
+  const pauseAutomateSession = useCallback(async () => {
+    if (!activeAutomateSession || !window.radar?.pauseAutomateSession) {
+      return;
+    }
+    const session = await window.radar.pauseAutomateSession(activeAutomateSession.id);
+    if (session) {
+      setAutomateSessions((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+      setNotice("Automate paused");
+    }
+  }, [activeAutomateSession]);
+
+  const resumeAutomateSession = useCallback(async () => {
+    if (!activeAutomateSession || !window.radar?.resumeAutomateSession) {
+      return;
+    }
+    const session = await window.radar.resumeAutomateSession(activeAutomateSession.id);
+    if (session) {
+      setAutomateSessions((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+      setNotice("Automate resumed");
+    }
+  }, [activeAutomateSession]);
+
+  const stopAutomateSession = useCallback(async () => {
+    if (!activeAutomateSession || !window.radar?.stopAutomateSession) {
+      return;
+    }
+    const session = await window.radar.stopAutomateSession(activeAutomateSession.id);
+    if (session) {
+      setAutomateSessions((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+      setNotice("Automate stopped");
+    }
+  }, [activeAutomateSession]);
+
+  const retryAutomateSession = useCallback(async () => {
+    if (!activeAutomateSession || !window.radar?.retryAutomateSession) {
+      return;
+    }
+    const session = await window.radar.retryAutomateSession(activeAutomateSession.id);
+    if (session) {
+      setAutomateSessions((items) => [session, ...items.filter((item) => item.id !== session.id)]);
+      setNotice("Automate retry queued");
+    }
+  }, [activeAutomateSession]);
+
+  const promoteAutomateResultToRepeater = useCallback(
+    async (resultId = selectedAutomateResult?.id || "") => {
+      if (!activeAutomateSession || !resultId || !window.radar?.promoteAutomateResultToRepeater) {
+        return;
+      }
+      const state = await window.radar.promoteAutomateResultToRepeater({
+        sessionId: activeAutomateSession.id,
+        resultId
+      });
+      setReplayTabState(state);
+      const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId) || state.tabs[0];
+      setHeadersText(formatHeaders(activeTab?.draft.headers || emptyDraft.headers));
+      setActiveView("repeater");
+      setNotice("Promoted Automate result to Repeater");
+    },
+    [activeAutomateSession, selectedAutomateResult]
+  );
 
   const refreshLocalLists = useCallback(async (context: LocalContext) => {
     if (!window.radar) {
@@ -415,7 +768,9 @@ export function useRadarWorkbench() {
           nextEvidenceAnnotations,
           nextReplayTabState,
           nextReplayEnvironments,
-          nextReplayCollections
+          nextReplayCollections,
+          nextAutomatePayloadSets,
+          nextAutomateSessions
         ] = await Promise.all([
           window.radar.getTargets(),
           window.radar.getCaptures(),
@@ -431,7 +786,9 @@ export function useRadarWorkbench() {
           window.radar.getEvidenceAnnotations?.() ?? [],
           window.radar.getReplayTabState?.() ?? defaultReplayTabState(),
           window.radar.getReplayEnvironments?.() ?? [],
-          window.radar.getReplayCollections?.() ?? []
+          window.radar.getReplayCollections?.() ?? [],
+          window.radar.getAutomatePayloadSets?.() ?? [],
+          window.radar.listAutomateSessions?.() ?? []
         ]);
         setTargets(nextTargets);
         setTargetText(nextTargets.join("\n"));
@@ -452,6 +809,9 @@ export function useRadarWorkbench() {
         setReplayTabState(normalizedTabs);
         setReplayEnvironments(nextReplayEnvironments);
         setReplayCollections(nextReplayCollections);
+        setAutomatePayloadSets(nextAutomatePayloadSets);
+        setAutomateSessions(nextAutomateSessions);
+        setActiveAutomateSessionId(nextAutomateSessions[0]?.id || "");
         const activeTab = normalizedTabs.tabs.find((tab) => tab.id === normalizedTabs.activeTabId) || normalizedTabs.tabs[0];
         setHeadersText(formatHeaders(activeTab?.draft.headers || emptyDraft.headers));
         setDiffLeftHistoryId("");
@@ -1250,6 +1610,28 @@ export function useRadarWorkbench() {
         setNotice(note);
       }
 
+      if (entry.toolResult?.tool === "prepareAutomateDraft" && entry.toolResult.ok) {
+        const { draft: preparedDraft, payloads, rules, name, note } = entry.toolResult.data;
+        setDraft(preparedDraft);
+        setHeadersText(formatHeaders(preparedDraft.headers));
+        setAutomatePayloadText(payloads.join("\n"));
+        setAutomateRulesText(JSON.stringify(rules, null, 2));
+        setAutomateSessionName(name);
+        setLastResponse(null);
+        setLastBurst(null);
+        setActiveView("automate");
+        setNotice(note);
+      }
+
+      if (entry.toolResult?.tool === "analyzeAutomateResults" && entry.toolResult.ok) {
+        setActiveAutomateSessionId(entry.toolResult.data.sessionId);
+        setAutomateResultFilter(entry.toolResult.data.outlierResultIds.length > 0 ? "outliers" : "matches");
+        setActiveView("automate");
+        setNotice(
+          `Automate analysis: ${entry.toolResult.data.resultCount} results, ${entry.toolResult.data.clusters.length} clusters`
+        );
+      }
+
       if (entry.toolResult?.tool === "compareReplayResults" && entry.toolResult.ok) {
         setActiveView("repeater");
         setNotice(
@@ -1604,7 +1986,9 @@ export function useRadarWorkbench() {
         nextInterceptState,
         nextInterceptRules,
         nextMatchReplaceRules,
-        nextAgentRuns
+        nextAgentRuns,
+        nextAutomatePayloadSets,
+        nextAutomateSessions
       ] = await Promise.all([
         window.radar.getTargets(),
         window.radar.listLocalProfiles(),
@@ -1614,7 +1998,9 @@ export function useRadarWorkbench() {
         loadInterceptState(),
         loadInterceptRules(),
         loadMatchReplaceRules(),
-        window.radar.listAgentRuns()
+        window.radar.listAgentRuns(),
+        window.radar.getAutomatePayloadSets?.() ?? [],
+        window.radar.listAutomateSessions?.() ?? []
       ]);
       if (cancelled) {
         return;
@@ -1634,6 +2020,9 @@ export function useRadarWorkbench() {
       setMatchReplaceRules(nextMatchReplaceRules);
       setMatchReplaceRulesText(JSON.stringify(nextMatchReplaceRules, null, 2));
       setAgentRuns(nextAgentRuns);
+      setAutomatePayloadSets(nextAutomatePayloadSets);
+      setAutomateSessions(nextAutomateSessions);
+      setActiveAutomateSessionId(nextAutomateSessions[0]?.id || "");
     };
     load();
     return () => {
@@ -1680,7 +2069,8 @@ export function useRadarWorkbench() {
         nextBrowserState,
         nextProxyState,
         nextInterceptState,
-        nextAgentRuns
+        nextAgentRuns,
+        nextAutomateSessions
       ] = await Promise.all([
         window.radar.getCaptures(),
         window.radar.getSslEvents(),
@@ -1688,7 +2078,8 @@ export function useRadarWorkbench() {
         window.radar.getBrowserState(),
         window.radar.getProxyState(),
         loadInterceptState(),
-        window.radar.listAgentRuns()
+        window.radar.listAgentRuns(),
+        window.radar.listAutomateSessions?.() ?? []
       ]);
       if (!cancelled) {
         setCaptures(nextCaptures);
@@ -1698,6 +2089,8 @@ export function useRadarWorkbench() {
         setProxyState(nextProxyState);
         setInterceptState(nextInterceptState);
         setAgentRuns(nextAgentRuns);
+        setAutomateSessions(nextAutomateSessions);
+        setActiveAutomateSessionId((current) => current || nextAutomateSessions[0]?.id || "");
       }
     };
 
@@ -1879,6 +2272,54 @@ export function useRadarWorkbench() {
     saveReplayCollections: saveReplayCollectionsState,
     saveDraftToCollection,
     loadCollectionItem,
+    automateMarkerName,
+    setAutomateMarkerName,
+    automateHeaderName,
+    setAutomateHeaderName,
+    automatePayloadText,
+    setAutomatePayloadText,
+    automatePayloadSets,
+    selectedAutomatePayloadSetId,
+    selectedAutomatePayloadSet,
+    selectAutomatePayloadSet,
+    automatePayloadSetName,
+    setAutomatePayloadSetName,
+    automateWordlistPath,
+    setAutomateWordlistPath,
+    saveAutomatePayloadSet,
+    saveAutomateWordlistReference,
+    automateSessionName,
+    setAutomateSessionName,
+    automateLimits,
+    updateAutomateLimits,
+    automateRulesText,
+    setAutomateRulesText,
+    automateRules,
+    automateSessions,
+    activeAutomateSessionId,
+    setActiveAutomateSessionId,
+    activeAutomateSession,
+    selectedAutomateResultId,
+    setSelectedAutomateResultId,
+    selectedAutomateResult,
+    automateResultFilter,
+    setAutomateResultFilter,
+    automateResultSort,
+    setAutomateResultSort,
+    filteredAutomateResults,
+    startAutomateSession,
+    pauseAutomateSession,
+    resumeAutomateSession,
+    stopAutomateSession,
+    retryAutomateSession,
+    promoteAutomateResultToRepeater,
+    refreshAutomateSessions,
+    automateMarkerPreview,
+    automatePositions,
+    automatePayloads,
+    automatePreviewDraft,
+    insertAutomateMarker,
+    loadAutomatePreviewIntoRepeater,
     webSocketReplayDraft,
     setWebSocketReplayDraft,
     webSocketReplayResult,

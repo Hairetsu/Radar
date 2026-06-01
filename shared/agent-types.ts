@@ -1,5 +1,8 @@
 import type {
   BrowserState,
+  AutomatePayloadSet,
+  AutomateRule,
+  AutomateSession,
   CapturedRequest,
   InterceptQueueItem,
   InterceptResponseDraft,
@@ -10,7 +13,7 @@ import type {
 
 export type AppMode = "manual-first" | "ai-first";
 
-export type AgentWorkbenchView = "traffic" | "websocket" | "intercept" | "repeater" | "sitemap" | "scope" | "ssl";
+export type AgentWorkbenchView = "traffic" | "websocket" | "intercept" | "repeater" | "automate" | "sitemap" | "scope" | "ssl";
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
 
@@ -43,7 +46,10 @@ export type AgentToolName =
   | "prepareTrafficQuery"
   | "getReplayContext"
   | "prepareReplayTab"
-  | "compareReplayResults";
+  | "compareReplayResults"
+  | "getAutomateContext"
+  | "prepareAutomateDraft"
+  | "analyzeAutomateResults";
 
 export type AgentClickableElement = {
   selector: string;
@@ -141,7 +147,20 @@ export type AgentToolCall =
   | { tool: "prepareTrafficQuery"; input: { query: string; reason: string } }
   | { tool: "getReplayContext"; input: Record<string, never> }
   | { tool: "prepareReplayTab"; input: { name?: string; draft: ReplayDraft; environmentId?: string; note?: string } }
-  | { tool: "compareReplayResults"; input: { leftHistoryId: string; rightHistoryId: string; tabId?: string } };
+  | { tool: "compareReplayResults"; input: { leftHistoryId: string; rightHistoryId: string; tabId?: string } }
+  | { tool: "getAutomateContext"; input: Record<string, never> }
+  | {
+      tool: "prepareAutomateDraft";
+      input: {
+        draft: ReplayDraft;
+        payloads: string[];
+        rules?: AutomateRule[];
+        name?: string;
+        environmentId?: string;
+        note?: string;
+      };
+    }
+  | { tool: "analyzeAutomateResults"; input: { sessionId?: string } };
 
 export type AgentToolResult =
   | { tool: "showView"; ok: true; data: { view: AgentWorkbenchView } }
@@ -218,6 +237,48 @@ export type AgentToolResult =
         latencyDeltaMs: number;
         bodyLengthDelta: number;
         identical: boolean;
+      };
+    }
+  | {
+      tool: "getAutomateContext";
+      ok: true;
+      data: {
+        payloadSets: Array<Pick<AutomatePayloadSet, "id" | "name" | "source"> & { payloadCount: number; wordlistPath?: string }>;
+        sessions: Array<{
+          id: string;
+          name: string;
+          status: AutomateSession["status"];
+          payloadCount: number;
+          resultCount: number;
+          clusterCount: number;
+          matchCount: number;
+          updatedAt: string;
+        }>;
+      };
+    }
+  | {
+      tool: "prepareAutomateDraft";
+      ok: true;
+      data: {
+        draft: ReplayDraft;
+        payloads: string[];
+        rules: AutomateRule[];
+        name: string;
+        environmentId: string;
+        note: string;
+      };
+    }
+  | {
+      tool: "analyzeAutomateResults";
+      ok: true;
+      data: {
+        sessionId: string;
+        status: AutomateSession["status"];
+        resultCount: number;
+        failures: number;
+        matches: number;
+        clusters: AutomateSession["clusters"];
+        outlierResultIds: string[];
       };
     }
   | { tool: AgentToolName; ok: false; error: string };

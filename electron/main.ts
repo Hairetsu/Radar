@@ -21,6 +21,7 @@ import {
 } from "../shared/allowlist.js";
 import { toCaptureEntry, proxyRequestToCapture } from "../shared/capture.js";
 import type {
+  AutomateSession,
   BrowserState,
   CapturedRequest,
   CaptureInterceptRecord,
@@ -34,11 +35,25 @@ import type {
   MatchReplaceRule,
   ProxyState,
   ReplayDraft,
+  ReplayResult,
   SslEvent,
   WebSocketDirection,
   WebSocketEvent,
   WebSocketReplayDraft
 } from "../shared/domain.js";
+import {
+  assignmentsForPayload,
+  automateErrorResult,
+  automateResultFromReplay,
+  clusterAutomateResults,
+  createAutomateSession,
+  materializeAutomateDraft,
+  MAX_AUTOMATE_COUNT,
+  MAX_AUTOMATE_PAYLOADS,
+  normalizeAutomateLimits,
+  normalizeAutomatePayloadSets,
+  normalizeAutomateRules
+} from "../shared/automate.js";
 import type { AgentAuthStateSummary, AgentCookie, AgentStorageState } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
@@ -51,6 +66,7 @@ import { normalizeWebSocketReplayDraft } from "../shared/websocketReplay.js";
 import { filterCapturesByQuery, filterWebSocketEventsByQuery } from "../shared/trafficQuery.js";
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
 import { normalizeUrl as normalizeBrowserUrl } from "../shared/url.js";
+import { createReplayTab } from "../shared/replayTabs.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
 import {
   loadSettings as loadAiSettings,
@@ -121,6 +137,14 @@ let interceptConfig: InterceptConfig = {
 };
 let interceptRules: InterceptRule[] = [];
 let matchReplaceRules: MatchReplaceRule[] = [];
+
+type AutomateController = {
+  stopped: boolean;
+  paused: boolean;
+  active: Set<AbortController>;
+};
+
+const automateControllers = new Map<string, AutomateController>();
 
 type ProxyRequestCallbackResult =
   | void
@@ -1365,6 +1389,8 @@ function createAgentRuntime() {
     setReplayTabState: (state) => activeLocalStore().setReplayTabState(activeLocalContext().workspace.id, state),
     listReplayEnvironments: () => activeLocalStore().listReplayEnvironments(activeLocalContext().workspace.id),
     listReplayCollections: () => activeLocalStore().listReplayCollections(activeLocalContext().workspace.id),
+    listAutomatePayloadSets: () => activeLocalStore().listAutomatePayloadSets(activeLocalContext().workspace.id),
+    listAutomateSessions: () => activeLocalStore().listAutomateSessions(activeLocalContext().session.id),
     sendReplay: (draft) => sendRequest(typeof draft === "object" && draft && "draft" in draft ? draft : { draft }),
     waitForNetworkIdle,
     getPageText,
@@ -1932,7 +1958,10 @@ function attachDebugger(contentsId: number) {
   });
 }
 
-async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft>[0] | { draft?: ReplayDraft; environmentId?: string }) {
+async function sendRequest(
+  input: ReplayDraft | Parameters<typeof normalizeDraft>[0] | { draft?: ReplayDraft; environmentId?: string },
+  options: { timeoutMs?: number; signal?: AbortSignal } = {}
+) {
   const record = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : null;
   const environmentId = record && "environmentId" in record ? String(record.environmentId || "") : "";
   const draftInput = record && "draft" in record ? record.draft : input;
@@ -1945,7 +1974,13 @@ async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft
 
   const started = Date.now();
   const abort = new AbortController();
-  const timeout = setTimeout(() => abort.abort(), 30_000);
+  const forwardAbort = () => abort.abort();
+  if (options.signal?.aborted) {
+    abort.abort();
+  } else {
+    options.signal?.addEventListener("abort", forwardAbort, { once: true });
+  }
+  const timeout = setTimeout(() => abort.abort(), Math.min(Math.max(Number(options.timeoutMs || 30_000), 1000), 30_000));
 
   try {
     const response = await fetch(draft.url, {
@@ -1969,7 +2004,267 @@ async function sendRequest(input: ReplayDraft | Parameters<typeof normalizeDraft
     };
   } finally {
     clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", forwardAbort);
   }
+}
+
+function currentAutomateSession(id: string) {
+  return activeLocalStore().getAutomateSession(activeLocalContext().session.id, id);
+}
+
+function saveAutomateSession(session: AutomateSession) {
+  const clustered = clusterAutomateResults(session.results);
+  return activeLocalStore().upsertAutomateSession(activeLocalContext().session.id, {
+    ...session,
+    results: clustered.results,
+    clusters: clustered.clusters,
+    updatedAt: new Date().toISOString()
+  });
+}
+
+function sessionWithStatus(session: AutomateSession, status: AutomateSession["status"], error?: string) {
+  return saveAutomateSession({
+    ...session,
+    status,
+    error: error || undefined
+  });
+}
+
+async function waitForAutomateResume(controller: AutomateController) {
+  while (controller.paused && !controller.stopped) {
+    await delay(200);
+  }
+}
+
+async function runAutomateSession(sessionId: string, payloadOverride?: string[]) {
+  const controller =
+    automateControllers.get(sessionId) ||
+    (() => {
+      const next: AutomateController = { stopped: false, paused: false, active: new Set() };
+      automateControllers.set(sessionId, next);
+      return next;
+    })();
+  const loadedSession = currentAutomateSession(sessionId);
+  if (!loadedSession) {
+    automateControllers.delete(sessionId);
+    return;
+  }
+  let session: AutomateSession = loadedSession;
+
+  const startingResultCount = session.results.length;
+  const remainingPayloads = (payloadOverride || session.payloads.slice(startingResultCount))
+    .map((payload) => String(payload || "").slice(0, 8000))
+    .filter((payload) => payload.trim().length > 0)
+    .slice(0, MAX_AUTOMATE_PAYLOADS);
+  let cursor = 0;
+
+  async function worker() {
+    while (!controller.stopped) {
+      await waitForAutomateResume(controller);
+      if (controller.stopped) {
+        return;
+      }
+      const localIndex = cursor;
+      cursor += 1;
+      if (localIndex >= remainingPayloads.length) {
+        return;
+      }
+
+      if (session.limits.delayMs > 0 && startingResultCount + localIndex > 0) {
+        await delay(session.limits.delayMs);
+      }
+
+      const payload = remainingPayloads[localIndex];
+      const index = startingResultCount + localIndex + 1;
+      const request = materializeAutomateDraft(session.draft, assignmentsForPayload(session.positions, payload));
+      const replayEnvironments = localStore && localContext ? localStore.listReplayEnvironments(localContext.workspace.id) : [];
+      const scopedRequest = prepareReplayDraft(request, replayEnvironments, session.environmentId);
+      let result;
+
+      if (!isAllowedTarget(scopedRequest.url, allowlist)) {
+        result = automateErrorResult({
+          id: `automate_result_${randomUUID()}`,
+          index,
+          payload,
+          request: scopedRequest,
+          error: "Automate URL is outside the current scope allowlist.",
+          rules: session.rules
+        });
+      } else {
+        const abort = new AbortController();
+        controller.active.add(abort);
+        try {
+          const response: ReplayResult = await sendRequest(
+            { draft: request, environmentId: session.environmentId },
+            { timeoutMs: session.limits.timeoutMs, signal: abort.signal }
+          );
+          result = automateResultFromReplay({
+            id: `automate_result_${randomUUID()}`,
+            index,
+            payload,
+            request: scopedRequest,
+            response,
+            rules: session.rules
+          });
+        } catch (error) {
+          result = automateErrorResult({
+            id: `automate_result_${randomUUID()}`,
+            index,
+            payload,
+            request: scopedRequest,
+            error: error instanceof Error ? error.message : "Automate request failed.",
+            rules: session.rules
+          });
+        } finally {
+          controller.active.delete(abort);
+        }
+      }
+
+      const latest = currentAutomateSession(sessionId) || session;
+      session = saveAutomateSession({
+        ...latest,
+        status: controller.paused ? "paused" : "running",
+        results: [...latest.results, result].sort((left, right) => left.index - right.index)
+      });
+    }
+  }
+
+  try {
+    await Promise.all(Array.from({ length: Math.min(session.limits.concurrency, remainingPayloads.length || 1) }, () => worker()));
+    const latest = currentAutomateSession(sessionId);
+    if (!latest) {
+      return;
+    }
+    if (controller.stopped) {
+      saveAutomateSession({ ...latest, status: "stopped" });
+      return;
+    }
+    if (latest.status !== "paused") {
+      saveAutomateSession({ ...latest, status: "completed" });
+    }
+  } catch (error) {
+    const latest = currentAutomateSession(sessionId) || session;
+    saveAutomateSession({
+      ...latest,
+      status: "failed",
+      error: error instanceof Error ? error.message : "Automate session failed."
+    });
+  } finally {
+    if (!controller.paused) {
+      automateControllers.delete(sessionId);
+    }
+  }
+}
+
+function startAutomateSession(input: unknown) {
+  const value = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const payloads = Array.isArray(value.payloads)
+    ? value.payloads.map((payload) => String(payload || ""))
+    : [];
+  const session = createAutomateSession({
+    name: String(value.name || ""),
+    draft: normalizeDraft(value.draft as ReplayDraft),
+    environmentId: String(value.environmentId || ""),
+    payloadSetId: typeof value.payloadSetId === "string" ? value.payloadSetId : undefined,
+    payloads,
+    positions: Array.isArray(value.positions) ? value.positions : undefined,
+    limits: normalizeAutomateLimits(value.limits),
+    rules: normalizeAutomateRules(value.rules)
+  });
+
+  if (!session) {
+    throw new Error("Automate session could not be created.");
+  }
+  if (session.positions.length === 0) {
+    throw new Error("Automate needs at least one payload marker before a run can start.");
+  }
+  if (session.payloads.length === 0) {
+    throw new Error("Automate needs at least one payload before a run can start.");
+  }
+
+  const running = saveAutomateSession({ ...session, status: "running" });
+  automateControllers.set(running.id, { stopped: false, paused: false, active: new Set() });
+  void runAutomateSession(running.id);
+  return running;
+}
+
+function pauseAutomateSession(id: string) {
+  const session = currentAutomateSession(id);
+  if (!session) {
+    return null;
+  }
+  const controller = automateControllers.get(session.id);
+  if (controller) {
+    controller.paused = true;
+  }
+  return sessionWithStatus(session, "paused");
+}
+
+function resumeAutomateSession(id: string) {
+  const session = currentAutomateSession(id);
+  if (!session) {
+    return null;
+  }
+  const controller = automateControllers.get(session.id);
+  const running = sessionWithStatus(session, "running");
+  if (controller) {
+    controller.paused = false;
+  } else {
+    automateControllers.set(running.id, { stopped: false, paused: false, active: new Set() });
+    void runAutomateSession(running.id);
+  }
+  return running;
+}
+
+function stopAutomateSession(id: string) {
+  const session = currentAutomateSession(id);
+  if (!session) {
+    return null;
+  }
+  const controller = automateControllers.get(session.id);
+  if (controller) {
+    controller.stopped = true;
+    controller.paused = false;
+    for (const abort of controller.active) {
+      abort.abort();
+    }
+  }
+  automateControllers.delete(session.id);
+  return sessionWithStatus(session, "stopped");
+}
+
+function retryAutomateSession(id: string) {
+  const session = currentAutomateSession(id);
+  if (!session) {
+    return null;
+  }
+  if (automateControllers.has(session.id)) {
+    return session;
+  }
+  const failedPayloads = session.results
+    .filter((result) => result.error || !result.ok || result.status >= 400)
+    .map((result) => result.payload)
+    .slice(0, MAX_AUTOMATE_COUNT);
+  const retryPayloads = failedPayloads.length > 0 ? failedPayloads : session.payloads.slice(0, session.limits.count);
+  const running = saveAutomateSession({ ...session, status: "running", error: undefined });
+  automateControllers.set(running.id, { stopped: false, paused: false, active: new Set() });
+  void runAutomateSession(running.id, retryPayloads);
+  return running;
+}
+
+function promoteAutomateResultToRepeater(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const session = currentAutomateSession(String(payload.sessionId || ""));
+  const result = session?.results.find((entry) => entry.id === String(payload.resultId || ""));
+  if (!session || !result) {
+    throw new Error("Automate result was not found.");
+  }
+  const state = activeLocalStore().getReplayTabState(activeLocalContext().workspace.id);
+  const tab = createReplayTab(`Automate ${result.payload || result.index}`, result.request);
+  return activeLocalStore().setReplayTabState(activeLocalContext().workspace.id, {
+    tabs: [...state.tabs, tab],
+    activeTabId: tab.id
+  });
 }
 
 async function sendWebSocketReplay(input: WebSocketReplayDraft) {
@@ -2351,6 +2646,49 @@ ipcMain.handle("repeater:collections:set", (_event, collections) => {
     return [];
   }
   return localStore.setReplayCollections(localContext.workspace.id, collections);
+});
+
+ipcMain.handle("automate:payload-sets:get", () => {
+  return localStore && localContext ? localStore.listAutomatePayloadSets(localContext.workspace.id) : [];
+});
+
+ipcMain.handle("automate:payload-sets:set", (_event, payloadSets) => {
+  if (!localStore || !localContext) {
+    return [];
+  }
+  return localStore.setAutomatePayloadSets(localContext.workspace.id, normalizeAutomatePayloadSets(payloadSets));
+});
+
+ipcMain.handle("automate:sessions:list", () => {
+  return localStore && localContext ? localStore.listAutomateSessions(localContext.session.id) : [];
+});
+
+ipcMain.handle("automate:session:get", (_event, id) => {
+  return localStore && localContext ? localStore.getAutomateSession(localContext.session.id, String(id || "")) : null;
+});
+
+ipcMain.handle("automate:session:start", (_event, payload) => {
+  return startAutomateSession(payload);
+});
+
+ipcMain.handle("automate:session:pause", (_event, id) => {
+  return pauseAutomateSession(String(id || ""));
+});
+
+ipcMain.handle("automate:session:resume", (_event, id) => {
+  return resumeAutomateSession(String(id || ""));
+});
+
+ipcMain.handle("automate:session:stop", (_event, id) => {
+  return stopAutomateSession(String(id || ""));
+});
+
+ipcMain.handle("automate:session:retry", (_event, id) => {
+  return retryAutomateSession(String(id || ""));
+});
+
+ipcMain.handle("automate:result:promote", (_event, payload) => {
+  return promoteAutomateResultToRepeater(payload);
 });
 
 ipcMain.handle("repeater:websocket:send", async (_event, input) => {

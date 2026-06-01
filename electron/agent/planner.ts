@@ -6,6 +6,7 @@ import type {
   AgentToolCall,
   AgentWorkbenchView
 } from "../../shared/agent-types.js";
+import { normalizeAutomateRules } from "../../shared/automate.js";
 import { normalizeDraft } from "../../shared/draft.js";
 import { redactBody, redactHeaders } from "../ai/context.js";
 import { complete } from "../ai/providers.js";
@@ -21,12 +22,13 @@ The capturedTraffic field already contains the current run's in-scope HTTP evide
 Do not repeat getCaptures just to reread the same capturedTraffic. Use getCaptures only when you need a fresh sample after navigation, clicking, form submission, or replay.
 If page/DOM tools fail because the Chrome debugging endpoint is unavailable, choose openBrowser with browserState.url or startUrl to reopen the controlled browser, then continue.
 For queued intercept traffic, use getInterceptQueue to inspect and prepareInterceptEdit to load visible draft edits. Never forward or drop intercepted traffic; those actions are operator-confirmed.
+For payload variation, use getAutomateContext and prepareAutomateDraft to load visible Automate controls. Never start, pause, stop, or retry an Automate run from AI-First.
 
 Return JSON only in one of these forms:
 {"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action"}
 {"action":"finish","rationale":"why the run is complete","findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"notes":"string","uncertainties":["string"]}]}`;
 
-const WORK_VIEWS: AgentWorkbenchView[] = ["traffic", "websocket", "intercept", "repeater", "scope", "ssl"];
+const WORK_VIEWS: AgentWorkbenchView[] = ["traffic", "websocket", "intercept", "repeater", "automate", "scope", "ssl"];
 
 function clip(value: unknown, max = 700) {
   const text = String(value ?? "");
@@ -103,6 +105,24 @@ function compactToolResult(result: AgentDecisionContext["timeline"][number]["too
       ok: true,
       data: {
         queue: result.data.queue.map((item) => compactInterceptItem(item, includeRaw))
+      }
+    };
+  }
+
+  if (result.tool === "prepareAutomateDraft") {
+    return {
+      tool: result.tool,
+      ok: true,
+      data: {
+        ...result.data,
+        draft: {
+          ...result.data.draft,
+          headers: includeRaw ? result.data.draft.headers : redactHeaders(result.data.draft.headers),
+          body: includeRaw ? clip(result.data.draft.body) : clip(redactBody(result.data.draft.body))
+        },
+        payloads: includeRaw ? result.data.payloads.slice(0, 25) : result.data.payloads.slice(0, 25).map(() => "[redacted]"),
+        rules: result.data.rules,
+        note: result.data.note
       }
     };
   }
@@ -264,6 +284,7 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
     case "getCookies":
     case "getStorageState":
     case "listAuthStates":
+    case "getAutomateContext":
       return { tool, input: {} };
     case "clickElement":
     case "submitForm":
@@ -330,6 +351,26 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
           note: String(input.note || "").slice(0, 240)
         }
       };
+    case "prepareAutomateDraft":
+      return {
+        tool,
+        input: {
+          name: String(input.name || "").slice(0, 60),
+          draft: normalizeDraft({
+            ...objectValue(input.draft),
+            headers: stringRecord(objectValue(input.draft).headers)
+          }),
+          payloads: (Array.isArray(input.payloads) ? input.payloads : [])
+            .map((payload) => String(payload || ""))
+            .filter((payload) => payload.trim().length > 0)
+            .slice(0, 25),
+          rules: normalizeAutomateRules(input.rules),
+          environmentId: String(input.environmentId || "").slice(0, 80),
+          note: String(input.note || "").slice(0, 240)
+        }
+      };
+    case "analyzeAutomateResults":
+      return { tool, input: { sessionId: String(input.sessionId || "").slice(0, 120) } };
     default:
       throw new Error(`Invalid agent tool: ${tool}`);
   }

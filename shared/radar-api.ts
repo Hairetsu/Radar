@@ -11,6 +11,8 @@ import type {
   AiSettings
 } from "./ai-types.js";
 import type {
+  AutomatePayloadSet,
+  AutomateSession,
   BrowserState,
   BurstResult,
   CapturedRequest,
@@ -88,6 +90,16 @@ export type RadarApi = {
   setReplayEnvironments: (environments: ReplayEnvironment[]) => Promise<ReplayEnvironment[]>;
   getReplayCollections: () => Promise<ReplayCollection[]>;
   setReplayCollections: (collections: ReplayCollection[]) => Promise<ReplayCollection[]>;
+  getAutomatePayloadSets: () => Promise<AutomatePayloadSet[]>;
+  setAutomatePayloadSets: (sets: AutomatePayloadSet[]) => Promise<AutomatePayloadSet[]>;
+  listAutomateSessions: () => Promise<AutomateSession[]>;
+  getAutomateSession: (id: string) => Promise<AutomateSession | null>;
+  startAutomateSession: (payload: Partial<AutomateSession>) => Promise<AutomateSession>;
+  pauseAutomateSession: (id: string) => Promise<AutomateSession | null>;
+  resumeAutomateSession: (id: string) => Promise<AutomateSession | null>;
+  stopAutomateSession: (id: string) => Promise<AutomateSession | null>;
+  retryAutomateSession: (id: string) => Promise<AutomateSession | null>;
+  promoteAutomateResultToRepeater: (payload: { sessionId: string; resultId: string }) => Promise<ReplayTabState>;
   getEvidenceAnnotations: () => Promise<EvidenceAnnotation[]>;
   saveEvidenceAnnotation: (annotation: EvidenceAnnotation) => Promise<EvidenceAnnotation>;
   saveEvidenceAnnotations: (annotations: EvidenceAnnotation[]) => Promise<EvidenceAnnotation[]>;

@@ -60,6 +60,10 @@ afterEach(() => {
   vi.mocked(window.radar!.setTargets).mockClear();
   vi.mocked(window.radar!.setTargets).mockResolvedValue(undefined as unknown as string[]);
   vi.mocked(window.radar!.getWebSocketEvents).mockResolvedValue([]);
+  vi.mocked(window.radar!.getAutomatePayloadSets).mockResolvedValue([]);
+  vi.mocked(window.radar!.setAutomatePayloadSets).mockClear();
+  vi.mocked(window.radar!.listAutomateSessions).mockResolvedValue([]);
+  vi.mocked(window.radar!.startAutomateSession).mockClear();
   vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([]);
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
@@ -83,6 +87,50 @@ describe("App", () => {
     expect(screen.getByText(/Attack Surface Workbench/i)).toBeInTheDocument();
     expect(screen.getByTestId("aiConnectionIndicator")).toBeInTheDocument();
     expect(screen.getByTestId("openProfileSessionPanel")).toBeInTheDocument();
+  });
+
+  it("marks automate payload positions and loads a materialized preview into repeater", async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-automate"));
+    expect(await screen.findByRole("heading", { name: "Automate" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("automateMarkerName"), { target: { value: "id" } });
+    fireEvent.change(screen.getByTestId("automatePayloads"), { target: { value: "42\n43" } });
+    fireEvent.click(screen.getByTestId("markAutomateUrl"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("automatePreview")).toHaveTextContent("id=42");
+    });
+
+    fireEvent.click(screen.getByTestId("loadAutomatePreviewInline"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Repeater" })).toBeInTheDocument();
+      expect((screen.getByTestId("repeaterUrl") as HTMLInputElement).value).toContain("id=42");
+    });
+  });
+
+  it("starts bounded automate sessions from visible controls", async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-automate"));
+    fireEvent.change(screen.getByTestId("automateMarkerName"), { target: { value: "id" } });
+    fireEvent.change(screen.getByTestId("automatePayloads"), { target: { value: "42\n43" } });
+    fireEvent.click(screen.getByTestId("markAutomateUrl"));
+    await waitFor(() => {
+      expect(screen.getByTestId("automatePreview")).toHaveTextContent("id=42");
+    });
+    fireEvent.click(screen.getByTestId("startAutomateSession"));
+
+    await waitFor(() => {
+      expect(window.radar!.startAutomateSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payloads: ["42", "43"],
+          limits: expect.objectContaining({ count: 10, concurrency: 1 })
+        })
+      );
+    });
   });
 
   it("hydrates profiles and http captures when websocket ipc is unavailable", async () => {
