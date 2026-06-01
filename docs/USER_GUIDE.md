@@ -1,8 +1,8 @@
 # Radar User Guide
 
-Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only; AI-First lets a scoped agent choose bounded tools while you watch.
+Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, running bounded payload-marker tests, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only for risky actions; AI-First lets a scoped agent choose bounded tools while you watch.
 
-This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
+This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
 
 ## Table Of Contents
 
@@ -18,6 +18,7 @@ This guide covers the app as it exists now: the main console, profiles and sessi
 - [Sitemap](#sitemap)
 - [Intercept](#intercept)
 - [Repeater](#repeater)
+- [Automate](#automate)
 - [SSL And Proxy](#ssl-and-proxy)
 - [AI Command Palette](#ai-command-palette)
 - [Appearance](#appearance)
@@ -39,6 +40,7 @@ Use Radar when you need a controlled local workbench for authorized web security
 - Copy evidence for notes or reports.
 - Clone captured requests into a manual repeater.
 - Send a single replay or a capped burst replay for hardening checks.
+- Mark payload positions in a request draft, run capped Automate sessions, cluster results, and promote interesting attempts to Repeater.
 - Review proxy, certificate, and TLS signals.
 - Ask AI for summaries, report notes, checklist ideas, safe repeater drafts, browser exploration suggestions, TLS review, WebSocket frame analysis, or a bounded AI-First run.
 
@@ -56,6 +58,7 @@ Radar is designed for defensive, authorized work.
 - Radar stores captures, WebSocket frames, targets, sessions, proxy CA files, AI settings, and custom skills locally on your machine.
 - Manual replay is operator-driven. AI-First replay is scope-checked and capped separately.
 - Burst replay is capped to reduce accidental load and is not available to AI-First.
+- Automate execution is Manual-First only. AI-First can prepare visible payload/rule controls and analyze existing results, but it cannot start invisible payload runs.
 
 Use Radar only on systems, domains, and environments where you have permission to test.
 
@@ -119,7 +122,7 @@ Useful source commands:
 
 ## Main Console Tour
 
-Radar opens into a seven-view operator console.
+Radar opens into an eight-view operator console.
 
 Persistent areas:
 
@@ -138,9 +141,10 @@ Views:
 | **02 WebSocket** | In-scope WebSocket handshakes, frames, payloads, errors, closes, and query filters. |
 | **03 Intercept** | Scoped proxy request pause, edit, forward, drop, and resume controls. |
 | **04 Repeater** | Manual request editor, single replay, and burst replay. |
-| **05 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
-| **06 Scope** | Engagement boundary and target allowlist. |
-| **07 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
+| **05 Automate** | Explicit payload markers, saved payload sets, bounded sessions, result table, clustering, and match/extract rules. |
+| **06 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
+| **07 Scope** | Engagement boundary and target allowlist. |
+| **08 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
 
 ## Profiles And Sessions
 
@@ -206,7 +210,7 @@ http://[::1]:*
 
 ### Add Targets
 
-Open **06 Scope**, then enter one target per line:
+Open **07 Scope**, then enter one target per line:
 
 ```text
 https://staging.example.com
@@ -431,7 +435,7 @@ Click the eraser icon in the WebSocket panel header. This clears WebSocket frame
 
 Sitemap is the host, path, and endpoint map for scoped HTTP/S traffic in the active session.
 
-Open **05 Sitemap** to browse discovered structure without leaving Radar.
+Open **06 Sitemap** to browse discovered structure without leaving Radar.
 
 ### Tree Navigation
 
@@ -611,6 +615,90 @@ Before sending, Radar normalizes the draft:
 
 Always verify the URL and headers before transmitting.
 
+## Automate
+
+Automate is the Manual-First payload-position testing surface. It detects explicit markers in the active Repeater draft, shows marked URL/header/body positions, saves bounded payload sets, runs scoped sessions with visible stop controls, and persists results for sorting, clustering, matching, extraction, export, and Repeater promotion.
+
+![Radar Automate view](screens/radar-07-automate.png)
+
+### Marker Syntax
+
+Use explicit payload markers:
+
+```text
+{{payload:name}}
+```
+
+Marker names may contain letters, numbers, underscores, periods, and hyphens. Radar detects markers in:
+
+- URL text.
+- Header values.
+- Request bodies.
+
+Environment variables still use the existing Repeater syntax, such as `{{token}}`. Payload markers use the `payload:` prefix so they stay distinct from environment variables.
+
+### Add Markers
+
+Open **05 Automate** after loading or editing a Repeater draft.
+
+Controls:
+
+- **Marker** sets the marker name used by the add buttons.
+- **Header** sets the header name for **Mark Header**.
+- **Mark URL** appends a query parameter with the payload marker.
+- **Mark Header** adds or replaces the named header value with the payload marker.
+- **Mark Body** appends the payload marker to the request body.
+
+You can also type markers directly in Repeater and then return to Automate.
+
+### Payload Sets
+
+Enter one inline payload per line. Blank lines are ignored and payloads are capped before they reach the runtime. Use **Save Set** to persist the inline deck per workspace, or save a local wordlist reference when you want Radar to remember where a list came from without copying secret list contents into logs.
+
+The payload-set selector reloads saved decks into the visible editor. The first payload still drives the materialized preview so you can inspect the exact request shape before any traffic is sent.
+
+### Run Controls
+
+The run panel exposes the bounded execution controls:
+
+| Control | Use |
+| --- | --- |
+| **Count** | Maximum payload attempts to run from the current deck. |
+| **Concurrency** | Parallel request workers, capped by Radar. |
+| **Delay** | Milliseconds between attempts per worker. |
+| **Timeout** | Per-request timeout before an attempt is recorded as failed. |
+| **Start** | Create a durable Automate session and begin sending scoped materialized requests. |
+| **Pause / Resume** | Pause between attempts or continue a paused session. |
+| **Stop** | Abort active requests and preserve partial results. |
+| **Retry** | Re-run failed or error attempts while keeping the original evidence. |
+
+Before each attempt, Radar materializes the request, applies Repeater environment variables, checks the current scope allowlist, applies timeout/delay/concurrency caps, and records either a response result or a scoped failure row.
+
+### Match And Extract Rules
+
+Rules are JSON records in the visible editor. Match rules can target status, headers, body text, regex, redirects, response length, or latency. Extract rules use regex captures; named captures are displayed as extracted values. Malformed regex rules fail closed and are ignored.
+
+Example:
+
+```json
+[
+  { "id": "server-errors", "name": "Server errors", "enabled": true, "kind": "match", "target": "status", "status": 500 },
+  { "id": "token", "name": "Token", "enabled": true, "kind": "extract", "target": "regex", "pattern": "token=(?<value>[a-z0-9]+)" }
+]
+```
+
+### Results
+
+The result table records each payload attempt with status, length, word count, latency, cluster id, payload, errors, redirects, match markers, and extracted values. Filters show all rows, failures, matches, or outliers. Sorting can emphasize order, status, length, latency, or marker count.
+
+Radar fingerprints responses by status family, body length band, header shape, and normalized text digest. Similar responses form deterministic clusters; one-off clusters are surfaced as outliers.
+
+Use **Copy Result** to copy the selected row as JSON, **Export** to download all session results, or **Promote** to open the exact materialized request in a new Repeater tab. Finding promotion follows the Phase 5 findings model.
+
+### Materialized Preview
+
+The preview shows the request after replacing all detected payload markers with the first inline payload. Click **Load** to copy that materialized request into the active Repeater tab. Radar does not transmit that preview until you click **Transmit** in Repeater.
+
 ## SSL And Proxy
 
 SSL shows proxy controls, generated CA details, certificate events, and TLS metadata.
@@ -658,7 +746,7 @@ This avoids changing system trust settings.
 
 Use this when you want another browser or tool to route traffic through Radar.
 
-1. Open **07 SSL**.
+1. Open **08 SSL**.
 2. Click **Engage Proxy**.
 3. Copy the displayed proxy URL.
 4. Configure your browser or tool to use that proxy.
@@ -686,7 +774,7 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 ## Manual-First And AI-First Modes
 
-Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, and report notes, but it does not execute browser navigation, intercept actions, or replay requests.
+Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, and report notes, but it does not execute browser navigation, intercept actions, replay requests, or Automate runs.
 
 Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt and run console above the normal views. Enter a scoped goal such as:
 
@@ -698,7 +786,7 @@ When a run starts, Radar records a live timeline. The agent chooses one tool act
 
 Available AI-First tools:
 
-- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Sitemap, Scope, and SSL.
+- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Automate, Sitemap, Scope, and SSL.
 - `getBrowserState` reads the launched browser state.
 - `openBrowser` and `navigateBrowser` drive in-scope browser navigation.
 - `waitForNetworkIdle` waits for captured HTTP/S traffic to settle after navigation.
@@ -712,6 +800,9 @@ Available AI-First tools:
 - `prepareTrafficQuery` loads a visible traffic query into the HTTP(S) filter bar without changing scope.
 - `getInterceptQueue` reads queued in-scope intercept items without forwarding or dropping.
 - `prepareInterceptEdit` loads a request or response edit into the visible Intercept controls for operator review.
+- `getAutomateContext` reads saved payload sets and Automate session summaries.
+- `prepareAutomateDraft` loads visible Automate payload and rule controls for operator review.
+- `analyzeAutomateResults` summarizes existing Automate sessions, clusters, outliers, matches, and failures.
 - `sendReplay` sends one policy-capped replay draft.
 - `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
 
@@ -727,6 +818,7 @@ AI-First runs are intentionally bounded:
 - WebSocket frames stay visible in **02 WebSocket** and can be selected for command-palette AI tasks; autonomous AI-First capture tools currently read HTTP/S captures.
 - If Chrome's debugging endpoint drops, page-inspection tools reopen the controlled browser at the current URL before retrying.
 - Replay uses stricter autonomous limits than manual Repeater controls.
+- Automate execution is not available to AI-First. AI can prepare visible Automate controls and analyze existing results, but payload runs remain Manual-First operator actions.
 - Burst replay is not part of the first autonomous slice.
 - Invalid planner output fails the run instead of switching to heuristics.
 - Findings without evidence references fail the run.
@@ -754,6 +846,7 @@ AI features are view-aware.
 | WebSocket | Capture Summary, Report Notes |
 | Intercept | Capture Summary, Report Notes |
 | Repeater | Repeater Drafts |
+| Automate | Repeater Drafts |
 | Sitemap | Capture Summary, Report Notes |
 | Scope | Scope Checklist, Browser Helper |
 | SSL | TLS Review |
@@ -813,6 +906,7 @@ Radar blocks tasks that lack enough context. Examples:
 - HTTP(S) tasks need at least one selected HTTP/S capture or WebSocket frame.
 - WebSocket tasks need at least one selected WebSocket frame or HTTP/S capture.
 - Repeater tasks need a selected packet or loaded draft.
+- Automate tasks need a loaded draft.
 - Scope tasks need at least one scope target.
 - SSL tasks need SSL events or a capture with TLS details.
 
@@ -919,7 +1013,7 @@ Privacy notes:
 
 ### Capture A Staging Target
 
-1. Open **06 Scope**.
+1. Open **07 Scope**.
 2. Add the staging origin, for example:
 
 ```text
@@ -933,11 +1027,11 @@ https://staging.example.com
 
 ### Use An External Browser
 
-1. Open **07 SSL**.
+1. Open **08 SSL**.
 2. Click **Engage Proxy**.
 3. Configure the external browser to use the displayed proxy URL.
 4. For HTTPS, manually trust the displayed CA certificate in that browser.
-5. Add the target origin in **06 Scope**.
+5. Add the target origin in **07 Scope**.
 6. Browse the target.
 7. Inspect matching captures in **01 HTTP(S)** or matching frames in **02 WebSocket**.
 
@@ -954,11 +1048,24 @@ https://staging.example.com
 9. Manually confirm the URL and headers.
 10. Click **Transmit** yourself.
 
+### Run A Bounded Payload Session
+
+1. Capture a request and load it into **04 Repeater**.
+2. Open **05 Automate**.
+3. Set a marker name such as `id` or `role`.
+4. Click **Mark URL**, **Mark Header**, or **Mark Body**, or type `{{payload:id}}` directly into the Repeater draft.
+5. Enter one payload per line.
+6. Save the deck if you want to reuse it.
+7. Set count, concurrency, delay, timeout, and any match/extract rules.
+8. Click **Start** and watch the result table update.
+9. Stop or pause the session if the target behavior changes.
+10. Promote interesting rows to Repeater for manual confirmation.
+
 ### Run AI-First Autonomy
 
 1. Switch the top shell toggle from **Manual-First** to **AI-First**.
 2. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
-3. Click **Start Run**. Radar saves the goal's target origin into **06 Scope** before the agent chooses tools.
+3. Click **Start Run**. Radar saves the goal's target origin into **07 Scope** before the agent chooses tools.
 4. Watch the tool/action timeline update until the agent returns `finish`.
 5. Click **Stop** if the run should halt.
 6. Review draft findings in the AI-First findings inbox before using them.
@@ -984,7 +1091,7 @@ https://staging.example.com
 ### Map Endpoints With Sitemap
 
 1. Capture traffic in **01 HTTP(S)** under the active scope.
-2. Open **05 Sitemap**.
+2. Open **06 Sitemap**.
 3. Browse hosts and paths in the tree.
 4. Select an endpoint to review query params, body keys, and auth signals.
 5. Optionally pick an earlier session in the session diff panel to compare coverage.
@@ -996,7 +1103,7 @@ https://staging.example.com
 
 Check:
 
-- The target URL is in **06 Scope**.
+- The target URL is in **07 Scope**.
 - You clicked **Commit** after editing scope.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -1007,7 +1114,7 @@ Check:
 
 Check:
 
-- The WebSocket URL is in **06 Scope** or matches an equivalent HTTP/S origin in scope.
+- The WebSocket URL is in **07 Scope** or matches an equivalent HTTP/S origin in scope.
 - The app is using `ws://` or `wss://`, not long-polling HTTP.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -1029,7 +1136,7 @@ Radar needs a supported local browser. Install Chrome, Edge, Brave, or Chromium.
 
 ### HTTPS Pages Fail In An External Browser
 
-For external browsers, you must manually trust Radar's generated CA certificate. Open **07 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
+For external browsers, you must manually trust Radar's generated CA certificate. Open **08 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
 
 Radar does not install this certificate automatically.
 
@@ -1085,7 +1192,7 @@ Check:
 
 - AI settings are connected.
 - The goal includes a URL, domain, or the address bar contains the target you want to inspect.
-- If relying on the address bar instead of a goal target, the target origin is saved in **06 Scope**.
+- If relying on the address bar instead of a goal target, the target origin is saved in **07 Scope**.
 - The run timeline does not show invalid planner output, a policy block, or an AI provider error.
 - The run has not been stopped by switching back to Manual-First.
 
@@ -1106,7 +1213,7 @@ You can also use `CURSOR_API_KEY` or `CURSOR_AUTH_TOKEN` for headless auth.
 
 ### AI Task Is Blocked
 
-The command palette blocks tasks without enough context. Select an HTTP/S capture, select a WebSocket frame, load a repeater draft, add scope targets, or collect SSL events depending on the active view.
+The command palette blocks tasks without enough context. Select an HTTP/S capture, select a WebSocket frame, load a repeater or Automate draft, add scope targets, or collect SSL events depending on the active view.
 
 ### AI Output Looks Too Generic
 
@@ -1133,6 +1240,8 @@ Keep raw context off unless you need exact headers or bodies.
 | Session | An evidence ledger under a profile. |
 | Repeater | The manual request editor and replay tool. |
 | Burst | A capped group of repeated manual replays. |
+| Automate | The payload-marker view for bounded request variant sessions, result clustering, and Repeater promotion. |
+| Payload marker | An explicit `{{payload:name}}` placeholder in a URL, header value, or body. |
 | Proxy CA | Radar's local certificate authority used for HTTPS interception through the proxy. |
 | SPKI fingerprint | Certificate public-key fingerprint used for the launched browser's certificate exception. |
 | Raw AI context | Unredacted request/response headers, bodies, and WebSocket payloads sent to the configured AI provider. |

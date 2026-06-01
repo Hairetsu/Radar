@@ -17,6 +17,7 @@ export function contextBlockedReason({
 
   switch (activeView) {
     case "repeater":
+    case "automate":
       if (packetCount === 0 && !viewContext?.draft?.url?.trim()) {
         return "Load a repeater draft or select a packet in Traffic or WebSocket.";
       }

@@ -1,4 +1,5 @@
 import type { AgentToolCall, AgentToolName, AgentWorkbenchView } from "../../shared/agent-types.js";
+import { MAX_AUTOMATE_PAYLOADS, normalizeAutomateRules } from "../../shared/automate.js";
 import { MAX_REPLAY_BODY, normalizeDraft } from "../../shared/draft.js";
 
 export type AgentToolDefinition = {
@@ -192,10 +193,35 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     description: "Compare two replay history entries from the active or specified repeater tab.",
     safety: "observe",
     schema: { leftHistoryId: "history id", rightHistoryId: "history id", tabId: "tab id optional" }
+  },
+  {
+    name: "getAutomateContext",
+    description: "Read saved Automate payload sets and bounded session summaries without starting traffic.",
+    safety: "observe",
+    schema: {}
+  },
+  {
+    name: "prepareAutomateDraft",
+    description: "Prepare visible Automate controls with markers, payloads, and optional match rules; the operator still starts the run.",
+    safety: "prepare",
+    schema: {
+      name: "run name optional",
+      draft: { method: "HTTP method", url: "http(s) URL inside scope", headers: {}, body: "" },
+      payloads: ["payload string"],
+      rules: [{ kind: "match|extract", target: "status|header|body|regex|redirect|length|latency" }],
+      environmentId: "environment id optional",
+      note: "string optional"
+    }
+  },
+  {
+    name: "analyzeAutomateResults",
+    description: "Summarize an existing Automate session's results, clusters, outliers, matches, and failures.",
+    safety: "observe",
+    schema: { sessionId: "automate session id optional" }
   }
 ];
 
-const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "sitemap", "scope", "ssl"] as const;
+const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "automate", "sitemap", "scope", "ssl"] as const;
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -271,6 +297,7 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
     case "getCookies":
     case "getStorageState":
     case "listAuthStates":
+    case "getAutomateContext":
       return { tool: call.tool, input: {} };
     case "openBrowser":
     case "navigateBrowser":
@@ -387,5 +414,30 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
       };
     case "getReplayContext":
       return { tool: call.tool, input: {} };
+    case "prepareAutomateDraft":
+      return {
+        tool: call.tool,
+        input: {
+          name: String(input.name || "").trim().slice(0, 60),
+          draft: normalizeDraft({
+            ...objectValue(input.draft),
+            headers: normalizeHeaders(objectValue(input.draft).headers)
+          }),
+          payloads: (Array.isArray(input.payloads) ? input.payloads : [])
+            .map((payload) => String(payload || "").slice(0, 8000))
+            .filter((payload) => payload.trim().length > 0)
+            .slice(0, Math.min(MAX_AUTOMATE_PAYLOADS, 25)),
+          rules: normalizeAutomateRules(input.rules),
+          environmentId: String(input.environmentId || "").trim().slice(0, 80),
+          note: String(input.note || "").slice(0, 240)
+        }
+      };
+    case "analyzeAutomateResults":
+      return {
+        tool: call.tool,
+        input: {
+          sessionId: String(input.sessionId || "").trim().slice(0, 120)
+        }
+      };
   }
 }

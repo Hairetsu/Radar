@@ -15,6 +15,8 @@ import type {
   AgentToolResult
 } from "../../shared/agent-types.js";
 import type {
+  AutomatePayloadSet,
+  AutomateSession,
   BrowserState,
   CapturedRequest,
   InterceptResponseDraft,
@@ -27,6 +29,7 @@ import type {
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeDraft } from "../../shared/draft.js";
+import { summarizeAutomateSession } from "../../shared/automate.js";
 import { buildSitemap } from "../../shared/sitemap.js";
 import { diffReplayHistory } from "../../shared/replayDiff.js";
 import { createReplayTab, normalizeReplayTabState } from "../../shared/replayTabs.js";
@@ -49,6 +52,8 @@ type AgentRuntimeDeps = {
   setReplayTabState: (state: ReplayTabState) => ReplayTabState;
   listReplayEnvironments: () => ReplayEnvironment[];
   listReplayCollections: () => Array<{ id: string; name: string; items: unknown[] }>;
+  listAutomatePayloadSets: () => AutomatePayloadSet[];
+  listAutomateSessions: () => AutomateSession[];
   sendReplay: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
   waitForNetworkIdle: (input: { idleMs?: number; timeoutMs?: number }) => Promise<{ idle: boolean; waitedMs: number }>;
   getPageText: () => Promise<{ url: string; title: string; text: string }>;
@@ -663,6 +668,78 @@ export class AgentRuntime {
               latencyDeltaMs: summary.latencyDeltaMs,
               bodyLengthDelta: summary.bodyLengthDelta,
               identical: summary.identical
+            }
+          };
+          break;
+        }
+        case "getAutomateContext": {
+          const payloadSets = this.deps.listAutomatePayloadSets();
+          const sessions = this.deps.listAutomateSessions();
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              payloadSets: payloadSets.map((payloadSet) => ({
+                id: payloadSet.id,
+                name: payloadSet.name,
+                source: payloadSet.source,
+                payloadCount: payloadSet.payloads.length,
+                wordlistPath: payloadSet.wordlistPath
+              })),
+              sessions: sessions.map((item) => ({
+                id: item.id,
+                name: item.name,
+                status: item.status,
+                payloadCount: item.payloads.length,
+                resultCount: item.results.length,
+                clusterCount: item.clusters.length,
+                matchCount: item.results.filter((entry) => entry.matchedRules.length > 0 || entry.extracts.length > 0).length,
+                updatedAt: item.updatedAt
+              }))
+            }
+          };
+          break;
+        }
+        case "prepareAutomateDraft": {
+          if (!isAllowedTarget(normalizedCall.input.draft.url, this.deps.allowlist())) {
+            throw new Error(`Prepared Automate URL is out of scope: ${normalizedCall.input.draft.url}`);
+          }
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              draft: normalizedCall.input.draft,
+              payloads: normalizedCall.input.payloads,
+              rules: normalizedCall.input.rules || [],
+              name: normalizedCall.input.name || "AI prepared run",
+              environmentId: normalizedCall.input.environmentId || "",
+              note: normalizedCall.input.note || "Prepared Automate controls for operator review."
+            }
+          };
+          break;
+        }
+        case "analyzeAutomateResults": {
+          const sessions = this.deps.listAutomateSessions();
+          const session =
+            sessions.find((item) => item.id === normalizedCall.input.sessionId) ||
+            sessions[0];
+          if (!session) {
+            throw new Error("No Automate session is available to analyze.");
+          }
+          const summary = summarizeAutomateSession(session);
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              sessionId: session.id,
+              status: session.status,
+              resultCount: summary.resultCount,
+              failures: summary.failures,
+              matches: summary.matches,
+              clusters: session.clusters,
+              outlierResultIds: session.clusters
+                .filter((cluster) => cluster.count === 1)
+                .map((cluster) => cluster.representativeResultId)
             }
           };
           break;

@@ -92,6 +92,16 @@ describe("viewContext", () => {
     ).toBeUndefined();
   });
 
+  it("allows automate view with draft only", () => {
+    expect(
+      contextBlockedReason({
+        view: "automate",
+        captures: [],
+        viewContext: { view: "automate", draft: { method: "GET", url: "http://localhost", headers: {}, body: "" } }
+      })
+    ).toBeUndefined();
+  });
+
   it("requires websocket frames or captures on websocket view", () => {
     expect(
       contextBlockedReason({

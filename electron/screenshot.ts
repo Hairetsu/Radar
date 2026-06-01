@@ -78,6 +78,29 @@ async function clickTestId(win: BrowserWindow, testId: string) {
   }
 }
 
+async function fillTestId(win: BrowserWindow, testId: string, value: string) {
+  await waitForTestId(win, testId);
+  const filled = await win.webContents.executeJavaScript(`
+    (() => {
+      const field = document.querySelector('[data-testid="${testId}"]');
+      if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) {
+        return false;
+      }
+      const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+      if (!setter) {
+        return false;
+      }
+      setter.call(field, ${JSON.stringify(value)});
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    })();
+  `);
+  if (!filled) {
+    throw new Error(`Could not fill screenshot target: ${testId}`);
+  }
+}
+
 async function rightClickTestId(win: BrowserWindow, testId: string, clientX: number, clientY: number) {
   await waitForTestId(win, testId);
   const opened = await win.webContents.executeJavaScript(`
@@ -156,6 +179,12 @@ async function run() {
     await pressEscape(win);
     await clickTestId(win, "view-repeater");
     await capture(win, "radar-02-repeater.png");
+    await clickTestId(win, "view-automate");
+    await fillTestId(win, "automateMarkerName", "role");
+    await fillTestId(win, "automatePayloads", "admin\ntrue\n../etc/passwd");
+    await clickTestId(win, "markAutomateUrl");
+    await waitForTestId(win, "automateResults");
+    await capture(win, "radar-07-automate.png");
     await clickTestId(win, "view-scope");
     await capture(win, "radar-03-scope.png");
     await clickTestId(win, "view-ssl");

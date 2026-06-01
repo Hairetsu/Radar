@@ -3,6 +3,8 @@ import type { AgentRun } from "../shared/agent-types.js";
 import type { AiSettings } from "../shared/ai-types.js";
 import type { RadarApi } from "../shared/radar-api.js";
 import type {
+  AutomatePayloadSet,
+  AutomateSession,
   BrowserState,
   CapturedRequest,
   InterceptState,
@@ -37,6 +39,114 @@ const context: LocalContext = {
     updatedAt: "2026-05-25T00:00:00.000Z"
   }
 };
+
+const automatePayloadSets: AutomatePayloadSet[] = [
+  {
+    id: "payload-screenshot",
+    name: "Auth probes",
+    source: "inline",
+    payloads: ["admin", "true", "../etc/passwd"],
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z"
+  }
+];
+
+const automateSessions: AutomateSession[] = [
+  {
+    id: "automate-screenshot",
+    name: "Auth probe run",
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:02:00.000Z",
+    status: "completed",
+    draft: { method: "GET", url: "https://hairetsu.test/api/users?role={{payload:probe}}", headers: {}, body: "" },
+    environmentId: "",
+    payloadSetId: "payload-screenshot",
+    payloads: ["admin", "true", "../etc/passwd"],
+    positions: [
+      {
+        id: "url:probe:1",
+        name: "probe",
+        location: "url",
+        occurrence: 1,
+        marker: "{{payload:probe}}",
+        preview: "role={{payload:probe}}"
+      }
+    ],
+    limits: { count: 3, concurrency: 1, delayMs: 100, timeoutMs: 10000 },
+    rules: [
+      {
+        id: "rule-500",
+        name: "Server errors",
+        enabled: true,
+        kind: "match",
+        target: "status",
+        status: 500,
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ],
+    results: [
+      {
+        id: "automate-result-1",
+        index: 1,
+        createdAt: "2026-05-25T00:01:00.000Z",
+        payload: "admin",
+        request: { method: "GET", url: "https://hairetsu.test/api/users?role=admin", headers: {}, body: "" },
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        length: 612,
+        latencyMs: 92,
+        wordCount: 18,
+        headers: { "content-type": "application/json" },
+        bodyPreview: "{\"role\":\"admin\",\"allowed\":false}",
+        matchedRules: [],
+        extracts: [],
+        clusterId: "cluster-1"
+      },
+      {
+        id: "automate-result-2",
+        index: 2,
+        createdAt: "2026-05-25T00:01:06.000Z",
+        payload: "true",
+        request: { method: "GET", url: "https://hairetsu.test/api/users?role=true", headers: {}, body: "" },
+        ok: false,
+        status: 500,
+        statusText: "Server Error",
+        length: 144,
+        latencyMs: 117,
+        wordCount: 9,
+        headers: { "content-type": "text/plain" },
+        bodyPreview: "Unhandled role parser branch",
+        matchedRules: [{ ruleId: "rule-500", name: "Server errors", kind: "match" }],
+        extracts: [],
+        clusterId: "cluster-2"
+      }
+    ],
+    clusters: [
+      {
+        id: "cluster-1",
+        fingerprint: "2xx:small:headers:body",
+        statusFamily: "2xx",
+        count: 1,
+        representativeResultId: "automate-result-1",
+        averageLength: 612,
+        averageLatencyMs: 92,
+        labels: []
+      },
+      {
+        id: "cluster-2",
+        fingerprint: "5xx:tiny:headers:body",
+        statusFamily: "5xx",
+        count: 1,
+        representativeResultId: "automate-result-2",
+        averageLength: 144,
+        averageLatencyMs: 117,
+        labels: ["Server errors"]
+      }
+    ]
+  }
+];
 
 const captures: CapturedRequest[] = [
   {
@@ -259,6 +369,38 @@ const radar: RadarApi = {
   setReplayEnvironments: async (items) => items,
   getReplayCollections: async () => [],
   setReplayCollections: async (items) => items,
+  getAutomatePayloadSets: async () => automatePayloadSets,
+  setAutomatePayloadSets: async (items) => {
+    automatePayloadSets.splice(0, automatePayloadSets.length, ...items);
+    return automatePayloadSets;
+  },
+  listAutomateSessions: async () => automateSessions,
+  getAutomateSession: async (id) => automateSessions.find((session) => session.id === id) || null,
+  startAutomateSession: async (payload) => {
+    const session: AutomateSession = {
+      id: "automate-started",
+      name: payload.name || "Payload run",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      status: "running",
+      draft: payload.draft || { method: "GET", url: "https://hairetsu.test", headers: {}, body: "" },
+      environmentId: payload.environmentId || "",
+      payloadSetId: payload.payloadSetId,
+      payloads: payload.payloads || [],
+      positions: payload.positions || [],
+      limits: payload.limits || { count: 1, concurrency: 1, delayMs: 0, timeoutMs: 10000 },
+      rules: payload.rules || [],
+      results: [],
+      clusters: []
+    };
+    automateSessions.unshift(session);
+    return session;
+  },
+  pauseAutomateSession: async () => null,
+  resumeAutomateSession: async () => null,
+  stopAutomateSession: async () => null,
+  retryAutomateSession: async () => null,
+  promoteAutomateResultToRepeater: async () => defaultReplayTabState(),
   getEvidenceAnnotations: async () => [],
   saveEvidenceAnnotation: async (annotation) => annotation,
   saveEvidenceAnnotations: async (annotations) => annotations,

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
 import type { AgentRun } from "../shared/agent-types.js";
-import type { CapturedRequest, SslEvent, WebSocketEvent } from "../shared/domain.js";
+import type { AutomatePayloadSet, AutomateSession, CapturedRequest, SslEvent, WebSocketEvent } from "../shared/domain.js";
 import { openLocalStore } from "./localStore.js";
 
 describe("localStore", () => {
@@ -232,6 +232,54 @@ describe("localStore", () => {
         })
       ])
     );
+    reopened.close();
+  });
+
+  it("persists automate payload sets per workspace and sessions per local session", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const payloadSet: AutomatePayloadSet = {
+      id: "payload-auth",
+      name: "Auth payloads",
+      source: "inline",
+      payloads: ["admin", "user"],
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+    const automateSession: AutomateSession = {
+      id: "automate-auth",
+      name: "Auth run",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:01.000Z",
+      status: "completed",
+      draft: { method: "GET", url: "https://example.com/api?role={{payload:role}}", headers: {}, body: "" },
+      environmentId: "",
+      payloadSetId: payloadSet.id,
+      payloads: ["admin"],
+      positions: [
+        {
+          id: "url:role:1",
+          name: "role",
+          location: "url",
+          occurrence: 1,
+          marker: "{{payload:role}}",
+          preview: "role={{payload:role}}"
+        }
+      ],
+      limits: { count: 1, concurrency: 1, delayMs: 0, timeoutMs: 1000 },
+      rules: [],
+      results: [],
+      clusters: []
+    };
+
+    store.setAutomatePayloadSets(context.workspace.id, [payloadSet]);
+    store.upsertAutomateSession(context.session.id, automateSession);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listAutomatePayloadSets(context.workspace.id)).toEqual([payloadSet]);
+    expect(reopened.listAutomateSessions(context.session.id)).toEqual([automateSession]);
+    expect(reopened.getAutomateSession(context.session.id, automateSession.id)).toEqual(automateSession);
     reopened.close();
   });
 

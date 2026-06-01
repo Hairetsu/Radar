@@ -20,7 +20,10 @@ describe("agent tools", () => {
         "sendReplay",
         "getReplayContext",
         "prepareReplayTab",
-        "compareReplayResults"
+        "compareReplayResults",
+        "getAutomateContext",
+        "prepareAutomateDraft",
+        "analyzeAutomateResults"
       ])
     );
     expect(toolSchemas()).toHaveProperty("getDomSummary");
@@ -93,6 +96,39 @@ describe("agent tools", () => {
     expect(normalizeAgentToolCall({ tool: "getReplayContext", input: {} })).toEqual({
       tool: "getReplayContext",
       input: {}
+    });
+    expect(
+      normalizeAgentToolCall({
+        tool: "prepareAutomateDraft",
+        input: {
+          name: " Roles ",
+          draft: { method: "GET", url: "https://allowed.test/api?role={{payload:role}}", headers: { A: 1 }, body: "" },
+          payloads: [" admin ", ""],
+          rules: [{ id: "status", name: "OK", target: "status", status: 200 }],
+          note: "review payload run"
+        }
+      })
+    ).toEqual({
+      tool: "prepareAutomateDraft",
+      input: {
+        name: "Roles",
+        draft: { method: "GET", url: "https://allowed.test/api?role={{payload:role}}", headers: { A: "1" }, body: "" },
+        payloads: [" admin "],
+        rules: [
+          expect.objectContaining({
+            id: "status",
+            name: "OK",
+            target: "status",
+            status: 200
+          })
+        ],
+        environmentId: "",
+        note: "review payload run"
+      }
+    });
+    expect(normalizeAgentToolCall({ tool: "analyzeAutomateResults", input: { sessionId: " auto-1 " } })).toEqual({
+      tool: "analyzeAutomateResults",
+      input: { sessionId: "auto-1" }
     });
   });
 

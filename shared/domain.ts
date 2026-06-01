@@ -254,6 +254,122 @@ export type BurstResult = {
   results: Array<ReplayResult & { index: number }>;
 };
 
+export type AutomatePayloadLocation = "url" | "header" | "body";
+
+export type AutomatePayloadPosition = {
+  id: string;
+  name: string;
+  location: AutomatePayloadLocation;
+  headerName?: string;
+  occurrence: number;
+  marker: string;
+  preview: string;
+};
+
+export type AutomatePayloadAssignments = Record<string, string>;
+
+export type AutomatePayloadSetSource = "inline" | "wordlist";
+
+export type AutomatePayloadSet = {
+  id: string;
+  name: string;
+  source: AutomatePayloadSetSource;
+  payloads: string[];
+  wordlistPath?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AutomateLimits = {
+  count: number;
+  concurrency: number;
+  delayMs: number;
+  timeoutMs: number;
+};
+
+export type AutomateRunStatus = "ready" | "running" | "paused" | "stopped" | "completed" | "failed";
+
+export type AutomateRuleKind = "match" | "extract";
+
+export type AutomateRuleTarget = "status" | "header" | "body" | "regex" | "redirect" | "length" | "latency";
+
+export type AutomateRule = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  kind: AutomateRuleKind;
+  target: AutomateRuleTarget;
+  pattern?: string;
+  headerName?: string;
+  status?: number;
+  min?: number;
+  max?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AutomateResultMarker = {
+  ruleId: string;
+  name: string;
+  kind: AutomateRuleKind;
+};
+
+export type AutomateExtract = {
+  ruleId: string;
+  name: string;
+  value: string;
+};
+
+export type AutomateResult = {
+  id: string;
+  index: number;
+  createdAt: string;
+  payload: string;
+  request: ReplayDraft;
+  ok: boolean;
+  status: number;
+  statusText: string;
+  error?: string;
+  redirect?: string;
+  length: number;
+  latencyMs: number;
+  wordCount: number;
+  headers: Record<string, string>;
+  bodyPreview: string;
+  matchedRules: AutomateResultMarker[];
+  extracts: AutomateExtract[];
+  clusterId?: string;
+};
+
+export type AutomateCluster = {
+  id: string;
+  fingerprint: string;
+  statusFamily: string;
+  count: number;
+  representativeResultId: string;
+  averageLength: number;
+  averageLatencyMs: number;
+  labels: string[];
+};
+
+export type AutomateSession = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  status: AutomateRunStatus;
+  draft: ReplayDraft;
+  environmentId: string;
+  payloadSetId?: string;
+  payloads: string[];
+  positions: AutomatePayloadPosition[];
+  limits: AutomateLimits;
+  rules: AutomateRule[];
+  results: AutomateResult[];
+  clusters: AutomateCluster[];
+  error?: string;
+};
+
 export type SavedFilterSurface = "traffic" | "websocket" | "both";
 
 export type SavedFilter = {
