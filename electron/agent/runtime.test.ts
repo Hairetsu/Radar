@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
 import type { AgentDecision, AgentDecisionContext, AgentRun } from "../../shared/agent-types.js";
-import type { AutomatePayloadSet, AutomateSession, CapturedRequest, InterceptQueueItem } from "../../shared/domain.js";
+import type { AutomatePayloadSet, AutomateSession, CapturedRequest, InterceptQueueItem, WorkflowDefinition, WorkflowRun } from "../../shared/domain.js";
 import { AgentRuntime } from "./runtime.js";
 
 function capture(id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest {
@@ -37,6 +37,9 @@ function makeRuntime(
     replayTabState?: ReturnType<typeof defaultReplayTabState>;
     automatePayloadSets?: AutomatePayloadSet[];
     automateSessions?: AutomateSession[];
+    workflows?: WorkflowDefinition[];
+    workflowRuns?: WorkflowRun[];
+    workflowRun?: WorkflowRun;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
   } = {}
 ) {
@@ -94,6 +97,21 @@ function makeRuntime(
     right,
     observations: [{ name: "sid", issue: "Cookie value differs between auth states.", severity: "info" as const }]
   }));
+  const runWorkflow = vi.fn(async ({ workflowId, inputs, source }: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => ({
+    id: "workflow-run-test",
+    workflowId,
+    workflowName: "Security Headers",
+    sessionId: "session-test",
+    source: source || "ai",
+    mode: "passive" as const,
+    status: "completed" as const,
+    inputs: inputs || {},
+    startedAt: "2026-05-25T00:00:00.000Z",
+    completedAt: "2026-05-25T00:00:01.000Z",
+    stepCount: 1,
+    actionCount: 0,
+    results: []
+  }));
   let activeRunId = "";
   const decideNextAction = vi.fn(
     options.decideNextAction ||
@@ -126,6 +144,9 @@ function makeRuntime(
     listReplayCollections: () => [],
     listAutomatePayloadSets: () => options.automatePayloadSets || [],
     listAutomateSessions: () => options.automateSessions || [],
+    listWorkflows: () => options.workflows || [],
+    listWorkflowRuns: () => options.workflowRuns || [],
+    runWorkflow: (input) => options.workflowRun ? Promise.resolve(options.workflowRun) : runWorkflow(input),
     sendReplay,
     waitForNetworkIdle,
     getPageText,
@@ -147,7 +168,7 @@ function makeRuntime(
     waitForSettle: vi.fn(async () => undefined)
   });
 
-  return { runtime, runs, openBrowser, navigateBrowser, sendReplay, decideNextAction, clickElement, fillInput, submitForm, saveAuthState };
+  return { runtime, runs, openBrowser, navigateBrowser, sendReplay, runWorkflow, decideNextAction, clickElement, fillInput, submitForm, saveAuthState };
 }
 
 describe("AgentRuntime", () => {
@@ -648,5 +669,46 @@ describe("AgentRuntime", () => {
     expect(prepareResult?.ok && prepareResult.data.payloads).toEqual(["admin"]);
     const analysis = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "analyzeAutomateResults")?.toolResult;
     expect(analysis?.ok && analysis.data.outlierResultIds).toEqual(["result-1"]);
+  });
+
+  it("lets AI choose an existing workflow and records the run through workflow runtime", async () => {
+    const workflow: WorkflowDefinition = {
+      id: "builtin-security-headers",
+      name: "Security Headers",
+      description: "Check headers.",
+      mode: "passive",
+      builtIn: true,
+      inputs: [],
+      scope: {
+        requireInScope: true,
+        allowActive: false,
+        maxRequests: 0,
+        timeoutMs: 10000,
+        delayMs: 0,
+        maxResults: 40
+      },
+      steps: [{ id: "headers", title: "Headers", kind: "security-headers", config: {} }],
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    };
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "getWorkflowCatalog", input: {} } },
+      { action: "tool", call: { tool: "runWorkflow", input: { workflowId: workflow.id, inputs: {} } } },
+      { action: "finish", rationale: "Workflow reviewed.", findings: [] }
+    ];
+    const { runtime, runs, runWorkflow } = makeRuntime(undefined, {
+      workflows: [workflow],
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({ goal: "Run header workflow", startUrl: "https://allowed.test" });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    expect(runWorkflow).toHaveBeenCalledWith({ workflowId: workflow.id, inputs: {}, source: "ai" });
+    const workflowResult = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "runWorkflow")?.toolResult;
+    expect(workflowResult?.ok).toBe(true);
   });
 });

@@ -38,6 +38,14 @@ import {
   type AutomatePayloadLocation
 } from "../../shared/automate.js";
 import {
+  evidenceRefFromAutomateResult,
+  evidenceRefFromCapture,
+  evidenceRefFromWebSocket,
+  FINDING_TEMPLATES,
+  findingFromTemplate,
+  normalizeFinding
+} from "../../shared/findings.js";
+import {
   filterCapturesByQuery,
   filterWebSocketEventsByQuery,
   TRAFFIC_QUERY_EXAMPLES
@@ -47,6 +55,11 @@ import type {
   BurstResult,
   CapturedRequest,
   EvidenceAnnotation,
+  Finding,
+  FindingEvidenceRef,
+  FindingReport,
+  FindingReportOptions,
+  FindingTemplateId,
   InterceptQueueItem,
   InterceptResponseDraft,
   InterceptRule,
@@ -74,13 +87,25 @@ import type {
   AutomateLimits,
   AutomatePayloadSet,
   AutomateResult,
-  AutomateSession
+  AutomateSession,
+  WorkflowDefinition,
+  WorkflowRun
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
 import { useTheme } from "./useTheme";
 
-export type WorkView = "traffic" | "websocket" | "intercept" | "repeater" | "automate" | "scope" | "ssl" | "sitemap";
+export type WorkView =
+  | "traffic"
+  | "websocket"
+  | "intercept"
+  | "repeater"
+  | "automate"
+  | "findings"
+  | "workflows"
+  | "scope"
+  | "ssl"
+  | "sitemap";
 
 export const WORK_VIEWS: WorkView[] = [
   "traffic",
@@ -88,6 +113,8 @@ export const WORK_VIEWS: WorkView[] = [
   "intercept",
   "repeater",
   "automate",
+  "findings",
+  "workflows",
   "sitemap",
   "scope",
   "ssl"
@@ -208,9 +235,11 @@ export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: s
   intercept: { num: "03", label: "Intercept", eyebrow: "Proxy // Pause and mutate", title: "Intercept" },
   repeater: { num: "04", label: "Repeater", eyebrow: "Replay // Surface probe", title: "Repeater" },
   automate: { num: "05", label: "Automate", eyebrow: "Payloads // Bounded runs", title: "Automate" },
-  sitemap: { num: "06", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
-  scope: { num: "07", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "08", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
+  findings: { num: "06", label: "Findings", eyebrow: "Evidence // Report builder", title: "Findings" },
+  workflows: { num: "07", label: "Workflows", eyebrow: "Checks // Repeatable runs", title: "Workflows" },
+  sitemap: { num: "08", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
+  scope: { num: "09", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "10", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -395,6 +424,13 @@ export function useRadarWorkbench() {
   const [webSocketQueryError, setWebSocketQueryError] = useState("");
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [evidenceAnnotations, setEvidenceAnnotations] = useState<EvidenceAnnotation[]>([]);
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [selectedFindingId, setSelectedFindingId] = useState("");
+  const [findingReport, setFindingReport] = useState<FindingReport | null>(null);
+  const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [selectedWorkflowRunId, setSelectedWorkflowRunId] = useState("");
   const [selectedSitemapNodeId, setSelectedSitemapNodeId] = useState("");
   const [diffBaselineSessionId, setDiffBaselineSessionId] = useState("");
   const [sessionDiff, setSessionDiff] = useState<SessionDiffResult | null>(null);
@@ -534,6 +570,21 @@ export function useRadarWorkbench() {
       filteredAutomateResults[0] ||
       null,
     [activeAutomateSession, filteredAutomateResults, selectedAutomateResultId]
+  );
+
+  const selectedFinding = useMemo(
+    () => findings.find((finding) => finding.id === selectedFindingId) || findings[0] || null,
+    [findings, selectedFindingId]
+  );
+
+  const selectedWorkflow = useMemo(
+    () => workflows.find((workflow) => workflow.id === selectedWorkflowId) || workflows[0] || null,
+    [selectedWorkflowId, workflows]
+  );
+
+  const selectedWorkflowRun = useMemo(
+    () => workflowRuns.find((run) => run.id === selectedWorkflowRunId) || workflowRuns[0] || null,
+    [selectedWorkflowRunId, workflowRuns]
   );
 
   const insertAutomateMarker = useCallback(
@@ -729,6 +780,237 @@ export function useRadarWorkbench() {
     [activeAutomateSession, selectedAutomateResult]
   );
 
+  const saveFinding = useCallback(async (finding: Finding) => {
+    if (!window.radar?.saveFinding) {
+      setNotice("Run in Electron to save findings.");
+      return null;
+    }
+    try {
+      const saved = await window.radar.saveFinding(finding);
+      setFindings((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+      setSelectedFindingId(saved.id);
+      setNotice("Finding saved");
+      return saved;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Finding save failed");
+      return null;
+    }
+  }, []);
+
+  const deleteFinding = useCallback(
+    async (findingId = selectedFinding?.id || "") => {
+      if (!findingId || !window.radar?.deleteFinding) {
+        return;
+      }
+      await window.radar.deleteFinding(findingId);
+      setFindings((items) => items.filter((finding) => finding.id !== findingId));
+      setSelectedFindingId((current) => (current === findingId ? "" : current));
+      setNotice("Finding deleted");
+    },
+    [selectedFinding]
+  );
+
+  const saveFindingPatch = useCallback(
+    async (patch: Partial<Finding>) => {
+      if (!selectedFinding) {
+        return null;
+      }
+      const status = patch.status || selectedFinding.status;
+      const now = new Date().toISOString();
+      const normalized = normalizeFinding({
+        ...selectedFinding,
+        ...patch,
+        reviewedAt: status === "reviewed" && !selectedFinding.reviewedAt ? now : patch.reviewedAt || selectedFinding.reviewedAt,
+        updatedAt: now
+      });
+      if (!normalized) {
+        setNotice("Finding needs a title and evidence before saving.");
+        return null;
+      }
+      return saveFinding(normalized);
+    },
+    [saveFinding, selectedFinding]
+  );
+
+  const createFindingWithEvidence = useCallback(
+    async (templateId: FindingTemplateId, evidence: FindingEvidenceRef[], overrides: Partial<Finding> = {}) => {
+      const base = findingFromTemplate(templateId, evidence);
+      const normalized = normalizeFinding({
+        ...base,
+        ...overrides,
+        evidence,
+        updatedAt: new Date().toISOString()
+      });
+      if (!normalized) {
+        setNotice("Select evidence before creating a finding.");
+        return null;
+      }
+      const saved = await saveFinding(normalized);
+      if (saved) {
+        setActiveView("findings");
+      }
+      return saved;
+    },
+    [saveFinding]
+  );
+
+  const createFindingFromCapture = useCallback(
+    (capture: CapturedRequest | null, templateId: FindingTemplateId = "headers") => {
+      if (!capture) {
+        setNotice("Select a capture before creating a finding.");
+        return Promise.resolve(null);
+      }
+      return createFindingWithEvidence(templateId, [evidenceRefFromCapture(capture)], {
+        affectedAssets: [originFromUrl(capture.url) || capture.url],
+        reproductionSteps: `${capture.method} ${capture.url}`,
+        notes: capture.status ? `Observed HTTP ${capture.status} ${capture.statusText}` : ""
+      });
+    },
+    [createFindingWithEvidence]
+  );
+
+  const createFindingFromWebSocket = useCallback(
+    (event: WebSocketEvent | null, templateId: FindingTemplateId = "information-disclosure") => {
+      if (!event) {
+        setNotice("Select a WebSocket frame before creating a finding.");
+        return Promise.resolve(null);
+      }
+      return createFindingWithEvidence(templateId, [evidenceRefFromWebSocket(event)], {
+        affectedAssets: [originFromUrl(event.url) || event.url],
+        reproductionSteps: `${event.direction} ${event.url}`,
+        notes: event.error || event.payloadData.slice(0, 240)
+      });
+    },
+    [createFindingWithEvidence]
+  );
+
+  const promoteAutomateResultToFinding = useCallback(async () => {
+    if (!activeAutomateSession || !selectedAutomateResult || !window.radar?.promoteAutomateResultToFinding) {
+      return null;
+    }
+    try {
+      const finding = await window.radar.promoteAutomateResultToFinding({
+        sessionId: activeAutomateSession.id,
+        resultId: selectedAutomateResult.id
+      });
+      setFindings((items) => [finding, ...items.filter((item) => item.id !== finding.id)]);
+      setSelectedFindingId(finding.id);
+      setActiveView("findings");
+      setNotice("Promoted Automate result to draft finding");
+      return finding;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Finding promotion failed");
+      return null;
+    }
+  }, [activeAutomateSession, selectedAutomateResult]);
+
+  const attachEvidenceToFinding = useCallback(
+    async (refs: FindingEvidenceRef[]) => {
+      if (!selectedFinding || refs.length === 0) {
+        return null;
+      }
+      const existing = new Map(selectedFinding.evidence.map((ref) => [`${ref.kind}:${ref.id}`, ref]));
+      refs.forEach((ref) => existing.set(`${ref.kind}:${ref.id}`, ref));
+      return saveFindingPatch({ evidence: Array.from(existing.values()) });
+    },
+    [saveFindingPatch, selectedFinding]
+  );
+
+  const attachSelectedCaptureToFinding = useCallback(
+    (capture: CapturedRequest | null) => {
+      if (!capture) {
+        setNotice("Select a capture before attaching retest evidence.");
+        return Promise.resolve(null);
+      }
+      return attachEvidenceToFinding([evidenceRefFromCapture(capture)]);
+    },
+    [attachEvidenceToFinding]
+  );
+
+  const attachSelectedAutomateResultToFinding = useCallback(() => {
+    if (!activeAutomateSession || !selectedAutomateResult) {
+      setNotice("Select an Automate result before attaching evidence.");
+      return Promise.resolve(null);
+    }
+    return attachEvidenceToFinding([evidenceRefFromAutomateResult(activeAutomateSession, selectedAutomateResult)]);
+  }, [activeAutomateSession, attachEvidenceToFinding, selectedAutomateResult]);
+
+  const buildFindingReportPreview = useCallback(async (options: Partial<FindingReportOptions>) => {
+    if (!window.radar?.buildFindingReport) {
+      setNotice("Run in Electron to build reports.");
+      return null;
+    }
+    const report = await window.radar.buildFindingReport(options);
+    setFindingReport(report);
+    setNotice(`Report preview ready: ${report.findingCount} findings`);
+    return report;
+  }, []);
+
+  const saveWorkflow = useCallback(async (workflow: WorkflowDefinition) => {
+    if (!window.radar?.saveWorkflow) {
+      setNotice("Run in Electron to save workflows.");
+      return null;
+    }
+    try {
+      const saved = await window.radar.saveWorkflow(workflow);
+      setWorkflows((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+      setSelectedWorkflowId(saved.id);
+      setNotice("Workflow saved");
+      return saved;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Workflow save failed");
+      return null;
+    }
+  }, []);
+
+  const deleteWorkflow = useCallback(
+    async (workflowId = selectedWorkflow?.id || "") => {
+      if (!workflowId || !window.radar?.deleteWorkflow) {
+        return null;
+      }
+      const result = await window.radar.deleteWorkflow(workflowId);
+      setWorkflows(result.workflows);
+      setSelectedWorkflowId((current) => (current === workflowId ? result.workflows[0]?.id || "" : current));
+      setNotice(result.ok ? "Workflow deleted" : "Built-in workflows cannot be deleted");
+      return result;
+    },
+    [selectedWorkflow]
+  );
+
+  const runWorkflow = useCallback(
+    async (workflowId = selectedWorkflow?.id || "", inputs: Record<string, string> = {}) => {
+      if (!workflowId || !window.radar?.runWorkflow) {
+        setNotice("Run in Electron to execute workflows.");
+        return null;
+      }
+      const run = await window.radar.runWorkflow({ workflowId, inputs, source: "manual" });
+      setWorkflowRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+      setSelectedWorkflowRunId(run.id);
+      setActiveView("workflows");
+      setNotice(run.status === "completed" ? `Workflow complete: ${run.results.length} results` : run.error || "Workflow failed");
+      return run;
+    },
+    [selectedWorkflow]
+  );
+
+  const promoteWorkflowResultToFinding = useCallback(async (runId: string, resultId: string) => {
+    if (!window.radar?.promoteWorkflowResultToFinding) {
+      setNotice("Run in Electron to promote workflow results.");
+      return null;
+    }
+    try {
+      const finding = await window.radar.promoteWorkflowResultToFinding({ runId, resultId });
+      setFindings((items) => [finding, ...items.filter((item) => item.id !== finding.id)]);
+      setSelectedFindingId(finding.id);
+      setActiveView("findings");
+      setNotice("Workflow result promoted to draft finding");
+      return finding;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Workflow finding promotion failed");
+      return null;
+    }
+  }, []);
+
   const refreshLocalLists = useCallback(async (context: LocalContext) => {
     if (!window.radar) {
       return;
@@ -766,6 +1048,9 @@ export function useRadarWorkbench() {
           nextAgentRuns,
           nextSavedFilters,
           nextEvidenceAnnotations,
+          nextFindings,
+          nextWorkflows,
+          nextWorkflowRuns,
           nextReplayTabState,
           nextReplayEnvironments,
           nextReplayCollections,
@@ -784,6 +1069,9 @@ export function useRadarWorkbench() {
           window.radar.listAgentRuns(),
           window.radar.getSavedFilters?.() ?? [],
           window.radar.getEvidenceAnnotations?.() ?? [],
+          window.radar.getFindings?.() ?? [],
+          window.radar.getWorkflows?.() ?? [],
+          window.radar.getWorkflowRuns?.() ?? [],
           window.radar.getReplayTabState?.() ?? defaultReplayTabState(),
           window.radar.getReplayEnvironments?.() ?? [],
           window.radar.getReplayCollections?.() ?? [],
@@ -805,6 +1093,13 @@ export function useRadarWorkbench() {
         setAgentRuns(nextAgentRuns);
         setSavedFilters(nextSavedFilters);
         setEvidenceAnnotations(nextEvidenceAnnotations);
+        setFindings(nextFindings);
+        setSelectedFindingId(nextFindings[0]?.id || "");
+        setFindingReport(null);
+        setWorkflows(nextWorkflows);
+        setSelectedWorkflowId(nextWorkflows[0]?.id || "");
+        setWorkflowRuns(nextWorkflowRuns);
+        setSelectedWorkflowRunId(nextWorkflowRuns[0]?.id || "");
         const normalizedTabs = normalizeReplayTabState(nextReplayTabState);
         setReplayTabState(normalizedTabs);
         setReplayEnvironments(nextReplayEnvironments);
@@ -1987,6 +2282,9 @@ export function useRadarWorkbench() {
         nextInterceptRules,
         nextMatchReplaceRules,
         nextAgentRuns,
+        nextFindings,
+        nextWorkflows,
+        nextWorkflowRuns,
         nextAutomatePayloadSets,
         nextAutomateSessions
       ] = await Promise.all([
@@ -1999,6 +2297,9 @@ export function useRadarWorkbench() {
         loadInterceptRules(),
         loadMatchReplaceRules(),
         window.radar.listAgentRuns(),
+        window.radar.getFindings?.() ?? [],
+        window.radar.getWorkflows?.() ?? [],
+        window.radar.getWorkflowRuns?.() ?? [],
         window.radar.getAutomatePayloadSets?.() ?? [],
         window.radar.listAutomateSessions?.() ?? []
       ]);
@@ -2020,6 +2321,12 @@ export function useRadarWorkbench() {
       setMatchReplaceRules(nextMatchReplaceRules);
       setMatchReplaceRulesText(JSON.stringify(nextMatchReplaceRules, null, 2));
       setAgentRuns(nextAgentRuns);
+      setFindings(nextFindings);
+      setSelectedFindingId(nextFindings[0]?.id || "");
+      setWorkflows(nextWorkflows);
+      setSelectedWorkflowId(nextWorkflows[0]?.id || "");
+      setWorkflowRuns(nextWorkflowRuns);
+      setSelectedWorkflowRunId(nextWorkflowRuns[0]?.id || "");
       setAutomatePayloadSets(nextAutomatePayloadSets);
       setAutomateSessions(nextAutomateSessions);
       setActiveAutomateSessionId(nextAutomateSessions[0]?.id || "");
@@ -2070,6 +2377,8 @@ export function useRadarWorkbench() {
         nextProxyState,
         nextInterceptState,
         nextAgentRuns,
+        nextFindings,
+        nextWorkflowRuns,
         nextAutomateSessions
       ] = await Promise.all([
         window.radar.getCaptures(),
@@ -2079,6 +2388,8 @@ export function useRadarWorkbench() {
         window.radar.getProxyState(),
         loadInterceptState(),
         window.radar.listAgentRuns(),
+        window.radar.getFindings?.() ?? [],
+        window.radar.getWorkflowRuns?.() ?? [],
         window.radar.listAutomateSessions?.() ?? []
       ]);
       if (!cancelled) {
@@ -2089,6 +2400,10 @@ export function useRadarWorkbench() {
         setProxyState(nextProxyState);
         setInterceptState(nextInterceptState);
         setAgentRuns(nextAgentRuns);
+        setFindings(nextFindings);
+        setSelectedFindingId((current) => current || nextFindings[0]?.id || "");
+        setWorkflowRuns(nextWorkflowRuns);
+        setSelectedWorkflowRunId((current) => current || nextWorkflowRuns[0]?.id || "");
         setAutomateSessions(nextAutomateSessions);
         setActiveAutomateSessionId((current) => current || nextAutomateSessions[0]?.id || "");
       }
@@ -2227,6 +2542,33 @@ export function useRadarWorkbench() {
     evidenceAnnotations,
     getEvidenceAnnotation,
     saveEvidenceAnnotation,
+    findings,
+    selectedFindingId,
+    setSelectedFindingId,
+    selectedFinding,
+    findingTemplates: FINDING_TEMPLATES,
+    findingReport,
+    saveFinding,
+    saveFindingPatch,
+    deleteFinding,
+    createFindingFromCapture,
+    createFindingFromWebSocket,
+    promoteAutomateResultToFinding,
+    attachSelectedCaptureToFinding,
+    attachSelectedAutomateResultToFinding,
+    buildFindingReportPreview,
+    workflows,
+    selectedWorkflowId,
+    setSelectedWorkflowId,
+    selectedWorkflow,
+    workflowRuns,
+    selectedWorkflowRunId,
+    setSelectedWorkflowRunId,
+    selectedWorkflowRun,
+    saveWorkflow,
+    deleteWorkflow,
+    runWorkflow,
+    promoteWorkflowResultToFinding,
     bulkDeleteCaptures,
     bulkExportCaptures,
     bulkTagCaptures,

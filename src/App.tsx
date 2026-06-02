@@ -18,6 +18,7 @@ import {
   FileCode2,
   FileLock2,
   FilePlus2,
+  FileText,
   LockKeyhole,
   Palette,
   Map,
@@ -50,6 +51,7 @@ import { Input } from "./components/ui/input";
 import { Select } from "./components/ui/select";
 import { Textarea } from "./components/ui/textarea";
 import { jsonFormat, jsonMinify, jwtDecode, parseCookieHeader, urlDecode, urlEncode } from "../shared/requestTransforms.js";
+import { parseWorkflowDefinition } from "../shared/workflows.js";
 import { TRAFFIC_SORT_FIELDS, useRadarWorkbench, viewMeta, WORK_VIEWS, type WorkView } from "./hooks/useRadarWorkbench";
 import {
   bodyPreview,
@@ -64,6 +66,15 @@ import {
   type RequestExportFormat
 } from "./lib";
 import type { CapturedRequest, WebSocketDirection, WebSocketEvent } from "./types";
+import type {
+  Finding,
+  FindingConfidence,
+  FindingSeverity,
+  FindingStatus,
+  FindingTemplateId,
+  WorkflowDefinition,
+  WorkflowResultLevel
+} from "./types";
 
 const shellClass =
   "radar-shell relative grid h-full min-h-full cursor-default overflow-hidden [grid-template-columns:248px_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_28px] max-[1180px]:h-auto max-[1180px]:overflow-visible max-[1180px]:[grid-template-columns:1fr] max-[1180px]:[grid-template-rows:auto_auto_28px]";
@@ -80,6 +91,8 @@ const sidebarViewIcons: Record<WorkView, LucideIcon> = {
   intercept: FileLock2,
   repeater: Repeat2,
   automate: Zap,
+  findings: FileText,
+  workflows: GitCompare,
   sitemap: Map,
   scope: Target,
   ssl: LockKeyhole
@@ -144,6 +157,83 @@ const requestMenuActionClass =
 
 const requestMenuDangerClass =
   "hover:bg-rust/10 hover:text-rust focus-visible:bg-rust/10 focus-visible:text-rust [&_svg]:text-rust";
+
+const findingSeverities: FindingSeverity[] = ["info", "low", "medium", "high", "critical"];
+const findingConfidences: FindingConfidence[] = ["low", "medium", "high"];
+const findingStatuses: FindingStatus[] = ["draft", "reviewed", "accepted-risk", "retest-passed", "retest-failed"];
+
+function findingSeverityTone(severity: FindingSeverity): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (severity === "critical" || severity === "high") {
+    return "danger";
+  }
+  if (severity === "medium") {
+    return "warn";
+  }
+  if (severity === "low") {
+    return "move";
+  }
+  return "ghost";
+}
+
+function findingStatusTone(status: FindingStatus): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (status === "reviewed" || status === "retest-passed") {
+    return "good";
+  }
+  if (status === "retest-failed") {
+    return "danger";
+  }
+  if (status === "accepted-risk") {
+    return "warn";
+  }
+  return "ghost";
+}
+
+function findingEvidenceText(finding: Finding | null) {
+  if (!finding) {
+    return "";
+  }
+  return finding.evidence
+    .map((ref) => {
+      const metadata = Object.entries(ref.metadata)
+        .filter(([, value]) => Boolean(value))
+        .map(([key, value]) => `${key}=${value}`)
+        .join(", ");
+      return metadata ? `${ref.kind}:${ref.id} - ${ref.label} (${metadata})` : `${ref.kind}:${ref.id} - ${ref.label}`;
+    })
+    .join("\n");
+}
+
+function workflowResultTone(level: WorkflowResultLevel): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (level === "pass") {
+    return "good";
+  }
+  if (level === "fail") {
+    return "danger";
+  }
+  if (level === "warn") {
+    return "warn";
+  }
+  return "ghost";
+}
+
+function workflowDefinitionText(workflow: WorkflowDefinition | null) {
+  if (!workflow) {
+    return "";
+  }
+  return JSON.stringify(
+    {
+      id: workflow.builtIn ? `${workflow.id}-custom` : workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      mode: workflow.mode,
+      scope: workflow.scope,
+      inputs: workflow.inputs,
+      steps: workflow.steps
+    },
+    null,
+    2
+  );
+}
 
 function formatBytes(value: number) {
   if (value >= 1024 * 1024) {
@@ -306,6 +396,14 @@ export function App() {
   const [bulkTagValue, setBulkTagValue] = useState("");
   const [annotationTags, setAnnotationTags] = useState("");
   const [annotationComment, setAnnotationComment] = useState("");
+  const [findingTemplateId, setFindingTemplateId] = useState<FindingTemplateId>("headers");
+  const [findingDraft, setFindingDraft] = useState<Finding | null>(null);
+  const [findingReportFormat, setFindingReportFormat] = useState<"markdown" | "html">("markdown");
+  const [findingReportIncludeDrafts, setFindingReportIncludeDrafts] = useState(false);
+  const [findingReportIncludeRaw, setFindingReportIncludeRaw] = useState(false);
+  const [workflowEditorText, setWorkflowEditorText] = useState("");
+  const [workflowEditorError, setWorkflowEditorError] = useState("");
+  const [workflowInputs, setWorkflowInputs] = useState<Record<string, string>>({});
   const [webSocketDirectionFilter, setWebSocketDirectionFilter] = useState<WebSocketDirection | "all">("all");
   const [selectedWebSocketId, setSelectedWebSocketId] = useState("");
   const [selectedWebSocketIds, setSelectedWebSocketIds] = useState<string[]>([]);
@@ -434,6 +532,22 @@ export function App() {
     setAnnotationTags(annotation.tags.join(", "));
     setAnnotationComment(annotation.comment);
   }, [selectedCapture, getEvidenceAnnotation, evidenceAnnotations]);
+  useEffect(() => {
+    setFindingDraft(workbench.selectedFinding);
+    setFindingTemplateId(workbench.selectedFinding?.templateId || "headers");
+  }, [workbench.selectedFinding]);
+  useEffect(() => {
+    setWorkflowEditorText(workflowDefinitionText(workbench.selectedWorkflow));
+    setWorkflowEditorError("");
+    setWorkflowInputs(
+      Object.fromEntries(
+        (workbench.selectedWorkflow?.inputs || []).map((input) => [
+          input.id,
+          input.type === "capture-id" ? selectedCapture?.id || input.defaultValue : input.defaultValue
+        ])
+      )
+    );
+  }, [selectedCapture?.id, workbench.selectedWorkflow]);
   const activeSession = workbench.localContext?.session || null;
   const activeSessionListed = activeSession
     ? workbench.sessions.some((session) => session.id === activeSession.id)
@@ -450,6 +564,8 @@ export function App() {
     automate: workbench.activeAutomateSession
       ? `${workbench.activeAutomateSession.results.length}/${workbench.activeAutomateSession.payloads.length} ${workbench.activeAutomateSession.status}`
       : `${workbench.automatePositions.length} positions`,
+    findings: `${workbench.findings.length} findings`,
+    workflows: `${workbench.workflowRuns.length} runs`,
     sitemap: `${workbench.sitemap.roots.length} hosts`,
     scope: `${workbench.targets.length} targets`,
     ssl: workbench.proxyState.running ? "proxy engaged" : `${workbench.sslEvents.length} tls events`
@@ -518,6 +634,70 @@ export function App() {
   const submitAgentGoal = (event: FormEvent) => {
     event.preventDefault();
     void workbench.startAgentRun();
+  };
+  const updateFindingDraft = (patch: Partial<Finding>) => {
+    setFindingDraft((current) => (current ? { ...current, ...patch } : current));
+  };
+  const saveFindingDraft = () => {
+    if (!findingDraft) {
+      return;
+    }
+    void workbench.saveFinding({
+      ...findingDraft,
+      title: findingDraft.title.trim(),
+      affectedAssets: findingDraft.affectedAssets.map((asset) => asset.trim()).filter(Boolean),
+      updatedAt: new Date().toISOString(),
+      reviewedAt:
+        findingDraft.status === "reviewed" && !findingDraft.reviewedAt
+          ? new Date().toISOString()
+          : findingDraft.reviewedAt
+    });
+  };
+  const saveWorkflowEditor = () => {
+    const parsed = parseWorkflowDefinition(workflowEditorText);
+    if (!parsed) {
+      setWorkflowEditorError("Workflow definition is invalid or has no supported steps.");
+      return;
+    }
+    setWorkflowEditorError("");
+    void workbench.saveWorkflow({
+      ...parsed,
+      builtIn: false,
+      id: parsed.builtIn ? `${parsed.id}-custom` : parsed.id,
+      updatedAt: new Date().toISOString()
+    });
+  };
+  const runSelectedWorkflow = () => {
+    if (!workbench.selectedWorkflow) {
+      return;
+    }
+    void workbench.runWorkflow(workbench.selectedWorkflow.id, workflowInputs);
+  };
+  const copyFindingReport = async () => {
+    if (!workbench.findingReport?.body) {
+      return;
+    }
+    try {
+      await window.navigator.clipboard.writeText(workbench.findingReport.body);
+      workbench.setNotice("Report copied");
+    } catch {
+      workbench.setNotice("Report copy failed");
+    }
+  };
+  const downloadFindingReport = () => {
+    if (!workbench.findingReport?.body) {
+      return;
+    }
+    const extension = workbench.findingReport.format === "html" ? "html" : "md";
+    const blob = new window.Blob([workbench.findingReport.body], {
+      type: workbench.findingReport.format === "html" ? "text/html" : "text/markdown"
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    link.href = url;
+    link.download = `radar-findings.${extension}`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -952,6 +1132,72 @@ export function App() {
                   Start Run
                 </Button>
               )}
+              {workbench.activeView === "findings" && (
+                <>
+                  <Select
+                    variant="compact"
+                    value={findingTemplateId}
+                    onChange={(event) => setFindingTemplateId(event.target.value as FindingTemplateId)}
+                    aria-label="Finding template"
+                    data-testid="findingTemplateSelectHeader"
+                  >
+                    {workbench.findingTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => void workbench.createFindingFromCapture(workbench.selected, findingTemplateId)}
+                    disabled={!workbench.selected}
+                    data-testid="createFindingFromCaptureHeader"
+                  >
+                    <FileText size={14} strokeWidth={1.7} />
+                    From Capture
+                  </Button>
+                  <Button
+                    variant="solid"
+                    type="button"
+                    onClick={() =>
+                      void workbench.buildFindingReportPreview({
+                        format: findingReportFormat,
+                        includeDrafts: findingReportIncludeDrafts,
+                        includeAppendix: true,
+                        includeRawEvidence: findingReportIncludeRaw
+                      })
+                    }
+                    data-testid="buildFindingReportHeader"
+                  >
+                    <ExternalLink size={14} strokeWidth={1.7} />
+                    Build Report
+                  </Button>
+                </>
+              )}
+              {workbench.activeView === "workflows" && (
+                <>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={saveWorkflowEditor}
+                    data-testid="saveWorkflowHeader"
+                  >
+                    <FilePlus2 size={14} strokeWidth={1.7} />
+                    Save Workflow
+                  </Button>
+                  <Button
+                    variant="solid"
+                    type="button"
+                    onClick={runSelectedWorkflow}
+                    disabled={!workbench.selectedWorkflow}
+                    data-testid="runWorkflowHeader"
+                  >
+                    <Play size={14} strokeWidth={1.7} />
+                    Run Workflow
+                  </Button>
+                </>
+              )}
               {workbench.activeView === "scope" && (
                 <Button
                   variant="solid"
@@ -1362,6 +1608,18 @@ export function App() {
                     <Copy size={13} strokeWidth={1.7} />
                     Copy
                   </Button>
+                  <Button
+                    variant="ghost"
+                    className={detailTabClass(false)}
+                    onClick={() => void workbench.createFindingFromCapture(workbench.selected, findingTemplateId)}
+                    disabled={!workbench.selected}
+                    title="Create draft finding from selected capture"
+                    data-testid="findingFromTraffic"
+                    data-component="findingFromTraffic"
+                  >
+                    <FileText size={13} strokeWidth={1.7} />
+                    Finding
+                  </Button>
                 </div>
                 {workbench.selected && (
                   <div className="grid gap-2 border-b border-rule px-4 py-3 [grid-template-columns:minmax(0,1fr)_minmax(0,1.2fr)_auto] max-[900px]:grid-cols-1">
@@ -1551,6 +1809,17 @@ export function App() {
                   >
                     <Repeat2 size={13} strokeWidth={1.7} />
                     Replay
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className={detailTabClass(false)}
+                    onClick={() => void workbench.createFindingFromWebSocket(selectedWebSocketEvent, findingTemplateId)}
+                    disabled={!selectedWebSocketEvent}
+                    title="Create draft finding from selected WebSocket frame"
+                    data-testid="findingFromWebSocket"
+                  >
+                    <FileText size={13} strokeWidth={1.7} />
+                    Finding
                   </Button>
                 </div>
 
@@ -2704,6 +2973,16 @@ export function App() {
                               <Repeat2 size={12} strokeWidth={1.7} />
                               Promote
                             </Button>
+                            <Button
+                              variant="ghost"
+                              className="h-7 px-2 text-[10px]"
+                              type="button"
+                              onClick={() => void workbench.promoteAutomateResultToFinding()}
+                              disabled={!workbench.selectedAutomateResult}
+                            >
+                              <FileText size={12} strokeWidth={1.7} />
+                              Finding
+                            </Button>
                           </div>
                           <pre className="max-h-[170px] overflow-auto text-[11px]" data-testid="automateResultDetail">
                             {workbench.selectedAutomateResult
@@ -2727,6 +3006,642 @@ export function App() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {workbench.activeView === "findings" && (
+            <div className="grid min-h-0 [grid-template-columns:minmax(300px,0.42fr)_minmax(460px,1fr)] max-[1180px]:grid-cols-1">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_auto] max-[1180px]:border-r-0 max-[1180px]:border-b">
+                <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(4,minmax(0,1fr))]">
+                  {[
+                    ["Total", workbench.findings.length],
+                    ["Draft", workbench.findings.filter((finding) => finding.status === "draft").length],
+                    ["Reviewed", workbench.findings.filter((finding) => finding.status === "reviewed").length],
+                    ["Retest", workbench.findings.filter((finding) => finding.status.startsWith("retest")).length]
+                  ].map(([label, value]) => (
+                    <div key={label} className="radar-card-gradient px-4 py-3">
+                      <span className="block font-mono text-[8.5px] uppercase tracking-[0.28em] text-muted">
+                        {label}
+                      </span>
+                      <strong className="mt-1 block font-display text-[22px] font-semibold uppercase leading-none text-bone [font-stretch:75%]">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto radar-traffic-list" data-testid="findingsList">
+                  {workbench.findings.length === 0 && (
+                    <EmptyState>
+                      <FileText size={18} strokeWidth={1.4} />
+                      <span>No findings yet</span>
+                    </EmptyState>
+                  )}
+                  {workbench.findings.map((finding) => (
+                    <Button
+                      key={finding.id}
+                      variant="ghost"
+                      className={cn(
+                        "relative grid h-auto w-full justify-stretch gap-2 rounded-none border-0 border-b border-rule bg-transparent px-4 py-3 text-left normal-case transition hover:bg-signal/[0.06]",
+                        workbench.selectedFinding?.id === finding.id && "bg-signal/[0.09]"
+                      )}
+                      onClick={() => workbench.setSelectedFindingId(finding.id)}
+                      data-testid={`findingRow-${finding.id}`}
+                      data-component="findingRow"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <StatusBadge tone={findingSeverityTone(finding.severity)}>{finding.severity}</StatusBadge>
+                        <StatusBadge tone={findingStatusTone(finding.status)}>{finding.status}</StatusBadge>
+                        <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.2em] text-muted">
+                          {finding.confidence}
+                        </span>
+                      </div>
+                      <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[14px] uppercase tracking-[0.04em] text-bone">
+                        {finding.title}
+                      </strong>
+                      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted">
+                        {finding.evidence.map((ref) => `${ref.kind}:${ref.id}`).join(", ")}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="grid gap-2 border-t border-rule p-3">
+                  <FieldLabel htmlFor="findingTemplateSelect">Template</FieldLabel>
+                  <Select
+                    id="findingTemplateSelect"
+                    value={findingTemplateId}
+                    onChange={(event) => setFindingTemplateId(event.target.value as FindingTemplateId)}
+                    data-testid="findingTemplateSelect"
+                  >
+                    {workbench.findingTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title}
+                      </option>
+                    ))}
+                  </Select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => void workbench.createFindingFromCapture(workbench.selected, findingTemplateId)}
+                      disabled={!workbench.selected}
+                      data-testid="createFindingFromCapture"
+                    >
+                      <Activity size={13} strokeWidth={1.7} />
+                      Capture
+                    </Button>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => void workbench.createFindingFromWebSocket(selectedWebSocketEvent, findingTemplateId)}
+                      disabled={!selectedWebSocketEvent}
+                      data-testid="createFindingFromWebSocket"
+                    >
+                      <Braces size={13} strokeWidth={1.7} />
+                      Frame
+                    </Button>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => void workbench.promoteAutomateResultToFinding()}
+                      disabled={!workbench.selectedAutomateResult}
+                      data-testid="createFindingFromAutomate"
+                    >
+                      <Zap size={13} strokeWidth={1.7} />
+                      Automate
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      onClick={() => void workbench.deleteFinding()}
+                      disabled={!workbench.selectedFinding}
+                      data-testid="deleteFinding"
+                    >
+                      <Trash2 size={13} strokeWidth={1.7} />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 [grid-template-rows:minmax(0,1fr)_minmax(260px,0.48fr)]">
+                <div className="min-h-0 overflow-auto px-5 py-5">
+                  {!findingDraft && (
+                    <EmptyState>
+                      <FileText size={18} strokeWidth={1.4} />
+                      <span>Create or select a finding to review.</span>
+                    </EmptyState>
+                  )}
+                  {findingDraft && (
+                    <div className="grid gap-4" data-testid="findingEditor" data-component="findingEditor">
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_160px_160px_180px]">
+                        <div>
+                          <FieldLabel htmlFor="findingTitle">Title</FieldLabel>
+                          <Input
+                            id="findingTitle"
+                            value={findingDraft.title}
+                            onChange={(event) => updateFindingDraft({ title: event.target.value })}
+                            data-testid="findingTitle"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor="findingSeverity">Severity</FieldLabel>
+                          <Select
+                            id="findingSeverity"
+                            value={findingDraft.severity}
+                            onChange={(event) => updateFindingDraft({ severity: event.target.value as FindingSeverity })}
+                            data-testid="findingSeverity"
+                          >
+                            {findingSeverities.map((severity) => (
+                              <option key={severity} value={severity}>
+                                {severity}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor="findingConfidence">Confidence</FieldLabel>
+                          <Select
+                            id="findingConfidence"
+                            value={findingDraft.confidence}
+                            onChange={(event) =>
+                              updateFindingDraft({ confidence: event.target.value as FindingConfidence })
+                            }
+                            data-testid="findingConfidence"
+                          >
+                            {findingConfidences.map((confidence) => (
+                              <option key={confidence} value={confidence}>
+                                {confidence}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor="findingStatus">Status</FieldLabel>
+                          <Select
+                            id="findingStatus"
+                            value={findingDraft.status}
+                            onChange={(event) => updateFindingDraft({ status: event.target.value as FindingStatus })}
+                            data-testid="findingStatus"
+                          >
+                            {findingStatuses.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
+                        <div>
+                          <FieldLabel htmlFor="findingAssets">Affected Assets</FieldLabel>
+                          <Textarea
+                            id="findingAssets"
+                            variant="code"
+                            className="h-[82px]"
+                            value={findingDraft.affectedAssets.join("\n")}
+                            onChange={(event) =>
+                              updateFindingDraft({
+                                affectedAssets: event.target.value
+                                  .split("\n")
+                                  .map((asset) => asset.trim())
+                                  .filter(Boolean)
+                              })
+                            }
+                            data-testid="findingAssets"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor="findingOwner">Owner</FieldLabel>
+                          <Input
+                            id="findingOwner"
+                            value={findingDraft.owner}
+                            onChange={(event) => updateFindingDraft({ owner: event.target.value })}
+                            data-testid="findingOwner"
+                          />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <StatusBadge tone={findingDraft.source === "ai" ? "move" : findingDraft.source === "automate" ? "warn" : "ghost"}>
+                              {findingDraft.source}
+                            </StatusBadge>
+                            <StatusBadge>{findingDraft.evidence.length} evidence</StatusBadge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-3">
+                        <div>
+                          <FieldLabel htmlFor="findingReproduction">Reproduction</FieldLabel>
+                          <Textarea
+                            id="findingReproduction"
+                            variant="code"
+                            className="h-[180px]"
+                            value={findingDraft.reproductionSteps}
+                            onChange={(event) => updateFindingDraft({ reproductionSteps: event.target.value })}
+                            data-testid="findingReproduction"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor="findingImpact">Impact</FieldLabel>
+                          <Textarea
+                            id="findingImpact"
+                            className="h-[180px]"
+                            value={findingDraft.impact}
+                            onChange={(event) => updateFindingDraft({ impact: event.target.value })}
+                            data-testid="findingImpact"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor="findingRemediation">Remediation</FieldLabel>
+                          <Textarea
+                            id="findingRemediation"
+                            className="h-[180px]"
+                            value={findingDraft.remediation}
+                            onChange={(event) => updateFindingDraft({ remediation: event.target.value })}
+                            data-testid="findingRemediation"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        <div>
+                          <FieldLabel htmlFor="findingNotes">Notes</FieldLabel>
+                          <Textarea
+                            id="findingNotes"
+                            className="h-[132px]"
+                            value={findingDraft.notes}
+                            onChange={(event) => updateFindingDraft({ notes: event.target.value })}
+                            data-testid="findingNotes"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor="findingRetest">Retest Result</FieldLabel>
+                          <Textarea
+                            id="findingRetest"
+                            className="h-[132px]"
+                            value={findingDraft.retestResult}
+                            onChange={(event) => updateFindingDraft({ retestResult: event.target.value })}
+                            data-testid="findingRetest"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 border border-rule bg-ink/25 p-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+                        <pre className="max-h-[150px] overflow-auto text-[11px]" data-testid="findingEvidence">
+                          {findingEvidenceText(findingDraft)}
+                        </pre>
+                        <div className="flex flex-wrap content-start gap-2">
+                          <Button
+                            variant="outline"
+                            type="button"
+                            onClick={() => void workbench.attachSelectedCaptureToFinding(workbench.selected)}
+                            disabled={!workbench.selected}
+                            data-testid="attachCaptureEvidence"
+                          >
+                            <Activity size={13} strokeWidth={1.7} />
+                            Attach Capture
+                          </Button>
+                          <Button
+                            variant="outline"
+                            type="button"
+                            onClick={() => void workbench.attachSelectedAutomateResultToFinding()}
+                            disabled={!workbench.selectedAutomateResult}
+                            data-testid="attachAutomateEvidence"
+                          >
+                            <Zap size={13} strokeWidth={1.7} />
+                            Attach Automate
+                          </Button>
+                          <Button
+                            variant="solid"
+                            type="button"
+                            onClick={saveFindingDraft}
+                            data-testid="saveFinding"
+                          >
+                            <FileText size={13} strokeWidth={1.7} />
+                            Save Finding
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid min-h-0 border-t border-rule bg-ink/25 [grid-template-columns:minmax(260px,0.36fr)_minmax(0,1fr)] max-[900px]:grid-cols-1">
+                  <div className="grid content-start gap-3 border-r border-rule p-4 max-[900px]:border-r-0 max-[900px]:border-b">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Select
+                        variant="compact"
+                        value={findingReportFormat}
+                        onChange={(event) => setFindingReportFormat(event.target.value as "markdown" | "html")}
+                        data-testid="findingReportFormat"
+                      >
+                        <option value="markdown">Markdown</option>
+                        <option value="html">HTML</option>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() =>
+                          void workbench.buildFindingReportPreview({
+                            format: findingReportFormat,
+                            includeDrafts: findingReportIncludeDrafts,
+                            includeAppendix: true,
+                            includeRawEvidence: findingReportIncludeRaw
+                          })
+                        }
+                        data-testid="buildFindingReport"
+                      >
+                        Build
+                      </Button>
+                    </div>
+                    <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+                      <input
+                        type="checkbox"
+                        checked={findingReportIncludeDrafts}
+                        onChange={(event) => setFindingReportIncludeDrafts(event.target.checked)}
+                      />
+                      Include drafts
+                    </label>
+                    <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+                      <input
+                        type="checkbox"
+                        checked={findingReportIncludeRaw}
+                        onChange={(event) => setFindingReportIncludeRaw(event.target.checked)}
+                      />
+                      Raw evidence
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => void copyFindingReport()}
+                        disabled={!workbench.findingReport}
+                        data-testid="copyFindingReport"
+                      >
+                        <Copy size={13} strokeWidth={1.7} />
+                        Copy
+                      </Button>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={downloadFindingReport}
+                        disabled={!workbench.findingReport}
+                        data-testid="downloadFindingReport"
+                      >
+                        <ExternalLink size={13} strokeWidth={1.7} />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                  <pre className="min-h-0 overflow-auto p-4 text-[11px]" data-testid="findingReportPreview">
+                    {workbench.findingReport?.body || "Build a report preview from reviewed findings. Drafts and raw evidence are opt-in."}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {workbench.activeView === "workflows" && (
+            <div className="grid min-h-0 [grid-template-columns:minmax(300px,0.34fr)_minmax(420px,0.74fr)_minmax(320px,0.42fr)] max-[1320px]:grid-cols-[minmax(300px,0.42fr)_minmax(460px,1fr)] max-[900px]:grid-cols-1">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_auto] max-[900px]:border-r-0 max-[900px]:border-b">
+                <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(4,minmax(0,1fr))]">
+                  {[
+                    ["Catalog", workbench.workflows.length],
+                    ["Runs", workbench.workflowRuns.length],
+                    ["Fail", workbench.workflowRuns.reduce((total, run) => total + run.results.filter((item) => item.level === "fail").length, 0)],
+                    ["Warn", workbench.workflowRuns.reduce((total, run) => total + run.results.filter((item) => item.level === "warn").length, 0)]
+                  ].map(([label, value]) => (
+                    <div key={label} className="radar-card-gradient px-4 py-3">
+                      <span className="block font-mono text-[8.5px] uppercase tracking-[0.28em] text-muted">
+                        {label}
+                      </span>
+                      <strong className="mt-1 block font-display text-[22px] font-semibold uppercase leading-none text-bone [font-stretch:75%]">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto radar-traffic-list" data-testid="workflowCatalog">
+                  {workbench.workflows.length === 0 && <EmptyState>No workflows saved</EmptyState>}
+                  {workbench.workflows.map((workflow) => (
+                    <Button
+                      key={workflow.id}
+                      variant="ghost"
+                      className={cn(
+                        "relative grid h-auto w-full justify-stretch gap-2 rounded-none border-0 border-b border-rule bg-transparent px-4 py-3 text-left normal-case transition hover:bg-signal/[0.06]",
+                        workbench.selectedWorkflow?.id === workflow.id && "bg-signal/[0.09]"
+                      )}
+                      onClick={() => workbench.setSelectedWorkflowId(workflow.id)}
+                      data-testid={`workflowRow-${workflow.id}`}
+                      data-component="workflowRow"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <StatusBadge tone={workflow.mode === "active" ? "warn" : "good"}>{workflow.mode}</StatusBadge>
+                        {workflow.builtIn && <StatusBadge>built-in</StatusBadge>}
+                        <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.2em] text-muted">
+                          {workflow.steps.length} steps
+                        </span>
+                      </div>
+                      <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[14px] uppercase tracking-[0.04em] text-bone">
+                        {workflow.name}
+                      </strong>
+                      <span className="line-clamp-2 text-[11px] leading-5 text-muted">{workflow.description}</span>
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="grid gap-2 border-t border-rule p-3">
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => void workbench.deleteWorkflow()}
+                    disabled={!workbench.selectedWorkflow || workbench.selectedWorkflow.builtIn}
+                    data-testid="deleteWorkflow"
+                  >
+                    <Trash2 size={13} strokeWidth={1.7} />
+                    Delete Saved Workflow
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_auto] max-[1320px]:border-r-0">
+                <div className="border-b border-rule p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <span className="block font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                        Declarative workflow
+                      </span>
+                      <h2 className="mt-1 font-display text-[28px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
+                        {workbench.selectedWorkflow?.name || "Workflow"}
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge tone={workbench.selectedWorkflow?.mode === "active" ? "warn" : "good"}>
+                        {workbench.selectedWorkflow?.mode || "passive"}
+                      </StatusBadge>
+                      <StatusBadge>
+                        cap {workbench.selectedWorkflow?.scope.maxRequests || 0} req
+                      </StatusBadge>
+                      <StatusBadge>{workbench.selectedWorkflow?.scope.timeoutMs || 0}ms</StatusBadge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="min-h-0 overflow-auto p-4">
+                  <div className="grid gap-4">
+                    {workbench.selectedWorkflow && workbench.selectedWorkflow.inputs.length > 0 && (
+                      <div className="grid gap-3 border border-rule bg-ink/25 p-3">
+                        <FieldLabel>Inputs</FieldLabel>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {workbench.selectedWorkflow.inputs.map((input) => (
+                            <label key={input.id} className="grid gap-1">
+                              <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted">
+                                {input.label}
+                              </span>
+                              <Input
+                                value={workflowInputs[input.id] || ""}
+                                onChange={(event) =>
+                                  setWorkflowInputs((current) => ({ ...current, [input.id]: event.target.value }))
+                                }
+                                placeholder={input.type === "capture-id" ? selectedCapture?.id || "select capture" : input.defaultValue}
+                                data-testid={`workflowInput-${input.id}`}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid gap-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <FieldLabel htmlFor="workflowDefinition">Definition</FieldLabel>
+                        {workflowEditorError && (
+                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-rust">
+                            {workflowEditorError}
+                          </span>
+                        )}
+                      </div>
+                      <Textarea
+                        id="workflowDefinition"
+                        variant="code"
+                        className="min-h-[390px]"
+                        value={workflowEditorText}
+                        onChange={(event) => setWorkflowEditorText(event.target.value)}
+                        data-testid="workflowDefinition"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 border-t border-rule p-3 md:grid-cols-3">
+                  <Button variant="outline" type="button" onClick={saveWorkflowEditor} data-testid="saveWorkflow">
+                    <FilePlus2 size={13} strokeWidth={1.7} />
+                    Save
+                  </Button>
+                  <Button
+                    variant="solid"
+                    type="button"
+                    onClick={runSelectedWorkflow}
+                    disabled={!workbench.selectedWorkflow}
+                    data-testid="runWorkflow"
+                  >
+                    <Play size={13} strokeWidth={1.7} />
+                    Run
+                  </Button>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      setWorkflowInputs((current) => ({
+                        ...current,
+                        "capture-id": selectedCapture?.id || current["capture-id"] || ""
+                      }));
+                    }}
+                    disabled={!selectedCapture}
+                    data-testid="workflowUseSelectedCapture"
+                  >
+                    <Activity size={13} strokeWidth={1.7} />
+                    Use Capture
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 [grid-template-rows:minmax(220px,0.42fr)_minmax(0,1fr)] max-[1320px]:col-span-2 max-[900px]:col-span-1">
+                <div className="min-h-0 overflow-auto border-b border-rule radar-traffic-list" data-testid="workflowRunHistory">
+                  {workbench.workflowRuns.length === 0 && <EmptyState>No workflow runs yet</EmptyState>}
+                  {workbench.workflowRuns.map((run) => (
+                    <Button
+                      key={run.id}
+                      variant="ghost"
+                      className={cn(
+                        "grid h-auto w-full justify-stretch gap-2 rounded-none border-0 border-b border-rule px-4 py-3 text-left normal-case",
+                        workbench.selectedWorkflowRun?.id === run.id && "bg-signal/[0.09]"
+                      )}
+                      onClick={() => workbench.setSelectedWorkflowRunId(run.id)}
+                      data-testid={`workflowRun-${run.id}`}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <StatusBadge tone={run.status === "completed" ? "good" : "danger"}>{run.status}</StatusBadge>
+                        <StatusBadge tone={run.mode === "active" ? "warn" : "ghost"}>{run.mode}</StatusBadge>
+                        <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+                          {run.results.length} results
+                        </span>
+                      </div>
+                      <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[13px] uppercase tracking-[0.04em] text-bone">
+                        {run.workflowName}
+                      </strong>
+                      <span className="font-mono text-[10px] text-muted">{run.startedAt}</span>
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto p-4" data-testid="workflowResults">
+                  {!workbench.selectedWorkflowRun && <EmptyState>Select a workflow run to inspect results.</EmptyState>}
+                  {workbench.selectedWorkflowRun && (
+                    <div className="grid gap-3">
+                      {workbench.selectedWorkflowRun.error && (
+                        <div className="border border-rust/40 bg-rust/10 p-3 font-mono text-[11px] text-rust">
+                          {workbench.selectedWorkflowRun.error}
+                        </div>
+                      )}
+                      {workbench.selectedWorkflowRun.results.map((result) => (
+                        <div key={result.id} className="grid gap-3 border border-rule bg-ink/25 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <StatusBadge tone={workflowResultTone(result.level)}>{result.level}</StatusBadge>
+                              <h3 className="mt-2 font-display text-[16px] uppercase tracking-[0.04em] text-bone">
+                                {result.title}
+                              </h3>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="compact"
+                              type="button"
+                              onClick={() =>
+                                void workbench.promoteWorkflowResultToFinding(workbench.selectedWorkflowRun?.id || "", result.id)
+                              }
+                              disabled={result.level !== "fail" && result.level !== "warn"}
+                              data-testid={`promoteWorkflowResult-${result.id}`}
+                            >
+                              <FileText size={12} strokeWidth={1.7} />
+                              Finding
+                            </Button>
+                          </div>
+                          <p className="text-[12px] leading-6 text-copy">{result.message}</p>
+                          <pre className="max-h-[150px] overflow-auto text-[10.5px]">
+                            {[
+                              ...result.evidence.map((ref) => `${ref.kind}:${ref.id} ${ref.label}`),
+                              ...Object.entries(result.details).map(([key, value]) => `${key}: ${value}`)
+                            ].join("\n") || "No details"}
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

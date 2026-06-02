@@ -391,6 +391,167 @@ export type EvidenceAnnotation = {
   updatedAt: string;
 };
 
+export type FindingSeverity = "info" | "low" | "medium" | "high" | "critical";
+
+export type FindingConfidence = "low" | "medium" | "high";
+
+export type FindingStatus = "draft" | "reviewed" | "accepted-risk" | "retest-passed" | "retest-failed";
+
+export type FindingEvidenceKind =
+  | "capture"
+  | "websocket"
+  | "replay"
+  | "automate"
+  | "workflow"
+  | "ai";
+
+export type FindingEvidenceRef = {
+  id: string;
+  kind: FindingEvidenceKind;
+  label: string;
+  createdAt: string;
+  metadata: Record<string, string>;
+};
+
+export type FindingTemplateId =
+  | "auth"
+  | "session"
+  | "cors"
+  | "cache"
+  | "headers"
+  | "idor"
+  | "injection-signal"
+  | "access-control"
+  | "information-disclosure";
+
+export type Finding = {
+  id: string;
+  title: string;
+  templateId?: FindingTemplateId;
+  severity: FindingSeverity;
+  confidence: FindingConfidence;
+  status: FindingStatus;
+  affectedAssets: string[];
+  evidence: FindingEvidenceRef[];
+  reproductionSteps: string;
+  impact: string;
+  remediation: string;
+  notes: string;
+  owner: string;
+  retestResult: string;
+  source: "manual" | "ai" | "automate" | "workflow";
+  sourceId?: string;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+};
+
+export type FindingReportOptions = {
+  format: "markdown" | "html";
+  includeDrafts: boolean;
+  includeAppendix: boolean;
+  includeRawEvidence: boolean;
+};
+
+export type FindingReport = {
+  format: FindingReportOptions["format"];
+  title: string;
+  generatedAt: string;
+  findingCount: number;
+  body: string;
+};
+
+export type WorkflowMode = "passive" | "active";
+
+export type WorkflowInputType = "text" | "number" | "boolean" | "capture-id";
+
+export type WorkflowStepKind =
+  | "security-headers"
+  | "cookie-flags"
+  | "cors-policy"
+  | "cache-control"
+  | "metadata-exposure"
+  | "active-replay"
+  | "browser-open";
+
+export type WorkflowResultLevel = "pass" | "info" | "warn" | "fail";
+
+export type WorkflowRunStatus = "queued" | "running" | "completed" | "failed";
+
+export type WorkflowRunSource = "manual" | "ai";
+
+export type WorkflowScopePolicy = {
+  requireInScope: boolean;
+  allowActive: boolean;
+  maxRequests: number;
+  timeoutMs: number;
+  delayMs: number;
+  maxResults: number;
+};
+
+export type WorkflowInput = {
+  id: string;
+  label: string;
+  type: WorkflowInputType;
+  required: boolean;
+  defaultValue: string;
+};
+
+export type WorkflowCondition = {
+  inputId: string;
+  equals: string;
+};
+
+export type WorkflowStep = {
+  id: string;
+  title: string;
+  kind: WorkflowStepKind;
+  condition?: WorkflowCondition;
+  config: Record<string, string>;
+};
+
+export type WorkflowDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  mode: WorkflowMode;
+  builtIn: boolean;
+  inputs: WorkflowInput[];
+  scope: WorkflowScopePolicy;
+  steps: WorkflowStep[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkflowResult = {
+  id: string;
+  stepId: string;
+  stepTitle: string;
+  level: WorkflowResultLevel;
+  title: string;
+  message: string;
+  evidence: FindingEvidenceRef[];
+  details: Record<string, string>;
+  createdAt: string;
+};
+
+export type WorkflowRun = {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  sessionId: string;
+  source: WorkflowRunSource;
+  mode: WorkflowMode;
+  status: WorkflowRunStatus;
+  inputs: Record<string, string>;
+  startedAt: string;
+  completedAt?: string;
+  stepCount: number;
+  actionCount: number;
+  results: WorkflowResult[];
+  error?: string;
+};
+
 export type ReplayHistoryEntry = {
   id: string;
   sentAt: string;

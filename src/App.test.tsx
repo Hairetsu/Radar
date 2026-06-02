@@ -65,6 +65,23 @@ afterEach(() => {
   vi.mocked(window.radar!.listAutomateSessions).mockResolvedValue([]);
   vi.mocked(window.radar!.startAutomateSession).mockClear();
   vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([]);
+  vi.mocked(window.radar!.getFindings).mockResolvedValue([]);
+  vi.mocked(window.radar!.saveFinding).mockClear();
+  vi.mocked(window.radar!.saveFinding).mockImplementation(async (finding) => finding);
+  vi.mocked(window.radar!.buildFindingReport).mockClear();
+  vi.mocked(window.radar!.buildFindingReport).mockResolvedValue({
+    format: "markdown",
+    title: "Test Findings",
+    generatedAt: "2026-05-25T00:00:00.000Z",
+    findingCount: 1,
+    body: "# Test Findings\n\n## Missing security headers"
+  });
+  vi.mocked(window.radar!.getWorkflows).mockResolvedValue([]);
+  vi.mocked(window.radar!.saveWorkflow).mockClear();
+  vi.mocked(window.radar!.deleteWorkflow).mockClear();
+  vi.mocked(window.radar!.getWorkflowRuns).mockResolvedValue([]);
+  vi.mocked(window.radar!.runWorkflow).mockClear();
+  vi.mocked(window.radar!.promoteWorkflowResultToFinding).mockClear();
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
       id: "session-test",
@@ -128,6 +145,144 @@ describe("App", () => {
         expect.objectContaining({
           payloads: ["42", "43"],
           limits: expect.objectContaining({ count: 10, concurrency: 1 })
+        })
+      );
+    });
+  });
+
+  it("creates a draft finding from selected capture and builds report preview", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([
+      capture("finding-cap", "https://allowed.test/admin", { allowed: true })
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByTestId("trafficRow-finding-cap")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("view-findings"));
+    expect(await screen.findByRole("heading", { name: "Findings" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("createFindingFromCapture"));
+
+    await waitFor(() => {
+      expect(window.radar!.saveFinding).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Missing security headers",
+          evidence: [expect.objectContaining({ kind: "capture", id: "finding-cap" })]
+        })
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("buildFindingReport"));
+
+    await waitFor(() => {
+      expect(window.radar!.buildFindingReport).toHaveBeenCalledWith(
+        expect.objectContaining({ format: "markdown", includeAppendix: true })
+      );
+      expect(screen.getByTestId("findingReportPreview")).toHaveTextContent("Missing security headers");
+    });
+  });
+
+  it("runs a selected workflow from the workflows view", async () => {
+    vi.mocked(window.radar!.getWorkflows).mockResolvedValue([
+      {
+        id: "builtin-security-headers",
+        name: "Security Headers",
+        description: "Checks response headers.",
+        mode: "passive",
+        builtIn: true,
+        inputs: [],
+        scope: {
+          requireInScope: true,
+          allowActive: false,
+          maxRequests: 0,
+          timeoutMs: 10000,
+          delayMs: 0,
+          maxResults: 40
+        },
+        steps: [{ id: "headers", title: "Security headers", kind: "security-headers", config: {} }],
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ]);
+    vi.mocked(window.radar!.runWorkflow).mockResolvedValue({
+      id: "workflow-run-1",
+      workflowId: "builtin-security-headers",
+      workflowName: "Security Headers",
+      sessionId: "session-test",
+      source: "manual",
+      mode: "passive",
+      status: "completed",
+      inputs: {},
+      startedAt: "2026-05-25T00:00:00.000Z",
+      completedAt: "2026-05-25T00:00:01.000Z",
+      stepCount: 1,
+      actionCount: 0,
+      results: [
+        {
+          id: "workflow-result-1",
+          stepId: "headers",
+          stepTitle: "Security headers",
+          level: "warn",
+          title: "Missing security headers",
+          message: "Missing HSTS.",
+          evidence: [],
+          details: {},
+          createdAt: "2026-05-25T00:00:01.000Z"
+        }
+      ]
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-workflows"));
+    expect(await screen.findByRole("heading", { name: "Security Headers" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("runWorkflow"));
+
+    await waitFor(() => {
+      expect(window.radar!.runWorkflow).toHaveBeenCalledWith({
+        workflowId: "builtin-security-headers",
+        inputs: {},
+        source: "manual"
+      });
+      expect(screen.getByTestId("workflowResults")).toHaveTextContent("Missing security headers");
+    });
+  });
+
+  it("saves an edited workflow definition from the workflows view", async () => {
+    vi.mocked(window.radar!.getWorkflows).mockResolvedValue([
+      {
+        id: "builtin-security-headers",
+        name: "Security Headers",
+        description: "Checks response headers.",
+        mode: "passive",
+        builtIn: true,
+        inputs: [],
+        scope: {
+          requireInScope: true,
+          allowActive: false,
+          maxRequests: 0,
+          timeoutMs: 10000,
+          delayMs: 0,
+          maxResults: 40
+        },
+        steps: [{ id: "headers", title: "Security headers", kind: "security-headers", config: {} }],
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-workflows"));
+    fireEvent.click(await screen.findByTestId("saveWorkflow"));
+
+    await waitFor(() => {
+      expect(window.radar!.saveWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "builtin-security-headers-custom",
+          name: "Security Headers",
+          builtIn: false
         })
       );
     });

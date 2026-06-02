@@ -218,10 +218,22 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     description: "Summarize an existing Automate session's results, clusters, outliers, matches, and failures.",
     safety: "observe",
     schema: { sessionId: "automate session id optional" }
+  },
+  {
+    name: "getWorkflowCatalog",
+    description: "Read the operator-visible workflow catalog without running checks.",
+    safety: "observe",
+    schema: {}
+  },
+  {
+    name: "runWorkflow",
+    description: "Run an existing workflow by id through the same scoped workflow runtime visible to the operator.",
+    safety: "replay",
+    schema: { workflowId: "saved or built-in workflow id", inputs: { "input-id": "string value" } }
   }
 ];
 
-const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "automate", "sitemap", "scope", "ssl"] as const;
+const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "automate", "findings", "workflows", "sitemap", "scope", "ssl"] as const;
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -298,6 +310,7 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
     case "getStorageState":
     case "listAuthStates":
     case "getAutomateContext":
+    case "getWorkflowCatalog":
       return { tool: call.tool, input: {} };
     case "openBrowser":
     case "navigateBrowser":
@@ -439,5 +452,19 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
           sessionId: String(input.sessionId || "").trim().slice(0, 120)
         }
       };
+    case "runWorkflow": {
+      const rawInputs = objectValue(input.inputs);
+      return {
+        tool: call.tool,
+        input: {
+          workflowId: String(input.workflowId || "").trim().slice(0, 160),
+          inputs: Object.fromEntries(
+            Object.entries(rawInputs)
+              .map(([key, value]) => [String(key).trim().slice(0, 80), String(value || "").slice(0, 400)])
+              .filter(([key]) => Boolean(key))
+          )
+        }
+      };
+    }
   }
 }

@@ -35,10 +35,15 @@ import type {
   ReplayTabState,
   SavedFilter,
   EvidenceAnnotation,
+  Finding,
+  FindingReport,
+  FindingReportOptions,
   SslEvent,
   WebSocketEvent,
   WebSocketReplayDraft,
-  WebSocketReplayResult
+  WebSocketReplayResult,
+  WorkflowDefinition,
+  WorkflowRun
 } from "./domain.js";
 import type { AgentRun, AgentRunRequest } from "./agent-types.js";
 
@@ -103,6 +108,17 @@ export type RadarApi = {
   getEvidenceAnnotations: () => Promise<EvidenceAnnotation[]>;
   saveEvidenceAnnotation: (annotation: EvidenceAnnotation) => Promise<EvidenceAnnotation>;
   saveEvidenceAnnotations: (annotations: EvidenceAnnotation[]) => Promise<EvidenceAnnotation[]>;
+  getFindings: () => Promise<Finding[]>;
+  saveFinding: (finding: Finding) => Promise<Finding>;
+  deleteFinding: (id: string) => Promise<{ ok: boolean }>;
+  buildFindingReport: (options: Partial<FindingReportOptions>) => Promise<FindingReport>;
+  promoteAutomateResultToFinding: (payload: { sessionId: string; resultId: string }) => Promise<Finding>;
+  getWorkflows: () => Promise<WorkflowDefinition[]>;
+  saveWorkflow: (workflow: WorkflowDefinition) => Promise<WorkflowDefinition>;
+  deleteWorkflow: (id: string) => Promise<{ ok: boolean; workflows: WorkflowDefinition[] }>;
+  getWorkflowRuns: () => Promise<WorkflowRun[]>;
+  runWorkflow: (payload: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => Promise<WorkflowRun>;
+  promoteWorkflowResultToFinding: (payload: { runId: string; resultId: string }) => Promise<Finding>;
   getTargets: () => Promise<string[]>;
   setTargets: (targets: string[]) => Promise<string[]>;
   sendReplay: (payload: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;

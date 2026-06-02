@@ -7,15 +7,19 @@ import type {
   AutomateSession,
   BrowserState,
   CapturedRequest,
+  Finding,
   InterceptState,
   LocalContext,
   ProxyProfile,
   ProxyState,
   SslEvent,
-  WebSocketEvent
+  WebSocketEvent,
+  WorkflowDefinition,
+  WorkflowRun
 } from "../shared/domain.js";
 import { defaultProxyProfiles } from "../shared/proxyProfiles.js";
 import { defaultReplayTabState } from "../shared/replayTabs.js";
+import { BUILT_IN_WORKFLOWS } from "../shared/workflows.js";
 
 const context: LocalContext = {
   profile: {
@@ -275,6 +279,74 @@ let interceptState: InterceptState = {
   queue: []
 };
 const agentRuns: AgentRun[] = [];
+const findings: Finding[] = [
+  {
+    id: "finding-screenshot",
+    title: "Missing security headers on API response",
+    templateId: "headers",
+    severity: "low",
+    confidence: "high",
+    status: "reviewed",
+    affectedAssets: ["https://hairetsu.test/api/users"],
+    evidence: [
+      {
+        id: "capture-api-users",
+        kind: "capture",
+        label: "GET https://hairetsu.test/api/users",
+        createdAt: "2026-05-25T00:00:20.000Z",
+        metadata: { status: "200", host: "hairetsu.test" }
+      }
+    ],
+    reproductionSteps: "Request the API users endpoint and review the response headers.",
+    impact: "Browser hardening is reduced for authenticated API responses.",
+    remediation: "Add HSTS, X-Content-Type-Options, and frame protections where appropriate.",
+    notes: "Seeded screenshot finding.",
+    owner: "platform",
+    retestResult: "",
+    source: "manual",
+    createdAt: "2026-05-25T00:04:00.000Z",
+    updatedAt: "2026-05-25T00:04:00.000Z",
+    reviewedAt: "2026-05-25T00:04:00.000Z"
+  }
+];
+const workflows: WorkflowDefinition[] = [...BUILT_IN_WORKFLOWS];
+const workflowRuns: WorkflowRun[] = [
+  {
+    id: "workflow-run-screenshot",
+    workflowId: "builtin-security-headers",
+    workflowName: "Security Headers",
+    sessionId: context.session.id,
+    source: "manual",
+    mode: "passive",
+    status: "completed",
+    inputs: {},
+    startedAt: "2026-05-25T00:06:00.000Z",
+    completedAt: "2026-05-25T00:06:01.000Z",
+    stepCount: 1,
+    actionCount: 0,
+    results: [
+      {
+        id: "workflow-result-screenshot",
+        stepId: "headers",
+        stepTitle: "Security header coverage",
+        level: "warn",
+        title: "Missing security headers",
+        message: "https://hairetsu.test/api/users is missing strict-transport-security and x-content-type-options.",
+        evidence: [
+          {
+            id: "capture-api-users",
+            kind: "capture",
+            label: "GET https://hairetsu.test/api/users",
+            createdAt: "2026-05-25T00:00:20.000Z",
+            metadata: { status: "200", host: "hairetsu.test" }
+          }
+        ],
+        details: { missing: "strict-transport-security, x-content-type-options" },
+        createdAt: "2026-05-25T00:06:00.000Z"
+      }
+    ]
+  }
+];
 
 const radar: RadarApi = {
   getLocalContext: async () => context,
@@ -404,6 +476,42 @@ const radar: RadarApi = {
   getEvidenceAnnotations: async () => [],
   saveEvidenceAnnotation: async (annotation) => annotation,
   saveEvidenceAnnotations: async (annotations) => annotations,
+  getFindings: async () => findings,
+  saveFinding: async (finding) => {
+    findings.splice(0, findings.length, finding, ...findings.filter((item) => item.id !== finding.id));
+    return finding;
+  },
+  deleteFinding: async (id) => {
+    const index = findings.findIndex((finding) => finding.id === id);
+    if (index >= 0) {
+      findings.splice(index, 1);
+    }
+    return { ok: true };
+  },
+  buildFindingReport: async (options) => ({
+    format: options.format || "markdown",
+    title: "Screenshot Workspace Findings",
+    generatedAt: "2026-05-25T00:05:00.000Z",
+    findingCount: findings.length,
+    body: findings.map((finding) => `## ${finding.title}`).join("\n\n")
+  }),
+  promoteAutomateResultToFinding: async () => findings[0],
+  getWorkflows: async () => workflows,
+  saveWorkflow: async (workflow) => {
+    workflows.splice(0, workflows.length, workflow, ...workflows.filter((item) => item.id !== workflow.id));
+    return workflow;
+  },
+  deleteWorkflow: async (id) => {
+    const next = workflows.filter((workflow) => workflow.id !== id || workflow.builtIn);
+    workflows.splice(0, workflows.length, ...next);
+    return { ok: true, workflows };
+  },
+  getWorkflowRuns: async () => workflowRuns,
+  runWorkflow: async () => {
+    workflowRuns.splice(0, workflowRuns.length, workflowRuns[0]);
+    return workflowRuns[0];
+  },
+  promoteWorkflowResultToFinding: async () => findings[0],
   getTargets: async () => targets,
   setTargets: async (nextTargets) => {
     targets = nextTargets;

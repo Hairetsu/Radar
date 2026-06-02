@@ -185,6 +185,9 @@ async function run() {
     await clickTestId(win, "markAutomateUrl");
     await waitForTestId(win, "automateResults");
     await capture(win, "radar-07-automate.png");
+    await clickTestId(win, "view-workflows");
+    await waitForTestId(win, "workflowCatalog");
+    await capture(win, "radar-08-workflows.png");
     await clickTestId(win, "view-scope");
     await capture(win, "radar-03-scope.png");
     await clickTestId(win, "view-ssl");
