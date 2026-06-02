@@ -81,7 +81,7 @@ Exit check: an operator can define what makes a response interesting and see tho
 Status: Complete for Phase 4
 
 - [x] Promote interesting results into Repeater tabs with the exact materialized request.
-- [ ] Promote results into draft findings once the Phase 5 findings model exists.
+- [x] Promote results into draft findings once the Phase 5 findings model exists.
 - [x] Link Automate results back to source payload sets and durable Automate session records.
 - [x] Add export-friendly result JSON without leaking out-of-scope data.
 - [x] Add tests for persistence and promotion boundaries.

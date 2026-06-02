@@ -227,6 +227,87 @@ const radarApi = {
   getEvidenceAnnotations: vi.fn(async () => []),
   saveEvidenceAnnotation: vi.fn(async (annotation) => annotation),
   saveEvidenceAnnotations: vi.fn(async (annotations) => annotations),
+  getFindings: vi.fn(async () => []),
+  saveFinding: vi.fn(async (finding) => finding),
+  deleteFinding: vi.fn(async () => ({ ok: true })),
+  buildFindingReport: vi.fn(async (options) => ({
+    format: options.format || "markdown",
+    title: "Test Findings",
+    generatedAt: "2026-05-25T00:00:00.000Z",
+    findingCount: 0,
+    body: "# Test Findings"
+  })),
+  promoteAutomateResultToFinding: vi.fn(async () => ({
+    id: "finding-test",
+    title: "Automate finding",
+    severity: "low",
+    confidence: "low",
+    status: "draft",
+    affectedAssets: [],
+    evidence: [
+      {
+        id: "automate-test:result-test",
+        kind: "automate",
+        label: "Automate result",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        metadata: {}
+      }
+    ],
+    reproductionSteps: "",
+    impact: "",
+    remediation: "",
+    notes: "",
+    owner: "",
+    retestResult: "",
+    source: "automate",
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z"
+  })),
+  getWorkflows: vi.fn(async () => []),
+  saveWorkflow: vi.fn(async (workflow) => workflow),
+  deleteWorkflow: vi.fn(async () => ({ ok: true, workflows: [] })),
+  getWorkflowRuns: vi.fn(async () => []),
+  runWorkflow: vi.fn(async (payload) => ({
+    id: "workflow-run-test",
+    workflowId: payload.workflowId,
+    workflowName: "Test Workflow",
+    sessionId: "session-test",
+    source: payload.source || "manual",
+    mode: "passive",
+    status: "completed",
+    inputs: payload.inputs || {},
+    startedAt: "2026-05-25T00:00:00.000Z",
+    completedAt: "2026-05-25T00:00:01.000Z",
+    stepCount: 1,
+    actionCount: 0,
+    results: []
+  })),
+  promoteWorkflowResultToFinding: vi.fn(async () => ({
+    id: "finding-workflow-test",
+    title: "Workflow finding",
+    severity: "low",
+    confidence: "medium",
+    status: "draft",
+    affectedAssets: [],
+    evidence: [
+      {
+        id: "workflow-run-test:workflow-result-test",
+        kind: "workflow",
+        label: "Workflow result",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        metadata: {}
+      }
+    ],
+    reproductionSteps: "",
+    impact: "",
+    remediation: "",
+    notes: "",
+    owner: "",
+    retestResult: "",
+    source: "workflow",
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z"
+  })),
   getTargets: vi.fn(async () => []),
   onCapture: vi.fn(() => () => undefined),
   onSslEvent: vi.fn(() => () => undefined),

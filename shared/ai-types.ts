@@ -4,7 +4,17 @@ export type AiProviderId = "openai" | "anthropic" | "openai-compatible" | "codex
 
 export type AiConnectPresetId = "codex" | "cursor_cli";
 
-export type AiWorkView = "traffic" | "websocket" | "intercept" | "repeater" | "automate" | "sitemap" | "scope" | "ssl";
+export type AiWorkView =
+  | "traffic"
+  | "websocket"
+  | "intercept"
+  | "repeater"
+  | "automate"
+  | "findings"
+  | "workflows"
+  | "sitemap"
+  | "scope"
+  | "ssl";
 
 export type AiSettings = {
   provider: AiProviderId;

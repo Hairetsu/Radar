@@ -28,7 +28,18 @@ Return JSON only in one of these forms:
 {"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action"}
 {"action":"finish","rationale":"why the run is complete","findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"notes":"string","uncertainties":["string"]}]}`;
 
-const WORK_VIEWS: AgentWorkbenchView[] = ["traffic", "websocket", "intercept", "repeater", "automate", "scope", "ssl"];
+const WORK_VIEWS: AgentWorkbenchView[] = [
+  "traffic",
+  "websocket",
+  "intercept",
+  "repeater",
+  "automate",
+  "findings",
+  "workflows",
+  "sitemap",
+  "scope",
+  "ssl"
+];
 
 function clip(value: unknown, max = 700) {
   const text = String(value ?? "");
@@ -123,6 +134,43 @@ function compactToolResult(result: AgentDecisionContext["timeline"][number]["too
         payloads: includeRaw ? result.data.payloads.slice(0, 25) : result.data.payloads.slice(0, 25).map(() => "[redacted]"),
         rules: result.data.rules,
         note: result.data.note
+      }
+    };
+  }
+
+  if (result.tool === "getWorkflowCatalog") {
+    return {
+      tool: result.tool,
+      ok: true,
+      data: {
+        workflows: result.data.workflows.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name,
+          mode: workflow.mode,
+          inputIds: workflow.inputs.map((input) => input.id),
+          steps: workflow.steps.map((step) => ({ id: step.id, kind: step.kind }))
+        })),
+        recentRuns: result.data.recentRuns
+      }
+    };
+  }
+
+  if (result.tool === "runWorkflow") {
+    return {
+      tool: result.tool,
+      ok: true,
+      data: {
+        id: result.data.id,
+        workflowId: result.data.workflowId,
+        status: result.data.status,
+        mode: result.data.mode,
+        actionCount: result.data.actionCount,
+        results: result.data.results.map((item) => ({
+          id: item.id,
+          level: item.level,
+          title: item.title,
+          evidenceRefs: item.evidence.map((ref) => `${ref.kind}:${ref.id}`)
+        }))
       }
     };
   }
@@ -285,6 +333,7 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
     case "getStorageState":
     case "listAuthStates":
     case "getAutomateContext":
+    case "getWorkflowCatalog":
       return { tool, input: {} };
     case "clickElement":
     case "submitForm":
@@ -371,6 +420,18 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
       };
     case "analyzeAutomateResults":
       return { tool, input: { sessionId: String(input.sessionId || "").slice(0, 120) } };
+    case "runWorkflow":
+      return {
+        tool,
+        input: {
+          workflowId: String(input.workflowId || "").trim().slice(0, 160),
+          inputs: Object.fromEntries(
+            Object.entries(objectValue(input.inputs))
+              .map(([key, value]) => [String(key).trim().slice(0, 80), String(value || "").slice(0, 400)])
+              .filter(([key]) => Boolean(key))
+          )
+        }
+      };
     default:
       throw new Error(`Invalid agent tool: ${tool}`);
   }

@@ -25,6 +25,7 @@ import type {
   BrowserState,
   CapturedRequest,
   CaptureInterceptRecord,
+  FindingReportOptions,
   InterceptConfig,
   InterceptQueueItem,
   InterceptResponseDraft,
@@ -39,7 +40,9 @@ import type {
   SslEvent,
   WebSocketDirection,
   WebSocketEvent,
-  WebSocketReplayDraft
+  WebSocketReplayDraft,
+  WorkflowDefinition,
+  WorkflowRunSource
 } from "../shared/domain.js";
 import {
   assignmentsForPayload,
@@ -54,12 +57,18 @@ import {
   normalizeAutomatePayloadSets,
   normalizeAutomateRules
 } from "../shared/automate.js";
-import type { AgentAuthStateSummary, AgentCookie, AgentStorageState } from "../shared/agent-types.js";
+import type { AgentAuthStateSummary, AgentCookie, AgentRun, AgentStorageState } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
 import { matchingInterceptRules, normalizeInterceptRules } from "../shared/interceptRules.js";
 import { applyMatchReplaceRules, normalizeMatchReplaceRules } from "../shared/matchReplace.js";
 import { annotationContext } from "../shared/evidenceTags.js";
+import {
+  buildFindingReport,
+  evidenceRefFromAutomateResult,
+  findingFromAgentFinding,
+  normalizeFinding
+} from "../shared/findings.js";
 import { normalizeSavedFilters } from "../shared/savedFilters.js";
 import { prepareReplayDraft } from "../shared/replayVariables.js";
 import { normalizeWebSocketReplayDraft } from "../shared/websocketReplay.js";
@@ -67,6 +76,20 @@ import { filterCapturesByQuery, filterWebSocketEventsByQuery } from "../shared/t
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
 import { normalizeUrl as normalizeBrowserUrl } from "../shared/url.js";
 import { createReplayTab } from "../shared/replayTabs.js";
+import {
+  BUILT_IN_WORKFLOWS,
+  activeBrowserWorkflowResult,
+  activeReplayWorkflowResult,
+  allWorkflows,
+  createWorkflowRunRecord,
+  evaluatePassiveWorkflow,
+  findingFromWorkflowResult,
+  normalizeWorkflowDefinition,
+  normalizeWorkflowInputs,
+  isActiveWorkflowStep,
+  replayDraftFromCapture,
+  shouldRunWorkflowStep
+} from "../shared/workflows.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
 import {
   loadSettings as loadAiSettings,
@@ -1371,7 +1394,10 @@ function createAgentRuntime() {
   return new AgentRuntime({
     currentSessionId: () => activeLocalContext().session.id,
     allowlist: () => allowlist.slice(),
-    saveRun: (run) => activeLocalStore().upsertAgentRun(run.sessionId, run),
+    saveRun: (run) => {
+      activeLocalStore().upsertAgentRun(run.sessionId, run);
+      syncAgentFindingsToInbox(run);
+    },
     loadRun: (runId) => activeLocalStore().getAgentRun(activeLocalContext().session.id, String(runId || "")),
     listRuns: () => activeLocalStore().listAgentRuns(activeLocalContext().session.id),
     getBrowserState: () => syncBrowserState(),
@@ -1391,6 +1417,9 @@ function createAgentRuntime() {
     listReplayCollections: () => activeLocalStore().listReplayCollections(activeLocalContext().workspace.id),
     listAutomatePayloadSets: () => activeLocalStore().listAutomatePayloadSets(activeLocalContext().workspace.id),
     listAutomateSessions: () => activeLocalStore().listAutomateSessions(activeLocalContext().session.id),
+    listWorkflows: () => workflowCatalog(),
+    listWorkflowRuns: () => activeLocalStore().listWorkflowRuns(activeLocalContext().session.id),
+    runWorkflow: (input) => runWorkflow(input),
     sendReplay: (draft) => sendRequest(typeof draft === "object" && draft && "draft" in draft ? draft : { draft }),
     waitForNetworkIdle,
     getPageText,
@@ -1413,6 +1442,18 @@ function createAgentRuntime() {
       }
     }
   });
+}
+
+function syncAgentFindingsToInbox(run: AgentRun) {
+  if (!localStore || run.status !== "completed" || run.findings.length === 0) {
+    return;
+  }
+  for (const agentFinding of run.findings) {
+    const finding = findingFromAgentFinding(run.id, agentFinding);
+    if (finding) {
+      localStore.upsertFinding(run.sessionId, finding);
+    }
+  }
 }
 
 function initializeLocalState() {
@@ -2267,6 +2308,186 @@ function promoteAutomateResultToRepeater(input: unknown) {
   });
 }
 
+function promoteAutomateResultToFinding(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const session = currentAutomateSession(String(payload.sessionId || ""));
+  const result = session?.results.find((entry) => entry.id === String(payload.resultId || ""));
+  if (!session || !result) {
+    throw new Error("Automate result was not found.");
+  }
+  const createdAt = new Date().toISOString();
+  const finding = normalizeFinding(
+    {
+      id: `finding_${randomUUID()}`,
+      title: `Review Automate result: ${result.payload || `attempt ${result.index}`}`,
+      severity: result.status >= 500 || result.error ? "medium" : "low",
+      confidence: result.matchedRules.length + result.extracts.length > 0 ? "medium" : "low",
+      status: "draft",
+      affectedAssets: [result.request.url],
+      evidence: [evidenceRefFromAutomateResult(session, result)],
+      reproductionSteps: `${result.request.method} ${result.request.url}\nPayload: ${result.payload}`,
+      impact: "Automate identified a response delta or interesting payload result that needs manual review.",
+      remediation: "",
+      notes: result.bodyPreview || result.error || "",
+      owner: "",
+      retestResult: "",
+      source: "automate",
+      sourceId: session.id,
+      createdAt,
+      updatedAt: createdAt
+    },
+    createdAt
+  );
+  if (!finding) {
+    throw new Error("Automate result did not contain enough evidence for a finding.");
+  }
+  return activeLocalStore().upsertFinding(activeLocalContext().session.id, finding);
+}
+
+function saveFinding(input: unknown) {
+  const finding = normalizeFinding(input);
+  if (!finding) {
+    throw new Error("Finding needs a title and at least one evidence reference.");
+  }
+  return activeLocalStore().upsertFinding(activeLocalContext().session.id, finding);
+}
+
+function findingReport(options: unknown) {
+  const value = options && typeof options === "object" && !Array.isArray(options) ? (options as Partial<FindingReportOptions>) : {};
+  const findings = activeLocalStore().listFindings(activeLocalContext().session.id);
+  return buildFindingReport(findings, value, `${activeLocalContext().workspace.name} Findings`);
+}
+
+function workflowCatalog() {
+  return allWorkflows(activeLocalStore().listWorkflowDefinitions(activeLocalContext().workspace.id));
+}
+
+function saveWorkflowDefinition(input: unknown) {
+  const workflow = normalizeWorkflowDefinition(input);
+  if (!workflow) {
+    throw new Error("Workflow definition was invalid.");
+  }
+  if (workflow.builtIn || BUILT_IN_WORKFLOWS.some((item) => item.id === workflow.id)) {
+    throw new Error("Built-in workflows cannot be overwritten.");
+  }
+  return activeLocalStore().upsertWorkflowDefinition(activeLocalContext().workspace.id, {
+    ...workflow,
+    builtIn: false
+  });
+}
+
+function deleteWorkflowDefinition(id: unknown) {
+  const workflowId = String(id || "").trim();
+  if (!workflowId || BUILT_IN_WORKFLOWS.some((workflow) => workflow.id === workflowId)) {
+    return { ok: false, workflows: workflowCatalog() };
+  }
+  activeLocalStore().deleteWorkflowDefinition(activeLocalContext().workspace.id, workflowId);
+  return { ok: true, workflows: workflowCatalog() };
+}
+
+function workflowById(workflowId: string): WorkflowDefinition | null {
+  return workflowCatalog().find((workflow) => workflow.id === workflowId) || null;
+}
+
+async function runWorkflow(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const workflowId = String(payload.workflowId || "").trim();
+  const definition = workflowById(workflowId);
+  if (!definition) {
+    throw new Error("Workflow was not found.");
+  }
+  const source: WorkflowRunSource = payload.source === "ai" ? "ai" : "manual";
+  const inputs = normalizeWorkflowInputs(definition, payload.inputs as Record<string, unknown>);
+  const context = activeLocalContext();
+  const store = activeLocalStore();
+  const sessionId = context.session.id;
+  let run = createWorkflowRunRecord({
+    definition,
+    sessionId,
+    source,
+    inputs,
+    status: "running",
+    startedAt: new Date().toISOString()
+  });
+  store.upsertWorkflowRun(sessionId, run);
+
+  try {
+    const captures = store.listCaptures(sessionId, 2000);
+    const results = evaluatePassiveWorkflow(definition, captures, allowlist, inputs);
+    let actionCount = 0;
+    for (const step of definition.steps) {
+      if (!isActiveWorkflowStep(step) || !shouldRunWorkflowStep(step, inputs)) {
+        continue;
+      }
+      if (!definition.scope.allowActive) {
+        throw new Error("Workflow active steps are disabled by policy.");
+      }
+      if (actionCount >= definition.scope.maxRequests) {
+        throw new Error("Workflow exceeded its active request cap.");
+      }
+      if (definition.scope.delayMs > 0 && actionCount > 0) {
+        await delay(definition.scope.delayMs);
+      }
+      if (step.kind === "active-replay") {
+        const captureId = inputs["capture-id"] || inputs.captureId || "";
+        const capture = captures.find((item) => item.id === captureId);
+        if (!capture) {
+          throw new Error("Active workflow needs a selected capture id.");
+        }
+        if (definition.scope.requireInScope && !isAllowedTarget(capture.url, allowlist)) {
+          throw new Error("Workflow capture is outside the current scope allowlist.");
+        }
+        const draft = replayDraftFromCapture(capture, step.config.stripAuth !== "false");
+        const replay = await sendRequest({ draft }, { timeoutMs: definition.scope.timeoutMs });
+        results.push(activeReplayWorkflowResult({ step, capture, replay }));
+      } else {
+        const targetUrl = inputs[step.config.urlInput || "url"] || step.config.url || "";
+        if (!targetUrl) {
+          throw new Error("Workflow browser step needs a URL input or config value.");
+        }
+        if (!isAllowedTarget(targetUrl, allowlist)) {
+          throw new Error("Workflow browser URL is outside the current scope allowlist.");
+        }
+        await openRealChrome(targetUrl);
+        results.push(activeBrowserWorkflowResult({ step, url: targetUrl }));
+      }
+      actionCount += 1;
+    }
+
+    run = {
+      ...run,
+      status: "completed",
+      completedAt: new Date().toISOString(),
+      actionCount,
+      results: results.slice(0, definition.scope.maxResults)
+    };
+    return store.upsertWorkflowRun(sessionId, run);
+  } catch (error) {
+    run = {
+      ...run,
+      status: "failed",
+      completedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : "Workflow failed."
+    };
+    store.upsertWorkflowRun(sessionId, run);
+    return run;
+  }
+}
+
+function promoteWorkflowResultToFinding(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const run = activeLocalStore().getWorkflowRun(activeLocalContext().session.id, String(payload.runId || ""));
+  const result = run?.results.find((item) => item.id === String(payload.resultId || ""));
+  if (!run || !result) {
+    throw new Error("Workflow result was not found.");
+  }
+  const finding = findingFromWorkflowResult(run, result);
+  if (!finding) {
+    throw new Error("Only warning or failed workflow results can become findings.");
+  }
+  return activeLocalStore().upsertFinding(activeLocalContext().session.id, finding);
+}
+
 async function sendWebSocketReplay(input: WebSocketReplayDraft) {
   const draft = normalizeWebSocketReplayDraft(input);
   if (!draft) {
@@ -2691,6 +2912,10 @@ ipcMain.handle("automate:result:promote", (_event, payload) => {
   return promoteAutomateResultToRepeater(payload);
 });
 
+ipcMain.handle("automate:result:finding", (_event, payload) => {
+  return promoteAutomateResultToFinding(payload);
+});
+
 ipcMain.handle("repeater:websocket:send", async (_event, input) => {
   return sendWebSocketReplay(input as WebSocketReplayDraft);
 });
@@ -2714,6 +2939,51 @@ ipcMain.handle("evidence:annotations:save-many", (_event, annotations) => {
     localContext.session.id,
     Array.isArray(annotations) ? annotations : []
   );
+});
+
+ipcMain.handle("findings:list", () => {
+  return localStore && localContext ? localStore.listFindings(localContext.session.id) : [];
+});
+
+ipcMain.handle("findings:save", (_event, finding) => {
+  return saveFinding(finding);
+});
+
+ipcMain.handle("findings:delete", (_event, id) => {
+  const findingId = String(id || "").trim();
+  if (!findingId) {
+    return { ok: false };
+  }
+  activeLocalStore().deleteFinding(activeLocalContext().session.id, findingId);
+  return { ok: true };
+});
+
+ipcMain.handle("findings:report", (_event, options) => {
+  return findingReport(options);
+});
+
+ipcMain.handle("workflows:list", () => {
+  return localStore && localContext ? workflowCatalog() : BUILT_IN_WORKFLOWS;
+});
+
+ipcMain.handle("workflows:save", (_event, workflow) => {
+  return saveWorkflowDefinition(workflow);
+});
+
+ipcMain.handle("workflows:delete", (_event, id) => {
+  return deleteWorkflowDefinition(id);
+});
+
+ipcMain.handle("workflows:runs", () => {
+  return localStore && localContext ? localStore.listWorkflowRuns(localContext.session.id) : [];
+});
+
+ipcMain.handle("workflows:run", (_event, payload) => {
+  return runWorkflow(payload);
+});
+
+ipcMain.handle("workflows:result:finding", (_event, payload) => {
+  return promoteWorkflowResultToFinding(payload);
 });
 
 ipcMain.handle("targets:get", () => allowlist);

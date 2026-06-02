@@ -8,12 +8,24 @@ import type {
   InterceptResponseDraft,
   ReplayDraft,
   ReplayResult,
-  ReplayTabState
+  ReplayTabState,
+  WorkflowDefinition,
+  WorkflowRun
 } from "./domain.js";
 
 export type AppMode = "manual-first" | "ai-first";
 
-export type AgentWorkbenchView = "traffic" | "websocket" | "intercept" | "repeater" | "automate" | "sitemap" | "scope" | "ssl";
+export type AgentWorkbenchView =
+  | "traffic"
+  | "websocket"
+  | "intercept"
+  | "repeater"
+  | "automate"
+  | "findings"
+  | "workflows"
+  | "sitemap"
+  | "scope"
+  | "ssl";
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
 
@@ -49,7 +61,9 @@ export type AgentToolName =
   | "compareReplayResults"
   | "getAutomateContext"
   | "prepareAutomateDraft"
-  | "analyzeAutomateResults";
+  | "analyzeAutomateResults"
+  | "getWorkflowCatalog"
+  | "runWorkflow";
 
 export type AgentClickableElement = {
   selector: string;
@@ -160,7 +174,9 @@ export type AgentToolCall =
         note?: string;
       };
     }
-  | { tool: "analyzeAutomateResults"; input: { sessionId?: string } };
+  | { tool: "analyzeAutomateResults"; input: { sessionId?: string } }
+  | { tool: "getWorkflowCatalog"; input: Record<string, never> }
+  | { tool: "runWorkflow"; input: { workflowId: string; inputs?: Record<string, string> } };
 
 export type AgentToolResult =
   | { tool: "showView"; ok: true; data: { view: AgentWorkbenchView } }
@@ -281,6 +297,15 @@ export type AgentToolResult =
         outlierResultIds: string[];
       };
     }
+  | {
+      tool: "getWorkflowCatalog";
+      ok: true;
+      data: {
+        workflows: Pick<WorkflowDefinition, "id" | "name" | "description" | "mode" | "inputs" | "scope" | "steps">[];
+        recentRuns: Array<Pick<WorkflowRun, "id" | "workflowId" | "workflowName" | "status" | "mode" | "actionCount" | "startedAt"> & { resultCount: number }>;
+      };
+    }
+  | { tool: "runWorkflow"; ok: true; data: WorkflowRun }
   | { tool: AgentToolName; ok: false; error: string };
 
 export type AgentDecisionFinding = {

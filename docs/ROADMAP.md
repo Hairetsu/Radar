@@ -28,14 +28,16 @@ Radar already has a strong MVP foundation:
 
 - Local Electron workbench with HTTP/S capture, WebSocket capture, scope, SSL/proxy, repeater, profiles, and sessions.
 - Dedicated Radar browser profile with proxy wiring and certificate handling.
-- Local SQLite persistence for profiles, sessions, captures, WebSocket frames, SSL events, and AI-First runs.
+- Local SQLite persistence for profiles, sessions, captures, WebSocket frames, findings, workflows, SSL events, and AI-First runs.
 - Manual replay plus capped burst replay.
-- Automate v1 with explicit payload markers, saved payload sets, scoped attack sessions, visible pause/stop/retry controls, result clustering, match/extract rules, and Repeater promotion.
+- Automate v1 with explicit payload markers, saved payload sets, scoped attack sessions, visible pause/stop/retry controls, result clustering, match/extract rules, and Repeater/Finding promotion.
+- Findings inbox with templates, durable evidence references, Manual-First review/retest status, Automate/AI draft promotion, and Markdown/HTML report export with redacted evidence appendices.
+- Workflows v1 with built-in passive checks, declarative JSON/YAML-like definitions, scoped active replay checks, saved definitions, session run history, result evidence references, Finding promotion, and AI workflow selection by id.
 - WebSocket frame inspection separate from HTTP/S evidence.
 - AI command palette with redacted context previews, local/custom provider support, and prepare-only tasks.
 - AI-First autonomous run loop with scoped browser tools, run-scoped capture reads, capped replay, security header/cookie/CORS checks, auth state helpers, and local timeline persistence.
 
-The gap is breadth and depth around professional testing operations: intercept control, advanced filtering, sitemap, Automate-style fuzzing, findings, reporting, plugin/workflow extensibility, and release polish.
+The gap is breadth and depth around professional testing operations: plugin extensibility, global search, advanced API/auth testing helpers, collaboration handoff, richer workflow authoring, and release polish.
 
 ## Guiding Principles
 
@@ -57,13 +59,13 @@ The gap is breadth and depth around professional testing operations: intercept c
 | WebSockets | Frame log and inspection | Replay/edit WebSocket messages, conversation grouping, protocol helpers |
 | Sitemap | Not yet present | Host/path tree, endpoint inventory, parameter discovery, diff between sessions |
 | Replay | Single editor, replay, burst | Multi-tab repeater, history per tab, response diffing, variables, environments, collections |
-| Automate | Payload positions, payload sets, bounded sessions, result filters, clustering, match/extract rules | Finding promotion and reusable active workflow integration |
+| Automate | Payload positions, payload sets, bounded sessions, result filters, clustering, match/extract rules, Finding promotion | Reusable active workflow integration |
 | Match & Replace | Not yet present | Request/response rewrite rules with scope, conditions, and audit logs |
-| Findings | AI draft findings in runs | Manual and AI findings inbox, severity, evidence, reproduction, status, export |
-| Workflows | AI tool loop only | Visual or declarative workflow engine for passive/active checks and repeatable testing |
+| Findings | Manual and AI findings inbox, severity, evidence, reproduction, status, retest, export | Richer triage, deduplication, assignment filters, and workflow/plugin promotion |
+| Workflows | Declarative JSON/YAML-like workflows, built-in passive checks, scoped selected-capture active replay, run history, Finding promotion, and AI workflow selection | Visual workflow editing, richer branching, SDK steps, and reusable active workflow integration |
 | Plugins | Not yet present | Local plugin API, signed/community package model later, SDK for extension authors |
 | Search | Basic string filters | Global search across captures, frames, replays, findings, notes, and workflows |
-| Reports | AI report notes only | Report builder, Markdown/HTML export, evidence appendices, retest status |
+| Reports | Markdown/HTML export with redacted evidence appendix | Report builder sections, appendices, retest matrices, and customizable templates |
 | Team/cloud | Intentionally local-first | Optional export/import and file-based handoff before any hosted collaboration |
 
 ## Roadmap Phases

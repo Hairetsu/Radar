@@ -13,6 +13,7 @@ import type {
   CaptureInterceptRecord,
   CapturedRequest,
   EvidenceAnnotation,
+  Finding,
   InterceptRule,
   LocalContext,
   LocalProfile,
@@ -29,7 +30,9 @@ import type {
   SslEvent,
   TlsDetails,
   WebSocketDirection,
-  WebSocketEvent
+  WebSocketEvent,
+  WorkflowDefinition,
+  WorkflowRun
 } from "../shared/domain.js";
 import {
   MAX_AUTOMATE_SESSIONS,
@@ -37,12 +40,14 @@ import {
   normalizeAutomateSession
 } from "../shared/automate.js";
 import { normalizeEvidenceAnnotation, normalizeEvidenceAnnotations } from "../shared/evidenceTags.js";
+import { MAX_FINDINGS, normalizeFinding, normalizeFindings } from "../shared/findings.js";
 import { normalizeReplayCollections } from "../shared/replayCollections.js";
 import { normalizeReplayEnvironments } from "../shared/replayVariables.js";
 import { normalizeReplayTabState } from "../shared/replayTabs.js";
 import { normalizeSavedFilters } from "../shared/savedFilters.js";
+import { MAX_WORKFLOWS, normalizeWorkflowDefinition, normalizeWorkflowDefinitions, normalizeWorkflowRun, normalizeWorkflowRuns } from "../shared/workflows.js";
 
-const SCHEMA_VERSION = "10";
+const SCHEMA_VERSION = "12";
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
@@ -157,6 +162,22 @@ type ProxyProfileRow = {
   profile_id: string;
   notes: string;
   updated_at: string;
+};
+
+type FindingRow = {
+  id: string;
+  updated_at: string;
+  finding_json: string;
+};
+
+type WorkflowDefinitionRow = {
+  workflow_json: string;
+};
+
+type WorkflowRunRow = {
+  id: string;
+  started_at: string;
+  run_json: string;
 };
 
 function nowIso() {
@@ -658,11 +679,34 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (workspace_id, position)
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_workflows (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      workflow_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, position)
+    );
+
     CREATE TABLE IF NOT EXISTS session_automate_sessions (
       session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       id TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       session_json TEXT NOT NULL,
+      PRIMARY KEY (session_id, id)
+    );
+
+    CREATE TABLE IF NOT EXISTS session_findings (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      finding_json TEXT NOT NULL,
+      PRIMARY KEY (session_id, id)
+    );
+
+    CREATE TABLE IF NOT EXISTS session_workflow_runs (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      run_json TEXT NOT NULL,
       PRIMARY KEY (session_id, id)
     );
 
@@ -680,6 +724,10 @@ export function openLocalStore(userDataPath: string) {
       ON agent_runs(session_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_automate_sessions_updated
       ON session_automate_sessions(session_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_findings_session_updated
+      ON session_findings(session_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workflow_runs_session_started
+      ON session_workflow_runs(session_id, started_at DESC);
   `);
 
   const captureColumns = new Set(
@@ -1166,6 +1214,48 @@ export function openLocalStore(userDataPath: string) {
     return next;
   };
 
+  const listWorkflowDefinitions = (workspaceId: string) => {
+    const rows = db
+      .prepare("SELECT workflow_json FROM workspace_workflows WHERE workspace_id = ? ORDER BY position ASC")
+      .all(workspaceId) as WorkflowDefinitionRow[];
+    return normalizeWorkflowDefinitions(
+      rows.map((row) => parseJsonObject<WorkflowDefinition | null>(row.workflow_json, null)).filter(Boolean)
+    ).filter((workflow) => !workflow.builtIn);
+  };
+
+  const setWorkflowDefinitions = (workspaceId: string, workflows: WorkflowDefinition[]) => {
+    const next = normalizeWorkflowDefinitions(workflows).filter((workflow) => !workflow.builtIn);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM workspace_workflows WHERE workspace_id = ?").run(workspaceId);
+      const insert = db.prepare(
+        "INSERT INTO workspace_workflows (workspace_id, position, workflow_json) VALUES (?, ?, ?)"
+      );
+      next.slice(0, MAX_WORKFLOWS).forEach((workflow, index) => insert.run(workspaceId, index, JSON.stringify(workflow)));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return next;
+  };
+
+  const upsertWorkflowDefinition = (workspaceId: string, input: WorkflowDefinition) => {
+    const workflow = normalizeWorkflowDefinition({ ...input, builtIn: false, updatedAt: nowIso() });
+    if (!workflow) {
+      throw new Error("Workflow definition was invalid.");
+    }
+    const existing = listWorkflowDefinitions(workspaceId);
+    return setWorkflowDefinitions(workspaceId, [workflow, ...existing.filter((item) => item.id !== workflow.id)])[0];
+  };
+
+  const deleteWorkflowDefinition = (workspaceId: string, workflowId: string) => {
+    const next = listWorkflowDefinitions(workspaceId).filter((workflow) => workflow.id !== workflowId);
+    setWorkflowDefinitions(workspaceId, next);
+    return next;
+  };
+
   const listAutomateSessions = (sessionId: string, limit = 25) => {
     const rows = db
       .prepare(
@@ -1281,6 +1371,66 @@ export function openLocalStore(userDataPath: string) {
       throw error;
     }
     return listEvidenceAnnotations(sessionId);
+  };
+
+  const listFindings = (sessionId: string, limit = MAX_FINDINGS) => {
+    const rows = db
+      .prepare("SELECT id, updated_at, finding_json FROM session_findings WHERE session_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?")
+      .all(sessionId, Math.max(1, Math.min(Number(limit) || MAX_FINDINGS, MAX_FINDINGS))) as FindingRow[];
+    return normalizeFindings(rows.map((row) => parseJsonObject<Finding | null>(row.finding_json, null)));
+  };
+
+  const upsertFinding = (sessionId: string, input: Finding) => {
+    const finding = normalizeFinding(input);
+    if (!finding) {
+      throw new Error("Finding was invalid.");
+    }
+    db.prepare(`
+      INSERT INTO session_findings (session_id, id, updated_at, finding_json)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(session_id, id) DO UPDATE SET
+        updated_at = excluded.updated_at,
+        finding_json = excluded.finding_json
+    `).run(sessionId, finding.id, finding.updatedAt, JSON.stringify(finding));
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(finding.updatedAt, sessionId);
+    return finding;
+  };
+
+  const deleteFinding = (sessionId: string, findingId: string) => {
+    db.prepare("DELETE FROM session_findings WHERE session_id = ? AND id = ?").run(sessionId, findingId);
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+  };
+
+  const listWorkflowRuns = (sessionId: string, limit = 60) => {
+    const rows = db
+      .prepare(
+        "SELECT id, started_at, run_json FROM session_workflow_runs WHERE session_id = ? ORDER BY started_at DESC, id DESC LIMIT ?"
+      )
+      .all(sessionId, Math.max(1, Math.min(Number(limit) || 60, 200))) as WorkflowRunRow[];
+    return normalizeWorkflowRuns(rows.map((row) => parseJsonObject<WorkflowRun | null>(row.run_json, null)));
+  };
+
+  const getWorkflowRun = (sessionId: string, runId: string) => {
+    const row = db
+      .prepare("SELECT run_json FROM session_workflow_runs WHERE session_id = ? AND id = ?")
+      .get(sessionId, runId) as { run_json: string } | undefined;
+    return row ? normalizeWorkflowRun(parseJsonObject<WorkflowRun | null>(row.run_json, null)) : null;
+  };
+
+  const upsertWorkflowRun = (sessionId: string, input: WorkflowRun) => {
+    const run = normalizeWorkflowRun(input);
+    if (!run) {
+      throw new Error("Workflow run was invalid.");
+    }
+    db.prepare(`
+      INSERT INTO session_workflow_runs (session_id, id, started_at, run_json)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(session_id, id) DO UPDATE SET
+        started_at = excluded.started_at,
+        run_json = excluded.run_json
+    `).run(sessionId, run.id, run.startedAt, JSON.stringify(run));
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.completedAt || run.startedAt, sessionId);
+    return run;
   };
 
   const upsertCapture = (sessionId: string, capture: CapturedRequest) => {
@@ -1546,12 +1696,22 @@ export function openLocalStore(userDataPath: string) {
     setReplayCollections,
     listAutomatePayloadSets,
     setAutomatePayloadSets,
+    listWorkflowDefinitions,
+    setWorkflowDefinitions,
+    upsertWorkflowDefinition,
+    deleteWorkflowDefinition,
     listAutomateSessions,
     getAutomateSession,
     upsertAutomateSession,
     listEvidenceAnnotations,
     saveEvidenceAnnotation,
     saveEvidenceAnnotations,
+    listFindings,
+    upsertFinding,
+    deleteFinding,
+    listWorkflowRuns,
+    getWorkflowRun,
+    upsertWorkflowRun,
     upsertCapture,
     listCaptures,
     deleteCapture,
