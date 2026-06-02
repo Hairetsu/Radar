@@ -23,7 +23,9 @@ describe("agent tools", () => {
         "compareReplayResults",
         "getAutomateContext",
         "prepareAutomateDraft",
-        "analyzeAutomateResults"
+        "analyzeAutomateResults",
+        "getWorkflowCatalog",
+        "runWorkflow"
       ])
     );
     expect(toolSchemas()).toHaveProperty("getDomSummary");
@@ -129,6 +131,19 @@ describe("agent tools", () => {
     expect(normalizeAgentToolCall({ tool: "analyzeAutomateResults", input: { sessionId: " auto-1 " } })).toEqual({
       tool: "analyzeAutomateResults",
       input: { sessionId: "auto-1" }
+    });
+    expect(normalizeAgentToolCall({ tool: "getWorkflowCatalog", input: { ignored: true } })).toEqual({
+      tool: "getWorkflowCatalog",
+      input: {}
+    });
+    expect(
+      normalizeAgentToolCall({
+        tool: "runWorkflow",
+        input: { workflowId: " workflow-1 ", inputs: { "capture-id": " cap-1 ", long: 123 } }
+      })
+    ).toEqual({
+      tool: "runWorkflow",
+      input: { workflowId: "workflow-1", inputs: { "capture-id": " cap-1 ", long: "123" } }
     });
   });
 

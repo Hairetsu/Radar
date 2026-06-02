@@ -24,7 +24,9 @@ import type {
   ReplayDraft,
   ReplayEnvironment,
   ReplayResult,
-  ReplayTabState
+  ReplayTabState,
+  WorkflowDefinition,
+  WorkflowRun
 } from "../../shared/domain.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
@@ -54,6 +56,9 @@ type AgentRuntimeDeps = {
   listReplayCollections: () => Array<{ id: string; name: string; items: unknown[] }>;
   listAutomatePayloadSets: () => AutomatePayloadSet[];
   listAutomateSessions: () => AutomateSession[];
+  listWorkflows: () => WorkflowDefinition[];
+  listWorkflowRuns: () => WorkflowRun[];
+  runWorkflow: (input: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => Promise<WorkflowRun>;
   sendReplay: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
   waitForNetworkIdle: (input: { idleMs?: number; timeoutMs?: number }) => Promise<{ idle: boolean; waitedMs: number }>;
   getPageText: () => Promise<{ url: string; title: string; text: string }>;
@@ -741,6 +746,55 @@ export class AgentRuntime {
                 .filter((cluster) => cluster.count === 1)
                 .map((cluster) => cluster.representativeResultId)
             }
+          };
+          break;
+        }
+        case "getWorkflowCatalog": {
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              workflows: this.deps.listWorkflows().map((workflow) => ({
+                id: workflow.id,
+                name: workflow.name,
+                description: workflow.description,
+                mode: workflow.mode,
+                inputs: workflow.inputs,
+                scope: workflow.scope,
+                steps: workflow.steps
+              })),
+              recentRuns: this.deps.listWorkflowRuns().slice(0, 8).map((run) => ({
+                id: run.id,
+                workflowId: run.workflowId,
+                workflowName: run.workflowName,
+                status: run.status,
+                mode: run.mode,
+                actionCount: run.actionCount,
+                startedAt: run.startedAt,
+                resultCount: run.results.length
+              }))
+            }
+          };
+          break;
+        }
+        case "runWorkflow": {
+          const workflow = this.deps.listWorkflows().find((item) => item.id === normalizedCall.input.workflowId);
+          if (!workflow) {
+            throw new Error("Workflow was not found.");
+          }
+          if (workflow.mode === "active" && counters.replayCount + workflow.scope.maxRequests > run.policy.maxReplay) {
+            throw new Error("Workflow would exceed the AI-First replay budget.");
+          }
+          const workflowRun = await this.deps.runWorkflow({
+            workflowId: normalizedCall.input.workflowId,
+            inputs: normalizedCall.input.inputs,
+            source: "ai"
+          });
+          counters.replayCount += workflowRun.actionCount;
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: workflowRun
           };
           break;
         }

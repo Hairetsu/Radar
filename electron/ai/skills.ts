@@ -8,6 +8,8 @@ const VALID_VIEWS = new Set<AiWorkView>([
   "intercept",
   "repeater",
   "automate",
+  "findings",
+  "workflows",
   "sitemap",
   "scope",
   "ssl"

@@ -4,7 +4,16 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
 import type { AgentRun } from "../shared/agent-types.js";
-import type { AutomatePayloadSet, AutomateSession, CapturedRequest, SslEvent, WebSocketEvent } from "../shared/domain.js";
+import type {
+  AutomatePayloadSet,
+  AutomateSession,
+  CapturedRequest,
+  Finding,
+  SslEvent,
+  WebSocketEvent,
+  WorkflowDefinition,
+  WorkflowRun
+} from "../shared/domain.js";
 import { openLocalStore } from "./localStore.js";
 
 describe("localStore", () => {
@@ -280,6 +289,110 @@ describe("localStore", () => {
     expect(reopened.listAutomatePayloadSets(context.workspace.id)).toEqual([payloadSet]);
     expect(reopened.listAutomateSessions(context.session.id)).toEqual([automateSession]);
     expect(reopened.getAutomateSession(context.session.id, automateSession.id)).toEqual(automateSession);
+    reopened.close();
+  });
+
+  it("persists findings per local session", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const finding: Finding = {
+      id: "finding-1",
+      title: "Missing security headers",
+      templateId: "headers",
+      severity: "low",
+      confidence: "high",
+      status: "reviewed",
+      affectedAssets: ["https://example.test"],
+      evidence: [
+        {
+          id: "cap-1",
+          kind: "capture",
+          label: "GET https://example.test/",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          metadata: { status: "200" }
+        }
+      ],
+      reproductionSteps: "Request the landing page.",
+      impact: "Browser hardening is reduced.",
+      remediation: "Add HSTS and frame protections.",
+      notes: "Reviewed manually.",
+      owner: "web team",
+      retestResult: "",
+      source: "manual",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:01.000Z",
+      reviewedAt: "2026-05-25T12:00:01.000Z"
+    };
+
+    store.upsertFinding(context.session.id, finding);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listFindings(context.session.id)).toEqual([finding]);
+    reopened.deleteFinding(context.session.id, finding.id);
+    expect(reopened.listFindings(context.session.id)).toEqual([]);
+    reopened.close();
+  });
+
+  it("persists workflow definitions per workspace and runs per session", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const workflow: WorkflowDefinition = {
+      id: "workflow-security-headers",
+      name: "Security Headers",
+      description: "Check response hardening headers.",
+      mode: "passive",
+      builtIn: false,
+      inputs: [],
+      scope: {
+        requireInScope: true,
+        allowActive: false,
+        maxRequests: 0,
+        timeoutMs: 10000,
+        delayMs: 0,
+        maxResults: 40
+      },
+      steps: [{ id: "headers", title: "Headers", kind: "security-headers", config: {} }],
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+    const run: WorkflowRun = {
+      id: "workflow-run-1",
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      sessionId: context.session.id,
+      source: "manual",
+      mode: "passive",
+      status: "completed",
+      inputs: {},
+      startedAt: "2026-05-25T12:01:00.000Z",
+      completedAt: "2026-05-25T12:01:01.000Z",
+      stepCount: 1,
+      actionCount: 0,
+      results: [
+        {
+          id: "workflow-result-1",
+          stepId: "headers",
+          stepTitle: "Headers",
+          level: "warn",
+          title: "Missing security headers",
+          message: "Missing HSTS.",
+          evidence: [],
+          details: {},
+          createdAt: "2026-05-25T12:01:00.000Z"
+        }
+      ]
+    };
+
+    store.setWorkflowDefinitions(context.workspace.id, [workflow]);
+    store.upsertWorkflowRun(context.session.id, run);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listWorkflowDefinitions(context.workspace.id)).toEqual([workflow]);
+    expect(reopened.listWorkflowRuns(context.session.id)).toEqual([run]);
+    reopened.deleteWorkflowDefinition(context.workspace.id, workflow.id);
+    expect(reopened.listWorkflowDefinitions(context.workspace.id)).toEqual([]);
     reopened.close();
   });
 
