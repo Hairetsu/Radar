@@ -42,7 +42,10 @@ import type {
   WebSocketEvent,
   WebSocketReplayDraft,
   WorkflowDefinition,
-  WorkflowRunSource
+  WorkflowRunSource,
+  PluginInstallStatus,
+  PluginPermission,
+  PluginApiRequest
 } from "../shared/domain.js";
 import {
   assignmentsForPayload,
@@ -91,6 +94,8 @@ import {
   shouldRunWorkflowStep
 } from "../shared/workflows.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
+import { installedPluginFromPreview, readPluginInstallPreview } from "./plugins.js";
+import { runPluginApiAction as runPluginApiActionForPlugin } from "./pluginApi.js";
 import {
   loadSettings as loadAiSettings,
   saveSettings as saveAiSettings,
@@ -1419,6 +1424,7 @@ function createAgentRuntime() {
     listAutomateSessions: () => activeLocalStore().listAutomateSessions(activeLocalContext().session.id),
     listWorkflows: () => workflowCatalog(),
     listWorkflowRuns: () => activeLocalStore().listWorkflowRuns(activeLocalContext().session.id),
+    listPlugins: () => activeLocalStore().listPlugins(activeLocalContext().workspace.id),
     runWorkflow: (input) => runWorkflow(input),
     sendReplay: (draft) => sendRequest(typeof draft === "object" && draft && "draft" in draft ? draft : { draft }),
     waitForNetworkIdle,
@@ -2385,6 +2391,65 @@ function deleteWorkflowDefinition(id: unknown) {
   return { ok: true, workflows: workflowCatalog() };
 }
 
+function listPlugins() {
+  return activeLocalStore().listPlugins(activeLocalContext().workspace.id);
+}
+
+function previewPluginInstall(sourcePath: unknown) {
+  return readPluginInstallPreview(sourcePath);
+}
+
+function installPlugin(sourcePath: unknown) {
+  const preview = readPluginInstallPreview(sourcePath);
+  return activeLocalStore().upsertPlugin(activeLocalContext().workspace.id, installedPluginFromPreview(preview));
+}
+
+function approvePlugin(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const pluginId = String(payload.id || "").trim();
+  const permissions = Array.isArray(payload.permissions) ? (payload.permissions as PluginPermission[]) : [];
+  if (!pluginId) {
+    throw new Error("Plugin id is required.");
+  }
+  return activeLocalStore().approvePlugin(activeLocalContext().workspace.id, pluginId, permissions);
+}
+
+function setPluginStatus(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const pluginId = String(payload.id || "").trim();
+  const status = String(payload.status || "").trim() as PluginInstallStatus;
+  if (!pluginId) {
+    throw new Error("Plugin id is required.");
+  }
+  if (status === "approved") {
+    throw new Error("Use plugin approval to grant permissions.");
+  }
+  return activeLocalStore().setPluginStatus(activeLocalContext().workspace.id, pluginId, status);
+}
+
+function removePlugin(id: unknown) {
+  const pluginId = String(id || "").trim();
+  if (!pluginId) {
+    return { ok: false, plugins: listPlugins() };
+  }
+  const plugins = activeLocalStore().deletePlugin(activeLocalContext().workspace.id, pluginId);
+  return { ok: true, plugins };
+}
+
+function runPluginApiRequest(input: unknown) {
+  return runPluginApiActionForPlugin(input as PluginApiRequest, {
+    getPlugin: (pluginId) => activeLocalStore().getPlugin(activeLocalContext().workspace.id, pluginId),
+    allowlist: () => allowlist.slice(),
+    listCaptures: () => activeLocalStore().listCaptures(activeLocalContext().session.id, 2000),
+    listWebSocketEvents: () => activeLocalStore().listWebSocketEvents(activeLocalContext().session.id, 5000),
+    saveFinding: (finding) => activeLocalStore().upsertFinding(activeLocalContext().session.id, finding),
+    listWorkflows: () => workflowCatalog(),
+    saveWorkflow: (workflow) => saveWorkflowDefinition(workflow),
+    runWorkflow: (payload) => runWorkflow(payload),
+    sendReplay: (draft) => sendRequest({ draft })
+  });
+}
+
 function workflowById(workflowId: string): WorkflowDefinition | null {
   return workflowCatalog().find((workflow) => workflow.id === workflowId) || null;
 }
@@ -2984,6 +3049,34 @@ ipcMain.handle("workflows:run", (_event, payload) => {
 
 ipcMain.handle("workflows:result:finding", (_event, payload) => {
   return promoteWorkflowResultToFinding(payload);
+});
+
+ipcMain.handle("plugins:list", () => {
+  return localStore && localContext ? listPlugins() : [];
+});
+
+ipcMain.handle("plugins:preview", (_event, sourcePath) => {
+  return previewPluginInstall(sourcePath);
+});
+
+ipcMain.handle("plugins:install", (_event, sourcePath) => {
+  return installPlugin(sourcePath);
+});
+
+ipcMain.handle("plugins:approve", (_event, payload) => {
+  return approvePlugin(payload);
+});
+
+ipcMain.handle("plugins:status", (_event, payload) => {
+  return setPluginStatus(payload);
+});
+
+ipcMain.handle("plugins:remove", (_event, id) => {
+  return removePlugin(id);
+});
+
+ipcMain.handle("plugins:api", (_event, request) => {
+  return runPluginApiRequest(request);
 });
 
 ipcMain.handle("targets:get", () => allowlist);

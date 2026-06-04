@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
 import type { AgentDecision, AgentDecisionContext, AgentRun } from "../../shared/agent-types.js";
-import type { AutomatePayloadSet, AutomateSession, CapturedRequest, InterceptQueueItem, WorkflowDefinition, WorkflowRun } from "../../shared/domain.js";
+import type { AutomatePayloadSet, AutomateSession, CapturedRequest, InstalledPlugin, InterceptQueueItem, WorkflowDefinition, WorkflowRun } from "../../shared/domain.js";
 import { AgentRuntime } from "./runtime.js";
 
 function capture(id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest {
@@ -40,6 +40,7 @@ function makeRuntime(
     workflows?: WorkflowDefinition[];
     workflowRuns?: WorkflowRun[];
     workflowRun?: WorkflowRun;
+    plugins?: InstalledPlugin[];
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
   } = {}
 ) {
@@ -146,6 +147,7 @@ function makeRuntime(
     listAutomateSessions: () => options.automateSessions || [],
     listWorkflows: () => options.workflows || [],
     listWorkflowRuns: () => options.workflowRuns || [],
+    listPlugins: () => options.plugins || [],
     runWorkflow: (input) => options.workflowRun ? Promise.resolve(options.workflowRun) : runWorkflow(input),
     sendReplay,
     waitForNetworkIdle,
@@ -710,5 +712,59 @@ describe("AgentRuntime", () => {
     expect(runWorkflow).toHaveBeenCalledWith({ workflowId: workflow.id, inputs: {}, source: "ai" });
     const workflowResult = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "runWorkflow")?.toolResult;
     expect(workflowResult?.ok).toBe(true);
+  });
+
+  it("exposes plugin inventory read-only to AI-First", async () => {
+    const plugin: InstalledPlugin = {
+      id: "jwt-helper",
+      manifest: {
+        schemaVersion: 1,
+        id: "jwt-helper",
+        name: "JWT Helper",
+        version: "1.0.0",
+        description: "",
+        author: "Radar",
+        sdkVersion: "0.1",
+        minRadarVersion: "",
+        entry: "dist/index.js",
+        permissions: ["captures:read", "ui:panel"],
+        panels: [{ id: "token-panel", title: "Token Panel", entry: "panel.html" }]
+      },
+      sourcePath: "/tmp/jwt-helper",
+      grantedPermissions: ["captures:read", "ui:panel"],
+      status: "approved",
+      warnings: ["Review capture access."],
+      installedAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    };
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "showView", input: { view: "plugins", reason: "Review local extensions" } } },
+      { action: "tool", call: { tool: "getPluginInventory", input: {} } },
+      { action: "finish", rationale: "Plugins reviewed.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      plugins: [plugin],
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({ goal: "Review installed plugins", startUrl: "https://allowed.test" });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const inventory = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "getPluginInventory")?.toolResult;
+    expect(inventory?.ok && inventory.data.plugins).toEqual([
+      {
+        id: "jwt-helper",
+        name: "JWT Helper",
+        version: "1.0.0",
+        status: "approved",
+        requestedPermissions: ["captures:read", "ui:panel"],
+        grantedPermissions: ["captures:read", "ui:panel"],
+        panels: [{ id: "token-panel", title: "Token Panel" }],
+        warningCount: 1
+      }
+    ]);
   });
 });

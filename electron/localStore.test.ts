@@ -9,6 +9,7 @@ import type {
   AutomateSession,
   CapturedRequest,
   Finding,
+  InstalledPlugin,
   SslEvent,
   WebSocketEvent,
   WorkflowDefinition,
@@ -393,6 +394,52 @@ describe("localStore", () => {
     expect(reopened.listWorkflowRuns(context.session.id)).toEqual([run]);
     reopened.deleteWorkflowDefinition(context.workspace.id, workflow.id);
     expect(reopened.listWorkflowDefinitions(context.workspace.id)).toEqual([]);
+    reopened.close();
+  });
+
+  it("persists plugin registry records per workspace", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const plugin: InstalledPlugin = {
+      id: "jwt-helper",
+      manifest: {
+        schemaVersion: 1,
+        id: "jwt-helper",
+        name: "JWT Helper",
+        version: "1.0.0",
+        description: "Decode token-shaped values.",
+        author: "Radar",
+        sdkVersion: "0.1",
+        minRadarVersion: "",
+        entry: "dist/index.js",
+        permissions: ["captures:read", "ui:panel"],
+        panels: [{ id: "token-panel", title: "Token Panel", entry: "panel.html" }]
+      },
+      sourcePath: "/tmp/jwt-helper",
+      grantedPermissions: [],
+      status: "pending",
+      warnings: [],
+      installedAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+
+    store.upsertPlugin(context.workspace.id, plugin);
+    const approved = store.approvePlugin(context.workspace.id, plugin.id, ["captures:read", "files:read"]);
+    expect(approved.status).toBe("approved");
+    expect(approved.grantedPermissions).toEqual(["captures:read"]);
+
+    store.setPluginStatus(context.workspace.id, plugin.id, "disabled");
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listPlugins(context.workspace.id)).toEqual([
+      expect.objectContaining({
+        id: "jwt-helper",
+        status: "disabled",
+        grantedPermissions: ["captures:read"]
+      })
+    ]);
+    expect(reopened.deletePlugin(context.workspace.id, plugin.id)).toEqual([]);
     reopened.close();
   });
 

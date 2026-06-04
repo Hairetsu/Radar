@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "report-exporter",
+  "name": "Report Exporter",
+  "version": "1.0.0",
+  "description": "Renders scoped evidence and reviewed findings into a local report panel.",
+  "author": "Radar",
+  "sdkVersion": "0.1",
+  "minRadarVersion": "0.1.13",
+  "entry": "dist/index.js",
+  "permissions": ["captures:read", "frames:read", "ui:panel"],
+  "panels": [{ "id": "report-panel", "title": "Report Panel", "entry": "panel.html" }]
+}

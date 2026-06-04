@@ -8,8 +8,10 @@ import type {
   BrowserState,
   CapturedRequest,
   Finding,
+  InstalledPlugin,
   InterceptState,
   LocalContext,
+  PluginInstallPreview,
   ProxyProfile,
   ProxyState,
   SslEvent,
@@ -348,6 +350,44 @@ const workflowRuns: WorkflowRun[] = [
   }
 ];
 
+const plugins: InstalledPlugin[] = [];
+
+function pluginPreview(sourcePath: string): PluginInstallPreview {
+  return {
+    sourcePath: String(sourcePath || "screenshot-plugin"),
+    manifestPath: `${String(sourcePath || "screenshot-plugin")}/plugin.json`,
+    manifest: {
+      schemaVersion: 1,
+      id: "screenshot-plugin",
+      name: "Screenshot Plugin",
+      version: "1.0.0",
+      description: "Fixture plugin for screenshot rendering.",
+      author: "Radar",
+      sdkVersion: "0.1",
+      minRadarVersion: "",
+      entry: "dist/index.js",
+      permissions: ["captures:read", "ui:panel"],
+      panels: [{ id: "screenshot-panel", title: "Screenshot Panel", entry: "panel.html" }]
+    },
+    requestedPermissions: ["captures:read", "ui:panel"],
+    permissionSummary: ["Read in-scope HTTP/S captures", "Render plugin panels inside the Radar console"],
+    warnings: []
+  };
+}
+
+function pluginFromPreview(preview: PluginInstallPreview): InstalledPlugin {
+  return {
+    id: preview.manifest.id,
+    manifest: preview.manifest,
+    sourcePath: preview.sourcePath,
+    grantedPermissions: [],
+    status: "pending",
+    warnings: preview.warnings,
+    installedAt: "2026-05-25T00:07:00.000Z",
+    updatedAt: "2026-05-25T00:07:00.000Z"
+  };
+}
+
 const radar: RadarApi = {
   getLocalContext: async () => context,
   listLocalProfiles: async () => [context.profile],
@@ -512,6 +552,45 @@ const radar: RadarApi = {
     return workflowRuns[0];
   },
   promoteWorkflowResultToFinding: async () => findings[0],
+  getPlugins: async () => plugins,
+  previewPluginInstall: async (sourcePath) => pluginPreview(sourcePath),
+  installPlugin: async (sourcePath) => {
+    const preview = pluginPreview(sourcePath);
+    const plugin: InstalledPlugin = {
+      id: preview.manifest.id,
+      manifest: preview.manifest,
+      sourcePath: preview.sourcePath,
+      grantedPermissions: [],
+      status: "pending",
+      warnings: preview.warnings,
+      installedAt: "2026-05-25T00:07:00.000Z",
+      updatedAt: "2026-05-25T00:07:00.000Z"
+    };
+    plugins.splice(0, plugins.length, plugin, ...plugins.filter((item) => item.id !== plugin.id));
+    return plugin;
+  },
+  approvePlugin: async (payload) => {
+    const plugin = plugins.find((item) => item.id === payload.id) || pluginFromPreview(pluginPreview("screenshot-plugin"));
+    const approved: InstalledPlugin = {
+      ...plugin,
+      status: "approved",
+      grantedPermissions: payload.permissions.filter((permission) => plugin.manifest.permissions.includes(permission)),
+      updatedAt: "2026-05-25T00:07:01.000Z"
+    };
+    plugins.splice(0, plugins.length, approved, ...plugins.filter((item) => item.id !== approved.id));
+    return approved;
+  },
+  setPluginStatus: async (payload) => {
+    const plugin = plugins.find((item) => item.id === payload.id) || pluginFromPreview(pluginPreview("screenshot-plugin"));
+    const updated = { ...plugin, status: payload.status, updatedAt: "2026-05-25T00:07:02.000Z" };
+    plugins.splice(0, plugins.length, updated, ...plugins.filter((item) => item.id !== updated.id));
+    return updated;
+  },
+  removePlugin: async (id) => {
+    plugins.splice(0, plugins.length, ...plugins.filter((plugin) => plugin.id !== id));
+    return { ok: true, plugins };
+  },
+  runPluginApiAction: async (request) => ({ ok: true, action: request.action, data: [] }),
   getTargets: async () => targets,
   setTargets: async (nextTargets) => {
     targets = nextTargets;
