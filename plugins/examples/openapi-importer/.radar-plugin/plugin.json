@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "openapi-importer",
+  "name": "OpenAPI Importer",
+  "version": "1.0.0",
+  "description": "Reads an operator-selected OpenAPI document and registers scoped workflow definitions.",
+  "author": "Radar",
+  "sdkVersion": "0.1",
+  "minRadarVersion": "0.1.13",
+  "entry": "dist/index.js",
+  "permissions": ["files:read", "workflows:write", "ui:panel"],
+  "panels": [{ "id": "openapi-panel", "title": "OpenAPI Panel", "entry": "panel.html" }]
+}

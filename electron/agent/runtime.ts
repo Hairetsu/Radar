@@ -19,6 +19,7 @@ import type {
   AutomateSession,
   BrowserState,
   CapturedRequest,
+  InstalledPlugin,
   InterceptResponseDraft,
   InterceptState,
   ReplayDraft,
@@ -58,6 +59,7 @@ type AgentRuntimeDeps = {
   listAutomateSessions: () => AutomateSession[];
   listWorkflows: () => WorkflowDefinition[];
   listWorkflowRuns: () => WorkflowRun[];
+  listPlugins: () => InstalledPlugin[];
   runWorkflow: (input: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => Promise<WorkflowRun>;
   sendReplay: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
   waitForNetworkIdle: (input: { idleMs?: number; timeoutMs?: number }) => Promise<{ idle: boolean; waitedMs: number }>;
@@ -772,6 +774,28 @@ export class AgentRuntime {
                 actionCount: run.actionCount,
                 startedAt: run.startedAt,
                 resultCount: run.results.length
+              }))
+            }
+          };
+          break;
+        }
+        case "getPluginInventory": {
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              plugins: this.deps.listPlugins().map((plugin) => ({
+                id: plugin.id,
+                name: plugin.manifest.name,
+                version: plugin.manifest.version,
+                status: plugin.status,
+                requestedPermissions: plugin.manifest.permissions,
+                grantedPermissions: plugin.grantedPermissions,
+                panels: plugin.manifest.panels.map((panel) => ({
+                  id: panel.id,
+                  title: panel.title
+                })),
+                warningCount: plugin.warnings.length
               }))
             }
           };

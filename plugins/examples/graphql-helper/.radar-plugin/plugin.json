@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "graphql-helper",
+  "name": "GraphQL Helper",
+  "version": "1.0.0",
+  "description": "Identifies GraphQL traffic in scoped captures and prepares safe replay drafts for manual review.",
+  "author": "Radar",
+  "sdkVersion": "0.1",
+  "minRadarVersion": "0.1.13",
+  "entry": "dist/index.js",
+  "permissions": ["captures:read", "replay:prepare", "ui:panel"],
+  "panels": [{ "id": "graphql-panel", "title": "GraphQL Panel", "entry": "panel.html" }]
+}

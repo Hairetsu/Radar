@@ -226,6 +226,12 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     schema: {}
   },
   {
+    name: "getPluginInventory",
+    description: "Read approved and installed local plugin inventory, permissions, and panel names without installing, approving, or executing plugins.",
+    safety: "observe",
+    schema: {}
+  },
+  {
     name: "runWorkflow",
     description: "Run an existing workflow by id through the same scoped workflow runtime visible to the operator.",
     safety: "replay",
@@ -233,7 +239,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
   }
 ];
 
-const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "automate", "findings", "workflows", "sitemap", "scope", "ssl"] as const;
+const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "automate", "findings", "workflows", "plugins", "sitemap", "scope", "ssl"] as const;
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -311,6 +317,7 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
     case "listAuthStates":
     case "getAutomateContext":
     case "getWorkflowCatalog":
+    case "getPluginInventory":
       return { tool: call.tool, input: {} };
     case "openBrowser":
     case "navigateBrowser":

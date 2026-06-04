@@ -82,6 +82,12 @@ afterEach(() => {
   vi.mocked(window.radar!.getWorkflowRuns).mockResolvedValue([]);
   vi.mocked(window.radar!.runWorkflow).mockClear();
   vi.mocked(window.radar!.promoteWorkflowResultToFinding).mockClear();
+  vi.mocked(window.radar!.getPlugins).mockResolvedValue([]);
+  vi.mocked(window.radar!.previewPluginInstall).mockClear();
+  vi.mocked(window.radar!.installPlugin).mockClear();
+  vi.mocked(window.radar!.approvePlugin).mockClear();
+  vi.mocked(window.radar!.setPluginStatus).mockClear();
+  vi.mocked(window.radar!.removePlugin).mockClear();
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
       id: "session-test",
@@ -286,6 +292,64 @@ describe("App", () => {
         })
       );
     });
+  });
+
+  it("previews, installs, approves, disables, and removes a local plugin", async () => {
+    const plugin = {
+      id: "jwt-helper",
+      manifest: {
+        schemaVersion: 1 as const,
+        id: "jwt-helper",
+        name: "JWT Helper",
+        version: "1.0.0",
+        description: "Decode token-shaped values.",
+        author: "Radar",
+        sdkVersion: "0.1",
+        minRadarVersion: "",
+        entry: "dist/index.js",
+        permissions: ["captures:read" as const, "ui:panel" as const],
+        panels: [{ id: "token-panel", title: "Token Panel", entry: "panel.html" }]
+      },
+      sourcePath: "/tmp/jwt-helper",
+      grantedPermissions: [],
+      status: "pending" as const,
+      warnings: [],
+      installedAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    };
+    vi.mocked(window.radar!.getPlugins).mockResolvedValueOnce([]).mockResolvedValue([plugin]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-plugins"));
+    fireEvent.change(screen.getByTestId("pluginInstallPath"), { target: { value: "/tmp/jwt-helper" } });
+    fireEvent.click(screen.getByTestId("previewPlugin"));
+
+    expect(await screen.findByTestId("pluginInstallPreview")).toHaveTextContent("JWT Helper");
+    expect(window.radar!.previewPluginInstall).toHaveBeenCalledWith("/tmp/jwt-helper");
+
+    fireEvent.click(screen.getByTestId("installPlugin"));
+    await waitFor(() => expect(window.radar!.installPlugin).toHaveBeenCalledWith("/tmp/jwt-helper"));
+    expect(await screen.findByTestId("pluginRow-jwt-helper")).toHaveTextContent("pending");
+
+    fireEvent.click(screen.getByTestId("approvePlugin-jwt-helper"));
+    await waitFor(() =>
+      expect(window.radar!.approvePlugin).toHaveBeenCalledWith({
+        id: "jwt-helper",
+        permissions: ["captures:read", "ui:panel"]
+      })
+    );
+
+    fireEvent.click(screen.getByTestId("disablePlugin-jwt-helper"));
+    await waitFor(() =>
+      expect(window.radar!.setPluginStatus).toHaveBeenCalledWith({
+        id: "jwt-helper",
+        status: "disabled"
+      })
+    );
+
+    fireEvent.click(screen.getByTestId("removePlugin-jwt-helper"));
+    await waitFor(() => expect(window.radar!.removePlugin).toHaveBeenCalledWith("jwt-helper"));
   });
 
   it("hydrates profiles and http captures when websocket ipc is unavailable", async () => {

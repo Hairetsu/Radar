@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "parameter-miner",
+  "name": "Parameter Miner",
+  "version": "1.0.0",
+  "description": "Reviews scoped HTTP and WebSocket evidence to propose parameter inventory workflows.",
+  "author": "Radar",
+  "sdkVersion": "0.1",
+  "minRadarVersion": "0.1.13",
+  "entry": "dist/index.js",
+  "permissions": ["captures:read", "frames:read", "workflows:write", "ui:panel"],
+  "panels": [{ "id": "parameter-panel", "title": "Parameter Panel", "entry": "panel.html" }]
+}
