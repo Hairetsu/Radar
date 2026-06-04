@@ -4,7 +4,7 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 
 ## MVP Surface
 
-- Sidebar workspace with dedicated HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Scope, and SSL tabs.
+- Sidebar workspace with dedicated HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL tabs.
 - Radar Browser launcher using a supported local Chrome, Edge, Brave, or Chromium binary with a Radar-owned profile and Radar proxy wiring.
 - Persistent local profiles and sessions for separating clients, projects, retests, captures, targets, findings, workflows, plugins, SSL events, WebSocket frames, and AI-First run history.
 - HTTP/S capture history with method/type filters, a scoped traffic query language, saved filters, tags and comments, bulk tag/delete/export, request/response detail search fallback, selectable copyable details, multi-select, right-click request actions, TLS metadata, and source attribution (browser / proxy / repeater).
@@ -17,12 +17,13 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 - Findings inbox with severity, confidence, status, affected assets, evidence references, reproduction, impact, remediation, owner, retest result, common templates, Markdown/HTML report export, and redacted evidence appendices.
 - Workflows surface with built-in passive checks, declarative JSON/YAML-like definitions, scoped active replay/browser checks, saved workflow definitions, session run history, and promotion of warning/failure results into draft findings.
 - Plugins surface for local plugin manifest preview, workspace-local install registry, explicit permission approval, disable/block/remove controls, approved panel inventory, TypeScript SDK/API contracts, and first-party example plugins.
+- Advanced testing surface for GraphQL operation extraction, OpenAPI/Postman preview imports, auth-state matrix review, parameter discovery, local secret detection, header/cache behavior signals, and mobile/thick-client proxy guidance.
 - Scope-filtered HTTP/S and WebSocket evidence for focusing on selected targets.
 - Local HTTPS proxy mode for external browsers, with a Radar-generated CA, SPKI fingerprint, and per-workspace setup notes for browser, CLI, and device clients.
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
 - Manual-First / AI-First mode toggle: keep direct operator control, or hand a scoped goal to an autonomous run console with a live stop button.
 - Command-palette AI with per-view skills, provider adapters, context preview, selectable HTTP/S and WebSocket packets, prepare-only outputs, and session audit trail.
-- AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect run-scoped HTTP/S capture context across redirects, read intercept queues, summarize sitemap coverage, choose visible workflows, read approved plugin inventory, prepare visible traffic queries and intercept edits without forwarding/dropping, recover the controlled browser when CDP drops, send strictly capped replay probes, record timeline entries, and produce durable draft findings inside local session history.
+- AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect run-scoped HTTP/S capture context across redirects, read intercept queues, summarize sitemap coverage, choose visible workflows, read approved plugin inventory, read advanced testing summaries, prepare visible traffic queries and intercept edits without forwarding/dropping, recover the controlled browser when CDP drops, send strictly capped replay probes, record timeline entries, and produce durable draft findings inside local session history.
 - Switchable Bureau, Vellum, and Specter themes with high-contrast text selection for request/response inspection.
 
 ## Stack
@@ -67,7 +68,7 @@ Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* —
 
 ## Workspace Tour
 
-The renderer is an eleven-view operator console with a Manual-First / AI-First toggle. Persistent across all views: a left sidebar with the Radar lockup, profile/session controls, view navigation, live per-view counts, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / ws / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
+The renderer is a twelve-view operator console with a Manual-First / AI-First toggle. Persistent across all views: a left sidebar with the Radar lockup, profile/session controls, view navigation, live per-view counts, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / ws / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
 
 For a full user-facing guide to the app, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
@@ -113,17 +114,23 @@ Repeatable security checks for the active workspace. Operators can run built-in 
 
 Local extension management for Radar's Phase 7 SDK. Preview a folder containing `.radar-plugin/plugin.json` or `plugin.json`, inspect requested permissions and warnings, install it into the active workspace as pending, then explicitly approve only the requested permissions before plugin SDK calls can read scoped evidence, create draft findings, prepare/send scoped replay, or work with saved workflows. Disable, block, or remove installed plugins from the same view. Approved plugin panels are listed in the console; live plugin execution remains behind the SDK/API permission boundary. First-party examples live under `plugins/examples/`.
 
-### 09 — Sitemap
+### 09 — Advanced
+
+![Radar Advanced view](docs/screens/radar-09-advanced.png)
+
+Advanced API and auth testing helpers for the active scoped evidence. Radar extracts GraphQL operations from HTTP/S requests and WebSocket frames, previews OpenAPI/Postman JSON imports into draft replay templates and sitemap seeds, groups observed anonymous/authenticated status behavior into an auth matrix, discovers parameters across query/body/cookies/headers/frames, detects secret-shaped response data locally with masked previews, flags cache/header behavior signals, and keeps mobile/thick-client proxy guidance near the evidence. Import preview is text-only and does not transmit traffic.
+
+### 10 — Sitemap
 
 Host, path, and endpoint map for scoped HTTP/S traffic in the active session. The left tree groups hosts, paths, and method/status families. Selecting an endpoint opens inventory details for discovered query params, JSON/form keys, content types, and auth signals, or jumps straight into a matching HTTP(S) query. The right pane includes session diff: pick an earlier session under the same profile, compare endpoint coverage, and review added, removed, status-changed, header-changed, and response-shape changes. Example queries are listed for quick reuse in the HTTP(S) tab.
 
-### 10 — Scope
+### 11 — Scope
 
 ![Radar Scope view](docs/screens/radar-03-scope.png)
 
 The engagement boundary. Newline-delimited origins filter HTTP/S captures and WebSocket frame visibility; defaults are local development origins. WebSocket URLs match equivalent HTTP origins, so `https://example.test` brings `wss://example.test` evidence into scope. Edit and **Commit** to persist. The **AI command palette** strip below the editor opens the same palette as **⌘K** / **Ctrl+K** or the **AI** button in the panel header.
 
-### 11 — SSL
+### 12 — SSL
 
 ![Radar SSL / Proxy view](docs/screens/radar-04-ssl.png)
 
@@ -137,9 +144,9 @@ Use the sidebar profile/session panel to create, rename, save, and load profiles
 
 ### Modes — Manual-First And AI-First
 
-Manual-First is the default. The HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Scope, and SSL views remain the primary controls, and the AI command palette stays prepare-only: it can summarize, draft, and suggest, but the operator clicks navigation, intercept, replay, Automate execution, workflow definition changes, plugin approval, finding review, and export controls.
+Manual-First is the default. The HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL views remain the primary controls, and the AI command palette stays prepare-only: it can summarize, draft, and suggest, but the operator clicks navigation, intercept, replay, Automate execution, workflow definition changes, plugin approval, import/replay use, finding review, and export controls.
 
-AI-First adds a goal prompt and autonomous run console above the existing views. A run can move the visible workbench through Scope, HTTP(S), WebSocket, Intercept, Repeater, Automate, Workflows, Plugins, Sitemap, and SSL, launch or inspect the browser, sample captures, summarize sitemap coverage, choose existing workflows by id, read approved plugin inventory, prepare traffic queries into the visible filter bar, read queued intercept items, load visible intercept edit drafts, load replay drafts, prepare visible Automate payload/rule controls, analyze existing Automate results, send a single capped replay probe, and write draft findings into the durable Findings inbox. Intercept forwarding, dropping, Automate session execution, workflow editing, plugin install/approval/execution, finding review, and export remain Manual-First operator actions. The operator watches the timeline and can hit **Stop** at any time.
+AI-First adds a goal prompt and autonomous run console above the existing views. A run can move the visible workbench through Scope, HTTP(S), WebSocket, Intercept, Repeater, Automate, Workflows, Plugins, Advanced, Sitemap, and SSL, launch or inspect the browser, sample captures, summarize sitemap coverage, choose existing workflows by id, read approved plugin inventory, read Advanced testing summaries, prepare traffic queries into the visible filter bar, read queued intercept items, load visible intercept edit drafts, load replay drafts, prepare visible Automate payload/rule controls, analyze existing Automate results, send a single capped replay probe, and write draft findings into the durable Findings inbox. Intercept forwarding, dropping, Automate session execution, workflow editing, plugin install/approval/execution, Advanced import/replay actions, finding review, and export remain Manual-First operator actions. The operator watches the timeline and can hit **Stop** at any time.
 
 ### AI — Command Palette
 
@@ -217,7 +224,7 @@ electron/
   screenshot.ts   Headless screenshot runner for README assets
   ai/             Provider adapters, context builder, connect presets, audit trail
 src/
-  App.tsx         Bureau-style operator console (8 views + AI palette)
+  App.tsx         Bureau-style operator console (12 views + AI palette)
   ai/             Command palette UI and AI types
   components/
     ui/           shadcn-style primitives (Button, Input, Select, Textarea)

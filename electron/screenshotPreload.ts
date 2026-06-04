@@ -184,6 +184,36 @@ const captures: CapturedRequest[] = [
     tls: null
   },
   {
+    id: "cap-graphql",
+    startedAt: "2026-05-25T00:00:06.000Z",
+    method: "POST",
+    url: "http://localhost:3000/graphql",
+    host: "localhost:3000",
+    path: "/graphql",
+    requestHeaders: {
+      Authorization: "Bearer screenshot-token",
+      "Content-Type": "application/json",
+      Origin: "http://localhost:3000",
+      "X-Forwarded-Host": "audit.local"
+    },
+    requestBody: "{\"operationName\":\"ListUsers\",\"query\":\"query ListUsers($role: String) { users(role: $role) { id email } }\",\"variables\":{\"role\":\"admin\"}}",
+    status: 200,
+    statusText: "OK",
+    mimeType: "application/json",
+    type: "Fetch",
+    responseHeaders: {
+      "content-type": "application/json",
+      "cache-control": "public, max-age=3600",
+      "access-control-allow-origin": "http://localhost:3000"
+    },
+    responseBody: "{\"data\":{\"users\":[]},\"debugToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzY3JlZW5zaG90In0.Signature123\"}",
+    durationMs: 104,
+    encodedDataLength: 128,
+    allowed: true,
+    source: "browser",
+    tls: null
+  },
+  {
     id: "cap-page",
     startedAt: "2026-05-25T00:00:02.000Z",
     method: "GET",

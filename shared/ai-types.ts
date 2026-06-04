@@ -13,6 +13,7 @@ export type AiWorkView =
   | "findings"
   | "workflows"
   | "plugins"
+  | "advanced"
   | "sitemap"
   | "scope"
   | "ssl";

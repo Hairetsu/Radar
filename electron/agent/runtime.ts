@@ -26,9 +26,11 @@ import type {
   ReplayEnvironment,
   ReplayResult,
   ReplayTabState,
+  WebSocketEvent,
   WorkflowDefinition,
   WorkflowRun
 } from "../../shared/domain.js";
+import { buildAdvancedTestingSummary } from "../../shared/advancedTesting.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeDraft } from "../../shared/draft.js";
@@ -50,6 +52,7 @@ type AgentRuntimeDeps = {
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
   getCaptures: () => CapturedRequest[];
+  getWebSocketEvents: () => WebSocketEvent[];
   getInterceptState: () => InterceptState;
   getReplayTabState: () => ReplayTabState;
   setReplayTabState: (state: ReplayTabState) => ReplayTabState;
@@ -798,6 +801,17 @@ export class AgentRuntime {
                 warningCount: plugin.warnings.length
               }))
             }
+          };
+          break;
+        }
+        case "getAdvancedTestingSummary": {
+          const activeAllowlist = this.deps.allowlist();
+          const captures = runCaptures(run, this.deps.getCaptures(), activeAllowlist, "");
+          const frames = this.deps.getWebSocketEvents().filter((event) => isAllowedTarget(event.url, activeAllowlist));
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: buildAdvancedTestingSummary(captures, frames)
           };
           break;
         }

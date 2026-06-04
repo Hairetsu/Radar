@@ -1,8 +1,8 @@
 # Radar User Guide
 
-Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, running bounded payload-marker tests, running repeatable workflows, managing local plugins, creating evidence-backed findings and reports, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only for risky actions; AI-First lets a scoped agent choose bounded tools while you watch.
+Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, running bounded payload-marker tests, running repeatable workflows, managing local plugins, reviewing advanced API/auth signals, creating evidence-backed findings and reports, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only for risky actions; AI-First lets a scoped agent choose bounded tools while you watch.
 
-This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, plugins, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
+This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, plugins, advanced testing helpers, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
 
 ## Table Of Contents
 
@@ -22,6 +22,7 @@ This guide covers the app as it exists now: the main console, profiles and sessi
 - [Findings](#findings)
 - [Workflows](#workflows)
 - [Plugins](#plugins)
+- [Advanced Testing](#advanced-testing)
 - [SSL And Proxy](#ssl-and-proxy)
 - [AI Command Palette](#ai-command-palette)
 - [Appearance](#appearance)
@@ -47,6 +48,7 @@ Use Radar when you need a controlled local workbench for authorized web security
 - Create durable findings with evidence references, retest notes, and Markdown/HTML report export.
 - Save and rerun declarative workflows for passive checks and selected scoped active replay checks.
 - Install local plugins from disk with explicit permission approval and SDK/API boundaries.
+- Review GraphQL, imported API definitions, auth-state behavior, parameter inventory, local secret signals, cache/header behavior, and proxy guidance from scoped evidence.
 - Review proxy, certificate, and TLS signals.
 - Ask AI for summaries, report notes, checklist ideas, safe repeater drafts, browser exploration suggestions, TLS review, WebSocket frame analysis, or a bounded AI-First run.
 
@@ -67,6 +69,7 @@ Radar is designed for defensive, authorized work.
 - Automate execution is Manual-First only. AI-First can prepare visible payload/rule controls and analyze existing results, but it cannot start invisible payload runs.
 - Workflow execution always uses saved workflow definitions, scope policy, and caps. AI-First can choose existing workflows by id; it cannot invent hidden workflow behavior.
 - Plugin install, approval, disable/block/remove, and live execution are Manual-First operator actions. AI-First can read approved plugin inventory but cannot approve plugins, widen permissions, or run hidden plugin actions.
+- Advanced testing import previews are Manual-First and text-only. AI-First can read a local Advanced summary, but it cannot import files, create replay traffic, or run imported requests invisibly.
 - Finding export is Manual-First only. Evidence appendices are redacted by default, and raw evidence requires an explicit export toggle.
 
 Use Radar only on systems, domains, and environments where you have permission to test.
@@ -131,7 +134,7 @@ Useful source commands:
 
 ## Main Console Tour
 
-Radar opens into an eleven-view operator console.
+Radar opens into an twelve-view operator console.
 
 Persistent areas:
 
@@ -154,9 +157,10 @@ Views:
 | **06 Findings** | Evidence-backed findings inbox, templates, retest tracking, and Markdown/HTML report export. |
 | **07 Workflows** | Built-in and saved declarative checks, scoped run history, and result promotion to Findings. |
 | **08 Plugins** | Local plugin manifest preview, permission approval, registry controls, SDK/API boundary, and panel inventory. |
-| **09 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
-| **10 Scope** | Engagement boundary and target allowlist. |
-| **11 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
+| **09 Advanced** | GraphQL review, API import preview, auth matrix, parameter discovery, local secret detection, header behavior, and proxy guidance. |
+| **10 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
+| **11 Scope** | Engagement boundary and target allowlist. |
+| **12 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
 
 ## Profiles And Sessions
 
@@ -225,7 +229,7 @@ http://[::1]:*
 
 ### Add Targets
 
-Open **10 Scope**, then enter one target per line:
+Open **11 Scope**, then enter one target per line:
 
 ```text
 https://staging.example.com
@@ -450,7 +454,7 @@ Click the eraser icon in the WebSocket panel header. This clears WebSocket frame
 
 Sitemap is the host, path, and endpoint map for scoped HTTP/S traffic in the active session.
 
-Open **09 Sitemap** to browse discovered structure without leaving Radar.
+Open **10 Sitemap** to browse discovered structure without leaving Radar.
 
 ### Tree Navigation
 
@@ -934,6 +938,107 @@ Each example includes `.radar-plugin/plugin.json`, `dist/index.js`, and `panel.h
 
 AI-First can switch to **08 Plugins** and read installed plugin inventory through `getPluginInventory`. It cannot install plugins, approve plugins, change permission grants, disable/remove plugins, or execute plugin SDK/API actions invisibly.
 
+## Advanced Testing
+
+Advanced Testing is the local API/auth signal surface for scoped evidence. It does not send traffic by itself. It turns captured HTTP/S requests and WebSocket frames into reviewable helper outputs that can inform Repeater, Workflows, Findings, or manual notes.
+
+Open **09 Advanced** to review:
+
+![Radar Advanced view](screens/radar-09-advanced.png)
+
+- GraphQL operations, transport, variables, batching, and introspection signals.
+- OpenAPI or Postman JSON pasted into a text-only import preview.
+- Auth matrix rows grouped by method, host, path, anonymous status, and authenticated status.
+- Parameters discovered across query strings, JSON bodies, forms, multipart fields, cookies, headers, GraphQL variables, and WebSocket JSON payloads.
+- Secret-shaped response or frame data detected locally with masked previews.
+- Cache, CORS, host-header, redirect, and cache-poisoning behavior signals.
+- Mobile, thick-client, and CLI proxy guidance tied to Radar's explicit proxy setup.
+
+### GraphQL Review
+
+Radar extracts GraphQL operations from scoped HTTP/S captures and WebSocket frames when the request path, content type, or JSON payload is GraphQL-shaped. Each row shows the operation name, type, transport, path, variable count, batching flag, and introspection flag.
+
+Use this to find:
+
+- Introspection attempts or responses involving `__schema` or `__type`.
+- Mutations that deserve authorization review.
+- Batched operations that may need rate-limit or authorization checks.
+- Variables that should be promoted to Repeater or Automate for manual testing.
+
+### API Import Preview
+
+Paste OpenAPI or Postman JSON into the import field. Radar previews:
+
+- Draft replay templates.
+- Sitemap seed strings such as `GET /users/{id}`.
+- Import source type and parse errors.
+- Operation tags and request paths.
+
+The preview is not a file import, collection save, or replay action. It does not transmit requests. Copy or recreate useful drafts manually in Repeater or Workflows after reviewing headers and bodies.
+
+### Auth Matrix
+
+The auth matrix groups observed captures by method, host, and normalized path. It compares anonymous, bearer, basic, cookie, and mixed-auth observations when they exist.
+
+Verdicts:
+
+| Verdict | Meaning |
+| --- | --- |
+| **protected** | Anonymous traffic was denied and authenticated traffic succeeded. |
+| **public** | Anonymous and authenticated traffic both succeeded. |
+| **auth-change** | Different auth states produced different status behavior. |
+| **observed** | Only one auth state was seen. |
+| **ambiguous** | Multiple states were seen, but the status pattern is not conclusive. |
+
+Use the matrix as a triage surface, not proof. Confirm interesting rows manually in Repeater or with a saved workflow.
+
+### Parameter Discovery
+
+Parameter discovery is local and evidence-driven. Radar records parameter names, locations, hit counts, hosts, endpoints, and examples. It can discover:
+
+- Query parameters.
+- JSON body keys, including nested dotted paths.
+- URL-encoded form fields.
+- Multipart field names.
+- Cookie names.
+- Non-default request header names.
+- GraphQL variables.
+- WebSocket JSON keys.
+
+Use parameter names to decide where to add explicit Automate markers or where a workflow should focus.
+
+### Local Secret Signals
+
+Secret detection scans scoped response bodies, selected response headers, and WebSocket payloads with local-only rules. Previews are masked before display. Radar currently flags secret-shaped content such as private keys, AWS access keys, JWTs, Stripe keys, Slack tokens, and generic token/secret assignments.
+
+These signals are not sent to AI unless you explicitly include raw context elsewhere. Treat detections as review leads and confirm against the selected capture or frame before creating a finding.
+
+### Header And Cache Behavior
+
+The header behavior panel surfaces local observations that may deserve manual testing:
+
+- Sensitive-looking responses without defensive `Cache-Control`.
+- Authenticated responses with cacheable directives.
+- Reflected CORS origins without `Vary: Origin`.
+- Host override values reflected in redirects or body content.
+- Cross-host redirects.
+
+Use these as bounded review hints. Active cache-poisoning or header-behavior probes still belong in Repeater or a scoped workflow the operator runs visibly.
+
+### Proxy Guidance
+
+The proxy guidance panel summarizes safe setup steps for:
+
+- Mobile devices.
+- Thick clients and desktop SDKs.
+- CLI and API tooling.
+
+Use it alongside **12 SSL** proxy details and profile notes. Radar still requires explicit proxy configuration and manual CA trust; it does not install certificates or run invisible proxy experiments.
+
+### AI-First Visibility
+
+AI-First can switch to **09 Advanced** and call `getAdvancedTestingSummary`. The tool reads scoped local evidence and returns GraphQL, import-preview, auth matrix, parameter, secret, header behavior, and proxy guidance summaries. It cannot paste import JSON, import files, save collections, send imported requests, or run active probes.
+
 ## SSL And Proxy
 
 SSL shows proxy controls, generated CA details, certificate events, and TLS metadata.
@@ -981,7 +1086,7 @@ This avoids changing system trust settings.
 
 Use this when you want another browser or tool to route traffic through Radar.
 
-1. Open **11 SSL**.
+1. Open **12 SSL**.
 2. Click **Engage Proxy**.
 3. Copy the displayed proxy URL.
 4. Configure your browser or tool to use that proxy.
@@ -1009,7 +1114,7 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 ## Manual-First And AI-First Modes
 
-Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, finding review, or exports.
+Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, advanced testing review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, Advanced import/replay actions, finding review, or exports.
 
 Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt and run console above the normal views. Enter a scoped goal such as:
 
@@ -1021,7 +1126,7 @@ When a run starts, Radar records a live timeline. The agent chooses one tool act
 
 Available AI-First tools:
 
-- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Scope, and SSL.
+- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL.
 - `getBrowserState` reads the launched browser state.
 - `openBrowser` and `navigateBrowser` drive in-scope browser navigation.
 - `waitForNetworkIdle` waits for captured HTTP/S traffic to settle after navigation.
@@ -1041,6 +1146,7 @@ Available AI-First tools:
 - `getWorkflowCatalog` reads built-in and saved workflow definitions without running checks.
 - `runWorkflow` runs an existing workflow by id through the same scoped workflow runtime and records visible run history.
 - `getPluginInventory` reads installed plugin status, requested permissions, granted permissions, warnings, and panel names without approving or executing plugins.
+- `getAdvancedTestingSummary` reads local GraphQL, API import-preview, auth matrix, parameter, secret, header behavior, and proxy guidance summaries without importing files or sending traffic.
 - `sendReplay` sends one policy-capped replay draft.
 - `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
 
@@ -1059,6 +1165,7 @@ AI-First runs are intentionally bounded:
 - Automate execution is not available to AI-First. AI can prepare visible Automate controls and analyze existing results, but payload runs remain Manual-First operator actions.
 - AI-First workflow runs must choose an existing workflow id. Active workflow requests consume the autonomous replay budget and appear in **07 Workflows** run history.
 - AI-First plugin visibility is read-only. It can inspect **08 Plugins** inventory, but plugin install, approval, permission changes, and SDK/API execution remain Manual-First.
+- AI-First Advanced visibility is read-only. It can inspect **09 Advanced** summaries, but import preview edits, imported replay use, and active probes remain Manual-First.
 - AI-First findings are saved into **06 Findings** as drafts with local evidence references. Review, status changes, retest results, and exports remain Manual-First.
 - Burst replay is not part of the first autonomous slice.
 - Invalid planner output fails the run instead of switching to heuristics.
@@ -1091,6 +1198,7 @@ AI features are view-aware.
 | Findings | Report Notes, Capture Summary |
 | Workflows | Scope Checklist, Report Notes |
 | Plugins | Report Notes |
+| Advanced | Capture Summary, Report Notes, Scope Checklist |
 | Sitemap | Capture Summary, Report Notes |
 | Scope | Scope Checklist, Browser Helper |
 | SSL | TLS Review |
@@ -1259,7 +1367,7 @@ Privacy notes:
 
 ### Capture A Staging Target
 
-1. Open **10 Scope**.
+1. Open **11 Scope**.
 2. Add the staging origin, for example:
 
 ```text
@@ -1273,11 +1381,11 @@ https://staging.example.com
 
 ### Use An External Browser
 
-1. Open **11 SSL**.
+1. Open **12 SSL**.
 2. Click **Engage Proxy**.
 3. Configure the external browser to use the displayed proxy URL.
 4. For HTTPS, manually trust the displayed CA certificate in that browser.
-5. Add the target origin in **10 Scope**.
+5. Add the target origin in **11 Scope**.
 6. Browse the target.
 7. Inspect matching captures in **01 HTTP(S)** or matching frames in **02 WebSocket**.
 
@@ -1323,7 +1431,7 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 
 1. Switch the top shell toggle from **Manual-First** to **AI-First**.
 2. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
-3. Click **Start Run**. Radar saves the goal's target origin into **10 Scope** before the agent chooses tools.
+3. Click **Start Run**. Radar saves the goal's target origin into **11 Scope** before the agent chooses tools.
 4. Watch the tool/action timeline update until the agent returns `finish`.
 5. Click **Stop** if the run should halt.
 6. Review draft findings in **06 Findings** before using them.
@@ -1365,7 +1473,7 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 ### Map Endpoints With Sitemap
 
 1. Capture traffic in **01 HTTP(S)** under the active scope.
-2. Open **09 Sitemap**.
+2. Open **10 Sitemap**.
 3. Browse hosts and paths in the tree.
 4. Select an endpoint to review query params, body keys, and auth signals.
 5. Optionally pick an earlier session in the session diff panel to compare coverage.
@@ -1382,13 +1490,24 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 7. Confirm approved panels appear in the panel inventory.
 8. Disable, block, or remove the plugin when it is no longer needed for the active workspace.
 
+### Review Advanced API Signals
+
+1. Capture target traffic under **11 Scope**.
+2. Open **09 Advanced**.
+3. Review GraphQL operations for mutations, batching, variables, and introspection.
+4. Paste OpenAPI or Postman JSON if you want text-only replay-template and sitemap-seed previews.
+5. Use the auth matrix to identify public, protected, and changed endpoint behavior.
+6. Review parameter discovery before adding explicit Automate markers.
+7. Confirm local secret or header/cache behavior signals against the original capture or frame.
+8. Move confirmed hypotheses into Repeater, Workflows, or Findings manually.
+
 ## Troubleshooting
 
 ### No HTTP/S Traffic Appears
 
 Check:
 
-- The target URL is in **10 Scope**.
+- The target URL is in **11 Scope**.
 - You clicked **Commit** after editing scope.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -1399,7 +1518,7 @@ Check:
 
 Check:
 
-- The WebSocket URL is in **10 Scope** or matches an equivalent HTTP/S origin in scope.
+- The WebSocket URL is in **11 Scope** or matches an equivalent HTTP/S origin in scope.
 - The app is using `ws://` or `wss://`, not long-polling HTTP.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -1421,7 +1540,7 @@ Radar needs a supported local browser. Install Chrome, Edge, Brave, or Chromium.
 
 ### HTTPS Pages Fail In An External Browser
 
-For external browsers, you must manually trust Radar's generated CA certificate. Open **11 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
+For external browsers, you must manually trust Radar's generated CA certificate. Open **12 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
 
 Radar does not install this certificate automatically.
 
@@ -1477,9 +1596,29 @@ Check:
 
 - The plugin status is **approved**, not **pending**, **disabled**, or **blocked**.
 - The manifest requested the permission needed for the action, such as `captures:read` or `replay:send`.
-- The target evidence is in **10 Scope**.
+- The target evidence is in **11 Scope**.
 - Panels only appear when the manifest has a valid panel entry and `ui:panel` permission.
 - Live plugin actions remain Manual-First; AI-First can only read plugin inventory.
+
+### Advanced Panels Are Empty
+
+Check:
+
+- The relevant HTTP/S captures or WebSocket frames are in **11 Scope**.
+- GraphQL extraction needs GraphQL-shaped paths, content types, or JSON payloads with a `query` field.
+- Auth matrix rows need at least one captured request for an endpoint; useful comparisons need more than one auth state.
+- Secret and header behavior panels only show local rule matches, not proof of impact.
+- Import preview only reads pasted OpenAPI or Postman JSON.
+
+### API Import Preview Fails
+
+Check:
+
+- The pasted document is valid JSON.
+- OpenAPI documents include `openapi` or `swagger` and a `paths` object.
+- Postman collections include `info` and `item`.
+- Imported request URLs may be relative when the source document has no server/base URL.
+- Previewed templates are not transmitted automatically; use Repeater or Workflows manually after review.
 
 ### AI Is Not Connected
 
@@ -1497,7 +1636,7 @@ Check:
 
 - AI settings are connected.
 - The goal includes a URL, domain, or the address bar contains the target you want to inspect.
-- If relying on the address bar instead of a goal target, the target origin is saved in **10 Scope**.
+- If relying on the address bar instead of a goal target, the target origin is saved in **11 Scope**.
 - The run timeline does not show invalid planner output, a policy block, or an AI provider error.
 - The run has not been stopped by switching back to Manual-First.
 
@@ -1552,6 +1691,10 @@ Keep raw context off unless you need exact headers or bodies.
 | Plugin manifest | The plugin's local `plugin.json` contract declaring id, version, entry path, panels, and requested permissions. |
 | Plugin panel | A manifest-declared panel entry that appears in the Plugins view after approval. |
 | Plugin SDK | The typed extension API for bounded capture reads, frame reads, replay preparation/sending, finding drafts, and workflow operations. |
+| Advanced testing summary | A local read-only analysis of scoped GraphQL, import-preview, auth matrix, parameter, secret, header behavior, and proxy guidance signals. |
+| API import preview | A text-only OpenAPI or Postman JSON preview that creates draft replay-template and sitemap-seed suggestions without sending traffic. |
+| Auth matrix | A grouped comparison of observed endpoint status behavior across anonymous, bearer, basic, cookie, and mixed-auth requests. |
+| Local secret signal | A masked local rule match for secret-shaped response or WebSocket data; it is a review lead, not a confirmed finding. |
 | Finding | A local reviewed or draft security observation with severity, confidence, status, narrative fields, and evidence references. |
 | Evidence reference | A stable local pointer such as `capture:id`, `websocket:id`, `replay:id`, `automate:sessionId:resultId`, `workflow:runId:resultId`, or `ai:runId`. |
 | Evidence appendix | Report export section generated from finding evidence references. Appendix metadata is redacted by default. |

@@ -26,7 +26,8 @@ describe("agent tools", () => {
         "analyzeAutomateResults",
         "getWorkflowCatalog",
         "runWorkflow",
-        "getPluginInventory"
+        "getPluginInventory",
+        "getAdvancedTestingSummary"
       ])
     );
     expect(toolSchemas()).toHaveProperty("getDomSummary");
@@ -140,6 +141,10 @@ describe("agent tools", () => {
     });
     expect(normalizeAgentToolCall({ tool: "getPluginInventory", input: { ignored: true } })).toEqual({
       tool: "getPluginInventory",
+      input: {}
+    });
+    expect(normalizeAgentToolCall({ tool: "getAdvancedTestingSummary", input: { ignored: true } })).toEqual({
+      tool: "getAdvancedTestingSummary",
       input: {}
     });
     expect(
