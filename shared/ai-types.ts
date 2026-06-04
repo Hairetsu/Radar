@@ -12,6 +12,7 @@ export type AiWorkView =
   | "automate"
   | "findings"
   | "workflows"
+  | "plugins"
   | "sitemap"
   | "scope"
   | "ssl";

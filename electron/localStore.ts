@@ -14,6 +14,7 @@ import type {
   CapturedRequest,
   EvidenceAnnotation,
   Finding,
+  InstalledPlugin,
   InterceptRule,
   LocalContext,
   LocalProfile,
@@ -41,6 +42,7 @@ import {
 } from "../shared/automate.js";
 import { normalizeEvidenceAnnotation, normalizeEvidenceAnnotations } from "../shared/evidenceTags.js";
 import { MAX_FINDINGS, normalizeFinding, normalizeFindings } from "../shared/findings.js";
+import { approveInstalledPlugin, MAX_PLUGINS, normalizeInstalledPlugin, normalizeInstalledPlugins } from "../shared/plugins.js";
 import { normalizeReplayCollections } from "../shared/replayCollections.js";
 import { normalizeReplayEnvironments } from "../shared/replayVariables.js";
 import { normalizeReplayTabState } from "../shared/replayTabs.js";
@@ -178,6 +180,10 @@ type WorkflowRunRow = {
   id: string;
   started_at: string;
   run_json: string;
+};
+
+type PluginRow = {
+  plugin_json: string;
 };
 
 function nowIso() {
@@ -686,6 +692,14 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (workspace_id, position)
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_plugins (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      plugin_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, plugin_id)
+    );
+
     CREATE TABLE IF NOT EXISTS session_automate_sessions (
       session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       id TEXT NOT NULL,
@@ -728,6 +742,8 @@ export function openLocalStore(userDataPath: string) {
       ON session_findings(session_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workflow_runs_session_started
       ON session_workflow_runs(session_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_plugins_updated
+      ON workspace_plugins(workspace_id, updated_at DESC);
   `);
 
   const captureColumns = new Set(
@@ -1256,6 +1272,68 @@ export function openLocalStore(userDataPath: string) {
     return next;
   };
 
+  const listPlugins = (workspaceId: string) => {
+    const rows = db
+      .prepare("SELECT plugin_json FROM workspace_plugins WHERE workspace_id = ? ORDER BY updated_at DESC, plugin_id ASC")
+      .all(workspaceId) as PluginRow[];
+    return normalizeInstalledPlugins(
+      rows.map((row) => parseJsonObject<InstalledPlugin | null>(row.plugin_json, null)).filter(Boolean)
+    );
+  };
+
+  const getPlugin = (workspaceId: string, pluginId: string) => {
+    const row = db
+      .prepare("SELECT plugin_json FROM workspace_plugins WHERE workspace_id = ? AND plugin_id = ?")
+      .get(workspaceId, pluginId) as PluginRow | undefined;
+    return row ? normalizeInstalledPlugin(parseJsonObject<InstalledPlugin | null>(row.plugin_json, null)) : null;
+  };
+
+  const upsertPlugin = (workspaceId: string, input: InstalledPlugin) => {
+    const plugin = normalizeInstalledPlugin(input);
+    if (!plugin) {
+      throw new Error("Plugin record was invalid.");
+    }
+    if (listPlugins(workspaceId).length >= MAX_PLUGINS && !getPlugin(workspaceId, plugin.id)) {
+      throw new Error("Plugin registry is full.");
+    }
+    db.prepare(`
+      INSERT INTO workspace_plugins (workspace_id, plugin_id, updated_at, plugin_json)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(workspace_id, plugin_id) DO UPDATE SET
+        updated_at = excluded.updated_at,
+        plugin_json = excluded.plugin_json
+    `).run(workspaceId, plugin.id, plugin.updatedAt, JSON.stringify(plugin));
+    db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(plugin.updatedAt, workspaceId);
+    return plugin;
+  };
+
+  const approvePlugin = (workspaceId: string, pluginId: string, grantedPermissions: unknown) => {
+    const plugin = getPlugin(workspaceId, pluginId);
+    if (!plugin) {
+      throw new Error("Plugin was not found.");
+    }
+    return upsertPlugin(workspaceId, approveInstalledPlugin(plugin, Array.isArray(grantedPermissions) ? grantedPermissions : []));
+  };
+
+  const setPluginStatus = (workspaceId: string, pluginId: string, status: InstalledPlugin["status"]) => {
+    const plugin = getPlugin(workspaceId, pluginId);
+    if (!plugin) {
+      throw new Error("Plugin was not found.");
+    }
+    const nextStatus = status === "approved" || status === "disabled" || status === "blocked" ? status : "pending";
+    return upsertPlugin(workspaceId, {
+      ...plugin,
+      status: nextStatus,
+      updatedAt: nowIso()
+    });
+  };
+
+  const deletePlugin = (workspaceId: string, pluginId: string) => {
+    db.prepare("DELETE FROM workspace_plugins WHERE workspace_id = ? AND plugin_id = ?").run(workspaceId, pluginId);
+    db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+    return listPlugins(workspaceId);
+  };
+
   const listAutomateSessions = (sessionId: string, limit = 25) => {
     const rows = db
       .prepare(
@@ -1700,6 +1778,12 @@ export function openLocalStore(userDataPath: string) {
     setWorkflowDefinitions,
     upsertWorkflowDefinition,
     deleteWorkflowDefinition,
+    listPlugins,
+    getPlugin,
+    upsertPlugin,
+    approvePlugin,
+    setPluginStatus,
+    deletePlugin,
     listAutomateSessions,
     getAutomateSession,
     upsertAutomateSession,

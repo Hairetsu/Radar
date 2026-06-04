@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "jwt-helper",
+  "name": "JWT Helper",
+  "version": "1.0.0",
+  "description": "Reviews token-shaped values in scoped captures and exposes a compact token panel.",
+  "author": "Radar",
+  "sdkVersion": "0.1",
+  "minRadarVersion": "0.1.13",
+  "entry": "dist/index.js",
+  "permissions": ["captures:read", "ui:panel"],
+  "panels": [{ "id": "token-panel", "title": "Token Panel", "entry": "panel.html" }]
+}

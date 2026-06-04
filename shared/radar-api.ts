@@ -38,12 +38,18 @@ import type {
   Finding,
   FindingReport,
   FindingReportOptions,
+  InstalledPlugin,
   SslEvent,
   WebSocketEvent,
   WebSocketReplayDraft,
   WebSocketReplayResult,
   WorkflowDefinition,
-  WorkflowRun
+  WorkflowRun,
+  PluginInstallPreview,
+  PluginInstallStatus,
+  PluginPermission,
+  PluginApiRequest,
+  PluginApiResult
 } from "./domain.js";
 import type { AgentRun, AgentRunRequest } from "./agent-types.js";
 
@@ -119,6 +125,13 @@ export type RadarApi = {
   getWorkflowRuns: () => Promise<WorkflowRun[]>;
   runWorkflow: (payload: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => Promise<WorkflowRun>;
   promoteWorkflowResultToFinding: (payload: { runId: string; resultId: string }) => Promise<Finding>;
+  getPlugins: () => Promise<InstalledPlugin[]>;
+  previewPluginInstall: (sourcePath: string) => Promise<PluginInstallPreview>;
+  installPlugin: (sourcePath: string) => Promise<InstalledPlugin>;
+  approvePlugin: (payload: { id: string; permissions: PluginPermission[] }) => Promise<InstalledPlugin>;
+  setPluginStatus: (payload: { id: string; status: PluginInstallStatus }) => Promise<InstalledPlugin>;
+  removePlugin: (id: string) => Promise<{ ok: boolean; plugins: InstalledPlugin[] }>;
+  runPluginApiAction: (request: PluginApiRequest) => Promise<PluginApiResult>;
   getTargets: () => Promise<string[]>;
   setTargets: (targets: string[]) => Promise<string[]>;
   sendReplay: (payload: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;

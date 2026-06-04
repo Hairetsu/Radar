@@ -60,6 +60,7 @@ import type {
   FindingReport,
   FindingReportOptions,
   FindingTemplateId,
+  InstalledPlugin,
   InterceptQueueItem,
   InterceptResponseDraft,
   InterceptRule,
@@ -89,7 +90,10 @@ import type {
   AutomateResult,
   AutomateSession,
   WorkflowDefinition,
-  WorkflowRun
+  WorkflowRun,
+  PluginInstallPreview,
+  PluginPermission,
+  PluginInstallStatus
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
@@ -103,6 +107,7 @@ export type WorkView =
   | "automate"
   | "findings"
   | "workflows"
+  | "plugins"
   | "scope"
   | "ssl"
   | "sitemap";
@@ -115,6 +120,7 @@ export const WORK_VIEWS: WorkView[] = [
   "automate",
   "findings",
   "workflows",
+  "plugins",
   "sitemap",
   "scope",
   "ssl"
@@ -237,9 +243,10 @@ export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: s
   automate: { num: "05", label: "Automate", eyebrow: "Payloads // Bounded runs", title: "Automate" },
   findings: { num: "06", label: "Findings", eyebrow: "Evidence // Report builder", title: "Findings" },
   workflows: { num: "07", label: "Workflows", eyebrow: "Checks // Repeatable runs", title: "Workflows" },
-  sitemap: { num: "08", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
-  scope: { num: "09", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "10", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
+  plugins: { num: "08", label: "Plugins", eyebrow: "SDK // Local extensions", title: "Plugins" },
+  sitemap: { num: "09", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
+  scope: { num: "10", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "11", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -431,6 +438,9 @@ export function useRadarWorkbench() {
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [selectedWorkflowRunId, setSelectedWorkflowRunId] = useState("");
+  const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
+  const [pluginInstallPath, setPluginInstallPath] = useState("");
+  const [pluginInstallPreview, setPluginInstallPreview] = useState<PluginInstallPreview | null>(null);
   const [selectedSitemapNodeId, setSelectedSitemapNodeId] = useState("");
   const [diffBaselineSessionId, setDiffBaselineSessionId] = useState("");
   const [sessionDiff, setSessionDiff] = useState<SessionDiffResult | null>(null);
@@ -586,6 +596,8 @@ export function useRadarWorkbench() {
     () => workflowRuns.find((run) => run.id === selectedWorkflowRunId) || workflowRuns[0] || null,
     [selectedWorkflowRunId, workflowRuns]
   );
+
+  const approvedPlugins = useMemo(() => plugins.filter((plugin) => plugin.status === "approved"), [plugins]);
 
   const insertAutomateMarker = useCallback(
     (location: AutomatePayloadLocation) => {
@@ -1011,6 +1023,89 @@ export function useRadarWorkbench() {
     }
   }, []);
 
+  const previewPluginInstall = useCallback(async () => {
+    if (!pluginInstallPath.trim() || !window.radar?.previewPluginInstall) {
+      setNotice("Enter a local plugin folder before previewing.");
+      return null;
+    }
+    try {
+      const preview = await window.radar.previewPluginInstall(pluginInstallPath.trim());
+      setPluginInstallPreview(preview);
+      setNotice(`Plugin preview ready: ${preview.manifest.name}`);
+      return preview;
+    } catch (error) {
+      setPluginInstallPreview(null);
+      setNotice(error instanceof Error ? error.message : "Plugin preview failed");
+      return null;
+    }
+  }, [pluginInstallPath]);
+
+  const installPlugin = useCallback(async () => {
+    if (!pluginInstallPath.trim() || !window.radar?.installPlugin) {
+      setNotice("Enter a local plugin folder before installing.");
+      return null;
+    }
+    try {
+      const plugin = await window.radar.installPlugin(pluginInstallPath.trim());
+      const nextPlugins = await (window.radar.getPlugins?.() ?? Promise.resolve([plugin]));
+      setPlugins(nextPlugins);
+      setPluginInstallPreview(null);
+      setNotice(`Plugin installed pending approval: ${plugin.manifest.name}`);
+      return plugin;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Plugin install failed");
+      return null;
+    }
+  }, [pluginInstallPath]);
+
+  const approvePlugin = useCallback(async (pluginId: string, permissions: PluginPermission[]) => {
+    if (!pluginId || !window.radar?.approvePlugin) {
+      setNotice("Run in Electron to approve plugins.");
+      return null;
+    }
+    try {
+      const plugin = await window.radar.approvePlugin({ id: pluginId, permissions });
+      setPlugins((items) => [plugin, ...items.filter((item) => item.id !== plugin.id)]);
+      setNotice(`Plugin approved: ${plugin.manifest.name}`);
+      return plugin;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Plugin approval failed");
+      return null;
+    }
+  }, []);
+
+  const setPluginStatus = useCallback(async (pluginId: string, status: PluginInstallStatus) => {
+    if (!pluginId || !window.radar?.setPluginStatus) {
+      setNotice("Run in Electron to update plugin status.");
+      return null;
+    }
+    try {
+      const plugin = await window.radar.setPluginStatus({ id: pluginId, status });
+      setPlugins((items) => [plugin, ...items.filter((item) => item.id !== plugin.id)]);
+      setNotice(`Plugin ${status}: ${plugin.manifest.name}`);
+      return plugin;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Plugin status update failed");
+      return null;
+    }
+  }, []);
+
+  const removePlugin = useCallback(async (pluginId: string) => {
+    if (!pluginId || !window.radar?.removePlugin) {
+      setNotice("Run in Electron to remove plugins.");
+      return null;
+    }
+    try {
+      const result = await window.radar.removePlugin(pluginId);
+      setPlugins(result.plugins);
+      setNotice(result.ok ? "Plugin removed" : "Plugin remove failed");
+      return result;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Plugin remove failed");
+      return null;
+    }
+  }, []);
+
   const refreshLocalLists = useCallback(async (context: LocalContext) => {
     if (!window.radar) {
       return;
@@ -1051,6 +1146,7 @@ export function useRadarWorkbench() {
           nextFindings,
           nextWorkflows,
           nextWorkflowRuns,
+          nextPlugins,
           nextReplayTabState,
           nextReplayEnvironments,
           nextReplayCollections,
@@ -1072,6 +1168,7 @@ export function useRadarWorkbench() {
           window.radar.getFindings?.() ?? [],
           window.radar.getWorkflows?.() ?? [],
           window.radar.getWorkflowRuns?.() ?? [],
+          window.radar.getPlugins?.() ?? [],
           window.radar.getReplayTabState?.() ?? defaultReplayTabState(),
           window.radar.getReplayEnvironments?.() ?? [],
           window.radar.getReplayCollections?.() ?? [],
@@ -1100,6 +1197,8 @@ export function useRadarWorkbench() {
         setSelectedWorkflowId(nextWorkflows[0]?.id || "");
         setWorkflowRuns(nextWorkflowRuns);
         setSelectedWorkflowRunId(nextWorkflowRuns[0]?.id || "");
+        setPlugins(nextPlugins);
+        setPluginInstallPreview(null);
         const normalizedTabs = normalizeReplayTabState(nextReplayTabState);
         setReplayTabState(normalizedTabs);
         setReplayEnvironments(nextReplayEnvironments);
@@ -2285,6 +2384,7 @@ export function useRadarWorkbench() {
         nextFindings,
         nextWorkflows,
         nextWorkflowRuns,
+        nextPlugins,
         nextAutomatePayloadSets,
         nextAutomateSessions
       ] = await Promise.all([
@@ -2300,6 +2400,7 @@ export function useRadarWorkbench() {
         window.radar.getFindings?.() ?? [],
         window.radar.getWorkflows?.() ?? [],
         window.radar.getWorkflowRuns?.() ?? [],
+        window.radar.getPlugins?.() ?? [],
         window.radar.getAutomatePayloadSets?.() ?? [],
         window.radar.listAutomateSessions?.() ?? []
       ]);
@@ -2327,6 +2428,7 @@ export function useRadarWorkbench() {
       setSelectedWorkflowId(nextWorkflows[0]?.id || "");
       setWorkflowRuns(nextWorkflowRuns);
       setSelectedWorkflowRunId(nextWorkflowRuns[0]?.id || "");
+      setPlugins(nextPlugins);
       setAutomatePayloadSets(nextAutomatePayloadSets);
       setAutomateSessions(nextAutomateSessions);
       setActiveAutomateSessionId(nextAutomateSessions[0]?.id || "");
@@ -2569,6 +2671,16 @@ export function useRadarWorkbench() {
     deleteWorkflow,
     runWorkflow,
     promoteWorkflowResultToFinding,
+    plugins,
+    approvedPlugins,
+    pluginInstallPath,
+    setPluginInstallPath,
+    pluginInstallPreview,
+    previewPluginInstall,
+    installPlugin,
+    approvePlugin,
+    setPluginStatus,
+    removePlugin,
     bulkDeleteCaptures,
     bulkExportCaptures,
     bulkTagCaptures,

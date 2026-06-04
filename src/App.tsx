@@ -21,6 +21,7 @@ import {
   FileText,
   LockKeyhole,
   Palette,
+  Plug,
   Map,
   Play,
   Radar as RadarIcon,
@@ -73,7 +74,8 @@ import type {
   FindingStatus,
   FindingTemplateId,
   WorkflowDefinition,
-  WorkflowResultLevel
+  WorkflowResultLevel,
+  PluginInstallStatus
 } from "./types";
 
 const shellClass =
@@ -93,6 +95,7 @@ const sidebarViewIcons: Record<WorkView, LucideIcon> = {
   automate: Zap,
   findings: FileText,
   workflows: GitCompare,
+  plugins: Plug,
   sitemap: Map,
   scope: Target,
   ssl: LockKeyhole
@@ -212,6 +215,19 @@ function workflowResultTone(level: WorkflowResultLevel): "good" | "warn" | "dang
   }
   if (level === "warn") {
     return "warn";
+  }
+  return "ghost";
+}
+
+function pluginStatusTone(status: PluginInstallStatus): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (status === "approved") {
+    return "good";
+  }
+  if (status === "pending") {
+    return "warn";
+  }
+  if (status === "blocked") {
+    return "danger";
   }
   return "ghost";
 }
@@ -566,6 +582,7 @@ export function App() {
       : `${workbench.automatePositions.length} positions`,
     findings: `${workbench.findings.length} findings`,
     workflows: `${workbench.workflowRuns.length} runs`,
+    plugins: `${workbench.approvedPlugins.length}/${workbench.plugins.length} approved`,
     sitemap: `${workbench.sitemap.roots.length} hosts`,
     scope: `${workbench.targets.length} targets`,
     ssl: workbench.proxyState.running ? "proxy engaged" : `${workbench.sslEvents.length} tls events`
@@ -1195,6 +1212,30 @@ export function App() {
                   >
                     <Play size={14} strokeWidth={1.7} />
                     Run Workflow
+                  </Button>
+                </>
+              )}
+              {workbench.activeView === "plugins" && (
+                <>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => void workbench.previewPluginInstall()}
+                    disabled={!workbench.pluginInstallPath.trim()}
+                    data-testid="previewPluginHeader"
+                  >
+                    <Search size={14} strokeWidth={1.7} />
+                    Preview
+                  </Button>
+                  <Button
+                    variant="solid"
+                    type="button"
+                    onClick={() => void workbench.installPlugin()}
+                    disabled={!workbench.pluginInstallPath.trim()}
+                    data-testid="installPluginHeader"
+                  >
+                    <Plug size={14} strokeWidth={1.7} />
+                    Install
                   </Button>
                 </>
               )}
@@ -3642,6 +3683,253 @@ export function App() {
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {workbench.activeView === "plugins" && (
+            <div className="grid min-h-0 [grid-template-columns:minmax(320px,0.48fr)_minmax(420px,1fr)] max-[1100px]:grid-cols-1">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1100px]:border-r-0 max-[1100px]:border-b">
+                <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(3,minmax(0,1fr))]">
+                  {[
+                    ["Installed", workbench.plugins.length],
+                    ["Approved", workbench.approvedPlugins.length],
+                    ["Panels", workbench.approvedPlugins.reduce((total, plugin) => total + plugin.manifest.panels.length, 0)]
+                  ].map(([label, value]) => (
+                    <div key={label} className="radar-card-gradient px-4 py-3">
+                      <span className="block font-mono text-[8.5px] uppercase tracking-[0.28em] text-muted">
+                        {label}
+                      </span>
+                      <strong className="mt-1 block font-display text-[22px] font-semibold uppercase leading-none text-bone [font-stretch:75%]">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto p-4">
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="pluginInstallPath" className="px-0 pt-0">
+                        Local plugin source
+                      </FieldLabel>
+                      <Input
+                        id="pluginInstallPath"
+                        value={workbench.pluginInstallPath}
+                        onChange={(event) => workbench.setPluginInstallPath(event.target.value)}
+                        placeholder="/path/to/plugin or /path/to/plugin.json"
+                        data-testid="pluginInstallPath"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => void workbench.previewPluginInstall()}
+                          disabled={!workbench.pluginInstallPath.trim()}
+                          data-testid="previewPlugin"
+                        >
+                          <Search size={13} strokeWidth={1.7} />
+                          Preview
+                        </Button>
+                        <Button
+                          variant="solid"
+                          type="button"
+                          onClick={() => void workbench.installPlugin()}
+                          disabled={!workbench.pluginInstallPath.trim()}
+                          data-testid="installPlugin"
+                        >
+                          <Plug size={13} strokeWidth={1.7} />
+                          Install
+                        </Button>
+                      </div>
+                    </div>
+
+                    {workbench.pluginInstallPreview ? (
+                      <div className="grid gap-3 border border-rule bg-ink/25 p-3" data-testid="pluginInstallPreview">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <span className="font-mono text-[9px] uppercase tracking-[0.26em] text-signal">
+                              Manifest preview
+                            </span>
+                            <h2 className="mt-1 font-display text-[24px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
+                              {workbench.pluginInstallPreview.manifest.name}
+                            </h2>
+                          </div>
+                          <StatusBadge>{workbench.pluginInstallPreview.manifest.version}</StatusBadge>
+                        </div>
+                        <p className="text-[12px] leading-6 text-copy">
+                          {workbench.pluginInstallPreview.manifest.description || "No description supplied."}
+                        </p>
+                        <pre className="max-h-[92px] overflow-auto text-[10.5px]">
+                          {[
+                            `id: ${workbench.pluginInstallPreview.manifest.id}`,
+                            `source: ${workbench.pluginInstallPreview.sourcePath}`,
+                            `manifest: ${workbench.pluginInstallPreview.manifestPath}`,
+                            `entry: ${workbench.pluginInstallPreview.manifest.entry || "panel-only"}`
+                          ].join("\n")}
+                        </pre>
+                        <div className="flex flex-wrap gap-1.5">
+                          {workbench.pluginInstallPreview.permissionSummary.map((permission) => (
+                            <StatusBadge key={permission} tone="move">
+                              {permission}
+                            </StatusBadge>
+                          ))}
+                        </div>
+                        {workbench.pluginInstallPreview.warnings.length > 0 && (
+                          <div className="grid gap-1 border border-sand/30 bg-sand/10 p-2">
+                            {workbench.pluginInstallPreview.warnings.map((warning) => (
+                              <span key={warning} className="font-mono text-[10px] uppercase tracking-[0.12em] text-sand">
+                                {warning}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <EmptyState className="min-h-[170px] border border-dashed border-rule">
+                        <Plug size={18} strokeWidth={1.4} />
+                        <span>Preview a local manifest before installing.</span>
+                      </EmptyState>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 [grid-template-rows:minmax(0,1fr)_minmax(220px,0.42fr)]">
+                <div className="min-h-0 overflow-auto radar-traffic-list" data-testid="pluginRegistry">
+                  {workbench.plugins.length === 0 && <EmptyState>No local plugins installed</EmptyState>}
+                  {workbench.plugins.map((plugin) => (
+                    <div key={plugin.id} className="grid gap-3 border-b border-rule bg-ink/20 p-4" data-testid={`pluginRow-${plugin.id}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusBadge tone={pluginStatusTone(plugin.status)}>{plugin.status}</StatusBadge>
+                            <StatusBadge>{plugin.manifest.version}</StatusBadge>
+                            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted">
+                              {plugin.manifest.id}
+                            </span>
+                          </div>
+                          <h3 className="mt-2 font-display text-[20px] uppercase leading-none tracking-[0.04em] text-bone [font-stretch:75%]">
+                            {plugin.manifest.name}
+                          </h3>
+                          <p className="mt-2 max-w-[760px] text-[12px] leading-6 text-copy">
+                            {plugin.manifest.description || "Local extension installed from disk."}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="compact"
+                            type="button"
+                            onClick={() => void workbench.approvePlugin(plugin.id, plugin.manifest.permissions)}
+                            disabled={plugin.status === "approved"}
+                            data-testid={`approvePlugin-${plugin.id}`}
+                          >
+                            <ShieldCheck size={12} strokeWidth={1.7} />
+                            Approve
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            type="button"
+                            onClick={() => void workbench.setPluginStatus(plugin.id, "disabled")}
+                            disabled={plugin.status === "disabled"}
+                            data-testid={`disablePlugin-${plugin.id}`}
+                          >
+                            <Square size={12} strokeWidth={1.7} />
+                            Disable
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            type="button"
+                            onClick={() => void workbench.setPluginStatus(plugin.id, "blocked")}
+                            disabled={plugin.status === "blocked"}
+                            data-testid={`blockPlugin-${plugin.id}`}
+                          >
+                            <X size={12} strokeWidth={1.7} />
+                            Block
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            type="button"
+                            onClick={() => void workbench.removePlugin(plugin.id)}
+                            data-testid={`removePlugin-${plugin.id}`}
+                          >
+                            <Trash2 size={12} strokeWidth={1.7} />
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        <div className="grid gap-1">
+                          <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Requested</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {plugin.manifest.permissions.map((permission) => (
+                              <StatusBadge key={permission} tone={plugin.grantedPermissions.includes(permission) ? "good" : "ghost"}>
+                                {permission}
+                              </StatusBadge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="grid gap-1">
+                          <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Source</span>
+                          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10.5px] text-copy">
+                            {plugin.sourcePath}
+                          </span>
+                        </div>
+                      </div>
+                      {plugin.warnings.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {plugin.warnings.map((warning) => (
+                            <StatusBadge key={warning} tone="warn">
+                              {warning}
+                            </StatusBadge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto border-t border-rule p-4" data-testid="pluginPanels">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                        Approved panels
+                      </span>
+                      <h2 className="mt-1 font-display text-[24px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
+                        Extension Surfaces
+                      </h2>
+                    </div>
+                    <StatusBadge tone="move">{workbench.approvedPlugins.length} approved</StatusBadge>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {workbench.approvedPlugins.flatMap((plugin) =>
+                      plugin.manifest.panels.map((panel) => (
+                        <div key={`${plugin.id}:${panel.id}`} className="grid gap-2 border border-rule bg-ink/25 p-3">
+                          <div className="flex items-center gap-2">
+                            <Plug size={14} strokeWidth={1.7} className="text-signal" />
+                            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[14px] uppercase tracking-[0.04em] text-bone">
+                              {panel.title}
+                            </strong>
+                          </div>
+                          <span className="font-mono text-[10px] text-muted">{plugin.manifest.name}</span>
+                          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-copy">
+                            {panel.entry}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                    {workbench.approvedPlugins.every((plugin) => plugin.manifest.panels.length === 0) && (
+                      <EmptyState className="min-h-[130px] md:col-span-2 xl:col-span-3">
+                        <Plug size={18} strokeWidth={1.4} />
+                        <span>No approved plugin panels</span>
+                      </EmptyState>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

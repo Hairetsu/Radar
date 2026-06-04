@@ -4,6 +4,7 @@ import type {
   AutomateRule,
   AutomateSession,
   CapturedRequest,
+  InstalledPlugin,
   InterceptQueueItem,
   InterceptResponseDraft,
   ReplayDraft,
@@ -23,6 +24,7 @@ export type AgentWorkbenchView =
   | "automate"
   | "findings"
   | "workflows"
+  | "plugins"
   | "sitemap"
   | "scope"
   | "ssl";
@@ -63,7 +65,8 @@ export type AgentToolName =
   | "prepareAutomateDraft"
   | "analyzeAutomateResults"
   | "getWorkflowCatalog"
-  | "runWorkflow";
+  | "runWorkflow"
+  | "getPluginInventory";
 
 export type AgentClickableElement = {
   selector: string;
@@ -108,6 +111,17 @@ export type AgentEvidenceObservation = {
   value?: string;
   issue: string;
   severity: "info" | "low" | "medium" | "high";
+};
+
+export type AgentPluginInventoryItem = {
+  id: string;
+  name: string;
+  version: string;
+  status: InstalledPlugin["status"];
+  requestedPermissions: string[];
+  grantedPermissions: string[];
+  panels: Array<{ id: string; title: string }>;
+  warningCount: number;
 };
 
 export type AgentCapturedTrafficContext = {
@@ -176,7 +190,8 @@ export type AgentToolCall =
     }
   | { tool: "analyzeAutomateResults"; input: { sessionId?: string } }
   | { tool: "getWorkflowCatalog"; input: Record<string, never> }
-  | { tool: "runWorkflow"; input: { workflowId: string; inputs?: Record<string, string> } };
+  | { tool: "runWorkflow"; input: { workflowId: string; inputs?: Record<string, string> } }
+  | { tool: "getPluginInventory"; input: Record<string, never> };
 
 export type AgentToolResult =
   | { tool: "showView"; ok: true; data: { view: AgentWorkbenchView } }
@@ -305,6 +320,7 @@ export type AgentToolResult =
         recentRuns: Array<Pick<WorkflowRun, "id" | "workflowId" | "workflowName" | "status" | "mode" | "actionCount" | "startedAt"> & { resultCount: number }>;
       };
     }
+  | { tool: "getPluginInventory"; ok: true; data: { plugins: AgentPluginInventoryItem[] } }
   | { tool: "runWorkflow"; ok: true; data: WorkflowRun }
   | { tool: AgentToolName; ok: false; error: string };
 

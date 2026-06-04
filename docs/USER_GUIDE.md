@@ -1,8 +1,8 @@
 # Radar User Guide
 
-Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, running bounded payload-marker tests, running repeatable workflows, creating evidence-backed findings and reports, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only for risky actions; AI-First lets a scoped agent choose bounded tools while you watch.
+Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, running bounded payload-marker tests, running repeatable workflows, managing local plugins, creating evidence-backed findings and reports, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only for risky actions; AI-First lets a scoped agent choose bounded tools while you watch.
 
-This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
+This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, plugins, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
 
 ## Table Of Contents
 
@@ -21,6 +21,7 @@ This guide covers the app as it exists now: the main console, profiles and sessi
 - [Automate](#automate)
 - [Findings](#findings)
 - [Workflows](#workflows)
+- [Plugins](#plugins)
 - [SSL And Proxy](#ssl-and-proxy)
 - [AI Command Palette](#ai-command-palette)
 - [Appearance](#appearance)
@@ -45,6 +46,7 @@ Use Radar when you need a controlled local workbench for authorized web security
 - Mark payload positions in a request draft, run capped Automate sessions, cluster results, and promote interesting attempts to Repeater or Findings.
 - Create durable findings with evidence references, retest notes, and Markdown/HTML report export.
 - Save and rerun declarative workflows for passive checks and selected scoped active replay checks.
+- Install local plugins from disk with explicit permission approval and SDK/API boundaries.
 - Review proxy, certificate, and TLS signals.
 - Ask AI for summaries, report notes, checklist ideas, safe repeater drafts, browser exploration suggestions, TLS review, WebSocket frame analysis, or a bounded AI-First run.
 
@@ -64,6 +66,7 @@ Radar is designed for defensive, authorized work.
 - Burst replay is capped to reduce accidental load and is not available to AI-First.
 - Automate execution is Manual-First only. AI-First can prepare visible payload/rule controls and analyze existing results, but it cannot start invisible payload runs.
 - Workflow execution always uses saved workflow definitions, scope policy, and caps. AI-First can choose existing workflows by id; it cannot invent hidden workflow behavior.
+- Plugin install, approval, disable/block/remove, and live execution are Manual-First operator actions. AI-First can read approved plugin inventory but cannot approve plugins, widen permissions, or run hidden plugin actions.
 - Finding export is Manual-First only. Evidence appendices are redacted by default, and raw evidence requires an explicit export toggle.
 
 Use Radar only on systems, domains, and environments where you have permission to test.
@@ -128,7 +131,7 @@ Useful source commands:
 
 ## Main Console Tour
 
-Radar opens into a ten-view operator console.
+Radar opens into an eleven-view operator console.
 
 Persistent areas:
 
@@ -150,9 +153,10 @@ Views:
 | **05 Automate** | Explicit payload markers, saved payload sets, bounded sessions, result table, clustering, and match/extract rules. |
 | **06 Findings** | Evidence-backed findings inbox, templates, retest tracking, and Markdown/HTML report export. |
 | **07 Workflows** | Built-in and saved declarative checks, scoped run history, and result promotion to Findings. |
-| **08 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
-| **09 Scope** | Engagement boundary and target allowlist. |
-| **10 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
+| **08 Plugins** | Local plugin manifest preview, permission approval, registry controls, SDK/API boundary, and panel inventory. |
+| **09 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
+| **10 Scope** | Engagement boundary and target allowlist. |
+| **11 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
 
 ## Profiles And Sessions
 
@@ -164,6 +168,7 @@ A profile represents an operator or client context. It owns:
 
 - A local workspace.
 - Scope targets.
+- Installed plugin records.
 - A dedicated launched-browser profile directory.
 - Sessions created under that workspace.
 
@@ -220,7 +225,7 @@ http://[::1]:*
 
 ### Add Targets
 
-Open **09 Scope**, then enter one target per line:
+Open **10 Scope**, then enter one target per line:
 
 ```text
 https://staging.example.com
@@ -445,7 +450,7 @@ Click the eraser icon in the WebSocket panel header. This clears WebSocket frame
 
 Sitemap is the host, path, and endpoint map for scoped HTTP/S traffic in the active session.
 
-Open **08 Sitemap** to browse discovered structure without leaving Radar.
+Open **09 Sitemap** to browse discovered structure without leaving Radar.
 
 ### Tree Navigation
 
@@ -802,6 +807,133 @@ Warning and failure results can become draft findings. Click **Finding** on a re
 
 Pass and info results stay in workflow history and are not promoted to findings.
 
+## Plugins
+
+Plugins are local extensions installed from disk into the active workspace. Radar supports manifest preview, explicit permission approval, a workspace-local install registry, a typed SDK/API boundary, approved panel inventory, and first-party examples under `plugins/examples/`.
+
+Open **08 Plugins** to manage local extensions.
+
+The Plugins view has three working areas:
+
+- **Install local plugin** previews a folder path before adding anything to the registry.
+- **Installed registry** shows each plugin's status, requested permissions, granted permissions, warnings, source path, and operator actions.
+- **Panel inventory** lists approved plugin panels that can render inside the Radar console when the plugin requested `ui:panel`.
+
+Plugin records belong to the active workspace. Switching profiles switches the visible plugin registry.
+
+### Install A Local Plugin
+
+1. Enter a plugin folder path such as `plugins/examples/jwt-helper`.
+2. Click **Preview**.
+3. Review the manifest id, version, source path, entry file, requested permissions, panels, and warnings.
+4. Click **Install** to add the plugin as **pending**.
+5. Click **Approve** to grant the requested permissions.
+
+Radar looks for `.radar-plugin/plugin.json` first, then `plugin.json` at the plugin root. Install does not execute plugin code. Approval grants only permissions requested by the manifest.
+
+### Manifest Shape
+
+A plugin manifest must identify the plugin, declare a semantic version, point to an entry file or panel, and request only the permissions it needs. Entry paths are relative to the plugin folder; absolute paths and `..` segments are rejected.
+
+Example:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "jwt-helper",
+  "name": "JWT Helper",
+  "version": "0.1.0",
+  "description": "Inspect selected token-shaped values and prepare safe notes.",
+  "author": "Radar",
+  "sdkVersion": "0.1",
+  "minRadarVersion": "0.1.0",
+  "entry": "dist/index.js",
+  "permissions": ["captures:read", "findings:write", "ui:panel"],
+  "panels": [
+    {
+      "id": "jwt-helper",
+      "title": "JWT Helper",
+      "entry": "panel.html"
+    }
+  ]
+}
+```
+
+Manifest validation normalizes ids, trims long text, caps panels, ignores unknown permissions, and adds `ui:panel` automatically when panels are declared.
+
+### Status And Controls
+
+Plugins move through explicit local states:
+
+| Status | Meaning |
+| --- | --- |
+| **pending** | Installed in the workspace registry, but no permissions are granted yet. |
+| **approved** | The operator granted the manifest's requested permissions. |
+| **disabled** | The plugin stays installed, but cannot use granted permissions. |
+| **blocked** | The plugin stays recorded as blocked and cannot use granted permissions. |
+
+Registry actions:
+
+| Action | Use |
+| --- | --- |
+| **Approve** | Grant the permissions requested by the manifest and make panels eligible for the panel inventory. |
+| **Disable** | Temporarily stop an approved plugin without deleting its record. |
+| **Block** | Keep a plugin record while preventing use after a warning or policy decision. |
+| **Remove** | Delete the workspace-local plugin record. |
+
+### Permissions
+
+Supported plugin permissions are:
+
+| Permission | Meaning |
+| --- | --- |
+| `captures:read` | Read in-scope HTTP/S captures through the SDK/API boundary. |
+| `frames:read` | Read in-scope WebSocket frames. |
+| `replay:prepare` | Normalize and prepare replay drafts without transmitting. |
+| `replay:send` | Send scoped replay requests through Radar's replay caps. |
+| `files:read` | Read operator-selected local files. |
+| `ai:context` | Read redacted AI-visible context when supported. |
+| `workflows:read` | Read workflow definitions and run history. |
+| `workflows:run` | Run existing scoped workflows. |
+| `workflows:write` | Save workflow definitions. |
+| `findings:write` | Create draft findings with evidence references. |
+| `ui:panel` | Register plugin panels in the Radar console. |
+
+Permission warnings are surfaced during preview and in the registry. Higher-impact permissions such as `replay:send`, `files:read`, `workflows:run`, `workflows:write`, and `ai:context` deserve closer review before approval.
+
+Disabled and blocked plugins cannot use approved permissions.
+
+### SDK And Examples
+
+The SDK surface lives in `shared/pluginSdk.ts`; the Electron local API enforcement lives in `electron/pluginApi.ts`. Extension authors should build against the SDK methods and let Radar enforce permissions, scope filtering, replay caps, finding evidence validation, and workflow caps.
+
+SDK methods:
+
+| SDK method | Required permission | Result |
+| --- | --- | --- |
+| `listCaptures(query)` | `captures:read` | Returns in-scope HTTP/S captures matching the query. |
+| `listFrames(query)` | `frames:read` | Returns in-scope WebSocket events matching the query. |
+| `prepareReplay(draft)` | `replay:prepare` | Returns a normalized replay draft without transmitting. |
+| `sendReplay(draft)` | `replay:send` | Sends one scoped replay request through Radar replay enforcement. |
+| `createFinding(finding)` | `findings:write` | Creates a draft finding with valid local evidence references. |
+| `listWorkflows()` | `workflows:read` | Returns saved workflow definitions. |
+| `saveWorkflow(workflow)` | `workflows:write` | Saves a normalized workflow definition. |
+| `runWorkflow(workflowId, inputs)` | `workflows:run` | Runs an existing scoped workflow with caps and history. |
+
+First-party examples:
+
+- `plugins/examples/jwt-helper`: token-oriented capture review with finding draft support.
+- `plugins/examples/graphql-helper`: GraphQL-shaped capture and frame review.
+- `plugins/examples/openapi-importer`: workflow-oriented API surface import helper.
+- `plugins/examples/parameter-miner`: capture/frame parameter discovery helper.
+- `plugins/examples/report-exporter`: finding/report export companion panel.
+
+Each example includes `.radar-plugin/plugin.json`, `dist/index.js`, and `panel.html` so you can inspect the manifest, SDK entry, and panel shape before installing it.
+
+### AI-First Visibility
+
+AI-First can switch to **08 Plugins** and read installed plugin inventory through `getPluginInventory`. It cannot install plugins, approve plugins, change permission grants, disable/remove plugins, or execute plugin SDK/API actions invisibly.
+
 ## SSL And Proxy
 
 SSL shows proxy controls, generated CA details, certificate events, and TLS metadata.
@@ -849,7 +981,7 @@ This avoids changing system trust settings.
 
 Use this when you want another browser or tool to route traffic through Radar.
 
-1. Open **10 SSL**.
+1. Open **11 SSL**.
 2. Click **Engage Proxy**.
 3. Copy the displayed proxy URL.
 4. Configure your browser or tool to use that proxy.
@@ -877,7 +1009,7 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 ## Manual-First And AI-First Modes
 
-Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, finding review, or exports.
+Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, finding review, or exports.
 
 Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt and run console above the normal views. Enter a scoped goal such as:
 
@@ -889,7 +1021,7 @@ When a run starts, Radar records a live timeline. The agent chooses one tool act
 
 Available AI-First tools:
 
-- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Sitemap, Scope, and SSL.
+- `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Scope, and SSL.
 - `getBrowserState` reads the launched browser state.
 - `openBrowser` and `navigateBrowser` drive in-scope browser navigation.
 - `waitForNetworkIdle` waits for captured HTTP/S traffic to settle after navigation.
@@ -908,6 +1040,7 @@ Available AI-First tools:
 - `analyzeAutomateResults` summarizes existing Automate sessions, clusters, outliers, matches, and failures.
 - `getWorkflowCatalog` reads built-in and saved workflow definitions without running checks.
 - `runWorkflow` runs an existing workflow by id through the same scoped workflow runtime and records visible run history.
+- `getPluginInventory` reads installed plugin status, requested permissions, granted permissions, warnings, and panel names without approving or executing plugins.
 - `sendReplay` sends one policy-capped replay draft.
 - `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
 
@@ -925,6 +1058,7 @@ AI-First runs are intentionally bounded:
 - Replay uses stricter autonomous limits than manual Repeater controls.
 - Automate execution is not available to AI-First. AI can prepare visible Automate controls and analyze existing results, but payload runs remain Manual-First operator actions.
 - AI-First workflow runs must choose an existing workflow id. Active workflow requests consume the autonomous replay budget and appear in **07 Workflows** run history.
+- AI-First plugin visibility is read-only. It can inspect **08 Plugins** inventory, but plugin install, approval, permission changes, and SDK/API execution remain Manual-First.
 - AI-First findings are saved into **06 Findings** as drafts with local evidence references. Review, status changes, retest results, and exports remain Manual-First.
 - Burst replay is not part of the first autonomous slice.
 - Invalid planner output fails the run instead of switching to heuristics.
@@ -956,6 +1090,7 @@ AI features are view-aware.
 | Automate | Repeater Drafts |
 | Findings | Report Notes, Capture Summary |
 | Workflows | Scope Checklist, Report Notes |
+| Plugins | Report Notes |
 | Sitemap | Capture Summary, Report Notes |
 | Scope | Scope Checklist, Browser Helper |
 | SSL | TLS Review |
@@ -1091,7 +1226,7 @@ Important local files and folders:
 
 | Item | Purpose |
 | --- | --- |
-| `radar-local.sqlite` | Profiles, workspaces, sessions, targets, saved filters, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, findings, saved workflows, workflow runs, SSL events, cached model lists, and AI-First agent run history. |
+| `radar-local.sqlite` | Profiles, workspaces, sessions, targets, saved filters, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, findings, saved workflows, workflow runs, installed plugin records, SSL events, cached model lists, and AI-First agent run history. |
 | `proxy-ca/radar-ca.pem` | Local proxy CA certificate. |
 | `proxy-ca/radar-ca-key.pem` | Local proxy CA private key. |
 | `profiles/<profile-id>/proxy-browser-profile` | Dedicated launched-browser profile. |
@@ -1124,7 +1259,7 @@ Privacy notes:
 
 ### Capture A Staging Target
 
-1. Open **09 Scope**.
+1. Open **10 Scope**.
 2. Add the staging origin, for example:
 
 ```text
@@ -1138,11 +1273,11 @@ https://staging.example.com
 
 ### Use An External Browser
 
-1. Open **10 SSL**.
+1. Open **11 SSL**.
 2. Click **Engage Proxy**.
 3. Configure the external browser to use the displayed proxy URL.
 4. For HTTPS, manually trust the displayed CA certificate in that browser.
-5. Add the target origin in **09 Scope**.
+5. Add the target origin in **10 Scope**.
 6. Browse the target.
 7. Inspect matching captures in **01 HTTP(S)** or matching frames in **02 WebSocket**.
 
@@ -1188,7 +1323,7 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 
 1. Switch the top shell toggle from **Manual-First** to **AI-First**.
 2. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
-3. Click **Start Run**. Radar saves the goal's target origin into **09 Scope** before the agent chooses tools.
+3. Click **Start Run**. Radar saves the goal's target origin into **10 Scope** before the agent chooses tools.
 4. Watch the tool/action timeline update until the agent returns `finish`.
 5. Click **Stop** if the run should halt.
 6. Review draft findings in **06 Findings** before using them.
@@ -1230,11 +1365,22 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 ### Map Endpoints With Sitemap
 
 1. Capture traffic in **01 HTTP(S)** under the active scope.
-2. Open **08 Sitemap**.
+2. Open **09 Sitemap**.
 3. Browse hosts and paths in the tree.
 4. Select an endpoint to review query params, body keys, and auth signals.
 5. Optionally pick an earlier session in the session diff panel to compare coverage.
 6. Click through to HTTP(S) with a prepared query when you want to inspect raw evidence.
+
+### Install And Review A Plugin
+
+1. Open **08 Plugins**.
+2. Enter a plugin folder path, for example `plugins/examples/parameter-miner`.
+3. Click **Preview**.
+4. Review the manifest id, entry path, requested permissions, panels, and warnings.
+5. Click **Install** to create a pending workspace-local registry record.
+6. Click **Approve** only if the requested permissions match the work you expect the plugin to do.
+7. Confirm approved panels appear in the panel inventory.
+8. Disable, block, or remove the plugin when it is no longer needed for the active workspace.
 
 ## Troubleshooting
 
@@ -1242,7 +1388,7 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 
 Check:
 
-- The target URL is in **09 Scope**.
+- The target URL is in **10 Scope**.
 - You clicked **Commit** after editing scope.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -1253,7 +1399,7 @@ Check:
 
 Check:
 
-- The WebSocket URL is in **09 Scope** or matches an equivalent HTTP/S origin in scope.
+- The WebSocket URL is in **10 Scope** or matches an equivalent HTTP/S origin in scope.
 - The app is using `ws://` or `wss://`, not long-polling HTTP.
 - You are using the launched Radar browser or an external browser configured to use Radar's proxy.
 - The proxy is running for external browser capture.
@@ -1275,7 +1421,7 @@ Radar needs a supported local browser. Install Chrome, Edge, Brave, or Chromium.
 
 ### HTTPS Pages Fail In An External Browser
 
-For external browsers, you must manually trust Radar's generated CA certificate. Open **10 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
+For external browsers, you must manually trust Radar's generated CA certificate. Open **11 SSL**, click **Forge CA**, then trust the displayed `radar-ca.pem` in the browser or OS trust store you are using for that test.
 
 Radar does not install this certificate automatically.
 
@@ -1315,6 +1461,26 @@ Radar clamps burst settings:
 - Parallel cannot exceed 5.
 - Delay cannot exceed 10000 ms.
 
+### Plugin Preview Fails
+
+Check:
+
+- The folder path points to a local plugin directory.
+- The plugin has `.radar-plugin/plugin.json` or root `plugin.json`.
+- The manifest has a valid `id`, `name`, and semantic `version`, such as `0.1.0`.
+- Entry and panel paths are relative to the plugin folder and do not contain `..`.
+- The plugin declares at least one executable `entry` or panel.
+
+### Plugin Is Installed But Does Not Work
+
+Check:
+
+- The plugin status is **approved**, not **pending**, **disabled**, or **blocked**.
+- The manifest requested the permission needed for the action, such as `captures:read` or `replay:send`.
+- The target evidence is in **10 Scope**.
+- Panels only appear when the manifest has a valid panel entry and `ui:panel` permission.
+- Live plugin actions remain Manual-First; AI-First can only read plugin inventory.
+
 ### AI Is Not Connected
 
 Open AI settings and check:
@@ -1331,7 +1497,7 @@ Check:
 
 - AI settings are connected.
 - The goal includes a URL, domain, or the address bar contains the target you want to inspect.
-- If relying on the address bar instead of a goal target, the target origin is saved in **09 Scope**.
+- If relying on the address bar instead of a goal target, the target origin is saved in **10 Scope**.
 - The run timeline does not show invalid planner output, a policy block, or an AI provider error.
 - The run has not been stopped by switching back to Manual-First.
 
@@ -1382,6 +1548,10 @@ Keep raw context off unless you need exact headers or bodies.
 | Automate | The payload-marker view for bounded request variant sessions, result clustering, and Repeater promotion. |
 | Payload marker | An explicit `{{payload:name}}` placeholder in a URL, header value, or body. |
 | Workflow | A saved or built-in repeatable check with typed inputs, scope policy, steps, run history, and evidence-backed results. |
+| Plugin | A workspace-local extension installed from disk through a manifest, explicit permission approval, and the Radar SDK/API boundary. |
+| Plugin manifest | The plugin's local `plugin.json` contract declaring id, version, entry path, panels, and requested permissions. |
+| Plugin panel | A manifest-declared panel entry that appears in the Plugins view after approval. |
+| Plugin SDK | The typed extension API for bounded capture reads, frame reads, replay preparation/sending, finding drafts, and workflow operations. |
 | Finding | A local reviewed or draft security observation with severity, confidence, status, narrative fields, and evidence references. |
 | Evidence reference | A stable local pointer such as `capture:id`, `websocket:id`, `replay:id`, `automate:sessionId:resultId`, `workflow:runId:resultId`, or `ai:runId`. |
 | Evidence appendix | Report export section generated from finding evidence references. Appendix metadata is redacted by default. |

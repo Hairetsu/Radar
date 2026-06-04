@@ -552,6 +552,84 @@ export type WorkflowRun = {
   error?: string;
 };
 
+export type PluginPermission =
+  | "captures:read"
+  | "frames:read"
+  | "replay:prepare"
+  | "replay:send"
+  | "files:read"
+  | "ai:context"
+  | "workflows:read"
+  | "workflows:run"
+  | "workflows:write"
+  | "findings:write"
+  | "ui:panel";
+
+export type PluginManifestPanel = {
+  id: string;
+  title: string;
+  entry: string;
+};
+
+export type PluginManifest = {
+  schemaVersion: 1;
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  sdkVersion: string;
+  minRadarVersion: string;
+  entry: string;
+  permissions: PluginPermission[];
+  panels: PluginManifestPanel[];
+};
+
+export type PluginInstallStatus = "pending" | "approved" | "disabled" | "blocked";
+
+export type InstalledPlugin = {
+  id: string;
+  manifest: PluginManifest;
+  sourcePath: string;
+  grantedPermissions: PluginPermission[];
+  status: PluginInstallStatus;
+  warnings: string[];
+  installedAt: string;
+  updatedAt: string;
+};
+
+export type PluginInstallPreview = {
+  manifest: PluginManifest;
+  sourcePath: string;
+  manifestPath: string;
+  requestedPermissions: PluginPermission[];
+  permissionSummary: string[];
+  warnings: string[];
+};
+
+export type PluginApiAction =
+  | "captures:list"
+  | "frames:list"
+  | "replay:prepare"
+  | "replay:send"
+  | "findings:create"
+  | "workflows:list"
+  | "workflows:save"
+  | "workflows:run";
+
+export type PluginApiRequest = {
+  pluginId: string;
+  action: PluginApiAction;
+  input: Record<string, unknown>;
+};
+
+export type PluginApiResult = {
+  ok: boolean;
+  action: PluginApiAction;
+  data: unknown;
+  error?: string;
+};
+
 export type ReplayHistoryEntry = {
   id: string;
   sentAt: string;
