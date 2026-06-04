@@ -14,7 +14,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     name: "showView",
     description: "Move the visible workbench to a Radar evidence view.",
     safety: "view",
-    schema: { view: "traffic|websocket|intercept|repeater|scope|ssl", reason: "string" }
+    schema: { view: "traffic|websocket|intercept|repeater|automate|findings|workflows|plugins|advanced|sitemap|scope|ssl", reason: "string" }
   },
   {
     name: "getBrowserState",
@@ -232,6 +232,12 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     schema: {}
   },
   {
+    name: "getAdvancedTestingSummary",
+    description: "Read local advanced testing summaries for GraphQL, imports, auth matrix, parameters, secrets, and header behavior without sending traffic.",
+    safety: "observe",
+    schema: {}
+  },
+  {
     name: "runWorkflow",
     description: "Run an existing workflow by id through the same scoped workflow runtime visible to the operator.",
     safety: "replay",
@@ -239,7 +245,20 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
   }
 ];
 
-const WORK_VIEWS = ["traffic", "websocket", "intercept", "repeater", "automate", "findings", "workflows", "plugins", "sitemap", "scope", "ssl"] as const;
+const WORK_VIEWS = [
+  "traffic",
+  "websocket",
+  "intercept",
+  "repeater",
+  "automate",
+  "findings",
+  "workflows",
+  "plugins",
+  "advanced",
+  "sitemap",
+  "scope",
+  "ssl"
+] as const;
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -318,6 +337,7 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
     case "getAutomateContext":
     case "getWorkflowCatalog":
     case "getPluginInventory":
+    case "getAdvancedTestingSummary":
       return { tool: call.tool, input: {} };
     case "openBrowser":
     case "navigateBrowser":

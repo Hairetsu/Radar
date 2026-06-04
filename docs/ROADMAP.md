@@ -34,11 +34,12 @@ Radar already has a strong MVP foundation:
 - Findings inbox with templates, durable evidence references, Manual-First review/retest status, Automate/AI draft promotion, and Markdown/HTML report export with redacted evidence appendices.
 - Workflows v1 with built-in passive checks, declarative JSON/YAML-like definitions, scoped active replay checks, saved definitions, session run history, result evidence references, Finding promotion, and AI workflow selection by id.
 - Plugins v1 with local manifest preview, workspace-local install registry, explicit permission approval, typed SDK/API boundaries, first-party examples, and AI-First read-only plugin inventory.
+- Advanced testing v1 with GraphQL extraction, OpenAPI/Postman preview imports, auth matrix grouping, parameter discovery, local secret detection, header/cache behavior signals, proxy guidance, and AI-First read-only summaries.
 - WebSocket frame inspection separate from HTTP/S evidence.
 - AI command palette with redacted context previews, local/custom provider support, and prepare-only tasks.
 - AI-First autonomous run loop with scoped browser tools, run-scoped capture reads, capped replay, security header/cookie/CORS checks, auth state helpers, and local timeline persistence.
 
-The gap is breadth and depth around professional testing operations: richer plugin execution surfaces, global search, advanced API/auth testing helpers, collaboration handoff, richer workflow authoring, and release polish.
+The gap is breadth and depth around professional testing operations: richer plugin execution surfaces, global search, collaboration handoff, visual workflow authoring, richer reporting, and release polish.
 
 ## Guiding Principles
 
@@ -58,13 +59,14 @@ The gap is breadth and depth around professional testing operations: richer plug
 | Intercept | Capture-only workflow | Queue, forward, drop, edit request/response, interception rules, pause modes |
 | HTTP history | Capture log and search | HTTPQL-style query language, saved filters, tags, comments, bulk actions, smart grouping |
 | WebSockets | Frame log and inspection | Replay/edit WebSocket messages, conversation grouping, protocol helpers |
-| Sitemap | Not yet present | Host/path tree, endpoint inventory, parameter discovery, diff between sessions |
+| Sitemap | Host/path tree, endpoint inventory, and session diff | Richer crawl planning, endpoint risk scoring, and global search integration |
 | Replay | Single editor, replay, burst | Multi-tab repeater, history per tab, response diffing, variables, environments, collections |
 | Automate | Payload positions, payload sets, bounded sessions, result filters, clustering, match/extract rules, Finding promotion | Reusable active workflow integration |
-| Match & Replace | Not yet present | Request/response rewrite rules with scope, conditions, and audit logs |
+| Match & Replace | Scoped request/response rewrite rules with conditions and evidence metadata | Richer rule library, export/import, and rule-hit analytics |
 | Findings | Manual and AI findings inbox, severity, evidence, reproduction, status, retest, export | Richer triage, deduplication, assignment filters, and workflow/plugin promotion |
 | Workflows | Declarative JSON/YAML-like workflows, built-in passive checks, scoped selected-capture active replay, run history, Finding promotion, and AI workflow selection | Visual workflow editing, richer branching, SDK steps, and reusable active workflow integration |
 | Plugins | Local manifest registry, permission approval, SDK/API boundary, first-party examples, and AI-visible inventory | Signed/community package model later, live sandboxed execution, and richer SDK panels |
+| Advanced testing | GraphQL extraction, OpenAPI/Postman preview imports, auth matrix, parameter discovery, local secret detection, header behavior, and proxy guidance | Deeper protocol helpers, richer active workflow generation, and visual API coverage planning |
 | Search | Basic string filters | Global search across captures, frames, replays, findings, notes, and workflows |
 | Reports | Markdown/HTML export with redacted evidence appendix | Report builder sections, appendices, retest matrices, and customizable templates |
 | Team/cloud | Intentionally local-first | Optional export/import and file-based handoff before any hosted collaboration |
@@ -216,6 +218,8 @@ Exit criteria:
 ### Phase 8 - Advanced Testing Surfaces
 
 Purpose: cover the workflows that make testers keep a second proxy open.
+
+Status: shipped as the **09 Advanced** local analysis surface. Future work can deepen individual helpers, but the roadmap phase now has a Manual-First surface and AI-First read-only visibility.
 
 - Add GraphQL operation extraction, batching helpers, and introspection review.
 - Add OpenAPI/Postman import to create collections, sitemap seeds, and replay templates.

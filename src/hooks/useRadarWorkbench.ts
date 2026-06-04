@@ -13,6 +13,7 @@ import {
 import { buildSitemap, sitemapQueryForNode, type SitemapNode } from "../../shared/sitemap.js";
 import { endpointInventoryForNode } from "../../shared/endpointInventory.js";
 import { diffSessionCaptures, type SessionDiffResult } from "../../shared/sessionDiff.js";
+import { buildAdvancedTestingSummary } from "../../shared/advancedTesting.js";
 import { annotationContext } from "../../shared/evidenceTags.js";
 import { diffReplayHistory, type ReplayDiffSummary } from "../../shared/replayDiff.js";
 import {
@@ -108,6 +109,7 @@ export type WorkView =
   | "findings"
   | "workflows"
   | "plugins"
+  | "advanced"
   | "scope"
   | "ssl"
   | "sitemap";
@@ -121,6 +123,7 @@ export const WORK_VIEWS: WorkView[] = [
   "findings",
   "workflows",
   "plugins",
+  "advanced",
   "sitemap",
   "scope",
   "ssl"
@@ -244,9 +247,10 @@ export const viewMeta: Record<WorkView, { num: string; label: string; eyebrow: s
   findings: { num: "06", label: "Findings", eyebrow: "Evidence // Report builder", title: "Findings" },
   workflows: { num: "07", label: "Workflows", eyebrow: "Checks // Repeatable runs", title: "Workflows" },
   plugins: { num: "08", label: "Plugins", eyebrow: "SDK // Local extensions", title: "Plugins" },
-  sitemap: { num: "09", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
-  scope: { num: "10", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
-  ssl: { num: "11", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
+  advanced: { num: "09", label: "Advanced", eyebrow: "API // Auth and data signals", title: "Advanced Testing" },
+  sitemap: { num: "10", label: "Sitemap", eyebrow: "Map // Endpoint inventory", title: "Sitemap" },
+  scope: { num: "11", label: "Scope", eyebrow: "Targets // Engagement boundary", title: "Scope" },
+  ssl: { num: "12", label: "SSL", eyebrow: "Crypto // Proxy interception", title: "Proxy" }
 };
 
 const methodSortOrder = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -441,6 +445,7 @@ export function useRadarWorkbench() {
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
   const [pluginInstallPath, setPluginInstallPath] = useState("");
   const [pluginInstallPreview, setPluginInstallPreview] = useState<PluginInstallPreview | null>(null);
+  const [advancedImportText, setAdvancedImportText] = useState("");
   const [selectedSitemapNodeId, setSelectedSitemapNodeId] = useState("");
   const [diffBaselineSessionId, setDiffBaselineSessionId] = useState("");
   const [sessionDiff, setSessionDiff] = useState<SessionDiffResult | null>(null);
@@ -2085,6 +2090,11 @@ export function useRadarWorkbench() {
     return endpointInventoryForNode(selectedSitemapNode, scopedTrafficCaptures);
   }, [selectedSitemapNode, scopedTrafficCaptures]);
 
+  const advancedSummary = useMemo(
+    () => buildAdvancedTestingSummary(scopedTrafficCaptures, scopedWebSocketEvents, advancedImportText, targets[0] || ""),
+    [advancedImportText, scopedTrafficCaptures, scopedWebSocketEvents, targets]
+  );
+
   const annotationByEvidenceId = useMemo(() => {
     const map = new Map<string, EvidenceAnnotation>();
     for (const annotation of evidenceAnnotations) {
@@ -2681,6 +2691,9 @@ export function useRadarWorkbench() {
     approvePlugin,
     setPluginStatus,
     removePlugin,
+    advancedImportText,
+    setAdvancedImportText,
+    advancedSummary,
     bulkDeleteCaptures,
     bulkExportCaptures,
     bulkTagCaptures,
