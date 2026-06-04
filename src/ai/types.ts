@@ -74,6 +74,7 @@ export const VIEW_AI_TASKS: Record<AiWorkView, AiTaskType[]> = {
   findings: ["report_notes", "capture_summary"],
   workflows: ["scope_checklist", "report_notes"],
   plugins: ["report_notes"],
+  advanced: ["capture_summary", "report_notes", "scope_checklist"],
   sitemap: ["capture_summary", "report_notes"],
   scope: ["scope_checklist", "browser_helper"],
   ssl: ["tls_review"]
@@ -88,6 +89,7 @@ export const VIEW_AI_LABELS: Record<AiWorkView, string> = {
   findings: "Findings review",
   workflows: "Workflow planning",
   plugins: "Plugin review",
+  advanced: "Advanced testing review",
   sitemap: "Sitemap coverage",
   scope: "Scope planning",
   ssl: "TLS & proxy review"

@@ -13,6 +13,7 @@ import type {
   WorkflowDefinition,
   WorkflowRun
 } from "./domain.js";
+import type { AdvancedTestingSummary } from "./advancedTesting.js";
 
 export type AppMode = "manual-first" | "ai-first";
 
@@ -25,6 +26,7 @@ export type AgentWorkbenchView =
   | "findings"
   | "workflows"
   | "plugins"
+  | "advanced"
   | "sitemap"
   | "scope"
   | "ssl";
@@ -66,7 +68,8 @@ export type AgentToolName =
   | "analyzeAutomateResults"
   | "getWorkflowCatalog"
   | "runWorkflow"
-  | "getPluginInventory";
+  | "getPluginInventory"
+  | "getAdvancedTestingSummary";
 
 export type AgentClickableElement = {
   selector: string;
@@ -191,7 +194,8 @@ export type AgentToolCall =
   | { tool: "analyzeAutomateResults"; input: { sessionId?: string } }
   | { tool: "getWorkflowCatalog"; input: Record<string, never> }
   | { tool: "runWorkflow"; input: { workflowId: string; inputs?: Record<string, string> } }
-  | { tool: "getPluginInventory"; input: Record<string, never> };
+  | { tool: "getPluginInventory"; input: Record<string, never> }
+  | { tool: "getAdvancedTestingSummary"; input: Record<string, never> };
 
 export type AgentToolResult =
   | { tool: "showView"; ok: true; data: { view: AgentWorkbenchView } }
@@ -321,6 +325,7 @@ export type AgentToolResult =
       };
     }
   | { tool: "getPluginInventory"; ok: true; data: { plugins: AgentPluginInventoryItem[] } }
+  | { tool: "getAdvancedTestingSummary"; ok: true; data: AdvancedTestingSummary }
   | { tool: "runWorkflow"; ok: true; data: WorkflowRun }
   | { tool: AgentToolName; ok: false; error: string };
 

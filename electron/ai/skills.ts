@@ -10,6 +10,8 @@ const VALID_VIEWS = new Set<AiWorkView>([
   "automate",
   "findings",
   "workflows",
+  "plugins",
+  "advanced",
   "sitemap",
   "scope",
   "ssl"

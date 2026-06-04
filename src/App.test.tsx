@@ -112,6 +112,52 @@ describe("App", () => {
     expect(screen.getByTestId("openProfileSessionPanel")).toBeInTheDocument();
   });
 
+  it("renders advanced testing analysis and import previews", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://allowed.test"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([
+      capture("advanced-graphql", "https://allowed.test/graphql", {
+        method: "POST",
+        requestHeaders: {
+          Authorization: "Bearer token",
+          "Content-Type": "application/json"
+        },
+        requestBody: JSON.stringify({
+          query: "query Me($id: ID) { me(id: $id) { id } }",
+          variables: { id: "1" }
+        }),
+        responseHeaders: { "Cache-Control": "public, max-age=3600" }
+      })
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-advanced"));
+    expect(await screen.findByRole("heading", { name: "Advanced Testing" })).toBeInTheDocument();
+    expect(screen.getByTestId("advancedWorkbench")).toHaveTextContent("GraphQL Review");
+    expect(screen.getByTestId("advancedWorkbench")).toHaveTextContent("Me");
+    expect(screen.getByTestId("advancedWorkbench")).toHaveTextContent("cache-poisoning");
+
+    fireEvent.change(screen.getByTestId("advancedImportText"), {
+      target: {
+        value: JSON.stringify({
+          openapi: "3.0.0",
+          info: { title: "Advanced API" },
+          servers: [{ url: "https://allowed.test" }],
+          paths: {
+            "/users": {
+              get: { operationId: "listUsers" }
+            }
+          }
+        })
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("advancedImportPreview")).toHaveTextContent("GET");
+      expect(screen.getByTestId("advancedImportPreview")).toHaveTextContent("/users");
+    });
+  });
+
   it("marks automate payload positions and loads a materialized preview into repeater", async () => {
     render(<App />);
 

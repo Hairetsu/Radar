@@ -16,9 +16,11 @@ import {
   Eraser,
   ExternalLink,
   FileCode2,
+  FileJson2,
   FileLock2,
   FilePlus2,
   FileText,
+  FlaskConical,
   LockKeyhole,
   Palette,
   Plug,
@@ -33,6 +35,8 @@ import {
   Send,
   Settings2,
   ShieldCheck,
+  ShieldAlert,
+  Smartphone,
   Square,
   Target,
   Terminal,
@@ -96,6 +100,7 @@ const sidebarViewIcons: Record<WorkView, LucideIcon> = {
   findings: FileText,
   workflows: GitCompare,
   plugins: Plug,
+  advanced: FlaskConical,
   sitemap: Map,
   scope: Target,
   ssl: LockKeyhole
@@ -228,6 +233,19 @@ function pluginStatusTone(status: PluginInstallStatus): "good" | "warn" | "dange
   }
   if (status === "blocked") {
     return "danger";
+  }
+  return "ghost";
+}
+
+function advancedSignalTone(severity: string): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (severity === "high") {
+    return "danger";
+  }
+  if (severity === "medium") {
+    return "warn";
+  }
+  if (severity === "low") {
+    return "move";
   }
   return "ghost";
 }
@@ -583,6 +601,7 @@ export function App() {
     findings: `${workbench.findings.length} findings`,
     workflows: `${workbench.workflowRuns.length} runs`,
     plugins: `${workbench.approvedPlugins.length}/${workbench.plugins.length} approved`,
+    advanced: `${workbench.advancedSummary.parameters.length} params`,
     sitemap: `${workbench.sitemap.roots.length} hosts`,
     scope: `${workbench.targets.length} targets`,
     ssl: workbench.proxyState.running ? "proxy engaged" : `${workbench.sslEvents.length} tls events`
@@ -1238,6 +1257,18 @@ export function App() {
                     Install
                   </Button>
                 </>
+              )}
+              {workbench.activeView === "advanced" && (
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => workbench.setAdvancedImportText("")}
+                  disabled={!workbench.advancedImportText.trim()}
+                  data-testid="clearAdvancedImport"
+                >
+                  <Eraser size={14} strokeWidth={1.7} />
+                  Clear Import
+                </Button>
               )}
               {workbench.activeView === "scope" && (
                 <Button
@@ -3931,6 +3962,267 @@ export function App() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {workbench.activeView === "advanced" && (
+            <div className="grid min-h-0 [grid-template-columns:minmax(340px,0.46fr)_minmax(520px,1fr)] max-[1180px]:grid-cols-1">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
+                <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(3,minmax(0,1fr))]">
+                  {[
+                    ["GraphQL", workbench.advancedSummary.graphql.operationCount],
+                    ["Params", workbench.advancedSummary.parameters.length],
+                    ["Signals", workbench.advancedSummary.headerSignals.length + workbench.advancedSummary.secrets.length]
+                  ].map(([label, value]) => (
+                    <div key={label} className="radar-card-gradient px-4 py-3">
+                      <span className="block font-mono text-[8.5px] uppercase tracking-[0.28em] text-muted">
+                        {label}
+                      </span>
+                      <strong className="mt-1 block font-display text-[22px] font-semibold uppercase leading-none text-bone [font-stretch:75%]">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto p-4">
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="advancedImportText" className="px-0 pt-0">
+                        OpenAPI / Postman JSON preview
+                      </FieldLabel>
+                      <Textarea
+                        id="advancedImportText"
+                        value={workbench.advancedImportText}
+                        onChange={(event) => workbench.setAdvancedImportText(event.target.value)}
+                        placeholder='{"openapi":"3.0.0","paths":{...}}'
+                        className="min-h-[190px]"
+                        data-testid="advancedImportText"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge tone={workbench.advancedSummary.apiImport.ok ? "good" : "danger"}>
+                          {workbench.advancedSummary.apiImport.sourceType}
+                        </StatusBadge>
+                        <StatusBadge tone="move">
+                          {workbench.advancedSummary.apiImport.drafts.length} templates
+                        </StatusBadge>
+                        <StatusBadge>{workbench.advancedSummary.apiImport.sitemapSeeds.length} seeds</StatusBadge>
+                      </div>
+                      {workbench.advancedSummary.apiImport.error && (
+                        <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-rust">
+                          {workbench.advancedSummary.apiImport.error}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2" data-testid="advancedImportPreview">
+                      {workbench.advancedSummary.apiImport.drafts.length === 0 && (
+                        <EmptyState className="min-h-[150px] border border-dashed border-rule">
+                          <FileJson2 size={18} strokeWidth={1.4} />
+                          <span>Paste OpenAPI or Postman JSON to preview replay templates.</span>
+                        </EmptyState>
+                      )}
+                      {workbench.advancedSummary.apiImport.drafts.slice(0, 8).map((draft) => (
+                        <div key={draft.id} className="grid gap-2 border border-rule bg-ink/25 p-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <StatusBadge tone="move">{draft.method}</StatusBadge>
+                            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
+                              {draft.path}
+                            </strong>
+                          </div>
+                          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted">
+                            {draft.url}
+                          </span>
+                          {draft.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {draft.tags.slice(0, 4).map((tag) => (
+                                <StatusBadge key={tag}>{tag}</StatusBadge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 grid-cols-2 gap-px overflow-auto bg-rule max-[900px]:grid-cols-1" data-testid="advancedWorkbench">
+                <section className="min-h-[280px] bg-ink p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Braces size={15} strokeWidth={1.7} className="text-signal" />
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.04em] text-bone [font-stretch:75%]">
+                        GraphQL Review
+                      </h3>
+                    </div>
+                    <StatusBadge tone="move">{workbench.advancedSummary.graphql.hosts.length} hosts</StatusBadge>
+                  </div>
+                  <div className="grid gap-2">
+                    {workbench.advancedSummary.graphql.operations.length === 0 && <EmptyState>No GraphQL operations observed</EmptyState>}
+                    {workbench.advancedSummary.graphql.operations.slice(0, 8).map((operation) => (
+                      <div key={operation.id} className="grid gap-1 border border-rule bg-surface/35 p-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <StatusBadge tone={operation.introspection ? "warn" : "ghost"}>{operation.operationType}</StatusBadge>
+                          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
+                            {operation.operationName}
+                          </strong>
+                        </div>
+                        <span className="font-mono text-[10px] text-muted">
+                          {operation.transport} / {operation.path} / vars {operation.variables.length}
+                          {operation.batched ? " / batched" : ""}
+                          {operation.introspection ? " / introspection" : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="min-h-[280px] bg-ink p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={15} strokeWidth={1.7} className="text-signal" />
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.04em] text-bone [font-stretch:75%]">
+                        Auth Matrix
+                      </h3>
+                    </div>
+                    <StatusBadge>{workbench.advancedSummary.authMatrix.length} rows</StatusBadge>
+                  </div>
+                  <div className="grid gap-2">
+                    {workbench.advancedSummary.authMatrix.length === 0 && <EmptyState>No auth-state comparisons observed</EmptyState>}
+                    {workbench.advancedSummary.authMatrix.slice(0, 8).map((row) => (
+                      <div key={row.id} className="grid gap-2 border border-rule bg-surface/35 p-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <StatusBadge tone={row.verdict === "protected" ? "good" : row.verdict === "public" ? "warn" : "ghost"}>
+                            {row.verdict}
+                          </StatusBadge>
+                          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
+                            {row.method} {row.path}
+                          </strong>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(row.statuses).map(([state, status]) => (
+                            <StatusBadge key={state}>
+                              {state}:{status}
+                            </StatusBadge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="min-h-[280px] bg-ink p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Search size={15} strokeWidth={1.7} className="text-signal" />
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.04em] text-bone [font-stretch:75%]">
+                        Parameters
+                      </h3>
+                    </div>
+                    <StatusBadge tone="move">{workbench.advancedSummary.parameters.length} found</StatusBadge>
+                  </div>
+                  <div className="grid gap-2">
+                    {workbench.advancedSummary.parameters.length === 0 && <EmptyState>No parameters discovered</EmptyState>}
+                    {workbench.advancedSummary.parameters.slice(0, 12).map((parameter) => (
+                      <div key={parameter.id} className="flex items-center justify-between gap-3 border border-rule bg-surface/35 px-3 py-2">
+                        <div className="min-w-0">
+                          <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
+                            {parameter.name}
+                          </strong>
+                          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted">
+                            {parameter.location} / {parameter.endpoints.length} endpoints
+                          </span>
+                        </div>
+                        <StatusBadge>{parameter.count}</StatusBadge>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="min-h-[280px] bg-ink p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert size={15} strokeWidth={1.7} className="text-rust" />
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.04em] text-bone [font-stretch:75%]">
+                        Local Secret Signals
+                      </h3>
+                    </div>
+                    <StatusBadge tone={workbench.advancedSummary.secrets.length > 0 ? "danger" : "good"}>
+                      {workbench.advancedSummary.secrets.length}
+                    </StatusBadge>
+                  </div>
+                  <div className="grid gap-2">
+                    {workbench.advancedSummary.secrets.length === 0 && <EmptyState>No secret-shaped response data detected</EmptyState>}
+                    {workbench.advancedSummary.secrets.slice(0, 8).map((secret) => (
+                      <div key={secret.id} className="grid gap-1 border border-rust/35 bg-rust/5 p-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <StatusBadge tone={advancedSignalTone(secret.severity)}>{secret.severity}</StatusBadge>
+                          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
+                            {secret.pattern}
+                          </strong>
+                        </div>
+                        <span className="font-mono text-[10px] text-muted">
+                          {secret.location} / {secret.preview}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="min-h-[280px] bg-ink p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <FileCode2 size={15} strokeWidth={1.7} className="text-signal" />
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.04em] text-bone [font-stretch:75%]">
+                        Header Behavior
+                      </h3>
+                    </div>
+                    <StatusBadge>{workbench.advancedSummary.headerSignals.length} signals</StatusBadge>
+                  </div>
+                  <div className="grid gap-2">
+                    {workbench.advancedSummary.headerSignals.length === 0 && <EmptyState>No cache or header behavior signals</EmptyState>}
+                    {workbench.advancedSummary.headerSignals.slice(0, 8).map((signal) => (
+                      <div key={signal.id} className="grid gap-1 border border-rule bg-surface/35 p-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <StatusBadge tone={advancedSignalTone(signal.severity)}>{signal.kind}</StatusBadge>
+                          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
+                            {signal.title}
+                          </strong>
+                        </div>
+                        <p className="text-[11.5px] leading-5 text-copy">{signal.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="min-h-[280px] bg-ink p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Smartphone size={15} strokeWidth={1.7} className="text-signal" />
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.04em] text-bone [font-stretch:75%]">
+                        Proxy Guidance
+                      </h3>
+                    </div>
+                    <StatusBadge tone="move">{workbench.advancedSummary.proxyGuidance.length} profiles</StatusBadge>
+                  </div>
+                  <div className="grid gap-2">
+                    {workbench.advancedSummary.proxyGuidance.map((profile) => (
+                      <div key={profile.id} className="grid gap-2 border border-rule bg-surface/35 p-3">
+                        <strong className="font-display text-[14px] uppercase tracking-[0.04em] text-bone">
+                          {profile.title}
+                        </strong>
+                        <p className="text-[11.5px] leading-5 text-copy">{profile.summary}</p>
+                        <ul className="grid gap-1 font-mono text-[10px] text-muted">
+                          {profile.checklist.slice(0, 3).map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               </div>
             </div>
           )}

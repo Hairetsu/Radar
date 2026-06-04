@@ -99,6 +99,19 @@ export type {
 } from "../shared/domain";
 
 export type {
+  AdvancedTestingSummary,
+  ApiImportDraft,
+  ApiImportResult,
+  AuthMatrixRow,
+  GraphQlOperation,
+  GraphQlReview,
+  HeaderBehaviorSignal,
+  ParameterFinding,
+  ProxyGuidance,
+  SecretDetection
+} from "../shared/advancedTesting";
+
+export type {
   AgentFinding,
   AgentPolicy,
   AgentRun,

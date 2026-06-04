@@ -1415,6 +1415,7 @@ function createAgentRuntime() {
       return openRealChrome(url);
     },
     getCaptures: () => listHttpCaptures(400),
+    getWebSocketEvents: () => listWebSocketEvents(HOT_WEBSOCKET_LIMIT),
     getInterceptState: () => interceptStateSnapshot(),
     getReplayTabState: () => activeLocalStore().getReplayTabState(activeLocalContext().workspace.id),
     setReplayTabState: (state) => activeLocalStore().setReplayTabState(activeLocalContext().workspace.id, state),

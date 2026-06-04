@@ -135,6 +135,7 @@ function makeRuntime(
     openBrowser,
     navigateBrowser,
     getCaptures: () => (options.captures || []).map((item) => ({ ...item, agentRunId: item.agentRunId || activeRunId })),
+    getWebSocketEvents: () => [],
     getInterceptState: () => ({
       config: { requestEnabled: true, responseEnabled: true },
       queue: options.interceptQueue || []
@@ -766,5 +767,33 @@ describe("AgentRuntime", () => {
         warningCount: 1
       }
     ]);
+  });
+
+  it("exposes advanced testing summary read-only to AI-First", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "showView", input: { view: "advanced", reason: "Review API signals" } } },
+      { action: "tool", call: { tool: "getAdvancedTestingSummary", input: {} } },
+      { action: "finish", rationale: "Advanced signals reviewed.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      captures: [
+        capture("graphql-cap", "https://allowed.test/graphql", {
+          method: "POST",
+          requestHeaders: { "Content-Type": "application/json" },
+          requestBody: JSON.stringify({ query: "query Me { me { id } }" })
+        })
+      ],
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({ goal: "Review advanced API surface", startUrl: "https://allowed.test" });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const summary = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "getAdvancedTestingSummary")?.toolResult;
+    expect(summary?.ok && summary.data.graphql.operationCount).toBe(1);
+    expect(summary?.ok && summary.data.apiImport.drafts).toEqual([]);
   });
 });

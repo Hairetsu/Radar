@@ -10,6 +10,7 @@ describe("ai types", () => {
   it("maps tasks to views", () => {
     expect(VIEW_AI_TASKS.traffic).toEqual(["capture_summary", "report_notes"]);
     expect(VIEW_AI_TASKS.automate).toEqual(["repeater_drafts"]);
+    expect(VIEW_AI_TASKS.advanced).toEqual(["capture_summary", "report_notes", "scope_checklist"]);
     expect(VIEW_AI_TASKS.ssl).toEqual(["tls_review"]);
   });
 

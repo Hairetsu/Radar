@@ -23,6 +23,7 @@ Do not repeat getCaptures just to reread the same capturedTraffic. Use getCaptur
 If page/DOM tools fail because the Chrome debugging endpoint is unavailable, choose openBrowser with browserState.url or startUrl to reopen the controlled browser, then continue.
 For queued intercept traffic, use getInterceptQueue to inspect and prepareInterceptEdit to load visible draft edits. Never forward or drop intercepted traffic; those actions are operator-confirmed.
 For payload variation, use getAutomateContext and prepareAutomateDraft to load visible Automate controls. Never start, pause, stop, or retry an Automate run from AI-First.
+For plugins and Advanced testing, use getPluginInventory and getAdvancedTestingSummary as read-only tools. Never install plugins, approve permissions, import API files, or run imported requests.
 
 Return JSON only in one of these forms:
 {"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action"}
@@ -36,6 +37,8 @@ const WORK_VIEWS: AgentWorkbenchView[] = [
   "automate",
   "findings",
   "workflows",
+  "plugins",
+  "advanced",
   "sitemap",
   "scope",
   "ssl"
