@@ -430,6 +430,7 @@ const radar: RadarApi = {
   createLocalSession: async () => context,
   saveLocalSession: async (payload) => ({ ...context.session, ...payload }),
   loadLocalSession: async () => context,
+  seedDemoProject: async () => context,
   openBrowser: async () => browserState,
   navigateBrowser: async () => browserState,
   browserBack: async () => browserState,

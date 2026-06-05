@@ -996,12 +996,12 @@ export function App() {
               variant="outline"
               size="compact"
               onClick={() => workbench.setProfileSessionOpen(true)}
-              title="Profiles and sessions"
+              title="Projects and sessions"
               data-testid="openProfileSessionPanel"
               data-component="openProfileSessionPanel"
             >
               <UserRound size={14} strokeWidth={1.7} />
-              Profiles
+              Projects
             </Button>
             <Button
               type="button"
@@ -4577,6 +4577,7 @@ export function App() {
         onCreateSession={workbench.createLocalSession}
         onSaveSession={workbench.saveLocalSession}
         onLoadSession={workbench.loadLocalSession}
+        onSeedDemoProject={workbench.seedDemoProject}
       />
 
       <AiSettingsPanel

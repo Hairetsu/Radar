@@ -94,6 +94,7 @@ import {
   shouldRunWorkflowStep
 } from "../shared/workflows.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
+import { seedDemoProject } from "./demoProject.js";
 import { installedPluginFromPreview, readPluginInstallPreview } from "./plugins.js";
 import { runPluginApiAction as runPluginApiActionForPlugin } from "./pluginApi.js";
 import {
@@ -2703,6 +2704,11 @@ ipcMain.handle("local:session:save", (_event, payload) => {
 
 ipcMain.handle("local:session:load", (_event, id) => {
   const context = activeLocalStore().loadSession(String(id || ""));
+  return activateLocalContext(context);
+});
+
+ipcMain.handle("local:demo:seed", () => {
+  const context = seedDemoProject(activeLocalStore());
   return activateLocalContext(context);
 });
 
