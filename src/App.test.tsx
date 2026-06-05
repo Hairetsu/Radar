@@ -88,6 +88,7 @@ afterEach(() => {
   vi.mocked(window.radar!.approvePlugin).mockClear();
   vi.mocked(window.radar!.setPluginStatus).mockClear();
   vi.mocked(window.radar!.removePlugin).mockClear();
+  vi.mocked(window.radar!.seedDemoProject).mockClear();
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
       id: "session-test",
@@ -110,6 +111,16 @@ describe("App", () => {
     expect(screen.getByText(/Attack Surface Workbench/i)).toBeInTheDocument();
     expect(screen.getByTestId("aiConnectionIndicator")).toBeInTheDocument();
     expect(screen.getByTestId("openProfileSessionPanel")).toBeInTheDocument();
+  });
+
+  it("loads the seeded demo project from the local ledger panel", async () => {
+    const seedDemoProject = vi.mocked(window.radar!.seedDemoProject);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("openProfileSessionPanel"));
+    fireEvent.click(await screen.findByTestId("seedDemoProject"));
+
+    await waitFor(() => expect(seedDemoProject).toHaveBeenCalledTimes(1));
   });
 
   it("renders advanced testing analysis and import previews", async () => {

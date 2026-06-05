@@ -6,7 +6,7 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 
 - Sidebar workspace with dedicated HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL tabs.
 - Radar Browser launcher using a supported local Chrome, Edge, Brave, or Chromium binary with a Radar-owned profile and Radar proxy wiring.
-- Persistent local profiles and sessions for separating clients, projects, retests, captures, targets, findings, workflows, plugins, SSL events, WebSocket frames, and AI-First run history.
+- Persistent local projects and sessions for separating clients, retests, captures, targets, findings, workflows, plugins, SSL events, WebSocket frames, and AI-First run history.
 - HTTP/S capture history with method/type filters, a scoped traffic query language, saved filters, tags and comments, bulk tag/delete/export, request/response detail search fallback, selectable copyable details, multi-select, right-click request actions, TLS metadata, and source attribution (browser / proxy / repeater).
 - WebSocket analyzer with handshake, sent, received, error, and close frames; the same scoped query language; direction filters; frame detail copy; and proxy-backed passthrough so controlled Chrome can load WebSocket apps.
 - Sitemap view with host/path/endpoint tree navigation, endpoint inventory (query params, body keys, auth signals), session diff against an earlier session, and one-click jump into filtered HTTP(S) traffic.
@@ -25,12 +25,14 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 - Command-palette AI with per-view skills, provider adapters, context preview, selectable HTTP/S and WebSocket packets, prepare-only outputs, and session audit trail.
 - AI-First autonomous runs that switch Radar tabs, open/navigate the browser, inspect run-scoped HTTP/S capture context across redirects, read intercept queues, summarize sitemap coverage, choose visible workflows, read approved plugin inventory, read advanced testing summaries, prepare visible traffic queries and intercept edits without forwarding/dropping, recover the controlled browser when CDP drops, send strictly capped replay probes, record timeline entries, and produce durable draft findings inside local session history.
 - Switchable Bureau, Vellum, and Specter themes with high-contrast text selection for request/response inspection.
+- Seeded **Radar Demo Project** for screenshots, manual QA, onboarding, and walkthroughs, with synthetic captures, WebSocket frames, findings, workflows, plugins, Advanced signals, and AI run history.
 
 ## Stack
 
 - Electron 42 main process (`electron/main.ts`) wiring CDP capture, mockttp HTTP/WebSocket proxying, system browser launcher, autonomous agent runs, and AI IPC.
 - React 18 + Vite + TypeScript renderer (`src/`).
 - Tailwind CSS v4 with CSS-variable themes and shadcn-style UI primitives (`cn`, `cva`, `src/components/ui/`).
+- SQLite local store (`radar-local.sqlite`) with an explicit migration ledger for profiles, sessions, evidence, workflows, plugins, and AI run history.
 - mockttp for the local MITM proxy, CA generation, HTTP/S passthrough capture, and WebSocket passthrough/frame events.
 - System browser discovery for Chrome, Edge, Brave, and Chromium.
 
@@ -68,7 +70,7 @@ Run the `.exe` installer. SmartScreen may show *"Windows protected your PC"* —
 
 ## Workspace Tour
 
-The renderer is a twelve-view operator console with a Manual-First / AI-First toggle. Persistent across all views: a left sidebar with the Radar lockup, profile/session controls, view navigation, live per-view counts, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / ws / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
+The renderer is a twelve-view operator console with a Manual-First / AI-First toggle. Persistent across all views: a left sidebar with the Radar lockup, project/session controls, view navigation, live per-view counts, a top classification banner with UTC dossier clock, a one-click **Open Browser** launcher, live status pills (engine / req / ws / tls / proxy), appearance and AI settings, and a bottom telemetry ticker mirroring live counts.
 
 For a full user-facing guide to the app, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
@@ -122,7 +124,7 @@ Advanced API and auth testing helpers for the active scoped evidence. Radar extr
 
 ### 10 — Sitemap
 
-Host, path, and endpoint map for scoped HTTP/S traffic in the active session. The left tree groups hosts, paths, and method/status families. Selecting an endpoint opens inventory details for discovered query params, JSON/form keys, content types, and auth signals, or jumps straight into a matching HTTP(S) query. The right pane includes session diff: pick an earlier session under the same profile, compare endpoint coverage, and review added, removed, status-changed, header-changed, and response-shape changes. Example queries are listed for quick reuse in the HTTP(S) tab.
+Host, path, and endpoint map for scoped HTTP/S traffic in the active session. The left tree groups hosts, paths, and method/status families. Selecting an endpoint opens inventory details for discovered query params, JSON/form keys, content types, and auth signals, or jumps straight into a matching HTTP(S) query. The right pane includes session diff: pick an earlier session under the same project, compare endpoint coverage, and review added, removed, status-changed, header-changed, and response-shape changes. Example queries are listed for quick reuse in the HTTP(S) tab.
 
 ### 11 — Scope
 
@@ -136,11 +138,11 @@ The engagement boundary. Newline-delimited origins filter HTTP/S captures and We
 
 Crypto and proxy interception. The summary strip shows current proxy URL, generated CA path, and active browser profile. Below: **Engage Proxy** / **Disengage** / **Forge CA** controls plus a printout of HTTP proxy address, CA cert path, SPKI fingerprint, Chrome CDP endpoint, and selected browser binary. The lower panes hold the certificate event log, local-only proxy profile notes for Radar Browser / external browser / CLI / mobile-device setup, and a TLS detail pane for the currently selected capture.
 
-### Profiles And Sessions
+### Projects And Sessions
 
-Radar stores work locally by profile and session. A profile owns a workspace, scope targets, saved workflows, installed plugin records, a dedicated launched-browser profile directory, and its session list. A session is the active evidence ledger: HTTP/S captures, WebSocket frames, findings, workflow runs, SSL events, and AI-First run history are loaded from and written to the active session.
+Radar stores work locally by project and session. A project owns a workspace, scope targets, saved workflows, installed plugin records, a dedicated launched-browser profile directory, and its session list. A session is the active evidence ledger: HTTP/S captures, WebSocket frames, findings, workflow runs, SSL events, and AI-First run history are loaded from and written to the active session.
 
-Use the sidebar profile/session panel to create, rename, save, and load profiles or sessions. Use the sidebar session selector to jump between existing sessions under the current profile. Switching profiles stops the launched Radar browser when needed so browser state stays isolated.
+Use the sidebar project/session panel to create, rename, save, and load projects or sessions. Use the sidebar session selector to jump between existing sessions under the current project. Switching projects stops the launched Radar browser when needed so browser state stays isolated.
 
 ### Modes — Manual-First And AI-First
 
@@ -206,7 +208,7 @@ The interface is a themed "operator console" aesthetic:
 - **Vellum**: Instrument Serif / Hanken Grotesk / DM Mono with vermillion ink on sunlit paper.
 - **Specter**: Unbounded / Sora / Space Mono with chartreuse acid over midnight plum.
 - Theme tokens live in `src/styles.css` as CSS variables that feed Tailwind's `@theme`; layout and surfaces are Tailwind utilities in components.
-- Asymmetric layout: left sidebar with profile/session controls and live view counts, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, dense evidence grids, and a bottom telemetry ticker.
+- Asymmetric layout: left sidebar with project/session controls and live view counts, a classification banner up top, oversized outlined display numerals anchoring each panel, registration corner marks on the workspace, dense evidence grids, and a bottom telemetry ticker.
 - Motion via Tailwind utilities and keyframes in `src/styles.css`: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button.
 - Text selection is explicitly high-contrast in every theme so request and response evidence can be copied without losing readability.
 
@@ -214,6 +216,7 @@ The interface is a themed "operator console" aesthetic:
 
 See [docs/CODE_CONVENTIONS.md](docs/CODE_CONVENTIONS.md) for the repo-specific code style guide used for future development.
 See [docs/BRANCHING.md](docs/BRANCHING.md) for the protected branch and promotion workflow.
+See [docs/MANUAL_QA_CHECKLIST.md](docs/MANUAL_QA_CHECKLIST.md) for the twelve-view release and demo QA checklist.
 
 ## Project Layout
 

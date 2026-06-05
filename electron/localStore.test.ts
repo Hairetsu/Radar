@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
 import type { AgentRun } from "../shared/agent-types.js";
@@ -15,10 +16,15 @@ import type {
   WorkflowDefinition,
   WorkflowRun
 } from "../shared/domain.js";
-import { openLocalStore } from "./localStore.js";
+import { LOCAL_STORE_SCHEMA_VERSION, openLocalStore } from "./localStore.js";
 
 describe("localStore", () => {
   let tmpDir = "";
+
+  type MigrationMetadata = {
+    metaVersion: string;
+    migrations: Array<{ version: number; name: string }>;
+  };
 
   afterEach(() => {
     if (tmpDir) {
@@ -27,9 +33,285 @@ describe("localStore", () => {
     }
   });
 
-  function makeStore() {
+  function makeTempDir() {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-local-store-"));
+    return tmpDir;
+  }
+
+  function databasePath() {
+    return path.join(tmpDir, "radar-local.sqlite");
+  }
+
+  function makeStore() {
+    makeTempDir();
     return openLocalStore(tmpDir);
+  }
+
+  function readMigrationMetadata(): MigrationMetadata {
+    const db = new DatabaseSync(databasePath());
+    try {
+      const meta = db
+        .prepare("SELECT value FROM meta WHERE key = ?")
+        .get("schema_version") as { value: string } | undefined;
+      const rows = db
+        .prepare("SELECT version, name FROM schema_migrations ORDER BY version ASC")
+        .all() as Array<{ version: number; name: string }>;
+      return {
+        metaVersion: meta?.value || "",
+        migrations: rows.map((row) => ({
+          version: Number(row.version),
+          name: row.name
+        }))
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  function execRawDatabase(sql: string) {
+    const db = new DatabaseSync(databasePath());
+    try {
+      db.exec(sql);
+    } finally {
+      db.close();
+    }
+  }
+
+  function crashFinding(): Finding {
+    return {
+      id: "finding-crash",
+      title: "Crash-safe finding",
+      severity: "medium",
+      confidence: "high",
+      status: "draft",
+      affectedAssets: ["https://example.test"],
+      evidence: [
+        {
+          id: "cap-crash",
+          kind: "capture",
+          label: "GET https://example.test/",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          metadata: { status: "200" }
+        }
+      ],
+      reproductionSteps: "Trigger a failing parent session update.",
+      impact: "A partial write would leave a finding without a matching session timestamp.",
+      remediation: "Keep finding writes transactional.",
+      notes: "",
+      owner: "",
+      retestResult: "",
+      source: "manual",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+  }
+
+  function crashWorkflowRun(sessionId: string): WorkflowRun {
+    return {
+      id: "workflow-run-crash",
+      workflowId: "workflow-crash",
+      workflowName: "Crash-safe workflow",
+      sessionId,
+      source: "manual",
+      mode: "passive",
+      status: "completed",
+      inputs: {},
+      startedAt: "2026-05-25T12:00:00.000Z",
+      completedAt: "2026-05-25T12:00:01.000Z",
+      stepCount: 1,
+      actionCount: 0,
+      results: []
+    };
+  }
+
+  function crashAgentRun(sessionId: string): AgentRun {
+    return {
+      id: "agent-crash",
+      sessionId,
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:01.000Z",
+      goal: "Crash-safe timeline",
+      status: "completed",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 4,
+        maxReplay: 0,
+        maxCaptureSample: 10,
+        allowRawContext: false
+      },
+      timeline: [{ id: "agent-crash-step", createdAt: "2026-05-25T12:00:00.000Z", note: "Persist atomically." }],
+      findings: []
+    };
+  }
+
+  function crashPlugin(): InstalledPlugin {
+    return {
+      id: "crash-plugin",
+      manifest: {
+        schemaVersion: 1,
+        id: "crash-plugin",
+        name: "Crash Plugin",
+        version: "1.0.0",
+        description: "Exercises plugin registry rollback.",
+        author: "Radar",
+        sdkVersion: "0.1",
+        minRadarVersion: "",
+        entry: "dist/index.js",
+        permissions: ["captures:read"],
+        panels: []
+      },
+      sourcePath: "/tmp/crash-plugin",
+      grantedPermissions: [],
+      status: "pending",
+      warnings: [],
+      installedAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+  }
+
+  function createLegacyLocalStore() {
+    makeTempDir();
+    const db = new DatabaseSync(databasePath());
+    const createdAt = "2026-05-25T12:00:00.000Z";
+    const profileId = "profile-legacy";
+    const workspaceId = "workspace-legacy";
+    const sessionId = "session-legacy";
+    const captureId = "cap-legacy";
+    db.exec(`
+      PRAGMA foreign_keys = ON;
+
+      CREATE TABLE meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      CREATE TABLE profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE workspaces (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE workspace_targets (
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        target TEXT NOT NULL,
+        PRIMARY KEY (workspace_id, target)
+      );
+
+      CREATE TABLE captures (
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        id TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        method TEXT NOT NULL,
+        url TEXT NOT NULL,
+        host TEXT NOT NULL,
+        path TEXT NOT NULL,
+        request_headers_json TEXT NOT NULL,
+        request_body TEXT NOT NULL,
+        status INTEGER,
+        status_text TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        response_headers_json TEXT NOT NULL,
+        response_body TEXT NOT NULL,
+        duration_ms INTEGER,
+        encoded_data_length INTEGER,
+        allowed INTEGER NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('browser', 'repeater', 'proxy')),
+        tls_json TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, id)
+      );
+    `);
+    db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)").run("schema_version", "12");
+    db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)").run("active_profile_id", profileId);
+    db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)").run("active_workspace_id", workspaceId);
+    db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)").run("active_session_id", sessionId);
+    db.prepare("INSERT INTO profiles (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)").run(
+      profileId,
+      "Legacy Operator",
+      createdAt,
+      createdAt
+    );
+    db.prepare(
+      "INSERT INTO workspaces (id, profile_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+    ).run(workspaceId, profileId, "Legacy Workspace", createdAt, createdAt);
+    db.prepare(
+      "INSERT INTO sessions (id, workspace_id, name, started_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+    ).run(sessionId, workspaceId, "Legacy Session", createdAt, createdAt);
+    db.prepare("INSERT INTO workspace_targets (workspace_id, position, target) VALUES (?, ?, ?)").run(
+      workspaceId,
+      0,
+      "https://legacy.example"
+    );
+    db.prepare(`
+      INSERT INTO captures (
+        session_id, id, started_at, method, url, host, path,
+        request_headers_json, request_body, status, status_text, mime_type, resource_type,
+        response_headers_json, response_body, duration_ms, encoded_data_length, allowed,
+        source, tls_json, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      sessionId,
+      captureId,
+      createdAt,
+      "GET",
+      "https://legacy.example/api",
+      "legacy.example",
+      "/api",
+      "{\"Accept\":\"application/json\"}",
+      "",
+      200,
+      "OK",
+      "application/json",
+      "Fetch",
+      "{\"content-type\":\"application/json\"}",
+      "{\"ok\":true}",
+      31,
+      11,
+      1,
+      "browser",
+      null,
+      createdAt
+    );
+    db.close();
+    return { profileId, workspaceId, sessionId, captureId };
+  }
+
+  function createNewerLocalStore() {
+    makeTempDir();
+    const db = new DatabaseSync(databasePath());
+    db.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+    `);
+    db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)").run(
+      LOCAL_STORE_SCHEMA_VERSION + 1,
+      "future-schema",
+      "2026-05-25T12:00:00.000Z"
+    );
+    db.close();
   }
 
   it("bootstraps a local profile, workspace, session, and default targets", () => {
@@ -42,6 +324,144 @@ describe("localStore", () => {
     expect(store.getTargets(context.workspace.id)).toEqual(DEFAULT_ALLOWLIST);
 
     store.close();
+  });
+
+  it("records the current schema migration on fresh stores", () => {
+    const store = makeStore();
+    store.getActiveContext();
+    store.close();
+
+    expect(readMigrationMetadata()).toEqual({
+      metaVersion: String(LOCAL_STORE_SCHEMA_VERSION),
+      migrations: [{ version: LOCAL_STORE_SCHEMA_VERSION, name: "current-workbench-schema" }]
+    });
+  });
+
+  it("migrates legacy stores without losing active context or captures", () => {
+    const legacy = createLegacyLocalStore();
+    const store = openLocalStore(tmpDir);
+    const context = store.getActiveContext();
+
+    expect(context.profile.id).toBe(legacy.profileId);
+    expect(context.workspace.id).toBe(legacy.workspaceId);
+    expect(context.session.id).toBe(legacy.sessionId);
+    expect(store.getTargets(legacy.workspaceId)).toEqual(["https://legacy.example"]);
+    expect(store.listCaptures(legacy.sessionId, 10)).toEqual([
+      {
+        id: legacy.captureId,
+        startedAt: "2026-05-25T12:00:00.000Z",
+        method: "GET",
+        url: "https://legacy.example/api",
+        host: "legacy.example",
+        path: "/api",
+        requestHeaders: { Accept: "application/json" },
+        requestBody: "",
+        status: 200,
+        statusText: "OK",
+        mimeType: "application/json",
+        type: "Fetch",
+        responseHeaders: { "content-type": "application/json" },
+        responseBody: "{\"ok\":true}",
+        durationMs: 31,
+        encodedDataLength: 11,
+        allowed: true,
+        source: "browser",
+        tls: null
+      }
+    ]);
+    store.close();
+
+    expect(readMigrationMetadata()).toEqual({
+      metaVersion: String(LOCAL_STORE_SCHEMA_VERSION),
+      migrations: [{ version: LOCAL_STORE_SCHEMA_VERSION, name: "current-workbench-schema" }]
+    });
+  });
+
+  it("does not duplicate migration records when reopening current stores", () => {
+    const store = makeStore();
+    store.getActiveContext();
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    reopened.getActiveContext();
+    reopened.close();
+
+    expect(readMigrationMetadata().migrations).toEqual([
+      { version: LOCAL_STORE_SCHEMA_VERSION, name: "current-workbench-schema" }
+    ]);
+  });
+
+  it("rejects stores created by a newer unsupported schema", () => {
+    createNewerLocalStore();
+
+    expect(() => openLocalStore(tmpDir)).toThrow(
+      `Local store schema version ${LOCAL_STORE_SCHEMA_VERSION + 1} is newer than this Radar build supports`
+    );
+  });
+
+  it("rolls back new sessions when active-session metadata cannot be written", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const existingSessions = store.listSessions(context.profile.id);
+    store.close();
+    execRawDatabase(`
+      CREATE TRIGGER fail_active_session_meta
+      BEFORE INSERT ON meta
+      WHEN NEW.key = 'active_session_id'
+      BEGIN
+        SELECT RAISE(FAIL, 'blocked active session meta');
+      END;
+    `);
+
+    const reopened = openLocalStore(tmpDir);
+    expect(() => reopened.createSession(context.workspace.id, "Crash session")).toThrow(/blocked active session meta/);
+    expect(reopened.listSessions(context.profile.id)).toEqual(existingSessions);
+    reopened.close();
+  });
+
+  it("rolls back session-scoped records when session metadata cannot be updated", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    store.close();
+    execRawDatabase(`
+      CREATE TRIGGER fail_session_touch
+      BEFORE UPDATE ON sessions
+      BEGIN
+        SELECT RAISE(FAIL, 'blocked session touch');
+      END;
+    `);
+
+    const reopened = openLocalStore(tmpDir);
+    expect(() => reopened.upsertFinding(context.session.id, crashFinding())).toThrow(/blocked session touch/);
+    expect(() => reopened.upsertWorkflowRun(context.session.id, crashWorkflowRun(context.session.id))).toThrow(
+      /blocked session touch/
+    );
+    expect(() => reopened.upsertAgentRun(context.session.id, crashAgentRun(context.session.id))).toThrow(
+      /blocked session touch/
+    );
+
+    expect(reopened.listFindings(context.session.id)).toEqual([]);
+    expect(reopened.listWorkflowRuns(context.session.id)).toEqual([]);
+    expect(reopened.listAgentRuns(context.session.id)).toEqual([]);
+    reopened.close();
+  });
+
+  it("rolls back plugin records when workspace metadata cannot be updated", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    store.close();
+    execRawDatabase(`
+      CREATE TRIGGER fail_workspace_touch
+      BEFORE UPDATE ON workspaces
+      BEGIN
+        SELECT RAISE(FAIL, 'blocked workspace touch');
+      END;
+    `);
+
+    const reopened = openLocalStore(tmpDir);
+    expect(() => reopened.upsertPlugin(context.workspace.id, crashPlugin())).toThrow(/blocked workspace touch/);
+    expect(reopened.listPlugins(context.workspace.id)).toEqual([]);
+    reopened.close();
   });
 
   it("persists targets and captures across store instances", () => {

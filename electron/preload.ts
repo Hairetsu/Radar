@@ -11,6 +11,7 @@ const radar: RadarApi = {
   createLocalSession: (name?: string) => ipcRenderer.invoke("local:session:create", name),
   saveLocalSession: (payload) => ipcRenderer.invoke("local:session:save", payload),
   loadLocalSession: (id: string) => ipcRenderer.invoke("local:session:load", id),
+  seedDemoProject: () => ipcRenderer.invoke("local:demo:seed"),
   openBrowser: (url: string) => ipcRenderer.invoke("browser:open", url),
   navigateBrowser: (url: string) => ipcRenderer.invoke("browser:navigate", url),
   browserBack: () => ipcRenderer.invoke("browser:back"),

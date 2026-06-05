@@ -63,6 +63,7 @@ export type RadarApi = {
   createLocalSession: (name?: string) => Promise<LocalContext>;
   saveLocalSession: (payload: { id: string; name: string }) => Promise<LocalSession>;
   loadLocalSession: (id: string) => Promise<LocalContext>;
+  seedDemoProject: () => Promise<LocalContext>;
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
   browserBack: () => Promise<BrowserState>;

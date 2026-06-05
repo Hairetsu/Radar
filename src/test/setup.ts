@@ -145,6 +145,28 @@ const radarApi = {
       updatedAt: "2026-05-25T00:00:00.000Z"
     }
   })),
+  seedDemoProject: vi.fn(async () => ({
+    profile: {
+      id: "profile-demo",
+      name: "Radar Demo Project",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    workspace: {
+      id: "workspace-demo",
+      profileId: "profile-demo",
+      name: "Default Workspace",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    },
+    session: {
+      id: "session-demo",
+      workspaceId: "workspace-demo",
+      name: "Seeded Walkthrough",
+      startedAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    }
+  })),
   getBrowserState: vi.fn(async () => ({ open: false, url: "", title: "", loading: false, engine: "none" })),
   getProxyState: vi.fn(async () => ({
     running: false,
