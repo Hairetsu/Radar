@@ -1,4 +1,4 @@
-import { FilePlus2, FolderOpen, Save, UserRound, X } from "lucide-react";
+import { DatabaseZap, FilePlus2, FolderOpen, Save, UserRound, X } from "lucide-react";
 import { useEffect } from "react";
 import type { LocalContext, LocalProfile, LocalSessionSummary } from "../types";
 import { cn } from "../lib/utils";
@@ -22,6 +22,7 @@ type ProfileSessionPanelProps = {
   onCreateSession: (name?: string) => Promise<void>;
   onSaveSession: () => Promise<void>;
   onLoadSession: (id: string) => Promise<void>;
+  onSeedDemoProject: () => Promise<void>;
 };
 
 function stamp(value: string) {
@@ -52,7 +53,8 @@ export function ProfileSessionPanel({
   onLoadProfile,
   onCreateSession,
   onSaveSession,
-  onLoadSession
+  onLoadSession,
+  onSeedDemoProject
 }: ProfileSessionPanelProps) {
   useEffect(() => {
     if (!open) {
@@ -92,12 +94,12 @@ export function ProfileSessionPanel({
             <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
               <FolderOpen size={12} strokeWidth={1.8} /> Local Ledger
             </span>
-            <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">Profiles & Sessions</h3>
+            <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">Projects & Sessions</h3>
             <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-muted">
               Active · {context ? `${context.profile.name} / ${context.session.name}` : "standby"}
             </p>
           </div>
-          <Button type="button" variant="icon" size="icon" onClick={onClose} aria-label="Close profile and session panel">
+          <Button type="button" variant="icon" size="icon" onClick={onClose} aria-label="Close projects and sessions panel">
             <X size={15} strokeWidth={1.8} />
           </Button>
         </header>
@@ -106,14 +108,14 @@ export function ProfileSessionPanel({
           <section className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden border border-rule radar-card-gradient">
             <div className="border-b border-rule px-4 py-3">
               <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.36em] text-signal">
-                Profile
+                Project
               </span>
             </div>
             <div className="grid gap-2 border-b border-rule px-4 py-4">
               <Input
                 value={profileName}
                 onChange={(event) => onProfileNameChange(event.target.value)}
-                placeholder="Operator profile"
+                placeholder="Client or project"
                 data-testid="profileNameInput"
                 data-component="profileNameInput"
               />
@@ -140,10 +142,20 @@ export function ProfileSessionPanel({
                   New
                 </Button>
               </div>
+              <Button
+                type="button"
+                variant="zap"
+                onClick={() => void onSeedDemoProject()}
+                data-testid="seedDemoProject"
+                data-component="seedDemoProject"
+              >
+                <DatabaseZap size={13} strokeWidth={1.8} />
+                Load Demo
+              </Button>
             </div>
 
             <div className="min-h-0 overflow-auto">
-              {profiles.length === 0 && <EmptyState>No profiles</EmptyState>}
+              {profiles.length === 0 && <EmptyState>No projects</EmptyState>}
               {profiles.map((profile, index) => {
                 const active = profile.id === activeProfileId;
                 return (

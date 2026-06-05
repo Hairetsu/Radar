@@ -1716,16 +1716,16 @@ export function useRadarWorkbench() {
 
   const createLocalProfile = useCallback(async () => {
     if (!window.radar) {
-      setNotice("Run in Electron to create a profile.");
+      setNotice("Run in Electron to create a project.");
       return;
     }
     const context = await window.radar.createLocalProfile(profileName);
-    await applyLocalContext(context, `Profile opened: ${context.profile.name}`);
+    await applyLocalContext(context, `Project opened: ${context.profile.name}`);
   }, [applyLocalContext, profileName]);
 
   const saveLocalProfile = useCallback(async () => {
     if (!window.radar || !localContext) {
-      setNotice("Run in Electron to save a profile.");
+      setNotice("Run in Electron to save a project.");
       return;
     }
     const profile = await window.radar.saveLocalProfile({
@@ -1736,17 +1736,17 @@ export function useRadarWorkbench() {
     setLocalContext(context);
     setProfileName(profile.name);
     await refreshLocalLists(context);
-    setNotice(`Profile saved: ${profile.name}`);
+    setNotice(`Project saved: ${profile.name}`);
   }, [localContext, profileName, refreshLocalLists]);
 
   const loadLocalProfile = useCallback(
     async (profileId: string) => {
       if (!window.radar) {
-        setNotice("Run in Electron to load a profile.");
+        setNotice("Run in Electron to load a project.");
         return;
       }
       const context = await window.radar.loadLocalProfile(profileId);
-      await applyLocalContext(context, `Profile loaded: ${context.profile.name}`);
+      await applyLocalContext(context, `Project loaded: ${context.profile.name}`);
     },
     [applyLocalContext]
   );
@@ -1792,6 +1792,15 @@ export function useRadarWorkbench() {
     },
     [applyLocalContext]
   );
+
+  const seedDemoProject = useCallback(async () => {
+    if (!window.radar?.seedDemoProject) {
+      setNotice("Run in Electron to load demo data.");
+      return;
+    }
+    const context = await window.radar.seedDemoProject();
+    await applyLocalContext(context, `Demo project loaded: ${context.session.name}`);
+  }, [applyLocalContext]);
 
   const ensureProxyCa = useCallback(async () => {
     if (!window.radar) {
@@ -2847,6 +2856,7 @@ export function useRadarWorkbench() {
     confirmNewSession,
     saveLocalSession,
     loadLocalSession,
+    seedDemoProject,
     ensureProxyCa,
     startProxy,
     stopProxy,

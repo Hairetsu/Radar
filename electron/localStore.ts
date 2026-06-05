@@ -49,10 +49,24 @@ import { normalizeReplayTabState } from "../shared/replayTabs.js";
 import { normalizeSavedFilters } from "../shared/savedFilters.js";
 import { MAX_WORKFLOWS, normalizeWorkflowDefinition, normalizeWorkflowDefinitions, normalizeWorkflowRun, normalizeWorkflowRuns } from "../shared/workflows.js";
 
-const SCHEMA_VERSION = "12";
+export const LOCAL_STORE_SCHEMA_VERSION = 13;
+
+const SCHEMA_VERSION = String(LOCAL_STORE_SCHEMA_VERSION);
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
+
+type LocalStoreMigration = {
+  version: number;
+  name: string;
+  up: () => void;
+};
+
+type SchemaMigrationRow = {
+  version: number;
+  name: string;
+  applied_at: string;
+};
 
 type ProfileRow = {
   id: string;
@@ -486,17 +500,84 @@ function toAgentRun(row: AgentRunRow): AgentRun {
   };
 }
 
+function configureLocalStoreDatabase(db: DatabaseSync) {
+  db.exec(`
+    PRAGMA foreign_keys = ON;
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
+  `);
+}
+
+function runImmediateTransaction<T>(db: DatabaseSync, action: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = action();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function ensureSchemaMigrationTable(db: DatabaseSync) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+  `);
+}
+
+function schemaMigrationRows(db: DatabaseSync) {
+  ensureSchemaMigrationTable(db);
+  return db
+    .prepare("SELECT version, name, applied_at FROM schema_migrations ORDER BY version ASC")
+    .all() as SchemaMigrationRow[];
+}
+
+function runLocalStoreMigrations(db: DatabaseSync, migrations: LocalStoreMigration[]) {
+  const rows = schemaMigrationRows(db);
+  const applied = new Set(rows.map((row) => Number(row.version)));
+  const latestApplied = Math.max(0, ...Array.from(applied));
+  if (latestApplied > LOCAL_STORE_SCHEMA_VERSION) {
+    throw new Error(
+      `Local store schema version ${latestApplied} is newer than this Radar build supports (${LOCAL_STORE_SCHEMA_VERSION}).`
+    );
+  }
+
+  for (const migration of [...migrations].sort((left, right) => left.version - right.version)) {
+    if (applied.has(migration.version)) {
+      continue;
+    }
+
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      migration.up();
+      db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)").run("schema_version", SCHEMA_VERSION);
+      db.prepare(
+        "INSERT OR REPLACE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)"
+      ).run(migration.version, migration.name, nowIso());
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+
+    applied.add(migration.version);
+  }
+}
+
 export type LocalStore = ReturnType<typeof openLocalStore>;
 
 export function openLocalStore(userDataPath: string) {
   fs.mkdirSync(userDataPath, { recursive: true });
   const db = new DatabaseSync(path.join(userDataPath, "radar-local.sqlite"));
+  configureLocalStoreDatabase(db);
 
-  db.exec(`
-    PRAGMA foreign_keys = ON;
-    PRAGMA journal_mode = WAL;
-    PRAGMA synchronous = NORMAL;
-
+  const applyCurrentSchema = () => {
+    db.exec(`
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -746,30 +827,44 @@ export function openLocalStore(userDataPath: string) {
       ON workspace_plugins(workspace_id, updated_at DESC);
   `);
 
-  const captureColumns = new Set(
-    (
-      db.prepare("PRAGMA table_info(captures)").all() as Array<{
-        name: string;
-      }>
-    ).map((column) => column.name)
-  );
-  const captureColumnMigrations: Array<[string, string]> = [
-    ["agent_run_id", "TEXT"],
-    ["navigation_id", "TEXT"],
-    ["frame_url", "TEXT"],
-    ["initiator", "TEXT"],
-    ["intercept_json", "TEXT"],
-    ["rewrite_json", "TEXT"]
-  ];
-  for (const [name, type] of captureColumnMigrations) {
-    if (!captureColumns.has(name)) {
-      db.exec(`ALTER TABLE captures ADD COLUMN ${name} ${type}`);
+    const captureColumns = new Set(
+      (
+        db.prepare("PRAGMA table_info(captures)").all() as Array<{
+          name: string;
+        }>
+      ).map((column) => column.name)
+    );
+    const captureColumnMigrations: Array<[string, string]> = [
+      ["agent_run_id", "TEXT"],
+      ["navigation_id", "TEXT"],
+      ["frame_url", "TEXT"],
+      ["initiator", "TEXT"],
+      ["intercept_json", "TEXT"],
+      ["rewrite_json", "TEXT"]
+    ];
+    for (const [name, type] of captureColumnMigrations) {
+      if (!captureColumns.has(name)) {
+        db.exec(`ALTER TABLE captures ADD COLUMN ${name} ${type}`);
+      }
     }
-  }
-  db.exec(`
+    db.exec(`
     CREATE INDEX IF NOT EXISTS idx_captures_session_agent_run
       ON captures(session_id, agent_run_id, started_at DESC);
   `);
+  };
+
+  try {
+    runLocalStoreMigrations(db, [
+      {
+        version: LOCAL_STORE_SCHEMA_VERSION,
+        name: "current-workbench-schema",
+        up: applyCurrentSchema
+      }
+    ]);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 
   const readMeta = (key: string) => {
     const row = db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | undefined;
@@ -843,10 +938,12 @@ export function openLocalStore(userDataPath: string) {
       startedAt: createdAt,
       updatedAt: createdAt
     };
-    db.prepare(
-      "INSERT INTO sessions (id, workspace_id, name, started_at, updated_at) VALUES (?, ?, ?, ?, ?)"
-    ).run(session.id, session.workspaceId, session.name, session.startedAt, session.updatedAt);
-    writeMeta("active_session_id", session.id);
+    runImmediateTransaction(db, () => {
+      db.prepare(
+        "INSERT INTO sessions (id, workspace_id, name, started_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+      ).run(session.id, session.workspaceId, session.name, session.startedAt, session.updatedAt);
+      writeMeta("active_session_id", session.id);
+    });
     return session;
   };
 
@@ -1296,14 +1393,16 @@ export function openLocalStore(userDataPath: string) {
     if (listPlugins(workspaceId).length >= MAX_PLUGINS && !getPlugin(workspaceId, plugin.id)) {
       throw new Error("Plugin registry is full.");
     }
-    db.prepare(`
-      INSERT INTO workspace_plugins (workspace_id, plugin_id, updated_at, plugin_json)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(workspace_id, plugin_id) DO UPDATE SET
-        updated_at = excluded.updated_at,
-        plugin_json = excluded.plugin_json
-    `).run(workspaceId, plugin.id, plugin.updatedAt, JSON.stringify(plugin));
-    db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(plugin.updatedAt, workspaceId);
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO workspace_plugins (workspace_id, plugin_id, updated_at, plugin_json)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(workspace_id, plugin_id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          plugin_json = excluded.plugin_json
+      `).run(workspaceId, plugin.id, plugin.updatedAt, JSON.stringify(plugin));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(plugin.updatedAt, workspaceId);
+    });
     return plugin;
   };
 
@@ -1329,8 +1428,10 @@ export function openLocalStore(userDataPath: string) {
   };
 
   const deletePlugin = (workspaceId: string, pluginId: string) => {
-    db.prepare("DELETE FROM workspace_plugins WHERE workspace_id = ? AND plugin_id = ?").run(workspaceId, pluginId);
-    db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+    runImmediateTransaction(db, () => {
+      db.prepare("DELETE FROM workspace_plugins WHERE workspace_id = ? AND plugin_id = ?").run(workspaceId, pluginId);
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+    });
     return listPlugins(workspaceId);
   };
 
@@ -1463,20 +1564,24 @@ export function openLocalStore(userDataPath: string) {
     if (!finding) {
       throw new Error("Finding was invalid.");
     }
-    db.prepare(`
-      INSERT INTO session_findings (session_id, id, updated_at, finding_json)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(session_id, id) DO UPDATE SET
-        updated_at = excluded.updated_at,
-        finding_json = excluded.finding_json
-    `).run(sessionId, finding.id, finding.updatedAt, JSON.stringify(finding));
-    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(finding.updatedAt, sessionId);
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO session_findings (session_id, id, updated_at, finding_json)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(session_id, id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          finding_json = excluded.finding_json
+      `).run(sessionId, finding.id, finding.updatedAt, JSON.stringify(finding));
+      db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(finding.updatedAt, sessionId);
+    });
     return finding;
   };
 
   const deleteFinding = (sessionId: string, findingId: string) => {
-    db.prepare("DELETE FROM session_findings WHERE session_id = ? AND id = ?").run(sessionId, findingId);
-    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+    runImmediateTransaction(db, () => {
+      db.prepare("DELETE FROM session_findings WHERE session_id = ? AND id = ?").run(sessionId, findingId);
+      db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+    });
   };
 
   const listWorkflowRuns = (sessionId: string, limit = 60) => {
@@ -1500,14 +1605,16 @@ export function openLocalStore(userDataPath: string) {
     if (!run) {
       throw new Error("Workflow run was invalid.");
     }
-    db.prepare(`
-      INSERT INTO session_workflow_runs (session_id, id, started_at, run_json)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(session_id, id) DO UPDATE SET
-        started_at = excluded.started_at,
-        run_json = excluded.run_json
-    `).run(sessionId, run.id, run.startedAt, JSON.stringify(run));
-    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.completedAt || run.startedAt, sessionId);
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO session_workflow_runs (session_id, id, started_at, run_json)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(session_id, id) DO UPDATE SET
+          started_at = excluded.started_at,
+          run_json = excluded.run_json
+      `).run(sessionId, run.id, run.startedAt, JSON.stringify(run));
+      db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.completedAt || run.startedAt, sessionId);
+    });
     return run;
   };
 
@@ -1699,32 +1806,34 @@ export function openLocalStore(userDataPath: string) {
   };
 
   const upsertAgentRun = (sessionId: string, run: AgentRun) => {
-    db.prepare(`
-      INSERT INTO agent_runs (
-        session_id, id, created_at, updated_at, goal, status, policy_json, timeline_json, findings_json, error
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(session_id, id) DO UPDATE SET
-        updated_at = excluded.updated_at,
-        goal = excluded.goal,
-        status = excluded.status,
-        policy_json = excluded.policy_json,
-        timeline_json = excluded.timeline_json,
-        findings_json = excluded.findings_json,
-        error = excluded.error
-    `).run(
-      sessionId,
-      run.id,
-      run.createdAt,
-      run.updatedAt,
-      run.goal,
-      run.status,
-      JSON.stringify(run.policy),
-      JSON.stringify(run.timeline),
-      JSON.stringify(run.findings),
-      run.error ?? null
-    );
-    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.updatedAt, sessionId);
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO agent_runs (
+          session_id, id, created_at, updated_at, goal, status, policy_json, timeline_json, findings_json, error
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_id, id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          goal = excluded.goal,
+          status = excluded.status,
+          policy_json = excluded.policy_json,
+          timeline_json = excluded.timeline_json,
+          findings_json = excluded.findings_json,
+          error = excluded.error
+      `).run(
+        sessionId,
+        run.id,
+        run.createdAt,
+        run.updatedAt,
+        run.goal,
+        run.status,
+        JSON.stringify(run.policy),
+        JSON.stringify(run.timeline),
+        JSON.stringify(run.findings),
+        run.error ?? null
+      );
+      db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.updatedAt, sessionId);
+    });
     return run;
   };
 

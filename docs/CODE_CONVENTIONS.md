@@ -143,6 +143,16 @@ const selected = useMemo(
 - Catch platform/API failures at the boundary and return useful error messages or result objects.
 - Do not log secrets, API keys, request bodies, or raw headers.
 
+## SQLite Local Store Migrations
+
+- `electron/localStore.ts` owns the local SQLite schema, `LOCAL_STORE_SCHEMA_VERSION`, and the ordered migration list.
+- Each schema change must add an idempotent migration entry, update `LOCAL_STORE_SCHEMA_VERSION`, record the migration in `schema_migrations`, and keep the legacy `meta.schema_version` value current for compatibility.
+- Migrations should create missing tables/indexes with `IF NOT EXISTS`, add columns only after checking `PRAGMA table_info`, and preserve existing rows unless the change explicitly documents a safe data transform.
+- Opening a store with a newer migration version must fail closed instead of attempting to downgrade or mutate unknown data.
+- Multi-statement local-store writes that update a child record and then touch parent session/workspace metadata must run inside `runImmediateTransaction`; tests should prove rollback when the parent update fails.
+- Local store tests should cover fresh database creation, migration from a simulated older database, repeat-open idempotency, and the likely failure path for incompatible schema versions.
+- User-facing local data changes should update `docs/USER_GUIDE.md`; internal-only schema maintenance can note that no workflow change was introduced.
+
 ## Shared Utility Patterns
 
 - Shared functions should be deterministic and side-effect free unless their name clearly indicates otherwise.
@@ -244,6 +254,7 @@ pnpm test
 ## Naming
 
 - Files use existing domain names: `allowlist`, `capture`, `draft`, `settings`, `providers`, `context`.
+- User-facing copy should call the top-level engagement container a **Project**. Existing internal contracts may keep `LocalProfile` and `LocalWorkspace`; use **Workspace** for the internal local storage scope and **Session** for the evidence ledger under a project.
 - React components use PascalCase.
 - Hooks start with `use`.
 - Types use PascalCase and describe the domain object, not implementation details.

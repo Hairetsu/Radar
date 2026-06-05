@@ -2,7 +2,7 @@
 
 Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, running bounded payload-marker tests, running repeatable workflows, managing local plugins, reviewing advanced API/auth signals, creating evidence-backed findings and reports, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only for risky actions; AI-First lets a scoped agent choose bounded tools while you watch.
 
-This guide covers the app as it exists now: the main console, profiles and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, plugins, advanced testing helpers, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
+This guide covers the app as it exists now: the main console, projects and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, plugins, advanced testing helpers, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
 
 ## Table Of Contents
 
@@ -10,7 +10,7 @@ This guide covers the app as it exists now: the main console, profiles and sessi
 - [Safety Model](#safety-model)
 - [Install And Launch](#install-and-launch)
 - [Main Console Tour](#main-console-tour)
-- [Profiles And Sessions](#profiles-and-sessions)
+- [Projects And Sessions](#projects-and-sessions)
 - [Scope](#scope)
 - [Opening The Radar Browser](#opening-the-radar-browser)
 - [HTTP And HTTPS Traffic](#http-and-https-traffic)
@@ -132,16 +132,18 @@ Useful source commands:
 | `pnpm pack` | Build an unpacked desktop app with electron-builder. |
 | `pnpm dist` | Build release distributables. |
 
+Use [docs/MANUAL_QA_CHECKLIST.md](MANUAL_QA_CHECKLIST.md) for the twelve-view release, screenshot, demo, and onboarding QA pass.
+
 ## Main Console Tour
 
-Radar opens into an twelve-view operator console.
+Radar opens into a twelve-view operator console.
 
 Persistent areas:
 
-- **Left sidebar**: Radar lockup, profile/session controls, view navigation, and live per-view counts.
-- **Top banner**: active workspace/session and UTC clock.
-- **Header**: Radar identity, active profile, Open Browser button, live status pills, Profiles, Appearance, and AI settings.
-- **Session selector**: quick session switching under the active profile.
+- **Left sidebar**: Radar lockup, project/session controls, view navigation, and live per-view counts.
+- **Top banner**: active project workspace/session and UTC clock.
+- **Header**: Radar identity, active project, Open Browser button, live status pills, Projects, Appearance, and AI settings.
+- **Session selector**: quick session switching under the active project.
 - **Workspace panel**: the active tool surface.
 - **Footer ticker**: current view, HTTP/S capture count, WebSocket frame count, TLS event count, and proxy status.
 
@@ -162,13 +164,13 @@ Views:
 | **11 Scope** | Engagement boundary and target allowlist. |
 | **12 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
 
-## Profiles And Sessions
+## Projects And Sessions
 
-Radar separates local work into profiles and sessions.
+Radar separates local work into projects and sessions. The persisted contract still uses local profiles internally, but the operator-facing term is **project**.
 
-### Profiles
+### Projects
 
-A profile represents an operator or client context. It owns:
+A project represents an operator, client, engagement, or testing context. It owns:
 
 - A local workspace.
 - Scope targets.
@@ -176,7 +178,7 @@ A profile represents an operator or client context. It owns:
 - A dedicated launched-browser profile directory.
 - Sessions created under that workspace.
 
-Use profiles when you need to separate clients, projects, accounts, or testing contexts. Switching profiles can stop the launched Radar browser so browser state stays isolated.
+Use projects when you need to separate clients, accounts, environments, or testing contexts. Switching projects can stop the launched Radar browser so browser state stays isolated.
 
 ### Sessions
 
@@ -191,23 +193,30 @@ A session is a capture ledger for a specific testing run. It tracks:
 
 Use sessions for separate test passes, retests, environments, or report evidence windows.
 
-### Open The Profiles Panel
+### Open The Projects Panel
 
-Click the profile/session control in the sidebar.
+Click the project/session control in the sidebar.
 
 In the panel you can:
 
-- Rename and save the active profile.
-- Create a new profile.
-- Load an existing profile.
+- Rename and save the active project.
+- Create a new project.
+- Load an existing project.
+- Load or refresh the seeded demo project.
 - Rename and save the active session.
 - Create a new session.
 - Load an earlier session.
 - See capture and TLS event counts for saved sessions.
 
+### Load The Demo Project
+
+In the projects panel, click **Load Demo** to create or refresh the **Radar Demo Project** and **Seeded Walkthrough** session. The demo project seeds local HTTP/S captures, WebSocket frames, evidence tags, saved filters, Repeater data, Automate results, findings, workflow history, an approved demo plugin record, Advanced testing signals, TLS evidence, and an AI-First run history.
+
+Use the demo project for screenshots, manual QA, onboarding, and product walkthroughs. Re-running **Load Demo** refreshes the same demo project with stable record ids instead of duplicating evidence. It does not send traffic or modify other projects.
+
 ### Quick Session Selector
 
-The sidebar includes a **Session** dropdown. Use it to jump between existing sessions under the active profile.
+The sidebar includes a **Session** dropdown. Use it to jump between existing sessions under the active project.
 
 ### Clear A Session's Captures
 
@@ -479,7 +488,7 @@ Use **Open in HTTP(S)** to apply a matching query in the traffic tab.
 
 ### Session Diff
 
-The right pane compares the active session against an earlier session under the same profile. Pick a baseline session, then review:
+The right pane compares the active session against an earlier session under the same project. Pick a baseline session, then review:
 
 - Added endpoints.
 - Removed endpoints.
@@ -823,7 +832,7 @@ The Plugins view has three working areas:
 - **Installed registry** shows each plugin's status, requested permissions, granted permissions, warnings, source path, and operator actions.
 - **Panel inventory** lists approved plugin panels that can render inside the Radar console when the plugin requested `ui:panel`.
 
-Plugin records belong to the active workspace. Switching profiles switches the visible plugin registry.
+Plugin records belong to the active workspace. Switching projects switches the visible plugin registry.
 
 ### Install A Local Plugin
 
@@ -1334,12 +1343,14 @@ Important local files and folders:
 
 | Item | Purpose |
 | --- | --- |
-| `radar-local.sqlite` | Profiles, workspaces, sessions, targets, saved filters, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, findings, saved workflows, workflow runs, installed plugin records, SSL events, cached model lists, and AI-First agent run history. |
+| `radar-local.sqlite` | Projects stored as local profiles, workspaces, sessions, targets, saved filters, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, findings, saved workflows, workflow runs, installed plugin records, SSL events, cached model lists, AI-First agent run history, and the local schema migration ledger. |
 | `proxy-ca/radar-ca.pem` | Local proxy CA certificate. |
 | `proxy-ca/radar-ca-key.pem` | Local proxy CA private key. |
 | `profiles/<profile-id>/proxy-browser-profile` | Dedicated launched-browser profile. |
 | `ai-settings.json` | AI provider, model, base URL, and saved API key when applicable. |
 | `ai-skills.json` | Custom AI skills. |
+
+Radar applies local SQLite migrations when the app opens so existing projects, sessions, captures, and findings can move forward with new releases. If a database was created by a newer unsupported Radar build, the app refuses to mutate it instead of attempting a downgrade. Back up `radar-local.sqlite` before testing older builds against active engagement data.
 
 Privacy notes:
 
@@ -1347,6 +1358,7 @@ Privacy notes:
 - AI-First run history, tool timelines, and draft findings stay local in the active session.
 - Workflow definitions and run results stay local unless you promote results, copy evidence, or export reports.
 - Findings and report previews stay local unless you copy or download an export.
+- The seeded demo project is synthetic local data and does not send network traffic.
 - Raw AI context is opt-in.
 - API keys are saved locally when entered for non-local providers.
 - Codex local mode uses installed Codex authentication and does not store an API key in Radar.
@@ -1678,10 +1690,11 @@ Keep raw context off unless you need exact headers or bodies.
 | Traffic query | A scoped filter expression for HTTP(S) or WebSocket evidence using field predicates or plain-text fallback. |
 | Saved filter | A workspace-persisted traffic or WebSocket query reapplied from filter chips. |
 | Sitemap | A host/path/endpoint map built from scoped HTTP/S captures in the active session. |
-| Session diff | A comparison of endpoint coverage between two sessions under the same profile. |
+| Session diff | A comparison of endpoint coverage between two sessions under the same project. |
 | Scope | The allowlist that controls visible HTTP/S and WebSocket evidence and AI context boundaries. |
-| Profile | A local operator/client context with its own workspace and browser profile. |
-| Session | An evidence ledger under a profile. |
+| Project | The user-facing local operator/client/engagement container. Internally this is stored as a local profile with one workspace. |
+| Workspace | The internal local storage scope owned by a project. |
+| Session | An evidence ledger under a project. |
 | Repeater | The manual request editor and replay tool. |
 | Burst | A capped group of repeated manual replays. |
 | Automate | The payload-marker view for bounded request variant sessions, result clustering, and Repeater promotion. |
