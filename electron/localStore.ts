@@ -3,7 +3,15 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
-import type { AgentFinding, AgentPolicy, AgentRun, AgentRunStatus, AgentTimelineEntry } from "../shared/agent-types.js";
+import type {
+  AgentFinding,
+  AgentPolicy,
+  AgentRun,
+  AgentRunMemoryEntry,
+  AgentRunProfileId,
+  AgentRunStatus,
+  AgentTimelineEntry
+} from "../shared/agent-types.js";
 import type { AiModelOption } from "../shared/ai-types.js";
 import { sanitizeModelOption } from "../shared/ai-models.js";
 import { defaultProxyProfiles, normalizeProxyProfile } from "../shared/proxyProfiles.js";
@@ -23,10 +31,12 @@ import type {
   LocalWorkspace,
   MatchReplaceHit,
   MatchReplaceRule,
+  ProjectNote,
   ProxyProfile,
   ReplayCollection,
   ReplayEnvironment,
   ReplayTabState,
+  SavedView,
   SavedFilter,
   SslEvent,
   TlsDetails,
@@ -41,15 +51,17 @@ import {
   normalizeAutomateSession
 } from "../shared/automate.js";
 import { normalizeEvidenceAnnotation, normalizeEvidenceAnnotations } from "../shared/evidenceTags.js";
+import { MAX_AGENT_RUN_MEMORY, normalizeAgentRunMemory, normalizeAgentRunMemoryList } from "../shared/agentMemory.js";
 import { MAX_FINDINGS, normalizeFinding, normalizeFindings } from "../shared/findings.js";
 import { approveInstalledPlugin, MAX_PLUGINS, normalizeInstalledPlugin, normalizeInstalledPlugins } from "../shared/plugins.js";
+import { MAX_PROJECT_NOTES, MAX_SAVED_VIEWS, normalizeProjectNote, normalizeSavedView } from "../shared/projectArtifacts.js";
 import { normalizeReplayCollections } from "../shared/replayCollections.js";
 import { normalizeReplayEnvironments } from "../shared/replayVariables.js";
 import { normalizeReplayTabState } from "../shared/replayTabs.js";
 import { normalizeSavedFilters } from "../shared/savedFilters.js";
 import { MAX_WORKFLOWS, normalizeWorkflowDefinition, normalizeWorkflowDefinitions, normalizeWorkflowRun, normalizeWorkflowRuns } from "../shared/workflows.js";
 
-export const LOCAL_STORE_SCHEMA_VERSION = 13;
+export const LOCAL_STORE_SCHEMA_VERSION = 15;
 
 const SCHEMA_VERSION = String(LOCAL_STORE_SCHEMA_VERSION);
 const DEFAULT_PROFILE_NAME = "Local Operator";
@@ -159,11 +171,18 @@ type AgentRunRow = {
   created_at: string;
   updated_at: string;
   goal: string;
+  profile_id: AgentRunProfileId | null;
   status: AgentRunStatus;
   policy_json: string;
   timeline_json: string;
   findings_json: string;
   error: string | null;
+};
+
+type AgentRunMemoryRow = {
+  id: string;
+  updated_at: string;
+  memory_json: string;
 };
 
 type InterceptRuleRow = {
@@ -178,6 +197,18 @@ type ProxyProfileRow = {
   profile_id: string;
   notes: string;
   updated_at: string;
+};
+
+type ProjectNoteRow = {
+  id: string;
+  updated_at: string;
+  note_json: string;
+};
+
+type SavedViewRow = {
+  id: string;
+  updated_at: string;
+  view_json: string;
 };
 
 type FindingRow = {
@@ -486,11 +517,13 @@ function toAgentRun(row: AgentRunRow): AgentRun {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     goal: row.goal,
+    profileId: row.profile_id || "passive-map",
     status: row.status,
     policy: parseJsonObject<AgentPolicy>(row.policy_json, {
       maxRuntimeMs: 0,
       maxSteps: 0,
       maxReplay: 0,
+      maxWorkflowRequests: 0,
       maxCaptureSample: 0,
       allowRawContext: false
     }),
@@ -692,6 +725,7 @@ export function openLocalStore(userDataPath: string) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       goal TEXT NOT NULL,
+      profile_id TEXT NOT NULL DEFAULT 'passive-map',
       status TEXT NOT NULL,
       policy_json TEXT NOT NULL,
       timeline_json TEXT NOT NULL,
@@ -727,6 +761,30 @@ export function openLocalStore(userDataPath: string) {
       position INTEGER NOT NULL,
       filter_json TEXT NOT NULL,
       PRIMARY KEY (workspace_id, position)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_project_notes (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      note_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, id)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_saved_views (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      view_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, id)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_agent_memory (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      memory_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, id)
     );
 
     CREATE TABLE IF NOT EXISTS session_evidence_annotations (
@@ -825,6 +883,12 @@ export function openLocalStore(userDataPath: string) {
       ON session_workflow_runs(session_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workspace_plugins_updated
       ON workspace_plugins(workspace_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_notes_updated
+      ON workspace_project_notes(workspace_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_saved_views_updated
+      ON workspace_saved_views(workspace_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_agent_memory_updated
+      ON workspace_agent_memory(workspace_id, updated_at DESC);
   `);
 
     const captureColumns = new Set(
@@ -846,6 +910,16 @@ export function openLocalStore(userDataPath: string) {
       if (!captureColumns.has(name)) {
         db.exec(`ALTER TABLE captures ADD COLUMN ${name} ${type}`);
       }
+    }
+    const agentRunColumns = new Set(
+      (
+        db.prepare("PRAGMA table_info(agent_runs)").all() as Array<{
+          name: string;
+        }>
+      ).map((column) => column.name)
+    );
+    if (!agentRunColumns.has("profile_id")) {
+      db.exec("ALTER TABLE agent_runs ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'passive-map'");
     }
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_captures_session_agent_run
@@ -1228,6 +1302,109 @@ export function openLocalStore(userDataPath: string) {
       throw error;
     }
     return next;
+  };
+
+  const listProjectNotes = (workspaceId: string, limit = MAX_PROJECT_NOTES) => {
+    const rows = db
+      .prepare("SELECT id, updated_at, note_json FROM workspace_project_notes WHERE workspace_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?")
+      .all(workspaceId, Math.max(1, Math.min(Number(limit) || MAX_PROJECT_NOTES, MAX_PROJECT_NOTES))) as ProjectNoteRow[];
+    return rows
+      .map((row) => normalizeProjectNote(parseJsonObject<ProjectNote | null>(row.note_json, null), row.id, row.updated_at))
+      .filter((note): note is ProjectNote => Boolean(note));
+  };
+
+  const upsertProjectNote = (workspaceId: string, input: ProjectNote) => {
+    const note = normalizeProjectNote(input, createId("note"));
+    if (!note) {
+      throw new Error("Project note was invalid.");
+    }
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO workspace_project_notes (workspace_id, id, updated_at, note_json)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          note_json = excluded.note_json
+      `).run(workspaceId, note.id, note.updatedAt, JSON.stringify(note));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(note.updatedAt, workspaceId);
+    });
+    return note;
+  };
+
+  const deleteProjectNote = (workspaceId: string, noteId: string) => {
+    runImmediateTransaction(db, () => {
+      db.prepare("DELETE FROM workspace_project_notes WHERE workspace_id = ? AND id = ?").run(workspaceId, noteId);
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+    });
+  };
+
+  const listSavedViews = (workspaceId: string, limit = MAX_SAVED_VIEWS) => {
+    const rows = db
+      .prepare("SELECT id, updated_at, view_json FROM workspace_saved_views WHERE workspace_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?")
+      .all(workspaceId, Math.max(1, Math.min(Number(limit) || MAX_SAVED_VIEWS, MAX_SAVED_VIEWS))) as SavedViewRow[];
+    return rows
+      .map((row) => normalizeSavedView(parseJsonObject<SavedView | null>(row.view_json, null), row.id, row.updated_at))
+      .filter((view): view is SavedView => Boolean(view));
+  };
+
+  const upsertSavedView = (workspaceId: string, input: SavedView) => {
+    const view = normalizeSavedView(input, createId("view"));
+    if (!view) {
+      throw new Error("Saved view was invalid.");
+    }
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO workspace_saved_views (workspace_id, id, updated_at, view_json)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          view_json = excluded.view_json
+      `).run(workspaceId, view.id, view.updatedAt, JSON.stringify(view));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(view.updatedAt, workspaceId);
+    });
+    return view;
+  };
+
+  const deleteSavedView = (workspaceId: string, viewId: string) => {
+    runImmediateTransaction(db, () => {
+      db.prepare("DELETE FROM workspace_saved_views WHERE workspace_id = ? AND id = ?").run(workspaceId, viewId);
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+    });
+  };
+
+  const listAgentRunMemory = (workspaceId: string, limit = MAX_AGENT_RUN_MEMORY) => {
+    const rows = db
+      .prepare("SELECT id, updated_at, memory_json FROM workspace_agent_memory WHERE workspace_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?")
+      .all(workspaceId, Math.max(1, Math.min(Number(limit) || MAX_AGENT_RUN_MEMORY, MAX_AGENT_RUN_MEMORY))) as AgentRunMemoryRow[];
+    return normalizeAgentRunMemoryList(
+      rows.map((row) => normalizeAgentRunMemory(parseJsonObject<AgentRunMemoryEntry | null>(row.memory_json, null), row.id, row.updated_at))
+    );
+  };
+
+  const upsertAgentRunMemory = (workspaceId: string, input: AgentRunMemoryEntry) => {
+    const memory = normalizeAgentRunMemory(input, createId("memory"));
+    if (!memory) {
+      throw new Error("Run memory entry was invalid.");
+    }
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO workspace_agent_memory (workspace_id, id, updated_at, memory_json)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          memory_json = excluded.memory_json
+      `).run(workspaceId, memory.id, memory.updatedAt, JSON.stringify(memory));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(memory.updatedAt, workspaceId);
+    });
+    return memory;
+  };
+
+  const deleteAgentRunMemory = (workspaceId: string, memoryId: string) => {
+    runImmediateTransaction(db, () => {
+      db.prepare("DELETE FROM workspace_agent_memory WHERE workspace_id = ? AND id = ?").run(workspaceId, memoryId);
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+    });
+    return listAgentRunMemory(workspaceId);
   };
 
   const getReplayTabState = (workspaceId: string) => {
@@ -1809,12 +1986,13 @@ export function openLocalStore(userDataPath: string) {
     runImmediateTransaction(db, () => {
       db.prepare(`
         INSERT INTO agent_runs (
-          session_id, id, created_at, updated_at, goal, status, policy_json, timeline_json, findings_json, error
+          session_id, id, created_at, updated_at, goal, profile_id, status, policy_json, timeline_json, findings_json, error
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_id, id) DO UPDATE SET
           updated_at = excluded.updated_at,
           goal = excluded.goal,
+          profile_id = excluded.profile_id,
           status = excluded.status,
           policy_json = excluded.policy_json,
           timeline_json = excluded.timeline_json,
@@ -1826,6 +2004,7 @@ export function openLocalStore(userDataPath: string) {
         run.createdAt,
         run.updatedAt,
         run.goal,
+        run.profileId || "passive-map",
         run.status,
         JSON.stringify(run.policy),
         JSON.stringify(run.timeline),
@@ -1875,6 +2054,15 @@ export function openLocalStore(userDataPath: string) {
     saveProxyProfile,
     listSavedFilters,
     setSavedFilters,
+    listProjectNotes,
+    upsertProjectNote,
+    deleteProjectNote,
+    listSavedViews,
+    upsertSavedView,
+    deleteSavedView,
+    listAgentRunMemory,
+    upsertAgentRunMemory,
+    deleteAgentRunMemory,
     getReplayTabState,
     setReplayTabState,
     listReplayEnvironments,

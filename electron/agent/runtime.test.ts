@@ -1,7 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
-import type { AgentDecision, AgentDecisionContext, AgentRun } from "../../shared/agent-types.js";
-import type { AutomatePayloadSet, AutomateSession, CapturedRequest, InstalledPlugin, InterceptQueueItem, WorkflowDefinition, WorkflowRun } from "../../shared/domain.js";
+import type { AgentDecision, AgentDecisionContext, AgentRun, AgentRunMemoryEntry } from "../../shared/agent-types.js";
+import type {
+  AutomatePayloadSet,
+  AutomateSession,
+  CapturedRequest,
+  Finding,
+  InstalledPlugin,
+  InterceptQueueItem,
+  ProjectNote,
+  SavedView,
+  WorkflowDefinition,
+  WorkflowRun
+} from "../../shared/domain.js";
 import { AgentRuntime } from "./runtime.js";
 
 function capture(id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest {
@@ -40,6 +51,10 @@ function makeRuntime(
     workflows?: WorkflowDefinition[];
     workflowRuns?: WorkflowRun[];
     workflowRun?: WorkflowRun;
+    findings?: Finding[];
+    projectNotes?: ProjectNote[];
+    savedViews?: SavedView[];
+    runMemory?: AgentRunMemoryEntry[];
     plugins?: InstalledPlugin[];
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
   } = {}
@@ -148,6 +163,10 @@ function makeRuntime(
     listAutomateSessions: () => options.automateSessions || [],
     listWorkflows: () => options.workflows || [],
     listWorkflowRuns: () => options.workflowRuns || [],
+    listFindings: () => options.findings || [],
+    listProjectNotes: () => options.projectNotes || [],
+    listSavedViews: () => options.savedViews || [],
+    listRunMemory: () => options.runMemory || [],
     listPlugins: () => options.plugins || [],
     runWorkflow: (input) => options.workflowRun ? Promise.resolve(options.workflowRun) : runWorkflow(input),
     sendReplay,
@@ -182,11 +201,13 @@ describe("AgentRuntime", () => {
       createdAt: "2026-05-25T00:00:00.000Z",
       updatedAt: "2026-05-25T00:00:00.000Z",
       goal: "Inspect target",
+      profileId: "passive-map",
       status: "running",
       policy: {
         maxRuntimeMs: 120000,
         maxSteps: 8,
         maxReplay: 1,
+        maxWorkflowRequests: 1,
         maxCaptureSample: 20,
         allowRawContext: false
       },
@@ -312,7 +333,19 @@ describe("AgentRuntime", () => {
       {
         action: "finish",
         rationale: "Agent deemed the run complete.",
-        findings: [{ title: "Draft", confidence: "low", evidenceRefs: ["capture:home"], notes: "Needs review." }]
+        findings: [
+          {
+            title: "Draft",
+            confidence: "low",
+            evidenceRefs: ["capture:home"],
+            affectedAssets: ["https://hairetsu.com"],
+            reproductionNotes: "Review capture:home response headers.",
+            severityRationale: "Evidence indicates a low-confidence hardening gap.",
+            remediation: "Confirm expected headers and add missing browser hardening headers.",
+            notes: "Needs review.",
+            uncertainties: ["Requires manual confirmation."]
+          }
+        ]
       }
     ];
     const { runtime, runs, navigateBrowser } = makeRuntime(undefined, {
@@ -418,7 +451,47 @@ describe("AgentRuntime", () => {
     });
 
     expect(runs.get(run.id)?.error).toBe("planner unavailable");
+    const failure = runs.get(run.id)?.timeline.at(-1);
+    expect(failure?.note).toBe("Run failed: planner unavailable");
+    expect(failure?.phase).toBe("failure");
+    expect(failure?.recoveryActions).toEqual(["retry-with-evidence", "stop-run"]);
     expect(openBrowser).not.toHaveBeenCalled();
+  });
+
+  it("records failed tool calls with visible target and recovery actions", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "prepareInterceptEdit", input: { id: "missing" } }, rationale: "Inspect queued edit." },
+      { action: "finish", rationale: "Done.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      decideNextAction: async () => decisions.shift() || { action: "finish", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Inspect queued intercept edits.",
+      startUrl: "https://hairetsu.com"
+    });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const failure = runs.get(run.id)?.timeline.find((entry) => entry.phase === "failure");
+    expect(failure?.summary).toBe("prepareInterceptEdit failed");
+    expect(failure?.target).toEqual({ view: "intercept", evidenceId: "missing" });
+    expect(failure?.toolResult).toEqual({
+      tool: "prepareInterceptEdit",
+      ok: false,
+      error: "Intercept queue item was not found."
+    });
+    expect(failure?.recoveryActions).toEqual([
+      "retry-tool",
+      "retry-with-evidence",
+      "skip-and-continue",
+      "stop-run",
+      "draft-finding"
+    ]);
   });
 
   it("rejects planner findings without evidence references", async () => {
@@ -437,10 +510,12 @@ describe("AgentRuntime", () => {
     });
 
     await vi.waitFor(() => {
-      expect(runs.get(run.id)?.status).toBe("failed");
+      expect(runs.get(run.id)?.status).toBe("completed");
     });
 
-    expect(runs.get(run.id)?.error).toBe("Agent findings must cite at least one evidence reference.");
+    expect(runs.get(run.id)?.findings).toEqual([]);
+    const rejection = runs.get(run.id)?.timeline.find((entry) => entry.summary === "Draft finding rejected by quality gate");
+    expect(rejection?.note).toContain("at least one evidence reference is required");
   });
 
   it("runs browser interaction tools selected by the planner", async () => {
@@ -704,7 +779,11 @@ describe("AgentRuntime", () => {
       decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    const run = runtime.start({ goal: "Run header workflow", startUrl: "https://allowed.test" });
+    const run = runtime.start({
+      goal: "Run header workflow",
+      startUrl: "https://allowed.test",
+      profileId: "advanced-api-review"
+    });
 
     await vi.waitFor(() => {
       expect(runs.get(run.id)?.status).toBe("completed");
@@ -713,6 +792,61 @@ describe("AgentRuntime", () => {
     expect(runWorkflow).toHaveBeenCalledWith({ workflowId: workflow.id, inputs: {}, source: "ai" });
     const workflowResult = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "runWorkflow")?.toolResult;
     expect(workflowResult?.ok).toBe(true);
+  });
+
+  it("exposes context summaries, prepares workflow drafts, and proposes memory without execution", async () => {
+    const workflow: WorkflowDefinition = {
+      id: "ai-workflow-draft",
+      name: "AI Header Draft",
+      description: "Prepared draft.",
+      mode: "passive",
+      builtIn: false,
+      inputs: [],
+      scope: { requireInScope: true, allowActive: false, maxRequests: 0, timeoutMs: 5000, delayMs: 0, maxResults: 20 },
+      steps: [{ id: "step-1", title: "Headers", kind: "security-headers", config: {} }],
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    };
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "getAgentContextSummary", input: {} } },
+      { action: "tool", call: { tool: "prepareWorkflowDraft", input: { workflow, note: "Review this workflow." } } },
+      {
+        action: "tool",
+        call: {
+          tool: "proposeRunMemory",
+          input: {
+            kind: "hypothesis",
+            title: "Redirect reviewed",
+            notes: "Keep redirect finding for retest.",
+            evidenceRefs: ["capture:home"]
+          }
+        }
+      },
+      { action: "finish", rationale: "Drafts prepared.", findings: [] }
+    ];
+    const { runtime, runs, runWorkflow } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      captures: [capture("home", "https://hairetsu.com/")],
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Prepare review artifacts",
+      startUrl: "https://hairetsu.com",
+      profileId: "api-hardening"
+    });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const summary = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "getAgentContextSummary")?.toolResult;
+    expect(summary?.ok && summary.data.sitemap.hostCount).toBe(1);
+    const draft = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "prepareWorkflowDraft")?.toolResult;
+    expect(draft?.ok && draft.data.workflow.name).toBe("AI Header Draft");
+    const memory = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "proposeRunMemory")?.toolResult;
+    expect(memory?.ok && memory.data.memory.status).toBe("proposed");
+    expect(runWorkflow).not.toHaveBeenCalled();
   });
 
   it("exposes plugin inventory read-only to AI-First", async () => {

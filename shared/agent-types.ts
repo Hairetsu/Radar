@@ -4,12 +4,15 @@ import type {
   AutomateRule,
   AutomateSession,
   CapturedRequest,
+  Finding,
   InstalledPlugin,
   InterceptQueueItem,
   InterceptResponseDraft,
+  ProjectNote,
   ReplayDraft,
   ReplayResult,
   ReplayTabState,
+  SavedView,
   WorkflowDefinition,
   WorkflowRun
 } from "./domain.js";
@@ -32,6 +35,14 @@ export type AgentWorkbenchView =
   | "ssl";
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
+
+export type AgentRunProfileId =
+  | "passive-map"
+  | "auth-review"
+  | "api-hardening"
+  | "header-cookie-review"
+  | "advanced-api-review"
+  | "report-from-evidence";
 
 export type AgentToolName =
   | "showView"
@@ -67,9 +78,12 @@ export type AgentToolName =
   | "prepareAutomateDraft"
   | "analyzeAutomateResults"
   | "getWorkflowCatalog"
+  | "getAgentContextSummary"
   | "runWorkflow"
+  | "prepareWorkflowDraft"
   | "getPluginInventory"
-  | "getAdvancedTestingSummary";
+  | "getAdvancedTestingSummary"
+  | "proposeRunMemory";
 
 export type AgentClickableElement = {
   selector: string;
@@ -193,9 +207,22 @@ export type AgentToolCall =
     }
   | { tool: "analyzeAutomateResults"; input: { sessionId?: string } }
   | { tool: "getWorkflowCatalog"; input: Record<string, never> }
+  | { tool: "getAgentContextSummary"; input: Record<string, never> }
   | { tool: "runWorkflow"; input: { workflowId: string; inputs?: Record<string, string> } }
+  | { tool: "prepareWorkflowDraft"; input: { workflow: WorkflowDefinition; note?: string } }
   | { tool: "getPluginInventory"; input: Record<string, never> }
-  | { tool: "getAdvancedTestingSummary"; input: Record<string, never> };
+  | { tool: "getAdvancedTestingSummary"; input: Record<string, never> }
+  | {
+      tool: "proposeRunMemory";
+      input: {
+        kind: AgentRunMemoryKind;
+        title: string;
+        notes: string;
+        evidenceRefs?: string[];
+        dismissedReason?: string;
+        retestState?: AgentRunMemoryRetestState;
+      };
+    };
 
 export type AgentToolResult =
   | { tool: "showView"; ok: true; data: { view: AgentWorkbenchView } }
@@ -324,9 +351,12 @@ export type AgentToolResult =
         recentRuns: Array<Pick<WorkflowRun, "id" | "workflowId" | "workflowName" | "status" | "mode" | "actionCount" | "startedAt"> & { resultCount: number }>;
       };
     }
+  | { tool: "getAgentContextSummary"; ok: true; data: AgentContextSummary }
   | { tool: "getPluginInventory"; ok: true; data: { plugins: AgentPluginInventoryItem[] } }
   | { tool: "getAdvancedTestingSummary"; ok: true; data: AdvancedTestingSummary }
   | { tool: "runWorkflow"; ok: true; data: WorkflowRun }
+  | { tool: "prepareWorkflowDraft"; ok: true; data: { workflow: WorkflowDefinition; note: string } }
+  | { tool: "proposeRunMemory"; ok: true; data: { memory: AgentRunMemoryEntry; note: string } }
   | { tool: AgentToolName; ok: false; error: string };
 
 export type AgentDecisionFinding = {
@@ -334,6 +364,10 @@ export type AgentDecisionFinding = {
   confidence: "low" | "medium" | "high";
   evidenceRefs: string[];
   notes: string;
+  affectedAssets?: string[];
+  reproductionNotes?: string;
+  severityRationale?: string;
+  remediation?: string;
   uncertainties?: string[];
 };
 
@@ -348,10 +382,14 @@ export type AgentDecisionContext = {
   allowlist: string[];
   browserState: BrowserState;
   policy: AgentPolicy;
+  profile: AgentRunProfileId;
   stepCount: number;
   replayCount: number;
+  workflowRequestCount: number;
   availableTools: AgentToolName[];
   capturedTraffic: AgentCapturedTrafficContext[];
+  contextSummary: AgentContextSummary;
+  runMemory: AgentRunMemoryEntry[];
   timeline: AgentTimelineEntry[];
 };
 
@@ -359,6 +397,15 @@ export type AgentTimelineEntry = {
   id: string;
   createdAt: string;
   note?: string;
+  phase?: "status" | "decision" | "tool-call" | "tool-result" | "policy-block" | "failure";
+  summary?: string;
+  target?: {
+    view?: AgentWorkbenchView;
+    evidenceId?: string;
+    browserUrl?: string;
+    control?: string;
+  };
+  recoveryActions?: Array<"retry-tool" | "retry-with-evidence" | "skip-and-continue" | "stop-run" | "draft-finding">;
   toolCall?: AgentToolCall;
   toolResult?: AgentToolResult;
 };
@@ -370,6 +417,10 @@ export type AgentFinding = {
   confidence: "low" | "medium" | "high";
   evidenceRefs: string[];
   notes: string;
+  affectedAssets: string[];
+  reproductionNotes: string;
+  severityRationale: string;
+  remediation: string;
   uncertainties: string[];
 };
 
@@ -377,6 +428,7 @@ export type AgentPolicy = {
   maxRuntimeMs: number;
   maxSteps: number;
   maxReplay: number;
+  maxWorkflowRequests: number;
   maxCaptureSample: number;
   allowRawContext: boolean;
 };
@@ -384,6 +436,7 @@ export type AgentPolicy = {
 export type AgentRunRequest = {
   goal: string;
   startUrl?: string;
+  profileId?: AgentRunProfileId;
   policy?: Partial<AgentPolicy>;
 };
 
@@ -393,9 +446,61 @@ export type AgentRun = {
   createdAt: string;
   updatedAt: string;
   goal: string;
+  profileId: AgentRunProfileId;
   status: AgentRunStatus;
   policy: AgentPolicy;
   timeline: AgentTimelineEntry[];
   findings: AgentFinding[];
   error?: string;
+};
+
+export type AgentContextSummary = {
+  generatedAt: string;
+  sitemap: {
+    hostCount: number;
+    endpointCount: number;
+    topHosts: Array<{ host: string; requestCount: number; paths: string[] }>;
+  };
+  findings: Array<Pick<Finding, "id" | "title" | "severity" | "status" | "confidence" | "affectedAssets"> & { evidenceRefs: string[] }>;
+  advanced: {
+    graphQlOperations: number;
+    imports: number;
+    authRows: number;
+    parameters: number;
+    secrets: number;
+    headerSignals: number;
+  };
+  workflows: {
+    definitions: Array<Pick<WorkflowDefinition, "id" | "name" | "mode"> & { stepCount: number; maxRequests: number }>;
+    recentRuns: Array<Pick<WorkflowRun, "id" | "workflowId" | "workflowName" | "status" | "mode" | "actionCount" | "startedAt">>;
+  };
+  projectArtifacts: {
+    notes: Array<Pick<ProjectNote, "id" | "title" | "updatedAt">>;
+    savedViews: Array<Pick<SavedView, "id" | "name" | "view" | "updatedAt">>;
+  };
+  runMemory: Array<Pick<AgentRunMemoryEntry, "id" | "kind" | "status" | "title" | "updatedAt"> & { evidenceRefs: string[] }>;
+};
+
+export type AgentFindingQualityGate = {
+  ok: boolean;
+  reasons: string[];
+  finding?: AgentFinding;
+};
+
+export type AgentRunMemoryKind = "hypothesis" | "dismissed-lead" | "retest-note";
+export type AgentRunMemoryStatus = "proposed" | "confirmed" | "dismissed" | "retest-pending" | "retest-passed" | "retest-failed";
+export type AgentRunMemoryRetestState = "not-started" | "pending" | "passed" | "failed";
+
+export type AgentRunMemoryEntry = {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  kind: AgentRunMemoryKind;
+  status: AgentRunMemoryStatus;
+  title: string;
+  notes: string;
+  sourceRunId?: string;
+  evidenceRefs: string[];
+  dismissedReason?: string;
+  retestState?: AgentRunMemoryRetestState;
 };

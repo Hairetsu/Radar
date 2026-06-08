@@ -1,6 +1,8 @@
 import type { AgentToolCall, AgentToolName, AgentWorkbenchView } from "../../shared/agent-types.js";
 import { MAX_AUTOMATE_PAYLOADS, normalizeAutomateRules } from "../../shared/automate.js";
 import { MAX_REPLAY_BODY, normalizeDraft } from "../../shared/draft.js";
+import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
+import { normalizeWorkflowDefinition } from "../../shared/workflows.js";
 
 export type AgentToolDefinition = {
   name: AgentToolName;
@@ -226,6 +228,12 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     schema: {}
   },
   {
+    name: "getAgentContextSummary",
+    description: "Read redacted AI-visible summaries for sitemap, findings, Advanced, workflows, notes, saved views, and run memory.",
+    safety: "observe",
+    schema: {}
+  },
+  {
     name: "getPluginInventory",
     description: "Read approved and installed local plugin inventory, permissions, and panel names without installing, approving, or executing plugins.",
     safety: "observe",
@@ -238,10 +246,29 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     schema: {}
   },
   {
+    name: "prepareWorkflowDraft",
+    description: "Prepare a workflow JSON definition in the visible Workflows editor; the operator must save or run it manually.",
+    safety: "prepare",
+    schema: { workflow: { id: "string", name: "string", mode: "passive|active", scope: {}, steps: [] }, note: "string optional" }
+  },
+  {
     name: "runWorkflow",
     description: "Run an existing workflow by id through the same scoped workflow runtime visible to the operator.",
     safety: "replay",
     schema: { workflowId: "saved or built-in workflow id", inputs: { "input-id": "string value" } }
+  },
+  {
+    name: "proposeRunMemory",
+    description: "Propose a local project memory entry for operator review; this does not persist until the operator confirms.",
+    safety: "prepare",
+    schema: {
+      kind: "hypothesis|dismissed-lead|retest-note",
+      title: "string",
+      notes: "string",
+      evidenceRefs: ["capture:id"],
+      dismissedReason: "string optional",
+      retestState: "not-started|pending|passed|failed optional"
+    }
   }
 ];
 
@@ -336,6 +363,7 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
     case "listAuthStates":
     case "getAutomateContext":
     case "getWorkflowCatalog":
+    case "getAgentContextSummary":
     case "getPluginInventory":
     case "getAdvancedTestingSummary":
       return { tool: call.tool, input: {} };
@@ -490,6 +518,36 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
               .map(([key, value]) => [String(key).trim().slice(0, 80), String(value || "").slice(0, 400)])
               .filter(([key]) => Boolean(key))
           )
+        }
+      };
+    }
+    case "prepareWorkflowDraft": {
+      const workflow = normalizeWorkflowDefinition(input.workflow);
+      if (!workflow) {
+        throw new Error("Prepared workflow definition was invalid.");
+      }
+      return {
+        tool: call.tool,
+        input: {
+          workflow,
+          note: String(input.note || "").slice(0, 240)
+        }
+      };
+    }
+    case "proposeRunMemory": {
+      const memory = normalizeAgentRunMemory(input, "memory-draft");
+      if (!memory) {
+        throw new Error("Run memory proposal requires a title and notes.");
+      }
+      return {
+        tool: call.tool,
+        input: {
+          kind: memory.kind,
+          title: memory.title,
+          notes: memory.notes,
+          evidenceRefs: memory.evidenceRefs,
+          dismissedReason: memory.dismissedReason,
+          retestState: memory.retestState
         }
       };
     }

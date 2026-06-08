@@ -181,6 +181,7 @@ const radarApi = {
   getSessionCaptures: vi.fn(async () => []),
   getProxyProfiles: vi.fn(async () => []),
   saveProxyProfile: vi.fn(async () => []),
+  searchGlobal: vi.fn(async () => ({ ok: true, query: "", results: [], total: 0, limit: 40, offset: 0 })),
   deleteCapture: vi.fn(async () => ({ ok: true })),
   getInterceptState: vi.fn(async () => ({
     config: { requestEnabled: false, responseEnabled: false },
@@ -215,6 +216,131 @@ const radarApi = {
   clearWebSocketEvents: vi.fn(async () => ({ ok: true })),
   getSavedFilters: vi.fn(async () => []),
   setSavedFilters: vi.fn(async (filters) => filters),
+  getProjectNotes: vi.fn(async () => []),
+  saveProjectNote: vi.fn(async (note) => note),
+  deleteProjectNote: vi.fn(async () => ({ ok: true, notes: [] })),
+  getSavedViews: vi.fn(async () => []),
+  saveSavedView: vi.fn(async (view) => view),
+  deleteSavedView: vi.fn(async () => ({ ok: true, views: [] })),
+  previewProjectBundleExport: vi.fn(async () => ({
+    ok: true,
+    bundle: null,
+    stats: {
+      sessions: 1,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    warnings: []
+  })),
+  writeProjectBundle: vi.fn(async (options) => ({
+    ok: true,
+    path: "/tmp/radar-project.radar-bundle.json",
+    preview: {
+      ok: true,
+      bundle: null,
+      stats: {
+        sessions: 1,
+        captures: 0,
+        webSocketEvents: 0,
+        findings: 0,
+        workflows: 0,
+        projectNotes: 0,
+        savedViews: 0,
+        replayCollections: 0,
+        plugins: 0,
+        proposedTargets: 0
+      },
+      warnings: options.redaction === "raw-evidence" ? ["Raw evidence export includes sensitive values."] : []
+    }
+  })),
+  previewProjectBundleImport: vi.fn(async () => ({
+    ok: true,
+    bundle: null,
+    stats: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    warnings: [],
+    conflicts: [],
+    proposedTargets: [],
+    inactiveTargets: []
+  })),
+  applyProjectBundleImport: vi.fn(async () => ({
+    ok: true,
+    imported: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    skipped: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    proposedTargets: [],
+    message: "Bundle import applied."
+  })),
+  previewHandoffPackage: vi.fn(async () => ({
+    ok: true,
+    package: null,
+    stats: {
+      findings: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      workflows: 0,
+      replayCollections: 0,
+      projectNotes: 0,
+      targets: 0
+    },
+    warnings: []
+  })),
+  writeHandoffPackage: vi.fn(async () => ({
+    ok: true,
+    path: "/tmp/radar-handoff.json",
+    preview: {
+      ok: true,
+      package: null,
+      stats: {
+        findings: 0,
+        captures: 0,
+        webSocketEvents: 0,
+        workflows: 0,
+        replayCollections: 0,
+        projectNotes: 0,
+        targets: 0
+      },
+      warnings: []
+    }
+  })),
   getReplayTabState: vi.fn(async () => defaultReplayTabState()),
   setReplayTabState: vi.fn(async (state) => state),
   getReplayEnvironments: vi.fn(async () => []),
@@ -466,11 +592,13 @@ const radarApi = {
     createdAt: "2026-05-25T00:00:00.000Z",
     updatedAt: "2026-05-25T00:00:00.000Z",
     goal: payload.goal,
+    profileId: payload.profileId || "passive-map",
     status: "queued",
     policy: {
       maxRuntimeMs: 120000,
       maxSteps: 8,
       maxReplay: 1,
+      maxWorkflowRequests: 1,
       maxCaptureSample: 20,
       allowRawContext: false
     },
@@ -489,11 +617,13 @@ const radarApi = {
     createdAt: "2026-05-25T00:00:00.000Z",
     updatedAt: "2026-05-25T00:01:00.000Z",
     goal: "Inspect target",
+    profileId: "passive-map",
     status: "stopped",
     policy: {
       maxRuntimeMs: 120000,
       maxSteps: 8,
       maxReplay: 1,
+      maxWorkflowRequests: 1,
       maxCaptureSample: 20,
       allowRawContext: false
     },
@@ -501,7 +631,10 @@ const radarApi = {
     findings: []
   })),
   getAgentRun: vi.fn(async () => null),
-  listAgentRuns: vi.fn(async () => [])
+  listAgentRuns: vi.fn(async () => []),
+  getAgentRunMemory: vi.fn(async () => []),
+  saveAgentRunMemory: vi.fn(async (entry) => ({ ...entry, status: entry.status === "proposed" ? "confirmed" : entry.status })),
+  deleteAgentRunMemory: vi.fn(async () => ({ ok: true, memory: [] }))
 };
 
 if (typeof window !== "undefined") {

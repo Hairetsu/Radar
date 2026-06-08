@@ -25,6 +25,7 @@ import type {
   LocalSession,
   LocalSessionSummary,
   MatchReplaceRule,
+  ProjectNote,
   ProxyProfile,
   ProxyProfileId,
   ProxyState,
@@ -34,6 +35,7 @@ import type {
   ReplayResult,
   ReplayTabState,
   SavedFilter,
+  SavedView,
   EvidenceAnnotation,
   Finding,
   FindingReport,
@@ -51,7 +53,15 @@ import type {
   PluginApiRequest,
   PluginApiResult
 } from "./domain.js";
-import type { AgentRun, AgentRunRequest } from "./agent-types.js";
+import type { AgentRun, AgentRunMemoryEntry, AgentRunRequest } from "./agent-types.js";
+import type { GlobalSearchRequest, GlobalSearchResponse } from "./globalSearch.js";
+import type {
+  ProjectBundleApplyResult,
+  ProjectBundleExportPreview,
+  ProjectBundleImportPreview,
+  ProjectBundleOptions
+} from "./projectBundle.js";
+import type { HandoffPackageOptions, HandoffPackagePreview } from "./handoffPackage.js";
 
 export type RadarApi = {
   getLocalContext: () => Promise<LocalContext>;
@@ -76,6 +86,7 @@ export type RadarApi = {
   getProxyState: () => Promise<ProxyState>;
   getProxyProfiles: () => Promise<ProxyProfile[]>;
   saveProxyProfile: (payload: { id: ProxyProfileId; notes: string }) => Promise<ProxyProfile[]>;
+  searchGlobal: (request: GlobalSearchRequest) => Promise<GlobalSearchResponse>;
   getCaptures: () => Promise<CapturedRequest[]>;
   queryCaptures: (query: string) => Promise<{ ok: boolean; error?: string; captures: CapturedRequest[] }>;
   getSessionCaptures: (sessionId: string) => Promise<CapturedRequest[]>;
@@ -96,6 +107,18 @@ export type RadarApi = {
   clearWebSocketEvents: () => Promise<{ ok: boolean }>;
   getSavedFilters: () => Promise<SavedFilter[]>;
   setSavedFilters: (filters: SavedFilter[]) => Promise<SavedFilter[]>;
+  getProjectNotes: () => Promise<ProjectNote[]>;
+  saveProjectNote: (note: ProjectNote) => Promise<ProjectNote>;
+  deleteProjectNote: (id: string) => Promise<{ ok: boolean; notes: ProjectNote[] }>;
+  getSavedViews: () => Promise<SavedView[]>;
+  saveSavedView: (view: SavedView) => Promise<SavedView>;
+  deleteSavedView: (id: string) => Promise<{ ok: boolean; views: SavedView[] }>;
+  previewProjectBundleExport: (options: ProjectBundleOptions) => Promise<ProjectBundleExportPreview>;
+  writeProjectBundle: (options: ProjectBundleOptions) => Promise<{ ok: boolean; path?: string; preview: ProjectBundleExportPreview; error?: string }>;
+  previewProjectBundleImport: (payload: { sourcePath?: string }) => Promise<ProjectBundleImportPreview>;
+  applyProjectBundleImport: (payload: { sourcePath?: string }) => Promise<ProjectBundleApplyResult>;
+  previewHandoffPackage: (options: HandoffPackageOptions) => Promise<HandoffPackagePreview>;
+  writeHandoffPackage: (options: HandoffPackageOptions) => Promise<{ ok: boolean; path?: string; preview: HandoffPackagePreview; error?: string }>;
   getReplayTabState: () => Promise<ReplayTabState>;
   setReplayTabState: (state: ReplayTabState) => Promise<ReplayTabState>;
   getReplayEnvironments: () => Promise<ReplayEnvironment[]>;
@@ -161,4 +184,7 @@ export type RadarApi = {
   stopAgentRun: (id: string) => Promise<AgentRun | null>;
   getAgentRun: (id: string) => Promise<AgentRun | null>;
   listAgentRuns: () => Promise<AgentRun[]>;
+  getAgentRunMemory: () => Promise<AgentRunMemoryEntry[]>;
+  saveAgentRunMemory: (entry: AgentRunMemoryEntry) => Promise<AgentRunMemoryEntry>;
+  deleteAgentRunMemory: (id: string) => Promise<{ ok: boolean; memory: AgentRunMemoryEntry[] }>;
 };

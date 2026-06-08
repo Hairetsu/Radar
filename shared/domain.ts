@@ -381,6 +381,38 @@ export type SavedFilter = {
   updatedAt: string;
 };
 
+export type ProjectNote = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SavedViewTarget =
+  | "traffic"
+  | "websocket"
+  | "intercept"
+  | "repeater"
+  | "automate"
+  | "findings"
+  | "workflows"
+  | "plugins"
+  | "advanced"
+  | "sitemap"
+  | "scope"
+  | "ssl";
+
+export type SavedView = {
+  id: string;
+  name: string;
+  view: SavedViewTarget;
+  description: string;
+  state: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type EvidenceKind = "capture" | "websocket";
 
 export type EvidenceAnnotation = {
