@@ -230,6 +230,10 @@ describe("findings", () => {
       confidence: "low",
       evidenceRefs: ["capture:cap-1"],
       notes: "Review manually.",
+      affectedAssets: ["https://example.test"],
+      reproductionNotes: "Inspect capture:cap-1 response headers.",
+      severityRationale: "HSTS is absent on sampled HTTPS response.",
+      remediation: "Add Strict-Transport-Security after validating HTTPS-only operation.",
       uncertainties: ["Only sampled one response."]
     });
     expect(finding?.source).toBe("ai");

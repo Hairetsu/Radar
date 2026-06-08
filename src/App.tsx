@@ -77,6 +77,9 @@ import type {
   FindingSeverity,
   FindingStatus,
   FindingTemplateId,
+  GlobalSearchResult,
+  AgentRunProfileId,
+  ProjectBundleRedactionProfile,
   WorkflowDefinition,
   WorkflowResultLevel,
   PluginInstallStatus
@@ -169,6 +172,38 @@ const requestMenuDangerClass =
 const findingSeverities: FindingSeverity[] = ["info", "low", "medium", "high", "critical"];
 const findingConfidences: FindingConfidence[] = ["low", "medium", "high"];
 const findingStatuses: FindingStatus[] = ["draft", "reviewed", "accepted-risk", "retest-passed", "retest-failed"];
+
+const bundleRedactionOptions: Array<{ id: ProjectBundleRedactionProfile; label: string }> = [
+  { id: "redacted-evidence", label: "Redacted Evidence" },
+  { id: "metadata-only", label: "Metadata Only" },
+  { id: "reviewed-findings", label: "Reviewed Findings" },
+  { id: "raw-evidence", label: "Raw Evidence" }
+];
+
+function bundleStatsLine(stats: {
+  sessions: number;
+  captures: number;
+  webSocketEvents: number;
+  findings: number;
+  workflows: number;
+  projectNotes: number;
+  savedViews: number;
+  proposedTargets: number;
+}) {
+  return `${stats.sessions} sessions / ${stats.captures} req / ${stats.webSocketEvents} ws / ${stats.findings} findings / ${stats.workflows} workflows / ${stats.projectNotes} notes / ${stats.savedViews} views / ${stats.proposedTargets} targets`;
+}
+
+function handoffStatsLine(stats: {
+  findings: number;
+  captures: number;
+  webSocketEvents: number;
+  workflows: number;
+  replayCollections: number;
+  projectNotes: number;
+  targets: number;
+}) {
+  return `${stats.findings} findings / ${stats.captures} req / ${stats.webSocketEvents} ws / ${stats.workflows} workflows / ${stats.replayCollections} collections / ${stats.projectNotes} notes / ${stats.targets} targets`;
+}
 
 function findingSeverityTone(severity: FindingSeverity): "good" | "warn" | "danger" | "move" | "ghost" {
   if (severity === "critical" || severity === "high") {
@@ -410,7 +445,15 @@ const modeButtonClass = (active: boolean) =>
       : "border-rule bg-surface/60 text-muted hover:bg-signal/5 hover:text-bone"
   );
 
-function timelineEntryText(entry: { note?: string; toolCall?: { tool: string }; toolResult?: { tool: string; ok: boolean; error?: string } }) {
+function timelineEntryText(entry: {
+  note?: string;
+  summary?: string;
+  toolCall?: { tool: string };
+  toolResult?: { tool: string; ok: boolean; error?: string };
+}) {
+  if (entry.summary) {
+    return entry.summary;
+  }
   if (entry.toolResult) {
     return entry.toolResult.ok ? `${entry.toolResult.tool} completed` : `${entry.toolResult.tool} blocked: ${entry.toolResult.error}`;
   }
@@ -421,6 +464,29 @@ function timelineEntryText(entry: { note?: string; toolCall?: { tool: string }; 
     return `${entry.toolCall.tool} requested`;
   }
   return entry.note || "Agent step";
+}
+
+function recoveryActionLabel(action: "retry-tool" | "retry-with-evidence" | "skip-and-continue" | "stop-run" | "draft-finding") {
+  if (action === "retry-tool") {
+    return "Retry Tool";
+  }
+  if (action === "retry-with-evidence") {
+    return "Refresh Evidence";
+  }
+  if (action === "skip-and-continue") {
+    return "Skip / Continue";
+  }
+  if (action === "draft-finding") {
+    return "Draft Finding";
+  }
+  return "Stop Run";
+}
+
+function globalSearchKindLabel(kind: GlobalSearchResult["kind"]) {
+  return kind
+    .split("-")
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export function App() {
@@ -438,6 +504,8 @@ export function App() {
   const [workflowEditorText, setWorkflowEditorText] = useState("");
   const [workflowEditorError, setWorkflowEditorError] = useState("");
   const [workflowInputs, setWorkflowInputs] = useState<Record<string, string>>({});
+  const [agentMemoryTitle, setAgentMemoryTitle] = useState("");
+  const [agentMemoryNotes, setAgentMemoryNotes] = useState("");
   const [webSocketDirectionFilter, setWebSocketDirectionFilter] = useState<WebSocketDirection | "all">("all");
   const [selectedWebSocketId, setSelectedWebSocketId] = useState("");
   const [selectedWebSocketIds, setSelectedWebSocketIds] = useState<string[]>([]);
@@ -518,6 +586,26 @@ export function App() {
     }
     setRequestMenu(null);
   };
+  const submitGlobalSearch = (event: FormEvent) => {
+    event.preventDefault();
+    void workbench.runGlobalSearch(workbench.globalSearchQuery);
+  };
+  const submitProjectNote = (event: FormEvent) => {
+    event.preventDefault();
+    void workbench.saveProjectNote();
+  };
+  const submitSavedView = (event: FormEvent) => {
+    event.preventDefault();
+    void workbench.saveCurrentView();
+  };
+  const openGlobalSearchResult = (result: GlobalSearchResult) => {
+    if (result.target.view === "websocket" && result.target.id) {
+      setSelectedWebSocketId(result.target.id);
+      setSelectedWebSocketIds([result.target.id]);
+      webSocketSelectionAnchorRef.current = result.target.id;
+    }
+    workbench.openGlobalSearchResult(result);
+  };
   const addMenuRequestToScope = async () => {
     if (requestMenuCapture) {
       await workbench.addTarget(requestMenuCapture.url);
@@ -582,6 +670,21 @@ export function App() {
       )
     );
   }, [selectedCapture?.id, workbench.selectedWorkflow]);
+  useEffect(() => {
+    if (!workbench.aiPreparedWorkflowDraft) {
+      return;
+    }
+    setWorkflowEditorText(workflowDefinitionText(workbench.aiPreparedWorkflowDraft));
+    setWorkflowEditorError("");
+    setWorkflowInputs(
+      Object.fromEntries(
+        workbench.aiPreparedWorkflowDraft.inputs.map((input) => [
+          input.id,
+          input.type === "capture-id" ? selectedCapture?.id || input.defaultValue : input.defaultValue
+        ])
+      )
+    );
+  }, [selectedCapture?.id, workbench.aiPreparedWorkflowDraft]);
   const activeSession = workbench.localContext?.session || null;
   const activeSessionListed = activeSession
     ? workbench.sessions.some((session) => session.id === activeSession.id)
@@ -670,6 +773,25 @@ export function App() {
   const submitAgentGoal = (event: FormEvent) => {
     event.preventDefault();
     void workbench.startAgentRun();
+  };
+  const submitAgentMemory = (event: FormEvent) => {
+    event.preventDefault();
+    if (!agentMemoryTitle.trim() || !agentMemoryNotes.trim()) {
+      workbench.setNotice("Run memory needs a title and notes.");
+      return;
+    }
+    void workbench
+      .createAgentRunMemory({
+        title: agentMemoryTitle,
+        notes: agentMemoryNotes,
+        evidenceRefs: selectedCapture ? [`capture:${selectedCapture.id}`] : []
+      })
+      .then((saved) => {
+        if (saved) {
+          setAgentMemoryTitle("");
+          setAgentMemoryNotes("");
+        }
+      });
   };
   const updateFindingDraft = (patch: Partial<Finding>) => {
     setFindingDraft((current) => (current ? { ...current, ...patch } : current));
@@ -1028,6 +1150,562 @@ export function App() {
           </div>
         </header>
 
+        {workbench.globalSearchOpen && (
+          <div
+            className="fixed inset-0 z-30 grid place-items-start bg-ink/72 px-4 py-[10vh] backdrop-blur-sm"
+            data-testid="globalSearchOverlay"
+            data-component="globalSearchOverlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                workbench.setGlobalSearchOpen(false);
+              }
+            }}
+          >
+            <section className="mx-auto w-full max-w-3xl border border-signal/45 bg-surface shadow-[0_32px_120px_-72px_var(--color-signal)]">
+              <form
+                className="flex items-center gap-3 border-b border-rule radar-form-gradient p-3"
+                onSubmit={submitGlobalSearch}
+              >
+                <Search className="shrink-0 text-signal" size={17} strokeWidth={1.8} />
+                <Input
+                  autoFocus
+                  value={workbench.globalSearchQuery}
+                  onChange={(event) => {
+                    workbench.setGlobalSearchQuery(event.target.value);
+                    void workbench.runGlobalSearch(event.target.value);
+                  }}
+                  placeholder='Search evidence, findings, replays... try kind:capture host:api status:403 "set-cookie"'
+                  className="h-10 border-0 bg-transparent px-0 text-[15px]"
+                  data-testid="globalSearchInput"
+                  data-component="globalSearchInput"
+                />
+                <Button type="submit" variant="solid" size="compact" data-testid="runGlobalSearch">
+                  Search
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="icon"
+                  onClick={() => workbench.setGlobalSearchOpen(false)}
+                  aria-label="Close global search"
+                  data-testid="closeGlobalSearch"
+                >
+                  <X size={15} strokeWidth={1.8} />
+                </Button>
+              </form>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-3 py-2">
+                <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">
+                  {workbench.globalSearchPending
+                    ? "Searching local project"
+                    : workbench.globalSearchResult?.ok
+                      ? `${workbench.globalSearchResult.total} result${workbench.globalSearchResult.total === 1 ? "" : "s"}`
+                      : "Global project search"}
+                </span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted">
+                  Filters: kind, host, path, status, severity, source
+                </span>
+              </div>
+              <div className="max-h-[58vh] overflow-auto p-2">
+                {workbench.globalSearchError && (
+                  <div className="border border-rust/45 bg-rust/10 p-3 text-[13px] text-bone" data-testid="globalSearchError">
+                    {workbench.globalSearchError}
+                  </div>
+                )}
+                {!workbench.globalSearchError && !workbench.globalSearchResult?.results.length && (
+                  <EmptyState>
+                    {workbench.globalSearchQuery.trim()
+                      ? "No local project results matched that query."
+                      : "Type to search captures, frames, replays, findings, workflows, plugins, Advanced signals, and filters."}
+                  </EmptyState>
+                )}
+                {!workbench.globalSearchError &&
+                  workbench.globalSearchResult?.results.map((result) => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      className="mb-2 block w-full border border-rule bg-ink/28 p-3 text-left transition hover:border-signal/45 hover:bg-signal/[0.06]"
+                      onClick={() => openGlobalSearchResult(result)}
+                      data-testid={`globalSearchResult-${result.kind}`}
+                      data-component="globalSearchResult"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="mb-1 block font-mono text-[8.5px] uppercase tracking-[0.22em] text-signal">
+                            {globalSearchKindLabel(result.kind)}
+                            {result.host ? ` // ${result.host}` : ""}
+                          </span>
+                          <strong className="block overflow-hidden text-ellipsis whitespace-nowrap font-display text-[15px] uppercase tracking-[0.03em] text-bone [font-stretch:75%]">
+                            {result.title}
+                          </strong>
+                        </div>
+                        <StatusBadge>{result.status || result.severity || result.source || "open"}</StatusBadge>
+                      </div>
+                      <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted">
+                        {result.subtitle}
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-copy">{result.detail}</p>
+                      {result.matches[0] && (
+                        <p className="mt-2 border-l border-signal/40 pl-2 font-mono text-[10px] leading-relaxed text-muted">
+                          {result.matches[0].label}: {result.matches[0].snippet}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {workbench.projectArtifactsOpen && (
+          <div
+            className="fixed inset-0 z-30 grid place-items-start bg-ink/76 px-4 py-[8vh] backdrop-blur-sm"
+            data-testid="projectArtifactsOverlay"
+            data-component="projectArtifactsOverlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                workbench.setProjectArtifactsOpen(false);
+              }
+            }}
+          >
+            <section className="mx-auto grid w-full max-w-5xl border border-steel/45 bg-surface shadow-[0_36px_128px_-78px_var(--color-steel)] [grid-template-rows:auto_minmax(0,1fr)]">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule radar-form-gradient p-3">
+                <div>
+                  <span className="block font-mono text-[9px] uppercase tracking-[0.26em] text-steel">
+                    Project artifacts
+                  </span>
+                  <h3 className="font-display text-[24px] font-semibold uppercase leading-none tracking-[0] text-bone [font-stretch:75%]">
+                    Notes And Saved Views
+                  </h3>
+                </div>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="icon"
+                  onClick={() => workbench.setProjectArtifactsOpen(false)}
+                  aria-label="Close project artifacts"
+                  data-testid="closeProjectArtifacts"
+                  data-component="closeProjectArtifacts"
+                >
+                  <X size={15} strokeWidth={1.8} />
+                </Button>
+              </div>
+              <div className="grid max-h-[72vh] min-h-0 grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] overflow-hidden max-[900px]:grid-cols-1 max-[900px]:overflow-auto">
+                <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[900px]:border-b max-[900px]:border-r-0">
+                  <div className="flex items-center justify-between gap-3 border-b border-rule px-3 py-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted">
+                      {workbench.projectNotes.length} project note{workbench.projectNotes.length === 1 ? "" : "s"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="compact"
+                      onClick={workbench.startProjectNote}
+                      data-testid="newProjectNote"
+                      data-component="newProjectNote"
+                    >
+                      <Plus size={13} strokeWidth={1.7} />
+                      New
+                    </Button>
+                  </div>
+                  <div className="grid min-h-0 grid-cols-[210px_minmax(0,1fr)] max-[760px]:grid-cols-1">
+                    <div className="min-h-0 overflow-auto border-r border-rule max-[760px]:max-h-44 max-[760px]:border-b max-[760px]:border-r-0">
+                      {workbench.projectNotes.length === 0 && (
+                        <div className="p-3">
+                          <EmptyState>No notes saved for this project.</EmptyState>
+                        </div>
+                      )}
+                      {workbench.projectNotes.map((note) => (
+                        <button
+                          key={note.id}
+                          type="button"
+                          className={cn(
+                            "block w-full border-b border-rule px-3 py-3 text-left transition hover:bg-steel/5 hover:text-bone",
+                            workbench.selectedProjectNoteId === note.id && "bg-steel/[0.08] text-bone"
+                          )}
+                          onClick={() => workbench.selectProjectNote(note.id)}
+                          data-testid={`projectNote-${note.id}`}
+                          data-component="projectNote"
+                        >
+                          <strong className="block overflow-hidden text-ellipsis whitespace-nowrap font-display text-[14px] uppercase tracking-[0.02em] [font-stretch:75%]">
+                            {note.title}
+                          </strong>
+                          <span className="mt-1 block line-clamp-2 text-[11px] leading-relaxed text-muted">
+                            {note.body || "No body"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <form className="grid min-h-0 gap-3 p-3 [grid-template-rows:auto_minmax(160px,1fr)_auto]" onSubmit={submitProjectNote}>
+                      <Input
+                        value={workbench.projectNoteTitle}
+                        onChange={(event) => workbench.setProjectNoteTitle(event.target.value)}
+                        placeholder="Note title"
+                        data-testid="projectNoteTitle"
+                        data-component="projectNoteTitle"
+                      />
+                      <Textarea
+                        value={workbench.projectNoteBody}
+                        onChange={(event) => workbench.setProjectNoteBody(event.target.value)}
+                        placeholder="Scope decisions, auth context, test credentials, hypotheses, or handoff notes..."
+                        className="min-h-[220px] resize-none"
+                        data-testid="projectNoteBody"
+                        data-component="projectNoteBody"
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+                          {workbench.selectedProjectNote ? "Editing saved note" : "Drafting new note"}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {workbench.selectedProjectNote && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="compact"
+                              onClick={() => void workbench.deleteProjectNote()}
+                              data-testid="deleteProjectNote"
+                              data-component="deleteProjectNote"
+                            >
+                              <Trash2 size={13} strokeWidth={1.7} />
+                              Delete
+                            </Button>
+                          )}
+                          <Button type="submit" variant="solid" size="compact" data-testid="saveProjectNote">
+                            Save Note
+                          </Button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                <div className="grid min-h-0 [grid-template-rows:auto_minmax(0,1fr)]">
+                  <form className="grid gap-3 border-b border-rule p-3" onSubmit={submitSavedView}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="block font-mono text-[9px] uppercase tracking-[0.22em] text-muted">
+                          Saved views
+                        </span>
+                        <p className="text-[12px] leading-relaxed text-copy">
+                          Store the active view, filters, selection, and related panel state.
+                        </p>
+                      </div>
+                      <StatusBadge>{workbench.activeView}</StatusBadge>
+                    </div>
+                    <Input
+                      value={workbench.savedViewName}
+                      onChange={(event) => workbench.setSavedViewName(event.target.value)}
+                      placeholder="Saved view name"
+                      data-testid="savedViewName"
+                      data-component="savedViewName"
+                    />
+                    <Textarea
+                      value={workbench.savedViewDescription}
+                      onChange={(event) => workbench.setSavedViewDescription(event.target.value)}
+                      placeholder="Why this view matters..."
+                      className="min-h-[72px] resize-none"
+                      data-testid="savedViewDescription"
+                      data-component="savedViewDescription"
+                    />
+                    <Button type="submit" variant="solid" size="compact" data-testid="saveCurrentView">
+                      Save Current View
+                    </Button>
+                  </form>
+                  <div className="min-h-0 overflow-auto p-2">
+                    {workbench.savedViews.length === 0 && <EmptyState>No saved views yet.</EmptyState>}
+                    {workbench.savedViews.map((view) => (
+                      <div
+                        key={view.id}
+                        className="mb-2 border border-rule bg-ink/24 p-3"
+                        data-testid={`savedView-${view.id}`}
+                        data-component="savedView"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="block font-mono text-[8.5px] uppercase tracking-[0.22em] text-steel">
+                              {view.view}
+                            </span>
+                            <strong className="block overflow-hidden text-ellipsis whitespace-nowrap font-display text-[15px] uppercase tracking-[0.02em] text-bone [font-stretch:75%]">
+                              {view.name}
+                            </strong>
+                          </div>
+                          <StatusBadge>{Object.keys(view.state).length} keys</StatusBadge>
+                        </div>
+                        {view.description && (
+                          <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-copy">{view.description}</p>
+                        )}
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+                            {view.updatedAt.slice(0, 16).replace("T", " ")}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="compact"
+                              onClick={() => workbench.applySavedView(view)}
+                              data-testid={`openSavedView-${view.id}`}
+                              data-component="openSavedView"
+                            >
+                              Open
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="compact"
+                              onClick={() => void workbench.deleteSavedView(view.id)}
+                              data-testid={`deleteSavedView-${view.id}`}
+                              data-component="deleteSavedView"
+                            >
+                              <Trash2 size={13} strokeWidth={1.7} />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div
+                      className="mt-3 border border-steel/35 bg-steel/[0.04] p-3"
+                      data-testid="projectBundlePanel"
+                      data-component="projectBundlePanel"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <span className="block font-mono text-[9px] uppercase tracking-[0.22em] text-steel">
+                            Project bundle
+                          </span>
+                          <p className="mt-1 text-[12px] leading-relaxed text-copy">
+                            Export or import a local JSON bundle. Imported scope targets stay inactive until you add them in Scope.
+                          </p>
+                        </div>
+                        <StatusBadge>{workbench.bundleActionPending ? "working" : "local"}</StatusBadge>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        <FieldLabel>Redaction profile</FieldLabel>
+                        <Select
+                          value={workbench.bundleRedaction}
+                          onChange={(event) =>
+                            workbench.setBundleRedaction(event.target.value as ProjectBundleRedactionProfile)
+                          }
+                          data-testid="bundleRedaction"
+                          data-component="bundleRedaction"
+                        >
+                          {bundleRedactionOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Select>
+                        <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                          <input
+                            type="checkbox"
+                            checked={workbench.bundleIncludeReplayCollections}
+                            onChange={(event) => workbench.setBundleIncludeReplayCollections(event.target.checked)}
+                            data-testid="bundleIncludeReplayCollections"
+                          />
+                          Include Repeater collections
+                        </label>
+                        <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                          <input
+                            type="checkbox"
+                            checked={workbench.bundleIncludePlugins}
+                            onChange={(event) => workbench.setBundleIncludePlugins(event.target.checked)}
+                            data-testid="bundleIncludePlugins"
+                          />
+                          Include plugin metadata
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="compact"
+                            onClick={() => void workbench.previewProjectBundleExport()}
+                            disabled={workbench.bundleActionPending}
+                            data-testid="previewProjectBundleExport"
+                            data-component="previewProjectBundleExport"
+                          >
+                            Preview Export
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="solid"
+                            size="compact"
+                            onClick={() => void workbench.writeProjectBundle()}
+                            disabled={workbench.bundleActionPending}
+                            data-testid="writeProjectBundle"
+                            data-component="writeProjectBundle"
+                          >
+                            Export Bundle
+                          </Button>
+                        </div>
+                        {workbench.bundleExportPreview && (
+                          <div className="border border-rule bg-ink/24 p-2 text-[11px] leading-relaxed text-copy" data-testid="bundleExportPreview">
+                            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+                              {bundleStatsLine(workbench.bundleExportPreview.stats)}
+                            </p>
+                            {workbench.bundleExportPreview.warnings.map((warning) => (
+                              <p key={warning} className="mt-1 text-sand">
+                                {warning}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-4 grid gap-2 border-t border-rule pt-3">
+                        <FieldLabel>Import path</FieldLabel>
+                        <Input
+                          value={workbench.bundleImportPath}
+                          onChange={(event) => workbench.setBundleImportPath(event.target.value)}
+                          placeholder="/path/to/project.radar-bundle.json, or leave blank for file picker"
+                          data-testid="bundleImportPath"
+                          data-component="bundleImportPath"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="compact"
+                            onClick={() => void workbench.previewProjectBundleImport()}
+                            disabled={workbench.bundleActionPending}
+                            data-testid="previewProjectBundleImport"
+                            data-component="previewProjectBundleImport"
+                          >
+                            Preview Import
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="solid"
+                            size="compact"
+                            onClick={() => void workbench.applyProjectBundleImport()}
+                            disabled={workbench.bundleActionPending || !workbench.bundleImportPreview?.ok}
+                            data-testid="applyProjectBundleImport"
+                            data-component="applyProjectBundleImport"
+                          >
+                            Apply Import
+                          </Button>
+                        </div>
+                        {workbench.bundleImportPreview && (
+                          <div className="border border-rule bg-ink/24 p-2 text-[11px] leading-relaxed text-copy" data-testid="bundleImportPreview">
+                            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+                              {bundleStatsLine(workbench.bundleImportPreview.stats)}
+                            </p>
+                            {workbench.bundleImportPreview.inactiveTargets.length > 0 && (
+                              <p className="mt-1 text-sand">
+                                Inactive proposed scope: {workbench.bundleImportPreview.inactiveTargets.join(", ")}
+                              </p>
+                            )}
+                            {workbench.bundleImportPreview.conflicts.length > 0 && (
+                              <p className="mt-1 text-muted">
+                                Conflicts: {workbench.bundleImportPreview.conflicts.length} matching ids will be skipped to preserve existing records.
+                              </p>
+                            )}
+                            {workbench.bundleImportPreview.warnings.map((warning) => (
+                              <p key={warning} className="mt-1 text-sand">
+                                {warning}
+                              </p>
+                            ))}
+                            {workbench.bundleImportPreview.error && (
+                              <p className="mt-1 text-rust">{workbench.bundleImportPreview.error}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      className="mt-3 border border-sand/35 bg-sand/[0.04] p-3"
+                      data-testid="handoffPackagePanel"
+                      data-component="handoffPackagePanel"
+                    >
+                      <div>
+                        <span className="block font-mono text-[9px] uppercase tracking-[0.22em] text-sand">
+                          Handoff package
+                        </span>
+                        <p className="mt-1 text-[12px] leading-relaxed text-copy">
+                          Export reviewed findings, referenced evidence, scope summary, notes, workflows, and a Markdown handoff summary.
+                        </p>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        <FieldLabel>Handoff title</FieldLabel>
+                        <Input
+                          value={workbench.handoffTitle}
+                          onChange={(event) => workbench.setHandoffTitle(event.target.value)}
+                          placeholder="Auth review handoff"
+                          data-testid="handoffTitle"
+                          data-component="handoffTitle"
+                        />
+                        <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                          <input
+                            type="checkbox"
+                            checked={workbench.handoffIncludeDraftFindings}
+                            onChange={(event) => workbench.setHandoffIncludeDraftFindings(event.target.checked)}
+                            data-testid="handoffIncludeDraftFindings"
+                          />
+                          Include draft findings
+                        </label>
+                        <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                          <input
+                            type="checkbox"
+                            checked={workbench.handoffIncludeProjectNotes}
+                            onChange={(event) => workbench.setHandoffIncludeProjectNotes(event.target.checked)}
+                            data-testid="handoffIncludeProjectNotes"
+                          />
+                          Include project notes
+                        </label>
+                        <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                          <input
+                            type="checkbox"
+                            checked={workbench.handoffIncludeWorkflows}
+                            onChange={(event) => workbench.setHandoffIncludeWorkflows(event.target.checked)}
+                            data-testid="handoffIncludeWorkflows"
+                          />
+                          Include workflows
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="compact"
+                            onClick={() => void workbench.previewHandoffPackage()}
+                            disabled={workbench.bundleActionPending}
+                            data-testid="previewHandoffPackage"
+                            data-component="previewHandoffPackage"
+                          >
+                            Preview Handoff
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="solid"
+                            size="compact"
+                            onClick={() => void workbench.writeHandoffPackage()}
+                            disabled={workbench.bundleActionPending}
+                            data-testid="writeHandoffPackage"
+                            data-component="writeHandoffPackage"
+                          >
+                            Export Handoff
+                          </Button>
+                        </div>
+                        {workbench.handoffPreview && (
+                          <div className="border border-rule bg-ink/24 p-2 text-[11px] leading-relaxed text-copy" data-testid="handoffPreview">
+                            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+                              {handoffStatsLine(workbench.handoffPreview.stats)}
+                            </p>
+                            {workbench.handoffPreview.warnings.map((warning) => (
+                              <p key={warning} className="mt-1 text-sand">
+                                {warning}
+                              </p>
+                            ))}
+                            {workbench.handoffPreview.error && (
+                              <p className="mt-1 text-rust">{workbench.handoffPreview.error}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
         <section
           className={cn(
             revealClass,
@@ -1054,6 +1732,28 @@ export function App() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 pb-1">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={workbench.openGlobalSearch}
+                title="Global search (⌘P)"
+                data-testid="openGlobalSearch"
+                data-component="openGlobalSearch"
+              >
+                <Search size={14} strokeWidth={1.7} />
+                Search
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => workbench.setProjectArtifactsOpen(true)}
+                title="Project notes and saved views"
+                data-testid="openProjectArtifacts"
+                data-component="openProjectArtifacts"
+              >
+                <FileText size={14} strokeWidth={1.7} />
+                Notes
+              </Button>
               <Button
                 variant="outline"
                 type="button"
@@ -1309,6 +2009,23 @@ export function App() {
                     data-component="agentGoalInput"
                   />
                 </div>
+                <label className="grid gap-1">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Run Profile</span>
+                  <Select
+                    value={workbench.agentProfileId}
+                    onChange={(event) => workbench.setAgentProfileId(event.target.value as AgentRunProfileId)}
+                    disabled={activeAgentRunning}
+                    data-testid="agentProfileSelect"
+                    data-component="agentProfileSelect"
+                  >
+                    {workbench.agentProfiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <span className="text-[11px] leading-5 text-muted">{workbench.selectedAgentRunProfile.description}</span>
+                </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="submit"
@@ -1335,6 +2052,11 @@ export function App() {
                     {activeAgentRun ? activeAgentRun.status : "idle"}
                   </span>
                 </div>
+                <div className="flex flex-wrap gap-1" data-testid="agentBudgetChips">
+                  {workbench.activeAgentBudgetLabels.map((label) => (
+                    <StatusBadge key={label}>{label}</StatusBadge>
+                  ))}
+                </div>
                 <p className="font-mono text-[10px] leading-relaxed text-muted">
                   Manual-First controls stay available below as evidence panes. AI-First can only act inside saved scope and
                   uses stricter replay budgets.
@@ -1342,19 +2064,97 @@ export function App() {
               </form>
 
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
-                <div className="min-h-[160px] border border-rule bg-surface/55">
+                <div className="min-h-[220px] border border-rule bg-surface/55">
                   <div className="flex items-center justify-between border-b border-rule px-3 py-2">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Run Timeline</span>
-                    {activeAgentRun && <StatusBadge>{activeAgentRun.timeline.length} steps</StatusBadge>}
+                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Observation Console</span>
+                    <div className="flex flex-wrap gap-1">
+                      <StatusBadge>{activeAgentRun?.profileId || workbench.agentProfileId}</StatusBadge>
+                      {activeAgentRun && <StatusBadge>{activeAgentRun.timeline.length} steps</StatusBadge>}
+                    </div>
                   </div>
-                  <div className="max-h-[190px] overflow-auto p-3">
+                  <div className="max-h-[300px] overflow-auto p-3" data-testid="agentTimeline">
                     {!activeAgentRun && <EmptyState>Prompt AI-First to start a scoped run.</EmptyState>}
-                    {activeAgentRun?.timeline.slice(-6).map((entry) => (
-                      <div key={entry.id} className="mb-2 border-l border-signal/35 pl-3">
-                        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-bone">
-                          {timelineEntryText(entry)}
-                        </p>
-                        {entry.note && <p className="mt-1 text-[12px] leading-relaxed text-muted">{entry.note}</p>}
+                    {activeAgentRun?.timeline.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className={cn(
+                          "mb-2 border bg-ink/28 p-3",
+                          entry.phase === "failure" || entry.phase === "policy-block"
+                            ? "border-rust/45"
+                            : entry.phase === "tool-call"
+                              ? "border-signal/35"
+                              : "border-rule"
+                        )}
+                        data-testid={`agentTimelineEntry-${entry.id}`}
+                        data-component="agentTimelineEntry"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="block font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted">
+                              {entry.phase || "status"} / {entry.createdAt.slice(11, 19)}Z
+                            </span>
+                            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-bone">
+                              {timelineEntryText(entry)}
+                            </p>
+                          </div>
+                          <StatusBadge>{entry.toolResult ? (entry.toolResult.ok ? "ok" : "failed") : entry.toolCall?.tool || "note"}</StatusBadge>
+                        </div>
+                        {entry.note && <p className="mt-2 text-[12px] leading-relaxed text-muted">{entry.note}</p>}
+                        {entry.target && (
+                          <p className="mt-2 font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted">
+                            Target: {[entry.target.view, entry.target.evidenceId, entry.target.browserUrl, entry.target.control].filter(Boolean).join(" / ")}
+                          </p>
+                        )}
+                        {entry.toolResult && !entry.toolResult.ok && (
+                          <p className="mt-2 border-l border-rust/50 pl-2 text-[12px] leading-relaxed text-rust">
+                            {entry.toolResult.error}
+                          </p>
+                        )}
+                        {entry.toolResult?.ok && entry.toolResult.tool === "proposeRunMemory" && (
+                          <div className="mt-3 border border-signal/25 bg-signal/[0.06] p-2">
+                            <p className="font-display text-[12px] uppercase tracking-[0.05em] text-bone">
+                              {entry.toolResult.data.memory.title}
+                            </p>
+                            <p className="mt-1 text-[11px] leading-5 text-muted">{entry.toolResult.data.memory.notes}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="compact"
+                                onClick={() => void workbench.confirmAgentRunMemoryFromTimeline(entry.id)}
+                                data-testid={`agentMemoryConfirm-${entry.id}`}
+                              >
+                                Confirm Memory
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="compact"
+                                onClick={() => void workbench.dismissAgentRunMemoryFromTimeline(entry.id)}
+                                data-testid={`agentMemoryDismiss-${entry.id}`}
+                              >
+                                Dismiss
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        {entry.recoveryActions?.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {entry.recoveryActions.map((action) => (
+                              <Button
+                                key={action}
+                                type="button"
+                                variant={action === "stop-run" ? "outline" : "ghost"}
+                                size="compact"
+                                onClick={() => workbench.recoverAgentRun(entry.id, action)}
+                                data-testid={`agentRecovery-${action}`}
+                                data-component="agentRecoveryAction"
+                              >
+                                {recoveryActionLabel(action)}
+                              </Button>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -1379,6 +2179,69 @@ export function App() {
                         <p className="mt-2 font-mono text-[10px] text-muted">{finding.evidenceRefs.join(", ")}</p>
                       </div>
                     ))}
+                  </div>
+                </div>
+                <div className="min-h-[180px] border border-rule bg-surface/55">
+                  <div className="flex items-center justify-between border-b border-rule px-3 py-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Run Memory</span>
+                    <StatusBadge>{workbench.agentRunMemory.length} local</StatusBadge>
+                  </div>
+                  <div className="grid gap-2 p-3">
+                    <form className="grid gap-2" onSubmit={submitAgentMemory}>
+                      <Input
+                        value={agentMemoryTitle}
+                        onChange={(event) => setAgentMemoryTitle(event.target.value)}
+                        placeholder="Hypothesis or retest note title"
+                        data-testid="agentMemoryTitle"
+                      />
+                      <Textarea
+                        value={agentMemoryNotes}
+                        onChange={(event) => setAgentMemoryNotes(event.target.value)}
+                        placeholder="What was tested, dismissed, or needs retest?"
+                        className="min-h-[62px]"
+                        data-testid="agentMemoryNotes"
+                      />
+                      <Button type="submit" variant="outline" size="compact" data-testid="agentMemoryCreate">
+                        <Plus size={12} strokeWidth={1.7} />
+                        Remember
+                      </Button>
+                    </form>
+                    <Input
+                      value={workbench.agentRunMemorySearch}
+                      onChange={(event) => workbench.setAgentRunMemorySearch(event.target.value)}
+                      placeholder="Search hypotheses, dismissed leads, retest notes"
+                      data-testid="agentMemorySearch"
+                    />
+                    <div className="max-h-[170px] overflow-auto">
+                      {workbench.filteredAgentRunMemory.length === 0 && <EmptyState>No local run memory yet.</EmptyState>}
+                      {workbench.filteredAgentRunMemory.map((entry) => (
+                        <div key={entry.id} className="mb-2 border border-rule bg-ink/30 p-3" data-testid={`agentMemory-${entry.id}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <strong className="font-display text-[12px] uppercase tracking-[0.05em] text-bone">
+                              {entry.title}
+                            </strong>
+                            <div className="flex flex-wrap gap-1">
+                              <StatusBadge>{entry.kind}</StatusBadge>
+                              <StatusBadge>{entry.status}</StatusBadge>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-[11px] leading-5 text-muted">{entry.notes}</p>
+                          {entry.evidenceRefs.length > 0 && (
+                            <p className="mt-2 font-mono text-[9.5px] text-muted">{entry.evidenceRefs.join(", ")}</p>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="compact"
+                            className="mt-2"
+                            onClick={() => void workbench.deleteAgentRunMemory(entry.id)}
+                            data-testid={`agentMemoryDelete-${entry.id}`}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3565,6 +4428,19 @@ export function App() {
 
                 <div className="min-h-0 overflow-auto p-4">
                   <div className="grid gap-4">
+                    {workbench.aiPreparedWorkflowDraft && (
+                      <div className="border border-signal/35 bg-signal/[0.06] p-3" data-testid="aiPreparedWorkflowDraft">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <FieldLabel>AI-Prepared Draft</FieldLabel>
+                            <p className="mt-1 text-[12px] leading-5 text-muted">
+                              Loaded into the editor for review. Save and Run stay manual operator actions.
+                            </p>
+                          </div>
+                          <StatusBadge>{workbench.aiPreparedWorkflowDraft.mode}</StatusBadge>
+                        </div>
+                      </div>
+                    )}
                     {workbench.selectedWorkflow && workbench.selectedWorkflow.inputs.length > 0 && (
                       <div className="grid gap-3 border border-rule bg-ink/25 p-3">
                         <FieldLabel>Inputs</FieldLabel>

@@ -79,6 +79,7 @@ export type {
   MatchReplaceRule,
   MatchReplaceStage,
   MatchReplaceTarget,
+  ProjectNote,
   ProxyProfile,
   ProxyProfileId,
   ProxyState,
@@ -90,6 +91,8 @@ export type {
   ReplayTab,
   ReplayTabState,
   SavedFilter,
+  SavedView,
+  SavedViewTarget,
   SslEvent,
   TlsDetails,
   WebSocketDirection,
@@ -114,9 +117,33 @@ export type {
 export type {
   AgentFinding,
   AgentPolicy,
+  AgentRunMemoryEntry,
+  AgentRunProfileId,
   AgentRun,
   AgentRunRequest,
   AgentRunStatus,
   AgentTimelineEntry,
   AppMode
 } from "../shared/agent-types";
+export type { AgentRunProfile } from "../shared/agentProfiles";
+
+export type {
+  GlobalSearchKind,
+  GlobalSearchMatch,
+  GlobalSearchRequest,
+  GlobalSearchResponse,
+  GlobalSearchResult,
+  GlobalSearchTarget,
+  GlobalSearchTargetView
+} from "../shared/globalSearch";
+
+export type {
+  ProjectBundle,
+  ProjectBundleApplyResult,
+  ProjectBundleExportPreview,
+  ProjectBundleImportPreview,
+  ProjectBundleOptions,
+  ProjectBundleRedactionProfile
+} from "../shared/projectBundle";
+
+export type { HandoffPackageOptions, HandoffPackagePreview } from "../shared/handoffPackage";

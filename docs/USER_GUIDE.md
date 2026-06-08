@@ -2,7 +2,7 @@
 
 Radar is a local-first defensive web security workbench for capturing HTTP/S and WebSocket traffic, inspecting request, response, and frame evidence, replaying requests, running bounded payload-marker tests, running repeatable workflows, managing local plugins, reviewing advanced API/auth signals, creating evidence-backed findings and reports, managing engagement scope, reviewing TLS/proxy behavior, and running AI-assisted analysis. Manual-First keeps AI prepare-only for risky actions; AI-First lets a scoped agent choose bounded tools while you watch.
 
-This guide covers the app as it exists now: the main console, projects and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, plugins, advanced testing helpers, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
+This guide covers the app as it exists now: the main console, global search, projects and sessions, HTTP/S capture and query filters, WebSocket analysis, sitemap mapping, request interception, repeater, Automate sessions, workflows, plugins, advanced testing helpers, findings and reports, scope management, SSL/proxy setup, AI features, appearance settings, local data, and troubleshooting.
 
 ## Table Of Contents
 
@@ -10,6 +10,10 @@ This guide covers the app as it exists now: the main console, projects and sessi
 - [Safety Model](#safety-model)
 - [Install And Launch](#install-and-launch)
 - [Main Console Tour](#main-console-tour)
+- [Global Search](#global-search)
+- [Project Notes And Saved Views](#project-notes-and-saved-views)
+- [Project Bundle Export And Import](#project-bundle-export-and-import)
+- [Handoff Packages](#handoff-packages)
 - [Projects And Sessions](#projects-and-sessions)
 - [Scope](#scope)
 - [Opening The Radar Browser](#opening-the-radar-browser)
@@ -38,6 +42,10 @@ Use Radar when you need a controlled local workbench for authorized web security
 - Launch an isolated browser profile through Radar.
 - Capture HTTP, HTTPS, and WebSocket traffic from the Radar browser or an external browser configured to use Radar's proxy.
 - Filter captured HTTP/S requests and WebSocket frames with a scoped query language or saved filters.
+- Search across local project evidence and artifacts from one overlay.
+- Save local project notes and saved views for handoff and repeatable review posture.
+- Export and import local project bundles with explicit redaction and import preview.
+- Export focused handoff packages for reviewed findings and referenced evidence.
 - Map discovered hosts, paths, and endpoints in a sitemap with inventory and session diff.
 - Tag, comment on, and bulk-manage captured evidence.
 - Inspect selectable request, response, and frame evidence.
@@ -142,7 +150,7 @@ Persistent areas:
 
 - **Left sidebar**: Radar lockup, project/session controls, view navigation, and live per-view counts.
 - **Top banner**: active project workspace/session and UTC clock.
-- **Header**: Radar identity, active project, Open Browser button, live status pills, Projects, Appearance, and AI settings.
+- **Header**: Radar identity, active project, Open Browser button, global Search, project Notes, live status pills, Projects, Appearance, and AI settings.
 - **Session selector**: quick session switching under the active project.
 - **Workspace panel**: the active tool surface.
 - **Footer ticker**: current view, HTTP/S capture count, WebSocket frame count, TLS event count, and proxy status.
@@ -164,6 +172,127 @@ Views:
 | **11 Scope** | Engagement boundary and target allowlist. |
 | **12 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
 
+## Global Search
+
+Open global search with **Search** in the workspace header or `Cmd+P` / `Ctrl+P`.
+
+Global search covers local data for the active project/session:
+
+- In-scope HTTP/S captures, including request/response headers, bodies, tags, and comments.
+- In-scope WebSocket frames, including payloads, headers, tags, and comments.
+- Repeater tab drafts, replay history, and saved collection items.
+- Findings, affected assets, evidence refs, notes, reproduction, impact, and remediation.
+- Workflow definitions and workflow run results.
+- Plugin names, descriptions, permissions, panels, warnings, and status.
+- Advanced testing signals from scoped evidence, including GraphQL, auth matrix, parameters, secrets, header behavior, and proxy guidance.
+- Saved HTTP(S) and WebSocket filters.
+- Project notes.
+- Saved views.
+
+Useful query examples:
+
+```text
+session cookie
+kind:capture host:api.example.test status:403
+kind:websocket source:received "session:update"
+kind:finding severity:high status:draft authorization
+kind:replay status:500
+kind:advanced source:cache-poisoning
+kind:saved-filter status:401
+kind:note "auth handoff"
+kind:saved-view traffic
+```
+
+Supported filters are `kind`, `host`, `path`, `status`, `severity`, and `source`. Text terms are matched across the searchable fields for each result. Capture and WebSocket results remain scope-filtered; out-of-scope traffic is not returned. Opening a result switches to the source view and selects or loads the closest visible object when that view supports direct selection.
+
+Opening a project note result opens the Notes panel and selects that note. Opening a saved-view result applies the saved view state.
+
+## Project Notes And Saved Views
+
+Open **Notes** in the workspace header to manage local project artifacts that are useful across sessions.
+
+Project notes are workspace-local. Use them for engagement context, target owner details, safe test credentials, retest reminders, hypotheses, and handoff context. Notes are searchable with `kind:note` and remain local unless you explicitly copy them or include relevant context in an AI task.
+
+To save a note:
+
+1. Click **Notes**.
+2. Click **New** or select an existing note.
+3. Enter a title, body, or both.
+4. Click **Save Note**.
+
+Saved views store the active workbench view plus useful local state:
+
+- Traffic and WebSocket queries.
+- HTTP method and resource-type filters.
+- Selected capture, finding, workflow, workflow run, sitemap node, baseline session, Automate run, and Repeater tab when present.
+
+To save the current view:
+
+1. Navigate to the view and state you want to preserve.
+2. Click **Notes**.
+3. Enter a saved-view name and optional description.
+4. Click **Save Current View**.
+
+To return to a saved view, open **Notes** and click **Open** on the saved view, or search for it with global search using `kind:saved-view`.
+
+## Project Bundle Export And Import
+
+Project bundles are local JSON files for moving project context between Radar installs or teammates. Open **Notes**, then use the **Project bundle** panel.
+
+Export profiles:
+
+| Profile | Contents |
+| --- | --- |
+| **Metadata Only** | Request/frame metadata, project artifacts, findings, workflows, and no raw headers, bodies, WebSocket payloads, or workflow run details. |
+| **Redacted Evidence** | In-scope HTTP/S and WebSocket evidence with sensitive headers and payloads redacted. This is the default. |
+| **Reviewed Findings** | Reviewed findings plus only referenced evidence, with evidence redacted. Draft findings are excluded. |
+| **Raw Evidence** | Full headers, bodies, cookies, auth values, and WebSocket payloads. Use only after explicit operator approval. |
+
+To export:
+
+1. Click **Notes**.
+2. Choose a redaction profile.
+3. Decide whether to include Repeater collections and plugin metadata.
+4. Click **Preview Export** and review counts/warnings.
+5. Click **Export Bundle** and choose a destination.
+
+Plugin records are exported as metadata only; imported plugins still need local install/approval before they can run.
+
+To import:
+
+1. Click **Notes**.
+2. Enter a bundle path or leave the path blank to use the file picker.
+3. Click **Preview Import**.
+4. Review counts, conflicts, warnings, and inactive proposed scope targets.
+5. Click **Apply Import**.
+
+Import creates local imported sessions under the active project and writes imported evidence, findings, notes, saved views, workflows, and collections there. Existing workspace records with matching ids are preserved and duplicate imported records are skipped. Import does not execute workflows, run plugins, send replay traffic, start AI, or add proposed targets to active scope. If a bundle proposes targets, copy them into **11 Scope** only after review.
+
+## Handoff Packages
+
+Handoff packages are focused exports for another operator, report writer, or retest pass. They are smaller than project bundles and are built from findings plus their referenced evidence.
+
+Open **Notes**, then use **Handoff package**.
+
+Defaults:
+
+- Reviewed findings are included.
+- Draft findings are excluded unless **Include draft findings** is checked.
+- Only evidence referenced by included findings is packaged.
+- Project notes, workflows, and Repeater collections can be included or excluded.
+- The same redaction profile selected for project bundles applies to the handoff package.
+- A Markdown handoff summary is embedded in the JSON package.
+
+To export:
+
+1. Enter a handoff title.
+2. Choose the redaction profile in the **Project bundle** section.
+3. Decide whether to include draft findings, project notes, workflows, and Repeater collections.
+4. Click **Preview Handoff** and review counts/warnings.
+5. Click **Export Handoff** and choose a destination.
+
+Use **Raw Evidence** only when the recipient is authorized to receive full headers, bodies, cookies, authorization values, and WebSocket payloads.
+
 ## Projects And Sessions
 
 Radar separates local work into projects and sessions. The persisted contract still uses local profiles internally, but the operator-facing term is **project**.
@@ -174,6 +303,7 @@ A project represents an operator, client, engagement, or testing context. It own
 
 - A local workspace.
 - Scope targets.
+- Project notes and saved views.
 - Installed plugin records.
 - A dedicated launched-browser profile directory.
 - Sessions created under that workspace.
@@ -1125,13 +1255,24 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, advanced testing review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, Advanced import/replay actions, finding review, or exports.
 
-Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt and run console above the normal views. Enter a scoped goal such as:
+Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt, profile picker, visible budget chips, observation console, draft findings inbox, and local run-memory panel above the normal views. Enter a scoped goal such as:
 
 ```text
 Inspect https://staging.example.com for auth, session, and API hardening issues.
 ```
 
-When a run starts, Radar records a live timeline. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. Radar does not fall back to a preset autonomous script if the configured AI planner fails.
+Before starting, choose a run profile:
+
+| Profile | Use |
+| --- | --- |
+| **Passive Map** | Read scoped evidence, sitemap, local context, and passive observations without replay or workflow execution. |
+| **Auth Review** | Inspect browser state, cookies, storage, and saved auth/session states. |
+| **API Hardening** | Review API captures and prepare Repeater, Automate, or Workflow drafts for manual approval. |
+| **Header/Cookie Review** | Focus on security headers, cookie flags, CORS, and evidence-backed affected assets. |
+| **Advanced API Review** | Inspect Advanced API/auth summaries and run explicitly budgeted saved workflows. |
+| **Report From Evidence** | Summarize local evidence into quality-gated draft findings and run memory. |
+
+When a run starts, Radar records a full observation transcript. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. Radar does not fall back to a preset autonomous script if the configured AI planner fails. The saved transcript is not truncated: it keeps status entries, rationale summaries, tool calls, tool results, visible targets, policy blocks, failed steps, and recovery actions.
 
 Available AI-First tools:
 
@@ -1153,32 +1294,38 @@ Available AI-First tools:
 - `prepareAutomateDraft` loads visible Automate payload and rule controls for operator review.
 - `analyzeAutomateResults` summarizes existing Automate sessions, clusters, outliers, matches, and failures.
 - `getWorkflowCatalog` reads built-in and saved workflow definitions without running checks.
+- `getAgentContextSummary` reads redacted local summaries for sitemap, findings, Advanced, workflows, project notes, saved views, and run memory.
+- `prepareWorkflowDraft` loads a workflow JSON draft into the visible Workflows editor for operator review.
 - `runWorkflow` runs an existing workflow by id through the same scoped workflow runtime and records visible run history.
 - `getPluginInventory` reads installed plugin status, requested permissions, granted permissions, warnings, and panel names without approving or executing plugins.
 - `getAdvancedTestingSummary` reads local GraphQL, API import-preview, auth matrix, parameter, secret, header behavior, and proxy guidance summaries without importing files or sending traffic.
 - `sendReplay` sends one policy-capped replay draft.
 - `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
+- `proposeRunMemory` creates a transcript proposal for local run memory. It does not persist until you confirm it.
 
 The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. Click **Stop** in the AI-First console to interrupt an active run. Switching back to Manual-First also stops an active autonomous run so it cannot continue invisibly.
 
 AI-First runs are intentionally bounded:
 
 - Every browser or replay URL must be in Scope.
+- Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy.
+- The selected profile controls which tools the agent can call. Disallowed tools create policy-block transcript entries instead of running.
 - Captures created during an AI-First run are tagged with the run id, navigation id, frame URL, and initiator when available.
 - AI-First feeds the current run's in-scope HTTP/S captures into each planner decision, so redirects and canonical hostnames remain visible without repeated capture reads.
 - AI-First capture reads only return evidence for the active run unless an origin filter narrows that run evidence further.
 - AI-First intercept tools are prepare-only. They can inspect queued items and load draft edits, but **Forward**, **Drop**, and **Resume All** remain operator actions.
 - WebSocket frames stay visible in **02 WebSocket** and can be selected for command-palette AI tasks; autonomous AI-First capture tools currently read HTTP/S captures.
 - If Chrome's debugging endpoint drops, page-inspection tools reopen the controlled browser at the current URL before retrying.
-- Replay uses stricter autonomous limits than manual Repeater controls.
+- Replay uses stricter autonomous limits than manual Repeater controls, and most profiles prepare Repeater drafts instead of transmitting them.
 - Automate execution is not available to AI-First. AI can prepare visible Automate controls and analyze existing results, but payload runs remain Manual-First operator actions.
-- AI-First workflow runs must choose an existing workflow id. Active workflow requests consume the autonomous replay budget and appear in **07 Workflows** run history.
+- AI-First Workflow drafts load into the visible editor and require the existing Manual-First **Save** or **Run** controls. AI-First workflow runs must choose an existing workflow id from an active profile. Active workflow requests consume the visible workflow-request budget and appear in **07 Workflows** run history.
 - AI-First plugin visibility is read-only. It can inspect **08 Plugins** inventory, but plugin install, approval, permission changes, and SDK/API execution remain Manual-First.
 - AI-First Advanced visibility is read-only. It can inspect **09 Advanced** summaries, but import preview edits, imported replay use, and active probes remain Manual-First.
-- AI-First findings are saved into **06 Findings** as drafts with local evidence references. Review, status changes, retest results, and exports remain Manual-First.
+- AI-First findings are quality-gated before entering **06 Findings**. Draft findings must include evidence references, affected assets, reproduction notes, severity rationale, remediation, and uncertainty notes. Rejected drafts remain visible as transcript cards and do not enter the durable findings inbox.
+- Failed tool/provider steps remain highlighted with the failed input/result summary, visible target, error text, and recovery actions: retry, retry with refreshed evidence, skip and continue, stop, or create a draft finding prompt.
+- Run memory is local to the active project. Confirm or dismiss AI-proposed memory in the transcript, or create manual memory entries for tested hypotheses, dismissed leads, and retest notes in the Run Memory panel.
 - Burst replay is not part of the first autonomous slice.
 - Invalid planner output fails the run instead of switching to heuristics.
-- Findings without evidence references fail the run.
 - Findings are draft findings until manually reviewed.
 - Tool calls, policy blocks, results, and findings are saved locally with the active session.
 
@@ -1343,7 +1490,7 @@ Important local files and folders:
 
 | Item | Purpose |
 | --- | --- |
-| `radar-local.sqlite` | Projects stored as local profiles, workspaces, sessions, targets, saved filters, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, findings, saved workflows, workflow runs, installed plugin records, SSL events, cached model lists, AI-First agent run history, and the local schema migration ledger. |
+| `radar-local.sqlite` | Projects stored as local profiles, workspaces, sessions, targets, saved filters, project notes, saved views, project-scoped AI run memory, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, findings, saved workflows, workflow runs, installed plugin records, SSL events, cached model lists, AI-First agent run history, and the local schema migration ledger. |
 | `proxy-ca/radar-ca.pem` | Local proxy CA certificate. |
 | `proxy-ca/radar-ca-key.pem` | Local proxy CA private key. |
 | `profiles/<profile-id>/proxy-browser-profile` | Dedicated launched-browser profile. |
@@ -1356,6 +1503,7 @@ Privacy notes:
 
 - Captures and WebSocket frames stay local unless you explicitly include them in AI context.
 - AI-First run history, tool timelines, and draft findings stay local in the active session.
+- AI-First run memory stays local under the active project and is included only in redacted future-run summaries.
 - Workflow definitions and run results stay local unless you promote results, copy evidence, or export reports.
 - Findings and report previews stay local unless you copy or download an export.
 - The seeded demo project is synthetic local data and does not send network traffic.
@@ -1442,11 +1590,12 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 ### Run AI-First Autonomy
 
 1. Switch the top shell toggle from **Manual-First** to **AI-First**.
-2. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
-3. Click **Start Run**. Radar saves the goal's target origin into **11 Scope** before the agent chooses tools.
-4. Watch the tool/action timeline update until the agent returns `finish`.
-5. Click **Stop** if the run should halt.
-6. Review draft findings in **06 Findings** before using them.
+2. Choose a run profile and confirm the visible budget chips.
+3. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
+4. Click **Start Run**. Radar saves the goal's target origin into **11 Scope** before the agent chooses tools.
+5. Watch the observation console update until the agent returns `finish`, blocks a tool, or shows a failure card.
+6. Use recovery buttons for failed steps, confirm/dismiss proposed run memory, and review any prepared Repeater or Workflow drafts before execution.
+7. Review quality-gated draft findings in **06 Findings** before using them.
 
 ### Create A Finding And Report
 

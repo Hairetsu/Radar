@@ -14,6 +14,8 @@ import { buildSitemap, sitemapQueryForNode, type SitemapNode } from "../../share
 import { endpointInventoryForNode } from "../../shared/endpointInventory.js";
 import { diffSessionCaptures, type SessionDiffResult } from "../../shared/sessionDiff.js";
 import { buildAdvancedTestingSummary } from "../../shared/advancedTesting.js";
+import { AGENT_RUN_PROFILES, agentBudgetLabels, getAgentRunProfile } from "../../shared/agentProfiles.js";
+import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
 import { annotationContext } from "../../shared/evidenceTags.js";
 import { diffReplayHistory, type ReplayDiffSummary } from "../../shared/replayDiff.js";
 import {
@@ -66,6 +68,8 @@ import type {
   InterceptResponseDraft,
   InterceptRule,
   InterceptState,
+  AgentRunMemoryEntry,
+  AgentRunProfileId,
   AgentRun,
   AppMode,
   LocalContext,
@@ -75,6 +79,7 @@ import type {
   ProxyProfile,
   ProxyProfileId,
   ProxyState,
+  ProjectNote,
   ReplayCollection,
   ReplayDraft,
   ReplayEnvironment,
@@ -82,6 +87,8 @@ import type {
   ReplayResult,
   ReplayTabState,
   SavedFilter,
+  SavedView,
+  SavedViewTarget,
   SslEvent,
   WebSocketEvent,
   WebSocketReplayDraft,
@@ -94,7 +101,13 @@ import type {
   WorkflowRun,
   PluginInstallPreview,
   PluginPermission,
-  PluginInstallStatus
+  PluginInstallStatus,
+  GlobalSearchResponse,
+  GlobalSearchResult,
+  ProjectBundleExportPreview,
+  ProjectBundleImportPreview,
+  ProjectBundleRedactionProfile,
+  HandoffPackagePreview
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
@@ -433,7 +446,32 @@ export function useRadarWorkbench() {
   const [trafficQueryError, setTrafficQueryError] = useState("");
   const [webSocketSearch, setWebSocketSearch] = useState("");
   const [webSocketQueryError, setWebSocketQueryError] = useState("");
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [globalSearchResult, setGlobalSearchResult] = useState<GlobalSearchResponse | null>(null);
+  const [globalSearchPending, setGlobalSearchPending] = useState(false);
+  const [globalSearchError, setGlobalSearchError] = useState("");
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [projectArtifactsOpen, setProjectArtifactsOpen] = useState(false);
+  const [projectNotes, setProjectNotes] = useState<ProjectNote[]>([]);
+  const [selectedProjectNoteId, setSelectedProjectNoteId] = useState("");
+  const [projectNoteTitle, setProjectNoteTitle] = useState("");
+  const [projectNoteBody, setProjectNoteBody] = useState("");
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [savedViewName, setSavedViewName] = useState("");
+  const [savedViewDescription, setSavedViewDescription] = useState("");
+  const [bundleRedaction, setBundleRedaction] = useState<ProjectBundleRedactionProfile>("redacted-evidence");
+  const [bundleIncludeReplayCollections, setBundleIncludeReplayCollections] = useState(true);
+  const [bundleIncludePlugins, setBundleIncludePlugins] = useState(false);
+  const [bundleExportPreview, setBundleExportPreview] = useState<ProjectBundleExportPreview | null>(null);
+  const [bundleImportPath, setBundleImportPath] = useState("");
+  const [bundleImportPreview, setBundleImportPreview] = useState<ProjectBundleImportPreview | null>(null);
+  const [bundleActionPending, setBundleActionPending] = useState(false);
+  const [handoffTitle, setHandoffTitle] = useState("");
+  const [handoffIncludeDraftFindings, setHandoffIncludeDraftFindings] = useState(false);
+  const [handoffIncludeProjectNotes, setHandoffIncludeProjectNotes] = useState(true);
+  const [handoffIncludeWorkflows, setHandoffIncludeWorkflows] = useState(true);
+  const [handoffPreview, setHandoffPreview] = useState<HandoffPackagePreview | null>(null);
   const [evidenceAnnotations, setEvidenceAnnotations] = useState<EvidenceAnnotation[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [selectedFindingId, setSelectedFindingId] = useState("");
@@ -514,7 +552,11 @@ export function useRadarWorkbench() {
   const [aiPaletteOpen, setAiPaletteOpen] = useState(false);
   const [appMode, setAppModeState] = useState<AppMode>(storedAppMode);
   const [agentGoal, setAgentGoal] = useState("");
+  const [agentProfileId, setAgentProfileId] = useState<AgentRunProfileId>("passive-map");
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
+  const [agentRunMemory, setAgentRunMemory] = useState<AgentRunMemoryEntry[]>([]);
+  const [agentRunMemorySearch, setAgentRunMemorySearch] = useState("");
+  const [aiPreparedWorkflowDraft, setAiPreparedWorkflowDraft] = useState<WorkflowDefinition | null>(null);
   const agentUiCursorRef = useRef<{ runId: string; entryId: string } | null>(null);
   const ai = useAiConnection();
   const appearance = useTheme();
@@ -1146,7 +1188,10 @@ export function useRadarWorkbench() {
           nextInterceptRules,
           nextMatchReplaceRules,
           nextAgentRuns,
+          nextAgentRunMemory,
           nextSavedFilters,
+          nextProjectNotes,
+          nextSavedViews,
           nextEvidenceAnnotations,
           nextFindings,
           nextWorkflows,
@@ -1168,7 +1213,10 @@ export function useRadarWorkbench() {
           loadInterceptRules(),
           loadMatchReplaceRules(),
           window.radar.listAgentRuns(),
+          window.radar.getAgentRunMemory?.() ?? [],
           window.radar.getSavedFilters?.() ?? [],
+          window.radar.getProjectNotes?.() ?? [],
+          window.radar.getSavedViews?.() ?? [],
           window.radar.getEvidenceAnnotations?.() ?? [],
           window.radar.getFindings?.() ?? [],
           window.radar.getWorkflows?.() ?? [],
@@ -1193,13 +1241,27 @@ export function useRadarWorkbench() {
         setMatchReplaceRules(nextMatchReplaceRules);
         setMatchReplaceRulesText(JSON.stringify(nextMatchReplaceRules, null, 2));
         setAgentRuns(nextAgentRuns);
+        setAgentRunMemory(nextAgentRunMemory);
         setSavedFilters(nextSavedFilters);
+        setProjectNotes(nextProjectNotes);
+        setSelectedProjectNoteId(nextProjectNotes[0]?.id || "");
+        setProjectNoteTitle(nextProjectNotes[0]?.title || "");
+        setProjectNoteBody(nextProjectNotes[0]?.body || "");
+        setSavedViews(nextSavedViews);
+        setSavedViewName("");
+        setSavedViewDescription("");
+        setBundleExportPreview(null);
+        setBundleImportPath("");
+        setBundleImportPreview(null);
+        setHandoffTitle("");
+        setHandoffPreview(null);
         setEvidenceAnnotations(nextEvidenceAnnotations);
         setFindings(nextFindings);
         setSelectedFindingId(nextFindings[0]?.id || "");
         setFindingReport(null);
         setWorkflows(nextWorkflows);
         setSelectedWorkflowId(nextWorkflows[0]?.id || "");
+        setAiPreparedWorkflowDraft(null);
         setWorkflowRuns(nextWorkflowRuns);
         setSelectedWorkflowRunId(nextWorkflowRuns[0]?.id || "");
         setPlugins(nextPlugins);
@@ -1855,6 +1917,23 @@ export function useRadarWorkbench() {
   }, [proxyProfileNotes, selectedProxyProfileId]);
 
   const activeAgentRun = agentRuns[0] || null;
+  const selectedAgentRunProfile = useMemo(() => getAgentRunProfile(agentProfileId), [agentProfileId]);
+  const activeAgentBudgetLabels = useMemo(
+    () => agentBudgetLabels(activeAgentRun?.policy || selectedAgentRunProfile.policy),
+    [activeAgentRun?.policy, selectedAgentRunProfile.policy]
+  );
+  const filteredAgentRunMemory = useMemo(() => {
+    const query = agentRunMemorySearch.trim().toLowerCase();
+    if (!query) {
+      return agentRunMemory;
+    }
+    return agentRunMemory.filter((entry) =>
+      [entry.title, entry.notes, entry.kind, entry.status, entry.evidenceRefs.join(" ")]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [agentRunMemory, agentRunMemorySearch]);
 
   const setAppMode = useCallback(
     (mode: AppMode) => {
@@ -1897,13 +1976,14 @@ export function useRadarWorkbench() {
 
     const run = await window.radar.startAgentRun({
       goal,
-      startUrl
+      startUrl,
+      profileId: agentProfileId
     });
     setAddress(startUrl);
     setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
     setAgentGoal("");
     setNotice(scopeOrigin ? `AI-First run started on ${scopeOrigin}` : "AI-First run started");
-  }, [address, agentGoal]);
+  }, [address, agentGoal, agentProfileId]);
 
   const stopAgentRun = useCallback(async () => {
     if (!window.radar || !activeAgentRun) {
@@ -1914,6 +1994,103 @@ export function useRadarWorkbench() {
       setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
     }
   }, [activeAgentRun]);
+
+  const recoverAgentRun = useCallback(
+    (entryId: string, action: "retry-tool" | "retry-with-evidence" | "skip-and-continue" | "stop-run" | "draft-finding") => {
+      const run = activeAgentRun;
+      const entry = run?.timeline.find((item) => item.id === entryId);
+      if (!run || !entry) {
+        return;
+      }
+      if (action === "stop-run") {
+        void stopAgentRun();
+        return;
+      }
+      const tool = entry.toolCall?.tool || entry.toolResult?.tool || "last failed step";
+      const prefix =
+        action === "retry-tool"
+          ? `Retry ${tool} after reviewing visible evidence.`
+          : action === "retry-with-evidence"
+            ? `Retry after refreshing visible evidence for ${tool}.`
+            : action === "skip-and-continue"
+              ? `Continue the run while skipping ${tool}.`
+              : `Create a draft finding from the failed ${tool} step.`;
+      setAgentGoal(`${prefix}\n\nOriginal goal: ${run.goal}`);
+      setNotice("Recovery prompt loaded into AI-First goal box for operator review.");
+    },
+    [activeAgentRun, stopAgentRun]
+  );
+
+  const saveAgentRunMemory = useCallback(async (entry: AgentRunMemoryEntry) => {
+    if (!window.radar?.saveAgentRunMemory) {
+      setNotice("Run in Electron to save run memory.");
+      return null;
+    }
+    const saved = await window.radar.saveAgentRunMemory(entry);
+    setAgentRunMemory((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+    setNotice(`Run memory saved: ${saved.title}`);
+    return saved;
+  }, []);
+
+  const confirmAgentRunMemoryFromTimeline = useCallback(
+    async (entryId: string) => {
+      const memory = activeAgentRun?.timeline.find((entry) => entry.id === entryId)?.toolResult;
+      if (!memory?.ok || memory.tool !== "proposeRunMemory") {
+        return null;
+      }
+      return saveAgentRunMemory({ ...memory.data.memory, status: "confirmed", updatedAt: new Date().toISOString() });
+    },
+    [activeAgentRun, saveAgentRunMemory]
+  );
+
+  const dismissAgentRunMemoryFromTimeline = useCallback(
+    async (entryId: string) => {
+      const memory = activeAgentRun?.timeline.find((entry) => entry.id === entryId)?.toolResult;
+      if (!memory?.ok || memory.tool !== "proposeRunMemory") {
+        return null;
+      }
+      return saveAgentRunMemory({
+        ...memory.data.memory,
+        status: "dismissed",
+        dismissedReason: memory.data.memory.dismissedReason || "Dismissed by operator from AI-First console.",
+        updatedAt: new Date().toISOString()
+      });
+    },
+    [activeAgentRun, saveAgentRunMemory]
+  );
+
+  const createAgentRunMemory = useCallback(
+    async (input: { title: string; notes: string; kind?: AgentRunMemoryEntry["kind"]; evidenceRefs?: string[] }) => {
+      const now = new Date().toISOString();
+      const memory = normalizeAgentRunMemory(
+        {
+          id: `memory_${now.replace(/[^0-9]/g, "")}`,
+          createdAt: now,
+          updatedAt: now,
+          kind: input.kind || "hypothesis",
+          status: "confirmed",
+          title: input.title,
+          notes: input.notes,
+          evidenceRefs: input.evidenceRefs || []
+        },
+        `memory_${now.replace(/[^0-9]/g, "")}`,
+        now
+      );
+      return memory ? saveAgentRunMemory(memory) : null;
+    },
+    [saveAgentRunMemory]
+  );
+
+  const deleteAgentRunMemory = useCallback(async (entryId: string) => {
+    if (!window.radar?.deleteAgentRunMemory) {
+      setNotice("Run in Electron to delete run memory.");
+      return null;
+    }
+    const result = await window.radar.deleteAgentRunMemory(entryId);
+    setAgentRunMemory(result.memory);
+    setNotice("Run memory deleted");
+    return result;
+  }, []);
 
   useEffect(() => {
     if (appMode !== "ai-first" || !activeAgentRun) {
@@ -2029,6 +2206,17 @@ export function useRadarWorkbench() {
         setLastBurst(null);
         setActiveView("automate");
         setNotice(note);
+      }
+
+      if (entry.toolResult?.tool === "prepareWorkflowDraft" && entry.toolResult.ok) {
+        setAiPreparedWorkflowDraft(entry.toolResult.data.workflow);
+        setSelectedWorkflowId(entry.toolResult.data.workflow.id);
+        setActiveView("workflows");
+        setNotice(entry.toolResult.data.note);
+      }
+
+      if (entry.toolResult?.tool === "proposeRunMemory" && entry.toolResult.ok) {
+        setNotice(`AI proposed run memory: ${entry.toolResult.data.memory.title}`);
       }
 
       if (entry.toolResult?.tool === "analyzeAutomateResults" && entry.toolResult.ok) {
@@ -2184,6 +2372,431 @@ export function useRadarWorkbench() {
     setTrafficSearch(filter.query);
     setActiveView("traffic");
   }, []);
+
+  const selectedProjectNote = useMemo(
+    () => projectNotes.find((note) => note.id === selectedProjectNoteId) || null,
+    [projectNotes, selectedProjectNoteId]
+  );
+
+  const selectProjectNote = useCallback(
+    (noteId: string) => {
+      const note = projectNotes.find((item) => item.id === noteId) || null;
+      setSelectedProjectNoteId(note?.id || "");
+      setProjectNoteTitle(note?.title || "");
+      setProjectNoteBody(note?.body || "");
+    },
+    [projectNotes]
+  );
+
+  const startProjectNote = useCallback(() => {
+    setSelectedProjectNoteId("");
+    setProjectNoteTitle("");
+    setProjectNoteBody("");
+  }, []);
+
+  const saveProjectNote = useCallback(async () => {
+    if (!window.radar?.saveProjectNote) {
+      setNotice("Run in Electron to save project notes.");
+      return null;
+    }
+    const title = projectNoteTitle.trim();
+    const body = projectNoteBody.trim();
+    if (!title && !body) {
+      setNotice("Add a title or body before saving a project note.");
+      return null;
+    }
+    const now = new Date().toISOString();
+    const existing = projectNotes.find((note) => note.id === selectedProjectNoteId);
+    const saved = await window.radar.saveProjectNote({
+      id: existing?.id || `note-${Date.now()}`,
+      title,
+      body,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now
+    });
+    setProjectNotes((items) => [saved, ...items.filter((note) => note.id !== saved.id)]);
+    setSelectedProjectNoteId(saved.id);
+    setProjectNoteTitle(saved.title);
+    setProjectNoteBody(saved.body);
+    setNotice(`Project note saved: ${saved.title}`);
+    return saved;
+  }, [projectNoteBody, projectNoteTitle, projectNotes, selectedProjectNoteId]);
+
+  const deleteProjectNote = useCallback(
+    async (noteId = selectedProjectNoteId) => {
+      if (!noteId || !window.radar?.deleteProjectNote) {
+        return;
+      }
+      const result = await window.radar.deleteProjectNote(noteId);
+      setProjectNotes(result.notes);
+      const next = result.notes[0] || null;
+      setSelectedProjectNoteId(next?.id || "");
+      setProjectNoteTitle(next?.title || "");
+      setProjectNoteBody(next?.body || "");
+      setNotice(result.ok ? "Project note deleted" : "Project note delete failed");
+    },
+    [selectedProjectNoteId]
+  );
+
+  const currentSavedViewState = useCallback(() => {
+    const entries: Array<[string, string | undefined]> = [
+      ["trafficQuery", trafficSearch],
+      ["webSocketQuery", webSocketSearch],
+      ["trafficMethodFilter", trafficMethodFilter === "all" ? "" : trafficMethodFilter],
+      ["trafficTypeFilter", trafficTypeFilter === "all" ? "" : trafficTypeFilter],
+      ["selectedCaptureId", selectedId],
+      ["selectedFindingId", selectedFindingId],
+      ["selectedWorkflowId", selectedWorkflowId],
+      ["selectedWorkflowRunId", selectedWorkflowRunId],
+      ["replayTabId", replayTabState.activeTabId],
+      ["sitemapNodeId", selectedSitemapNodeId],
+      ["diffBaselineSessionId", diffBaselineSessionId],
+      ["automateSessionId", activeAutomateSessionId]
+    ];
+    return Object.fromEntries(entries.filter(([, value]) => Boolean(value))) as Record<string, string>;
+  }, [
+    activeAutomateSessionId,
+    diffBaselineSessionId,
+    replayTabState.activeTabId,
+    selectedFindingId,
+    selectedId,
+    selectedSitemapNodeId,
+    selectedWorkflowId,
+    selectedWorkflowRunId,
+    trafficMethodFilter,
+    trafficSearch,
+    trafficTypeFilter,
+    webSocketSearch
+  ]);
+
+  const saveCurrentView = useCallback(async () => {
+    if (!window.radar?.saveSavedView) {
+      setNotice("Run in Electron to save project views.");
+      return null;
+    }
+    const now = new Date().toISOString();
+    const name = savedViewName.trim() || `${viewMeta[activeView].title} ${now.slice(0, 16).replace("T", " ")}`;
+    const saved = await window.radar.saveSavedView({
+      id: `view-${Date.now()}`,
+      name,
+      view: activeView as SavedViewTarget,
+      description: savedViewDescription.trim(),
+      state: currentSavedViewState(),
+      createdAt: now,
+      updatedAt: now
+    });
+    setSavedViews((items) => [saved, ...items.filter((view) => view.id !== saved.id)]);
+    setSavedViewName("");
+    setSavedViewDescription("");
+    setNotice(`Saved view: ${saved.name}`);
+    return saved;
+  }, [activeView, currentSavedViewState, savedViewDescription, savedViewName]);
+
+  const applySavedView = useCallback(
+    (view: SavedView) => {
+      const state = view.state;
+      setActiveView(view.view);
+      if (state.trafficQuery !== undefined) {
+        setTrafficSearch(state.trafficQuery);
+      }
+      if (state.webSocketQuery !== undefined) {
+        setWebSocketSearch(state.webSocketQuery);
+      }
+      setTrafficMethodFilter(state.trafficMethodFilter || "all");
+      setTrafficTypeFilter(state.trafficTypeFilter || "all");
+      if (state.selectedCaptureId) {
+        setSelectedId(state.selectedCaptureId);
+        setSelectedIds([state.selectedCaptureId]);
+        selectionAnchorRef.current = state.selectedCaptureId;
+      }
+      if (state.selectedFindingId) {
+        setSelectedFindingId(state.selectedFindingId);
+      }
+      if (state.selectedWorkflowId) {
+        setSelectedWorkflowId(state.selectedWorkflowId);
+      }
+      if (state.selectedWorkflowRunId) {
+        setSelectedWorkflowRunId(state.selectedWorkflowRunId);
+      }
+      if (state.sitemapNodeId) {
+        setSelectedSitemapNodeId(state.sitemapNodeId);
+      }
+      if (state.diffBaselineSessionId) {
+        setDiffBaselineSessionId(state.diffBaselineSessionId);
+      }
+      if (state.automateSessionId) {
+        setActiveAutomateSessionId(state.automateSessionId);
+      }
+      if (state.replayTabId && replayTabState.tabs.some((tab) => tab.id === state.replayTabId)) {
+        void selectReplayTab(state.replayTabId);
+      }
+      setProjectArtifactsOpen(false);
+      setNotice(`Opened saved view: ${view.name}`);
+    },
+    [replayTabState.tabs, selectReplayTab]
+  );
+
+  const deleteSavedView = useCallback(async (viewId: string) => {
+    if (!viewId || !window.radar?.deleteSavedView) {
+      return;
+    }
+    const result = await window.radar.deleteSavedView(viewId);
+    setSavedViews(result.views);
+    setNotice(result.ok ? "Saved view deleted" : "Saved view delete failed");
+  }, []);
+
+  const projectBundleOptions = useMemo(
+    () => ({
+      redaction: bundleRedaction,
+      includeReplayCollections: bundleIncludeReplayCollections,
+      includePlugins: bundleIncludePlugins
+    }),
+    [bundleIncludePlugins, bundleIncludeReplayCollections, bundleRedaction]
+  );
+
+  const previewProjectBundleExport = useCallback(async () => {
+    if (!window.radar?.previewProjectBundleExport) {
+      setNotice("Run in Electron to preview project bundles.");
+      return null;
+    }
+    setBundleActionPending(true);
+    try {
+      const preview = await window.radar.previewProjectBundleExport(projectBundleOptions);
+      setBundleExportPreview(preview);
+      setNotice(preview.ok ? "Project bundle export preview ready" : preview.error || "Project bundle preview failed");
+      return preview;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Project bundle preview failed");
+      return null;
+    } finally {
+      setBundleActionPending(false);
+    }
+  }, [projectBundleOptions]);
+
+  const writeProjectBundle = useCallback(async () => {
+    if (!window.radar?.writeProjectBundle) {
+      setNotice("Run in Electron to export project bundles.");
+      return null;
+    }
+    setBundleActionPending(true);
+    try {
+      const result = await window.radar.writeProjectBundle(projectBundleOptions);
+      setBundleExportPreview(result.preview);
+      setNotice(result.ok ? `Project bundle exported${result.path ? `: ${result.path}` : ""}` : result.error || "Project bundle export failed");
+      return result;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Project bundle export failed");
+      return null;
+    } finally {
+      setBundleActionPending(false);
+    }
+  }, [projectBundleOptions]);
+
+  const previewProjectBundleImport = useCallback(async () => {
+    if (!window.radar?.previewProjectBundleImport) {
+      setNotice("Run in Electron to preview project bundle imports.");
+      return null;
+    }
+    setBundleActionPending(true);
+    try {
+      const preview = await window.radar.previewProjectBundleImport({ sourcePath: bundleImportPath.trim() || undefined });
+      setBundleImportPreview(preview);
+      setNotice(preview.ok ? "Project bundle import preview ready" : preview.error || "Project bundle import preview failed");
+      return preview;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Project bundle import preview failed");
+      return null;
+    } finally {
+      setBundleActionPending(false);
+    }
+  }, [bundleImportPath]);
+
+  const applyProjectBundleImport = useCallback(async () => {
+    if (!window.radar?.applyProjectBundleImport) {
+      setNotice("Run in Electron to import project bundles.");
+      return null;
+    }
+    setBundleActionPending(true);
+    try {
+      const result = await window.radar.applyProjectBundleImport({ sourcePath: bundleImportPath.trim() || undefined });
+      setNotice(result.message);
+      if (result.ok && window.radar.getLocalContext) {
+        const context = await window.radar.getLocalContext();
+        await applyLocalContext(context);
+      }
+      return result;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Project bundle import failed");
+      return null;
+    } finally {
+      setBundleActionPending(false);
+    }
+  }, [applyLocalContext, bundleImportPath]);
+
+  const handoffOptions = useMemo(
+    () => ({
+      title: handoffTitle,
+      redaction: bundleRedaction,
+      includeDraftFindings: handoffIncludeDraftFindings,
+      includeProjectNotes: handoffIncludeProjectNotes,
+      includeReplayCollections: bundleIncludeReplayCollections,
+      includeWorkflows: handoffIncludeWorkflows
+    }),
+    [
+      bundleIncludeReplayCollections,
+      bundleRedaction,
+      handoffIncludeDraftFindings,
+      handoffIncludeProjectNotes,
+      handoffIncludeWorkflows,
+      handoffTitle
+    ]
+  );
+
+  const previewHandoffPackage = useCallback(async () => {
+    if (!window.radar?.previewHandoffPackage) {
+      setNotice("Run in Electron to preview handoff packages.");
+      return null;
+    }
+    setBundleActionPending(true);
+    try {
+      const preview = await window.radar.previewHandoffPackage(handoffOptions);
+      setHandoffPreview(preview);
+      setNotice(preview.ok ? "Handoff package preview ready" : preview.error || "Handoff preview failed");
+      return preview;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Handoff preview failed");
+      return null;
+    } finally {
+      setBundleActionPending(false);
+    }
+  }, [handoffOptions]);
+
+  const writeHandoffPackage = useCallback(async () => {
+    if (!window.radar?.writeHandoffPackage) {
+      setNotice("Run in Electron to export handoff packages.");
+      return null;
+    }
+    setBundleActionPending(true);
+    try {
+      const result = await window.radar.writeHandoffPackage(handoffOptions);
+      setHandoffPreview(result.preview);
+      setNotice(result.ok ? `Handoff package exported${result.path ? `: ${result.path}` : ""}` : result.error || "Handoff export failed");
+      return result;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Handoff export failed");
+      return null;
+    } finally {
+      setBundleActionPending(false);
+    }
+  }, [handoffOptions]);
+
+  const runGlobalSearch = useCallback(async (query = globalSearchQuery) => {
+    const nextQuery = query.trim();
+    setGlobalSearchQuery(query);
+    if (!window.radar?.searchGlobal) {
+      setGlobalSearchError("Run in Electron to search the local project.");
+      setGlobalSearchResult(null);
+      return null;
+    }
+    setGlobalSearchPending(true);
+    try {
+      const result = await window.radar.searchGlobal({ query: nextQuery, limit: 40 });
+      setGlobalSearchResult(result);
+      setGlobalSearchError(result.ok ? "" : result.error || "Global search failed.");
+      return result;
+    } catch (error) {
+      setGlobalSearchResult(null);
+      setGlobalSearchError(error instanceof Error ? error.message : "Global search failed.");
+      return null;
+    } finally {
+      setGlobalSearchPending(false);
+    }
+  }, [globalSearchQuery]);
+
+  const openGlobalSearch = useCallback(() => {
+    setGlobalSearchOpen(true);
+    if (globalSearchQuery.trim() || !globalSearchResult) {
+      void runGlobalSearch(globalSearchQuery);
+    }
+  }, [globalSearchQuery, globalSearchResult, runGlobalSearch]);
+
+  const openGlobalSearchResult = useCallback(
+    (result: GlobalSearchResult) => {
+      const target = result.target;
+      setGlobalSearchOpen(false);
+
+      if (result.kind === "saved-view") {
+        const view = savedViews.find((item) => item.id === result.refId);
+        if (view) {
+          applySavedView(view);
+          return;
+        }
+      }
+
+      if (target.view === "notes") {
+        setProjectArtifactsOpen(true);
+        if (target.id) {
+          selectProjectNote(target.id);
+        }
+        setNotice(`Opened ${result.kind}: ${result.title}`);
+        return;
+      }
+
+      if (target.query) {
+        if (target.view === "websocket") {
+          setWebSocketSearch(target.query);
+        } else {
+          setTrafficSearch(target.query);
+        }
+      }
+
+      if (target.view === "traffic") {
+        setActiveView("traffic");
+        if (target.id) {
+          setSelectedId(target.id);
+          setSelectedIds([target.id]);
+          selectionAnchorRef.current = target.id;
+        }
+      } else if (target.view === "websocket") {
+        setActiveView("websocket");
+      } else if (target.view === "repeater") {
+        setActiveView("repeater");
+        if (target.id && replayTabState.tabs.some((tab) => tab.id === target.id)) {
+          void selectReplayTab(target.id);
+        }
+      } else if (target.view === "findings") {
+        setActiveView("findings");
+        if (target.id) {
+          setSelectedFindingId(target.id);
+        }
+      } else if (target.view === "workflows") {
+        setActiveView("workflows");
+        if (target.id) {
+          setSelectedWorkflowId(target.id);
+        }
+        if (target.secondaryId) {
+          setSelectedWorkflowRunId(target.secondaryId);
+        }
+      } else if (target.view === "plugins") {
+        setActiveView("plugins");
+      } else if (target.view === "advanced") {
+        setActiveView("advanced");
+      } else if (target.view === "sitemap") {
+        setActiveView("sitemap");
+      } else if (target.view === "scope") {
+        setActiveView("scope");
+      } else if (target.view === "intercept") {
+        setActiveView("intercept");
+      } else if (target.view === "automate") {
+        setActiveView("automate");
+      } else if (target.view === "ssl") {
+        setActiveView("ssl");
+      }
+
+      setNotice(`Opened ${result.kind}: ${result.title}`);
+    },
+    [applySavedView, replayTabState.tabs, savedViews, selectProjectNote, selectReplayTab]
+  );
 
   const applySitemapNode = useCallback((node: SitemapNode) => {
     setSelectedSitemapNodeId(node.id);
@@ -2400,6 +3013,7 @@ export function useRadarWorkbench() {
         nextInterceptRules,
         nextMatchReplaceRules,
         nextAgentRuns,
+        nextAgentRunMemory,
         nextFindings,
         nextWorkflows,
         nextWorkflowRuns,
@@ -2416,6 +3030,7 @@ export function useRadarWorkbench() {
         loadInterceptRules(),
         loadMatchReplaceRules(),
         window.radar.listAgentRuns(),
+        window.radar.getAgentRunMemory?.() ?? [],
         window.radar.getFindings?.() ?? [],
         window.radar.getWorkflows?.() ?? [],
         window.radar.getWorkflowRuns?.() ?? [],
@@ -2441,6 +3056,7 @@ export function useRadarWorkbench() {
       setMatchReplaceRules(nextMatchReplaceRules);
       setMatchReplaceRulesText(JSON.stringify(nextMatchReplaceRules, null, 2));
       setAgentRuns(nextAgentRuns);
+      setAgentRunMemory(nextAgentRunMemory);
       setFindings(nextFindings);
       setSelectedFindingId(nextFindings[0]?.id || "");
       setWorkflows(nextWorkflows);
@@ -2498,6 +3114,7 @@ export function useRadarWorkbench() {
         nextProxyState,
         nextInterceptState,
         nextAgentRuns,
+        nextAgentRunMemory,
         nextFindings,
         nextWorkflowRuns,
         nextAutomateSessions
@@ -2509,6 +3126,7 @@ export function useRadarWorkbench() {
         window.radar.getProxyState(),
         loadInterceptState(),
         window.radar.listAgentRuns(),
+        window.radar.getAgentRunMemory?.() ?? [],
         window.radar.getFindings?.() ?? [],
         window.radar.getWorkflowRuns?.() ?? [],
         window.radar.listAutomateSessions?.() ?? []
@@ -2521,6 +3139,7 @@ export function useRadarWorkbench() {
         setProxyState(nextProxyState);
         setInterceptState(nextInterceptState);
         setAgentRuns(nextAgentRuns);
+        setAgentRunMemory(nextAgentRunMemory);
         setFindings(nextFindings);
         setSelectedFindingId((current) => current || nextFindings[0]?.id || "");
         setWorkflowRuns(nextWorkflowRuns);
@@ -2567,6 +3186,11 @@ export function useRadarWorkbench() {
         setAiPaletteOpen((open) => !open);
         return;
       }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        openGlobalSearch();
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
         if (activeView !== "traffic" && activeView !== "websocket" && activeView !== "sitemap") {
           return;
@@ -2586,7 +3210,7 @@ export function useRadarWorkbench() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeView, trafficMethodFilter, trafficSearch, trafficTypeFilter, webSocketSearch]);
+  }, [activeView, openGlobalSearch, trafficMethodFilter, trafficSearch, trafficTypeFilter, webSocketSearch]);
 
   const meta = viewMeta[activeView];
   const utc = clock.toISOString().replace("T", " ").slice(0, 19) + "Z";
@@ -2654,12 +3278,69 @@ export function useRadarWorkbench() {
     webSocketSearch,
     setWebSocketSearch,
     webSocketQueryError,
+    globalSearchOpen,
+    setGlobalSearchOpen,
+    globalSearchQuery,
+    setGlobalSearchQuery,
+    globalSearchResult,
+    globalSearchPending,
+    globalSearchError,
+    openGlobalSearch,
+    runGlobalSearch,
+    openGlobalSearchResult,
     filteredWebSocketEvents,
     trafficSearchRef,
     savedFilters,
     saveSavedFilter,
     deleteSavedFilter,
     applySavedFilter,
+    projectArtifactsOpen,
+    setProjectArtifactsOpen,
+    projectNotes,
+    selectedProjectNote,
+    selectedProjectNoteId,
+    selectProjectNote,
+    startProjectNote,
+    projectNoteTitle,
+    setProjectNoteTitle,
+    projectNoteBody,
+    setProjectNoteBody,
+    saveProjectNote,
+    deleteProjectNote,
+    savedViews,
+    savedViewName,
+    setSavedViewName,
+    savedViewDescription,
+    setSavedViewDescription,
+    saveCurrentView,
+    applySavedView,
+    deleteSavedView,
+    bundleRedaction,
+    setBundleRedaction,
+    bundleIncludeReplayCollections,
+    setBundleIncludeReplayCollections,
+    bundleIncludePlugins,
+    setBundleIncludePlugins,
+    bundleExportPreview,
+    bundleImportPath,
+    setBundleImportPath,
+    bundleImportPreview,
+    bundleActionPending,
+    previewProjectBundleExport,
+    writeProjectBundle,
+    previewProjectBundleImport,
+    applyProjectBundleImport,
+    handoffTitle,
+    setHandoffTitle,
+    handoffIncludeDraftFindings,
+    setHandoffIncludeDraftFindings,
+    handoffIncludeProjectNotes,
+    setHandoffIncludeProjectNotes,
+    handoffIncludeWorkflows,
+    setHandoffIncludeWorkflows,
+    handoffPreview,
+    previewHandoffPackage,
+    writeHandoffPackage,
     evidenceAnnotations,
     getEvidenceAnnotation,
     saveEvidenceAnnotation,
@@ -2822,10 +3503,25 @@ export function useRadarWorkbench() {
     setAppMode,
     agentGoal,
     setAgentGoal,
+    agentProfiles: AGENT_RUN_PROFILES,
+    agentProfileId,
+    setAgentProfileId,
+    selectedAgentRunProfile,
+    activeAgentBudgetLabels,
     agentRuns,
     activeAgentRun,
     startAgentRun,
     stopAgentRun,
+    recoverAgentRun,
+    agentRunMemory,
+    filteredAgentRunMemory,
+    agentRunMemorySearch,
+    setAgentRunMemorySearch,
+    confirmAgentRunMemoryFromTimeline,
+    dismissAgentRunMemoryFromTimeline,
+    createAgentRunMemory,
+    deleteAgentRunMemory,
+    aiPreparedWorkflowDraft,
     aiPaletteOpen,
     setAiPaletteOpen,
     ai,

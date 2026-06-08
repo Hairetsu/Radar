@@ -100,6 +100,10 @@ describe("agent planner", () => {
           confidence: "medium",
           evidenceRefs: ["capture:1"],
           notes: "Review manually.",
+          affectedAssets: [],
+          reproductionNotes: "",
+          severityRationale: "",
+          remediation: "",
           uncertainties: []
         }
       ]
