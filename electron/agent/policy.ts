@@ -1,31 +1,9 @@
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import type { AgentPolicy, AgentToolCall } from "../../shared/agent-types.js";
+import type { AgentRunProfileId } from "../../shared/agent-types.js";
+import { DEFAULT_AGENT_POLICY, agentProfileAllowsTool, normalizeAgentPolicy } from "../../shared/agentProfiles.js";
 
-export const DEFAULT_AGENT_POLICY: AgentPolicy = {
-  maxRuntimeMs: 300_000,
-  maxSteps: 40,
-  maxReplay: 1,
-  maxCaptureSample: 100,
-  allowRawContext: false
-};
-
-function clampNumber(value: unknown, fallback: number, min: number, max: number) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.min(Math.max(Math.round(numeric), min), max);
-}
-
-export function normalizeAgentPolicy(input: Partial<AgentPolicy> = {}): AgentPolicy {
-  return {
-    maxRuntimeMs: clampNumber(input.maxRuntimeMs, DEFAULT_AGENT_POLICY.maxRuntimeMs, 10_000, 10 * 60_000),
-    maxSteps: clampNumber(input.maxSteps, DEFAULT_AGENT_POLICY.maxSteps, 1, 40),
-    maxReplay: clampNumber(input.maxReplay, DEFAULT_AGENT_POLICY.maxReplay, 0, 10),
-    maxCaptureSample: clampNumber(input.maxCaptureSample, DEFAULT_AGENT_POLICY.maxCaptureSample, 1, 100),
-    allowRawContext: Boolean(input.allowRawContext)
-  };
-}
+export { DEFAULT_AGENT_POLICY, normalizeAgentPolicy };
 
 function urlForTool(call: AgentToolCall) {
   switch (call.tool) {
@@ -47,17 +25,25 @@ export function blockedToolReason({
   call,
   allowlist,
   policy,
+  profileId,
   replayCount,
+  workflowRequestCount,
   stepCount,
   startedAt
 }: {
   call: AgentToolCall;
   allowlist: string[];
   policy: AgentPolicy;
+  profileId: AgentRunProfileId;
   replayCount: number;
+  workflowRequestCount: number;
   stepCount: number;
   startedAt: number;
 }) {
+  if (!agentProfileAllowsTool(profileId, call.tool)) {
+    return `Profile ${profileId} does not allow ${call.tool}.`;
+  }
+
   if (Date.now() - startedAt > policy.maxRuntimeMs) {
     return "Autonomous run exceeded its runtime budget.";
   }
@@ -68,6 +54,10 @@ export function blockedToolReason({
 
   if (call.tool === "sendReplay" && replayCount >= policy.maxReplay) {
     return "Autonomous run exceeded its replay budget.";
+  }
+
+  if (call.tool === "runWorkflow" && workflowRequestCount >= policy.maxWorkflowRequests) {
+    return "Autonomous run exceeded its workflow request budget.";
   }
 
   const url = urlForTool(call);

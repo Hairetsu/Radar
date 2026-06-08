@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage, dialog } from "electron";
 import {
   generateCACertificate,
   generateSPKIFingerprint,
@@ -60,7 +60,13 @@ import {
   normalizeAutomatePayloadSets,
   normalizeAutomateRules
 } from "../shared/automate.js";
-import type { AgentAuthStateSummary, AgentCookie, AgentRun, AgentStorageState } from "../shared/agent-types.js";
+import type {
+  AgentAuthStateSummary,
+  AgentCookie,
+  AgentRun,
+  AgentRunMemoryEntry,
+  AgentStorageState
+} from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
 import { safeJsonHeaders } from "../shared/headers.js";
 import { matchingInterceptRules, normalizeInterceptRules } from "../shared/interceptRules.js";
@@ -76,6 +82,22 @@ import { normalizeSavedFilters } from "../shared/savedFilters.js";
 import { prepareReplayDraft } from "../shared/replayVariables.js";
 import { normalizeWebSocketReplayDraft } from "../shared/websocketReplay.js";
 import { filterCapturesByQuery, filterWebSocketEventsByQuery } from "../shared/trafficQuery.js";
+import { searchGlobal } from "../shared/globalSearch.js";
+import {
+  buildProjectBundle,
+  parseProjectBundleJson,
+  previewProjectBundleImport,
+  serializeProjectBundle,
+  type ProjectBundle,
+  type ProjectBundleApplyResult,
+  type ProjectBundleOptions
+} from "../shared/projectBundle.js";
+import {
+  buildHandoffPackage,
+  serializeHandoffPackage,
+  type HandoffPackageOptions
+} from "../shared/handoffPackage.js";
+import { buildAdvancedTestingSummary } from "../shared/advancedTesting.js";
 import { MAX_CAPTURED_BODY, truncateText } from "../shared/text.js";
 import { normalizeUrl as normalizeBrowserUrl } from "../shared/url.js";
 import { createReplayTab } from "../shared/replayTabs.js";
@@ -1426,6 +1448,10 @@ function createAgentRuntime() {
     listAutomateSessions: () => activeLocalStore().listAutomateSessions(activeLocalContext().session.id),
     listWorkflows: () => workflowCatalog(),
     listWorkflowRuns: () => activeLocalStore().listWorkflowRuns(activeLocalContext().session.id),
+    listFindings: () => activeLocalStore().listFindings(activeLocalContext().session.id),
+    listProjectNotes: () => activeLocalStore().listProjectNotes(activeLocalContext().workspace.id),
+    listSavedViews: () => activeLocalStore().listSavedViews(activeLocalContext().workspace.id),
+    listRunMemory: () => activeLocalStore().listAgentRunMemory(activeLocalContext().workspace.id),
     listPlugins: () => activeLocalStore().listPlugins(activeLocalContext().workspace.id),
     runWorkflow: (input) => runWorkflow(input),
     sendReplay: (draft) => sendRequest(typeof draft === "object" && draft && "draft" in draft ? draft : { draft }),
@@ -2765,6 +2791,422 @@ ipcMain.handle("proxy:profiles:save", (_event, payload) => {
   });
 });
 
+function normalizeBundleOptions(input: unknown): ProjectBundleOptions {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const redaction =
+    payload.redaction === "metadata-only" ||
+    payload.redaction === "reviewed-findings" ||
+    payload.redaction === "raw-evidence"
+      ? payload.redaction
+      : "redacted-evidence";
+  return {
+    redaction,
+    includePlugins: payload.includePlugins === true,
+    includeReplayCollections: payload.includeReplayCollections !== false
+  };
+}
+
+function activeProjectBundleInput(options: ProjectBundleOptions) {
+  const context = activeLocalContext();
+  const store = activeLocalStore();
+  const sessionId = context.session.id;
+  const workspaceId = context.workspace.id;
+  const captures = store.listCaptures(sessionId, 2000);
+  const webSocketEvents = store.listWebSocketEvents(sessionId, 5000);
+  const scopedCaptures = captures.filter((capture) => capture.allowed && isAllowedTarget(capture.url, allowlist));
+  const scopedWebSocketEvents = webSocketEvents.filter((event) => event.allowed && isAllowedTarget(event.url, allowlist));
+  return {
+    profile: context.profile,
+    workspace: context.workspace,
+    targets: store.getTargets(workspaceId),
+    savedFilters: store.listSavedFilters(workspaceId),
+    projectNotes: store.listProjectNotes(workspaceId),
+    savedViews: store.listSavedViews(workspaceId),
+    workflows: store.listWorkflowDefinitions(workspaceId),
+    replayCollections: options.includeReplayCollections === false ? [] : store.listReplayCollections(workspaceId),
+    plugins: options.includePlugins ? store.listPlugins(workspaceId) : [],
+    sessions: [
+      {
+        session: context.session,
+        captures: scopedCaptures,
+        webSocketEvents: scopedWebSocketEvents,
+        evidenceAnnotations: store.listEvidenceAnnotations(sessionId),
+        findings: store.listFindings(sessionId),
+        workflowRuns: store.listWorkflowRuns(sessionId, 200)
+      }
+    ]
+  };
+}
+
+function previewBundleExport(input: unknown) {
+  const options = normalizeBundleOptions(input);
+  return buildProjectBundle(activeProjectBundleInput(options), options);
+}
+
+function bundleFilePath(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const sourcePath = String(payload.sourcePath || "").trim();
+  if (!sourcePath) {
+    return "";
+  }
+  const resolved = path.resolve(sourcePath);
+  if (!resolved.endsWith(".json") && !resolved.endsWith(".radar-bundle.json")) {
+    throw new Error("Project bundle path must end in .json or .radar-bundle.json.");
+  }
+  return resolved;
+}
+
+function readBundleFromPath(sourcePath: string): ProjectBundle {
+  const stat = fs.statSync(sourcePath);
+  if (!stat.isFile()) {
+    throw new Error("Project bundle path is not a file.");
+  }
+  const text = fs.readFileSync(sourcePath, "utf8");
+  const parsed = parseProjectBundleJson(text);
+  if (!parsed.ok) {
+    throw new Error(parsed.error);
+  }
+  return parsed.bundle;
+}
+
+async function writeBundle(input: unknown) {
+  const preview = previewBundleExport(input);
+  if (!preview.ok || !preview.bundle) {
+    return { ok: false, preview, error: preview.error || "Project bundle could not be built." };
+  }
+  const defaultPath = `${activeLocalContext().profile.name.replace(/[^a-zA-Z0-9_.-]/g, "-")}.radar-bundle.json`;
+  const result = await dialog.showSaveDialog({
+    title: "Export Radar Project Bundle",
+    defaultPath,
+    filters: [{ name: "Radar Project Bundle", extensions: ["radar-bundle.json", "json"] }]
+  });
+  if (result.canceled || !result.filePath) {
+    return { ok: false, preview, error: "Project bundle export was cancelled." };
+  }
+  fs.writeFileSync(result.filePath, serializeProjectBundle(preview.bundle), "utf8");
+  return { ok: true, path: result.filePath, preview };
+}
+
+async function readBundleForImport(input: unknown) {
+  let sourcePath = bundleFilePath(input);
+  if (!sourcePath) {
+    const result = await dialog.showOpenDialog({
+      title: "Import Radar Project Bundle",
+      properties: ["openFile"],
+      filters: [{ name: "Radar Project Bundle", extensions: ["radar-bundle.json", "json"] }]
+    });
+    if (result.canceled || !result.filePaths[0]) {
+      throw new Error("Project bundle import was cancelled.");
+    }
+    sourcePath = result.filePaths[0];
+  }
+  return readBundleFromPath(sourcePath);
+}
+
+async function previewBundleImport(input: unknown) {
+  const bundle = await readBundleForImport(input);
+  const context = activeLocalContext();
+  const store = activeLocalStore();
+  return previewProjectBundleImport({
+    bundle,
+    activeTargets: store.getTargets(context.workspace.id),
+    existingCaptures: store.listCaptures(context.session.id, 2000),
+    existingWebSocketEvents: store.listWebSocketEvents(context.session.id, 5000),
+    existingFindings: store.listFindings(context.session.id),
+    existingWorkflows: store.listWorkflowDefinitions(context.workspace.id),
+    existingProjectNotes: store.listProjectNotes(context.workspace.id),
+    existingSavedViews: store.listSavedViews(context.workspace.id)
+  });
+}
+
+function zeroBundleStats() {
+  return {
+    sessions: 0,
+    captures: 0,
+    webSocketEvents: 0,
+    findings: 0,
+    workflows: 0,
+    projectNotes: 0,
+    savedViews: 0,
+    replayCollections: 0,
+    plugins: 0,
+    proposedTargets: 0
+  };
+}
+
+async function applyBundleImport(input: unknown): Promise<ProjectBundleApplyResult> {
+  const preview = await previewBundleImport(input);
+  if (!preview.ok || !preview.bundle) {
+    return {
+      ok: false,
+      imported: zeroBundleStats(),
+      skipped: zeroBundleStats(),
+      proposedTargets: [],
+      message: preview.error || "Project bundle import preview failed."
+    };
+  }
+  const bundle = preview.bundle;
+  const context = activeLocalContext();
+  const store = activeLocalStore();
+  const workspaceId = context.workspace.id;
+  const imported = zeroBundleStats();
+  const skipped = zeroBundleStats();
+
+  const existingFilters = store.listSavedFilters(workspaceId);
+  store.setSavedFilters(workspaceId, [
+    ...existingFilters,
+    ...bundle.savedFilters.filter((filter) => !existingFilters.some((item) => item.id === filter.id))
+  ]);
+  const existingNotes = store.listProjectNotes(workspaceId);
+  const existingNoteIds = new Set(existingNotes.map((note) => note.id));
+  for (const note of bundle.projectNotes) {
+    if (existingNoteIds.has(note.id)) {
+      skipped.projectNotes += 1;
+      continue;
+    }
+    store.upsertProjectNote(workspaceId, note);
+    existingNoteIds.add(note.id);
+    imported.projectNotes += 1;
+  }
+  const existingViews = store.listSavedViews(workspaceId);
+  const existingViewIds = new Set(existingViews.map((view) => view.id));
+  for (const view of bundle.savedViews) {
+    if (existingViewIds.has(view.id)) {
+      skipped.savedViews += 1;
+      continue;
+    }
+    store.upsertSavedView(workspaceId, view);
+    existingViewIds.add(view.id);
+    imported.savedViews += 1;
+  }
+  const existingWorkflows = store.listWorkflowDefinitions(workspaceId);
+  const existingWorkflowIds = new Set(existingWorkflows.map((workflow) => workflow.id));
+  for (const workflow of bundle.workflows) {
+    if (existingWorkflowIds.has(workflow.id)) {
+      skipped.workflows += 1;
+      continue;
+    }
+    store.upsertWorkflowDefinition(workspaceId, workflow);
+    existingWorkflowIds.add(workflow.id);
+    imported.workflows += 1;
+  }
+  if (bundle.replayCollections.length > 0) {
+    const existing = store.listReplayCollections(workspaceId);
+    const existingCollectionIds = new Set(existing.map((collection) => collection.id));
+    const importedCollections = bundle.replayCollections.filter((collection) => {
+      if (existingCollectionIds.has(collection.id)) {
+        skipped.replayCollections += 1;
+        return false;
+      }
+      existingCollectionIds.add(collection.id);
+      return true;
+    });
+    store.setReplayCollections(workspaceId, [
+      ...existing,
+      ...importedCollections
+    ]);
+    imported.replayCollections = importedCollections.length;
+  }
+  const existingPlugins = store.listPlugins(workspaceId);
+  const existingPluginIds = new Set(existingPlugins.map((plugin) => plugin.id));
+  for (const plugin of bundle.plugins) {
+    if (existingPluginIds.has(plugin.id)) {
+      skipped.plugins += 1;
+      continue;
+    }
+    store.upsertPlugin(workspaceId, plugin);
+    existingPluginIds.add(plugin.id);
+    imported.plugins += 1;
+  }
+  for (const bundleSession of bundle.sessions) {
+    const importedSession = store.createSession(workspaceId, `Imported ${bundleSession.session.name}`);
+    imported.sessions += 1;
+    const captureIds = new Set<string>();
+    for (const capture of bundleSession.captures) {
+      if (captureIds.has(capture.id)) {
+        skipped.captures += 1;
+        continue;
+      }
+      store.upsertCapture(importedSession.id, capture);
+      captureIds.add(capture.id);
+      imported.captures += 1;
+    }
+    const webSocketIds = new Set<string>();
+    for (const event of bundleSession.webSocketEvents) {
+      if (webSocketIds.has(event.id)) {
+        skipped.webSocketEvents += 1;
+        continue;
+      }
+      store.insertWebSocketEvent(importedSession.id, event);
+      webSocketIds.add(event.id);
+      imported.webSocketEvents += 1;
+    }
+    if (bundleSession.evidenceAnnotations.length > 0) {
+      store.saveEvidenceAnnotations(importedSession.id, bundleSession.evidenceAnnotations);
+    }
+    const findingIds = new Set<string>();
+    for (const finding of bundleSession.findings) {
+      if (findingIds.has(finding.id)) {
+        skipped.findings += 1;
+        continue;
+      }
+      store.upsertFinding(importedSession.id, finding);
+      findingIds.add(finding.id);
+      imported.findings += 1;
+    }
+    for (const run of bundleSession.workflowRuns) {
+      store.upsertWorkflowRun(importedSession.id, { ...run, sessionId: importedSession.id });
+    }
+    localContext = { ...context, session: importedSession };
+  }
+  imported.proposedTargets = preview.proposedTargets.length;
+  allowlist = store.getTargets(workspaceId);
+  return {
+    ok: true,
+    imported,
+    skipped,
+    proposedTargets: preview.proposedTargets,
+    message:
+      preview.proposedTargets.length > 0
+        ? "Bundle imported. Proposed scope targets were left inactive."
+        : "Bundle imported."
+  };
+}
+
+function normalizeHandoffOptions(input: unknown): HandoffPackageOptions {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const bundleOptions = normalizeBundleOptions(payload);
+  return {
+    title: String(payload.title || "").trim().slice(0, 180),
+    redaction: bundleOptions.redaction,
+    includeDraftFindings: payload.includeDraftFindings === true,
+    includeProjectNotes: payload.includeProjectNotes !== false,
+    includeReplayCollections: payload.includeReplayCollections !== false,
+    includeWorkflows: payload.includeWorkflows !== false
+  };
+}
+
+function activeHandoffInput(options: HandoffPackageOptions) {
+  const context = activeLocalContext();
+  const store = activeLocalStore();
+  const sessionId = context.session.id;
+  const workspaceId = context.workspace.id;
+  const captures = store.listCaptures(sessionId, 2000);
+  const webSocketEvents = store.listWebSocketEvents(sessionId, 5000);
+  return {
+    profile: context.profile,
+    workspace: context.workspace,
+    session: context.session,
+    targets: store.getTargets(workspaceId),
+    captures: captures.filter((capture) => capture.allowed && isAllowedTarget(capture.url, allowlist)),
+    webSocketEvents: webSocketEvents.filter((event) => event.allowed && isAllowedTarget(event.url, allowlist)),
+    findings: store.listFindings(sessionId),
+    workflows: options.includeWorkflows === false ? [] : store.listWorkflowDefinitions(workspaceId),
+    replayCollections: options.includeReplayCollections === false ? [] : store.listReplayCollections(workspaceId),
+    projectNotes: options.includeProjectNotes === false ? [] : store.listProjectNotes(workspaceId)
+  };
+}
+
+function previewHandoff(input: unknown) {
+  const options = normalizeHandoffOptions(input);
+  return buildHandoffPackage(activeHandoffInput(options), options);
+}
+
+async function writeHandoff(input: unknown) {
+  const preview = previewHandoff(input);
+  if (!preview.ok || !preview.package) {
+    return { ok: false, preview, error: preview.error || "Handoff package could not be built." };
+  }
+  const defaultPath = `${preview.package.title.replace(/[^a-zA-Z0-9_.-]/g, "-")}.radar-handoff.json`;
+  const result = await dialog.showSaveDialog({
+    title: "Export Radar Handoff Package",
+    defaultPath,
+    filters: [{ name: "Radar Handoff Package", extensions: ["radar-handoff.json", "json"] }]
+  });
+  if (result.canceled || !result.filePath) {
+    return { ok: false, preview, error: "Handoff package export was cancelled." };
+  }
+  fs.writeFileSync(result.filePath, serializeHandoffPackage(preview.package), "utf8");
+  return { ok: true, path: result.filePath, preview };
+}
+
+ipcMain.handle("search:global", (_event, request) => {
+  if (!localStore || !localContext) {
+    return searchGlobal({}, request || { query: "" });
+  }
+  const sessionId = localContext.session.id;
+  const workspaceId = localContext.workspace.id;
+  const captures = listHttpCaptures(4000);
+  const webSocketItems = listWebSocketEvents(HOT_WEBSOCKET_LIMIT);
+  const scopedCaptures = captures.filter((capture) => capture.allowed && isAllowedTarget(capture.url, allowlist));
+  const scopedWebSockets = webSocketItems.filter((event) => event.allowed && isAllowedTarget(event.url, allowlist));
+  return searchGlobal(
+    {
+      captures,
+      webSocketEvents: webSocketItems,
+      evidenceAnnotations: localStore.listEvidenceAnnotations(sessionId),
+      replayTabState: localStore.getReplayTabState(workspaceId),
+      replayCollections: localStore.listReplayCollections(workspaceId),
+      findings: localStore.listFindings(sessionId),
+      workflows: workflowCatalog(),
+      workflowRuns: localStore.listWorkflowRuns(sessionId, 200),
+      plugins: listPlugins(),
+      advancedSummary: buildAdvancedTestingSummary(scopedCaptures, scopedWebSockets, "", allowlist[0] || ""),
+      savedFilters: localStore.listSavedFilters(workspaceId),
+      projectNotes: localStore.listProjectNotes(workspaceId),
+      savedViews: localStore.listSavedViews(workspaceId),
+      allowlist
+    },
+    request || { query: "" }
+  );
+});
+
+ipcMain.handle("project-notes:list", () => {
+  if (!localStore || !localContext) {
+    return [];
+  }
+  return localStore.listProjectNotes(localContext.workspace.id);
+});
+
+ipcMain.handle("project-notes:save", (_event, note) => {
+  return activeLocalStore().upsertProjectNote(activeLocalContext().workspace.id, note);
+});
+
+ipcMain.handle("project-notes:delete", (_event, id) => {
+  const workspaceId = activeLocalContext().workspace.id;
+  activeLocalStore().deleteProjectNote(workspaceId, String(id || ""));
+  return { ok: true, notes: activeLocalStore().listProjectNotes(workspaceId) };
+});
+
+ipcMain.handle("saved-views:list", () => {
+  if (!localStore || !localContext) {
+    return [];
+  }
+  return localStore.listSavedViews(localContext.workspace.id);
+});
+
+ipcMain.handle("saved-views:save", (_event, view) => {
+  return activeLocalStore().upsertSavedView(activeLocalContext().workspace.id, view);
+});
+
+ipcMain.handle("saved-views:delete", (_event, id) => {
+  const workspaceId = activeLocalContext().workspace.id;
+  activeLocalStore().deleteSavedView(workspaceId, String(id || ""));
+  return { ok: true, views: activeLocalStore().listSavedViews(workspaceId) };
+});
+
+ipcMain.handle("project-bundle:export:preview", (_event, options) => previewBundleExport(options));
+
+ipcMain.handle("project-bundle:export:write", (_event, options) => writeBundle(options));
+
+ipcMain.handle("project-bundle:import:preview", (_event, payload) => previewBundleImport(payload));
+
+ipcMain.handle("project-bundle:import:apply", (_event, payload) => applyBundleImport(payload));
+
+ipcMain.handle("handoff:preview", (_event, options) => previewHandoff(options));
+
+ipcMain.handle("handoff:write", (_event, options) => writeHandoff(options));
+
 ipcMain.handle("capture:snapshot", () => {
   return listHttpCaptures(400);
 });
@@ -3117,6 +3559,23 @@ ipcMain.handle("agent:get", (_event, id) => {
 
 ipcMain.handle("agent:list", () => {
   return activeAgentRuntime().list();
+});
+
+ipcMain.handle("agent-memory:list", () => {
+  return activeLocalStore().listAgentRunMemory(activeLocalContext().workspace.id);
+});
+
+ipcMain.handle("agent-memory:save", (_event, entry: AgentRunMemoryEntry) => {
+  return activeLocalStore().upsertAgentRunMemory(activeLocalContext().workspace.id, {
+    ...entry,
+    status: entry.status === "proposed" ? "confirmed" : entry.status,
+    updatedAt: new Date().toISOString()
+  });
+});
+
+ipcMain.handle("agent-memory:delete", (_event, id) => {
+  const memory = activeLocalStore().deleteAgentRunMemory(activeLocalContext().workspace.id, String(id || ""));
+  return { ok: true, memory };
 });
 
 ipcMain.handle("ai:settings:get", () => loadAiSettings(app.getPath("userData")));

@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { CapturedRequest, WebSocketEvent } from "./types";
+import type { AgentRun, CapturedRequest, WebSocketEvent } from "./types";
 
 const capture = (id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest => {
   const parsed = new URL(url);
@@ -56,6 +56,143 @@ afterEach(() => {
   vi.mocked(window.radar!.getProxyProfiles).mockResolvedValue([]);
   vi.mocked(window.radar!.saveProxyProfile).mockClear();
   vi.mocked(window.radar!.saveProxyProfile).mockResolvedValue([]);
+  vi.mocked(window.radar!.searchGlobal).mockClear();
+  vi.mocked(window.radar!.searchGlobal).mockResolvedValue({ ok: true, query: "", results: [], total: 0, limit: 40, offset: 0 });
+  vi.mocked(window.radar!.getProjectNotes).mockResolvedValue([]);
+  vi.mocked(window.radar!.saveProjectNote).mockClear();
+  vi.mocked(window.radar!.saveProjectNote).mockImplementation(async (note) => note);
+  vi.mocked(window.radar!.deleteProjectNote).mockClear();
+  vi.mocked(window.radar!.deleteProjectNote).mockResolvedValue({ ok: true, notes: [] });
+  vi.mocked(window.radar!.getSavedViews).mockResolvedValue([]);
+  vi.mocked(window.radar!.saveSavedView).mockClear();
+  vi.mocked(window.radar!.saveSavedView).mockImplementation(async (view) => view);
+  vi.mocked(window.radar!.deleteSavedView).mockClear();
+  vi.mocked(window.radar!.deleteSavedView).mockResolvedValue({ ok: true, views: [] });
+  vi.mocked(window.radar!.previewProjectBundleExport).mockClear();
+  vi.mocked(window.radar!.previewProjectBundleExport).mockResolvedValue({
+    ok: true,
+    bundle: null,
+    stats: {
+      sessions: 1,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    warnings: []
+  });
+  vi.mocked(window.radar!.writeProjectBundle).mockClear();
+  vi.mocked(window.radar!.writeProjectBundle).mockResolvedValue({
+    ok: true,
+    path: "/tmp/radar-project.radar-bundle.json",
+    preview: {
+      ok: true,
+      bundle: null,
+      stats: {
+        sessions: 1,
+        captures: 0,
+        webSocketEvents: 0,
+        findings: 0,
+        workflows: 0,
+        projectNotes: 0,
+        savedViews: 0,
+        replayCollections: 0,
+        plugins: 0,
+        proposedTargets: 0
+      },
+      warnings: []
+    }
+  });
+  vi.mocked(window.radar!.previewProjectBundleImport).mockClear();
+  vi.mocked(window.radar!.previewProjectBundleImport).mockResolvedValue({
+    ok: true,
+    bundle: null,
+    stats: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    warnings: [],
+    conflicts: [],
+    proposedTargets: [],
+    inactiveTargets: []
+  });
+  vi.mocked(window.radar!.applyProjectBundleImport).mockClear();
+  vi.mocked(window.radar!.applyProjectBundleImport).mockResolvedValue({
+    ok: true,
+    imported: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    skipped: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    proposedTargets: [],
+    message: "Bundle import applied."
+  });
+  vi.mocked(window.radar!.previewHandoffPackage).mockClear();
+  vi.mocked(window.radar!.previewHandoffPackage).mockResolvedValue({
+    ok: true,
+    package: null,
+    stats: {
+      findings: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      workflows: 0,
+      replayCollections: 0,
+      projectNotes: 0,
+      targets: 0
+    },
+    warnings: []
+  });
+  vi.mocked(window.radar!.writeHandoffPackage).mockClear();
+  vi.mocked(window.radar!.writeHandoffPackage).mockResolvedValue({
+    ok: true,
+    path: "/tmp/radar-handoff.json",
+    preview: {
+      ok: true,
+      package: null,
+      stats: {
+        findings: 0,
+        captures: 0,
+        webSocketEvents: 0,
+        workflows: 0,
+        replayCollections: 0,
+        projectNotes: 0,
+        targets: 0
+      },
+      warnings: []
+    }
+  });
   vi.mocked(window.radar!.getTargets).mockResolvedValue([]);
   vi.mocked(window.radar!.setTargets).mockClear();
   vi.mocked(window.radar!.setTargets).mockResolvedValue(undefined as unknown as string[]);
@@ -111,6 +248,390 @@ describe("App", () => {
     expect(screen.getByText(/Attack Surface Workbench/i)).toBeInTheDocument();
     expect(screen.getByTestId("aiConnectionIndicator")).toBeInTheDocument();
     expect(screen.getByTestId("openProfileSessionPanel")).toBeInTheDocument();
+  });
+
+  it("opens global search and jumps to a capture result", async () => {
+    const searchableCapture = capture("cap-search", "https://app.test/api/session", {
+      allowed: true,
+      method: "POST",
+      responseBody: "session response"
+    });
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://app.test"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([searchableCapture]);
+    vi.mocked(window.radar!.searchGlobal).mockImplementation(async (request) => ({
+      ok: true,
+      query: request.query,
+      total: 1,
+      limit: 40,
+      offset: 0,
+      results: [
+        {
+          id: "capture:cap-search",
+          kind: "capture",
+          title: "POST 200 /api/session",
+          subtitle: "app.test",
+          detail: "https://app.test/api/session",
+          refId: "cap-search",
+          createdAt: "2026-05-25T00:00:00.000Z",
+          updatedAt: "2026-05-25T00:00:00.000Z",
+          url: "https://app.test/api/session",
+          host: "app.test",
+          path: "/api/session",
+          status: "200",
+          source: "browser",
+          score: 12,
+          matches: [{ field: "url", label: "URL", snippet: "https://app.test/api/session", start: 21, end: 28 }],
+          target: { view: "traffic", id: "cap-search" }
+        }
+      ]
+    }));
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("openGlobalSearch"));
+    fireEvent.change(await screen.findByTestId("globalSearchInput"), { target: { value: "session" } });
+
+    expect(await screen.findByText("POST 200 /api/session")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("POST 200 /api/session"));
+
+    await waitFor(() => expect(screen.queryByTestId("globalSearchOverlay")).not.toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "HTTP / HTTPS Traffic" })).toBeInTheDocument();
+    expect(screen.getByTestId("trafficRow-cap-search")).toHaveAttribute("data-selected", "true");
+  });
+
+  it("shows full AI-First observation history and recovery actions", async () => {
+    const failedRun: AgentRun = {
+      id: "agent-observe",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:07.000Z",
+      goal: "Review security headers.",
+      profileId: "header-cookie-review",
+      status: "failed",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      timeline: [
+        {
+          id: "step-1",
+          createdAt: "2026-05-25T00:00:00.000Z",
+          note: "Run queued from AI-First goal prompt.",
+          phase: "status"
+        },
+        ...Array.from({ length: 6 }, (_, index) => ({
+          id: `step-mid-${index}`,
+          createdAt: `2026-05-25T00:00:0${index + 1}.000Z`,
+          note: `Intermediate step ${index + 1}`,
+          phase: "status" as const
+        })),
+        {
+          id: "step-failed-tool",
+          createdAt: "2026-05-25T00:00:07.000Z",
+          note: "Tool result: analyzeSecurityHeaders",
+          phase: "failure",
+          summary: "analyzeSecurityHeaders failed",
+          target: { view: "advanced" },
+          recoveryActions: ["retry-tool", "retry-with-evidence", "skip-and-continue", "stop-run", "draft-finding"],
+          toolResult: {
+            tool: "analyzeSecurityHeaders",
+            ok: false,
+            error: "No target-origin captures for https://apexads.io"
+          }
+        }
+      ],
+      findings: [],
+      error: "No target-origin captures for https://apexads.io"
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([failedRun]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+
+    const timeline = await screen.findByTestId("agentTimeline");
+    expect(timeline.textContent).toContain("Run queued from AI-First goal prompt.");
+    expect(screen.getByText("analyzeSecurityHeaders failed")).toBeInTheDocument();
+    expect(screen.getByText("No target-origin captures for https://apexads.io")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("agentRecovery-retry-tool"));
+    await waitFor(() => {
+      expect((screen.getByTestId("agentGoalInput") as HTMLTextAreaElement).value).toContain(
+        "Retry analyzeSecurityHeaders after reviewing visible evidence."
+      );
+    });
+  });
+
+  it("starts AI-First with the selected run profile", async () => {
+    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://hairetsu.com"]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    fireEvent.change(screen.getByTestId("agentProfileSelect"), { target: { value: "header-cookie-review" } });
+    fireEvent.change(screen.getByTestId("agentGoalInput"), { target: { value: "Inspect https://hairetsu.com headers" } });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => {
+      expect(startAgentRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profileId: "header-cookie-review"
+        })
+      );
+    });
+  });
+
+  it("confirms proposed run memory and supports manual memory creation", async () => {
+    const saveAgentRunMemory = vi.mocked(window.radar!.saveAgentRunMemory);
+    const run: AgentRun = {
+      id: "agent-memory",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Remember tested leads.",
+      profileId: "passive-map",
+      status: "completed",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 0,
+        maxWorkflowRequests: 0,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      timeline: [
+        {
+          id: "memory-step",
+          createdAt: "2026-05-25T00:00:01.000Z",
+          phase: "tool-result",
+          summary: "proposeRunMemory completed",
+          toolResult: {
+            tool: "proposeRunMemory",
+            ok: true,
+            data: {
+              note: "Proposed run memory for operator confirmation.",
+              memory: {
+                id: "memory-proposed",
+                createdAt: "2026-05-25T00:00:01.000Z",
+                updatedAt: "2026-05-25T00:00:01.000Z",
+                kind: "hypothesis",
+                status: "proposed",
+                title: "Redirect reviewed",
+                notes: "Landing redirect has been reviewed.",
+                evidenceRefs: ["capture:home"]
+              }
+            }
+          }
+        }
+      ],
+      findings: []
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    fireEvent.click(await screen.findByTestId("agentMemoryConfirm-memory-step"));
+    fireEvent.change(screen.getByTestId("agentMemoryTitle"), { target: { value: "Manual hypothesis" } });
+    fireEvent.change(screen.getByTestId("agentMemoryNotes"), { target: { value: "Retest after fix." } });
+    fireEvent.click(screen.getByTestId("agentMemoryCreate"));
+
+    await waitFor(() => {
+      expect(saveAgentRunMemory).toHaveBeenCalledWith(expect.objectContaining({ id: "memory-proposed", status: "confirmed" }));
+      expect(saveAgentRunMemory).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Manual hypothesis", notes: "Retest after fix.", status: "confirmed" })
+      );
+    });
+  });
+
+  it("loads AI-prepared workflow drafts into the visible editor without running them", async () => {
+    const runWorkflow = vi.mocked(window.radar!.runWorkflow);
+    const run: AgentRun = {
+      id: "agent-workflow-draft",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Prepare a workflow draft.",
+      profileId: "api-hardening",
+      status: "completed",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 0,
+        maxWorkflowRequests: 0,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      timeline: [
+        {
+          id: "workflow-draft-step",
+          createdAt: "2026-05-25T00:00:01.000Z",
+          phase: "tool-result",
+          summary: "prepareWorkflowDraft completed",
+          toolResult: {
+            tool: "prepareWorkflowDraft",
+            ok: true,
+            data: {
+              note: "Prepared workflow draft for operator review.",
+              workflow: {
+                id: "ai-header-workflow",
+                name: "AI Header Review",
+                description: "Prepared draft.",
+                mode: "passive",
+                builtIn: false,
+                inputs: [],
+                scope: { requireInScope: true, allowActive: false, maxRequests: 0, timeoutMs: 5000, delayMs: 0, maxResults: 20 },
+                steps: [{ id: "step-1", title: "Headers", kind: "security-headers", config: {} }],
+                createdAt: "2026-05-25T00:00:00.000Z",
+                updatedAt: "2026-05-25T00:00:00.000Z"
+              }
+            }
+          }
+        }
+      ],
+      findings: []
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+
+    expect(await screen.findByTestId("aiPreparedWorkflowDraft")).toBeInTheDocument();
+    expect((screen.getByTestId("workflowDefinition") as HTMLTextAreaElement).value).toContain("AI Header Review");
+    expect(runWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("saves project notes and current view snapshots", async () => {
+    const saveProjectNote = vi.mocked(window.radar!.saveProjectNote);
+    const saveSavedView = vi.mocked(window.radar!.saveSavedView);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("openProjectArtifacts"));
+
+    fireEvent.change(await screen.findByTestId("projectNoteTitle"), { target: { value: "Auth handoff" } });
+    fireEvent.change(screen.getByTestId("projectNoteBody"), {
+      target: { value: "Session refresh needs a follow-up replay." }
+    });
+    fireEvent.click(screen.getByTestId("saveProjectNote"));
+
+    await waitFor(() =>
+      expect(saveProjectNote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Auth handoff",
+          body: "Session refresh needs a follow-up replay."
+        })
+      )
+    );
+
+    fireEvent.change(screen.getByTestId("savedViewName"), { target: { value: "Traffic triage" } });
+    fireEvent.change(screen.getByTestId("savedViewDescription"), { target: { value: "Return to the traffic queue." } });
+    fireEvent.click(screen.getByTestId("saveCurrentView"));
+
+    await waitFor(() =>
+      expect(saveSavedView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Traffic triage",
+          view: "traffic",
+          description: "Return to the traffic queue.",
+          state: expect.any(Object)
+        })
+      )
+    );
+  });
+
+  it("previews and applies project bundle import/export controls", async () => {
+    const previewExport = vi.mocked(window.radar!.previewProjectBundleExport);
+    const previewImport = vi.mocked(window.radar!.previewProjectBundleImport);
+    const applyImport = vi.mocked(window.radar!.applyProjectBundleImport);
+    previewImport.mockResolvedValue({
+      ok: true,
+      bundle: null,
+      stats: {
+        sessions: 1,
+        captures: 2,
+        webSocketEvents: 1,
+        findings: 1,
+        workflows: 1,
+        projectNotes: 1,
+        savedViews: 1,
+        replayCollections: 0,
+        plugins: 0,
+        proposedTargets: 1
+      },
+      warnings: ["Imported scope targets are previewed but will not be applied automatically."],
+      conflicts: [{ kind: "capture", id: "cap-1", action: "skip" }],
+      proposedTargets: ["https://app.test"],
+      inactiveTargets: ["https://app.test"]
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("openProjectArtifacts"));
+    fireEvent.change(await screen.findByTestId("bundleRedaction"), { target: { value: "raw-evidence" } });
+    fireEvent.click(screen.getByTestId("previewProjectBundleExport"));
+
+    await waitFor(() =>
+      expect(previewExport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          redaction: "raw-evidence",
+          includeReplayCollections: true,
+          includePlugins: false
+        })
+      )
+    );
+
+    fireEvent.change(screen.getByTestId("bundleImportPath"), {
+      target: { value: "/tmp/client.radar-bundle.json" }
+    });
+    fireEvent.click(screen.getByTestId("previewProjectBundleImport"));
+
+    expect(await screen.findByText(/Inactive proposed scope: https:\/\/app.test/)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("applyProjectBundleImport"));
+
+    await waitFor(() =>
+      expect(applyImport).toHaveBeenCalledWith({ sourcePath: "/tmp/client.radar-bundle.json" })
+    );
+  });
+
+  it("previews and exports handoff packages", async () => {
+    const previewHandoff = vi.mocked(window.radar!.previewHandoffPackage);
+    const writeHandoff = vi.mocked(window.radar!.writeHandoffPackage);
+    previewHandoff.mockResolvedValue({
+      ok: true,
+      package: null,
+      stats: {
+        findings: 2,
+        captures: 3,
+        webSocketEvents: 1,
+        workflows: 1,
+        replayCollections: 1,
+        projectNotes: 1,
+        targets: 1
+      },
+      warnings: ["Evidence payloads are redacted. Use raw evidence only after explicit operator approval."]
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("openProjectArtifacts"));
+    fireEvent.change(await screen.findByTestId("handoffTitle"), { target: { value: "Auth review handoff" } });
+    fireEvent.click(screen.getByTestId("handoffIncludeDraftFindings"));
+    fireEvent.click(screen.getByTestId("previewHandoffPackage"));
+
+    await waitFor(() =>
+      expect(previewHandoff).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Auth review handoff",
+          redaction: "redacted-evidence",
+          includeDraftFindings: true,
+          includeProjectNotes: true,
+          includeWorkflows: true
+        })
+      )
+    );
+    expect(await screen.findByText(/2 findings \/ 3 req \/ 1 ws/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("writeHandoffPackage"));
+    await waitFor(() => expect(writeHandoff).toHaveBeenCalledWith(expect.objectContaining({ title: "Auth review handoff" })));
   });
 
   it("loads the seeded demo project from the local ledger panel", async () => {
@@ -447,7 +968,8 @@ describe("App", () => {
       expect(setTargets).toHaveBeenCalledWith(["http://localhost:*", "https://hairetsu.com"]);
       expect(startAgentRun).toHaveBeenCalledWith({
         goal: "Inspect hairetsu.com for auth hardening",
-        startUrl: "https://hairetsu.com"
+        startUrl: "https://hairetsu.com",
+        profileId: "passive-map"
       });
     });
   });
@@ -461,13 +983,15 @@ describe("App", () => {
         createdAt: "2026-05-25T00:00:00.000Z",
         updatedAt: "2026-05-25T00:00:01.000Z",
         goal: "Drive the app",
+        profileId: "api-hardening",
         status: "running",
-        policy: {
-          maxRuntimeMs: 120000,
-          maxSteps: 8,
-          maxReplay: 1,
-          maxCaptureSample: 20,
-          allowRawContext: false
+          policy: {
+            maxRuntimeMs: 120000,
+            maxSteps: 8,
+            maxReplay: 1,
+            maxWorkflowRequests: 1,
+            maxCaptureSample: 20,
+            allowRawContext: false
         },
         timeline: [
           {

@@ -104,11 +104,13 @@ function agentRun(index: number, sessionId: string): AgentRun {
     createdAt,
     updatedAt: createdAt,
     goal: `Large dataset agent run ${index}`,
+    profileId: "passive-map",
     status: "completed",
     policy: {
       maxRuntimeMs: 120000,
       maxSteps: AGENT_TIMELINE_COUNT,
       maxReplay: 0,
+      maxWorkflowRequests: 0,
       maxCaptureSample: 50,
       allowRawContext: false
     },

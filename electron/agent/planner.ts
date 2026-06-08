@@ -18,16 +18,20 @@ const SYSTEM_PROMPT = `You are Radar's autonomous defensive web security agent.
 You do not describe a script. You choose exactly one next action from the available tools, then wait for the tool result in the next turn.
 Stay inside saved scope and the intended target/redirect origins. Prefer observation before replay. Use replay only for safe, low-impact verification.
 Stop only when you have enough evidence, there are no useful in-scope actions left, or the policy budget is nearly exhausted.
+The profile field and availableTools list are authoritative. Do not call tools that are absent from availableTools.
 The capturedTraffic field already contains the current run's in-scope HTTP evidence across redirects and canonical hostnames.
+The contextSummary field contains redacted local sitemap, finding, Advanced, workflow, note, saved-view, and run-memory summaries. Use it before asking for raw or broad evidence.
 Do not repeat getCaptures just to reread the same capturedTraffic. Use getCaptures only when you need a fresh sample after navigation, clicking, form submission, or replay.
 If page/DOM tools fail because the Chrome debugging endpoint is unavailable, choose openBrowser with browserState.url or startUrl to reopen the controlled browser, then continue.
 For queued intercept traffic, use getInterceptQueue to inspect and prepareInterceptEdit to load visible draft edits. Never forward or drop intercepted traffic; those actions are operator-confirmed.
 For payload variation, use getAutomateContext and prepareAutomateDraft to load visible Automate controls. Never start, pause, stop, or retry an Automate run from AI-First.
+Use prepareReplayTab and prepareWorkflowDraft to create visible drafts for operator review. Do not run or save prepared work unless a policy and profile explicitly allow the execution tool.
 For plugins and Advanced testing, use getPluginInventory and getAdvancedTestingSummary as read-only tools. Never install plugins, approve permissions, import API files, or run imported requests.
+Any finish findings must include evidenceRefs, affectedAssets, reproductionNotes, severityRationale, remediation, and uncertainties. Weak findings will be rejected by Radar's quality gate.
 
 Return JSON only in one of these forms:
 {"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action"}
-{"action":"finish","rationale":"why the run is complete","findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"notes":"string","uncertainties":["string"]}]}`;
+{"action":"finish","rationale":"why the run is complete","findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"affectedAssets":["https://example.com"],"reproductionNotes":"string","severityRationale":"string","remediation":"string","notes":"string","uncertainties":["string"]}]}`;
 
 const WORK_VIEWS: AgentWorkbenchView[] = [
   "traffic",
@@ -252,16 +256,23 @@ function buildUserPrompt(context: AgentDecisionContext) {
       targetOrigin: context.targetOrigin,
       allowlist: context.allowlist,
       browserState: context.browserState,
+      profile: context.profile,
       policy: context.policy,
       budgetRemaining: {
         toolCalls: Math.max(context.policy.maxSteps - context.stepCount, 0),
-      replay: Math.max(context.policy.maxReplay - context.replayCount, 0)
+        replay: Math.max(context.policy.maxReplay - context.replayCount, 0),
+        workflowRequests: Math.max(context.policy.maxWorkflowRequests - context.workflowRequestCount, 0)
       },
       availableTools: context.availableTools,
       toolSchema: toolSchemas(),
       capturedTraffic: context.capturedTraffic.map((capture) => compactCapturedTraffic(capture, includeRaw)),
+      contextSummary: context.contextSummary,
+      runMemory: context.runMemory,
       timeline: context.timeline.map((entry) => ({
         note: entry.note,
+        phase: entry.phase,
+        summary: entry.summary,
+        target: entry.target,
         toolCall: entry.toolCall,
         toolResult: compactToolResult(entry.toolResult, includeRaw)
       }))
@@ -302,6 +313,10 @@ function normalizeFindings(value: unknown): AgentDecisionFinding[] {
           confidence: normalizeConfidence(entry.confidence),
           evidenceRefs: Array.isArray(entry.evidenceRefs) ? entry.evidenceRefs.map(String) : [],
           notes: String(entry.notes || ""),
+          affectedAssets: Array.isArray(entry.affectedAssets) ? entry.affectedAssets.map(String) : [],
+          reproductionNotes: String(entry.reproductionNotes || ""),
+          severityRationale: String(entry.severityRationale || ""),
+          remediation: String(entry.remediation || ""),
           uncertainties: Array.isArray(entry.uncertainties) ? entry.uncertainties.map(String) : []
         };
       })

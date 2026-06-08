@@ -1,5 +1,5 @@
 import { contextBridge } from "electron";
-import type { AgentRun } from "../shared/agent-types.js";
+import type { AgentRun, AgentRunMemoryEntry } from "../shared/agent-types.js";
 import type { AiSettings } from "../shared/ai-types.js";
 import type { RadarApi } from "../shared/radar-api.js";
 import type {
@@ -12,8 +12,10 @@ import type {
   InterceptState,
   LocalContext,
   PluginInstallPreview,
+  ProjectNote,
   ProxyProfile,
   ProxyState,
+  SavedView,
   SslEvent,
   WebSocketEvent,
   WorkflowDefinition,
@@ -297,6 +299,8 @@ const aiSettings: AiSettings = {
 
 let currentCaptures = [...captures];
 let targets = ["http://localhost:*", "http://127.0.0.1:*", "http://[::1]:*"];
+let projectNotes: ProjectNote[] = [];
+let savedViews: SavedView[] = [];
 let proxyProfiles: ProxyProfile[] = defaultProxyProfiles().map((profile) =>
   profile.id === "cli"
     ? {
@@ -342,6 +346,7 @@ const findings: Finding[] = [
   }
 ];
 const workflows: WorkflowDefinition[] = [...BUILT_IN_WORKFLOWS];
+const agentRunMemory: AgentRunMemoryEntry[] = [];
 const workflowRuns: WorkflowRun[] = [
   {
     id: "workflow-run-screenshot",
@@ -448,6 +453,14 @@ const radar: RadarApi = {
     );
     return proxyProfiles;
   },
+  searchGlobal: async (request) => ({
+    ok: true,
+    query: request.query,
+    results: [],
+    total: 0,
+    limit: request.limit || 40,
+    offset: request.offset || 0
+  }),
   getCaptures: async () => currentCaptures,
   queryCaptures: async () => ({ ok: true, captures: currentCaptures }),
   getSessionCaptures: async () => currentCaptures,
@@ -506,6 +519,114 @@ const radar: RadarApi = {
   queryWebSocketEvents: async () => ({ ok: true, events: webSocketEvents }),
   getSavedFilters: async () => [],
   setSavedFilters: async (filters) => filters,
+  getProjectNotes: async () => projectNotes,
+  saveProjectNote: async (note) => {
+    projectNotes = [note, ...projectNotes.filter((item) => item.id !== note.id)];
+    return note;
+  },
+  deleteProjectNote: async (id) => {
+    projectNotes = projectNotes.filter((item) => item.id !== id);
+    return { ok: true, notes: projectNotes };
+  },
+  getSavedViews: async () => savedViews,
+  saveSavedView: async (view) => {
+    savedViews = [view, ...savedViews.filter((item) => item.id !== view.id)];
+    return view;
+  },
+  deleteSavedView: async (id) => {
+    savedViews = savedViews.filter((item) => item.id !== id);
+    return { ok: true, views: savedViews };
+  },
+  previewProjectBundleExport: async (options) => ({
+    ok: true,
+    bundle: null,
+    stats: {
+      sessions: 1,
+      captures: currentCaptures.length,
+      webSocketEvents: webSocketEvents.length,
+      findings: findings.length,
+      workflows: workflows.length,
+      projectNotes: projectNotes.length,
+      savedViews: savedViews.length,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: targets.length
+    },
+    warnings: options.redaction === "raw-evidence" ? ["Raw evidence export includes sensitive values."] : []
+  }),
+  writeProjectBundle: async (options) => ({
+    ok: true,
+    path: "/tmp/radar-project.radar-bundle.json",
+    preview: await radar.previewProjectBundleExport(options)
+  }),
+  previewProjectBundleImport: async () => ({
+    ok: true,
+    bundle: null,
+    stats: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    warnings: [],
+    conflicts: [],
+    proposedTargets: [],
+    inactiveTargets: []
+  }),
+  applyProjectBundleImport: async () => ({
+    ok: true,
+    imported: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    skipped: {
+      sessions: 0,
+      captures: 0,
+      webSocketEvents: 0,
+      findings: 0,
+      workflows: 0,
+      projectNotes: 0,
+      savedViews: 0,
+      replayCollections: 0,
+      plugins: 0,
+      proposedTargets: 0
+    },
+    proposedTargets: [],
+    message: "Bundle import applied."
+  }),
+  previewHandoffPackage: async () => ({
+    ok: true,
+    package: null,
+    stats: {
+      findings: findings.length,
+      captures: currentCaptures.length,
+      webSocketEvents: webSocketEvents.length,
+      workflows: workflows.length,
+      replayCollections: 0,
+      projectNotes: projectNotes.length,
+      targets: targets.length
+    },
+    warnings: []
+  }),
+  writeHandoffPackage: async () => ({
+    ok: true,
+    path: "/tmp/radar-handoff.json",
+    preview: await radar.previewHandoffPackage({ redaction: "redacted-evidence" })
+  }),
   getReplayTabState: async () => defaultReplayTabState(),
   setReplayTabState: async (state) => state,
   getReplayEnvironments: async () => [],
@@ -667,11 +788,13 @@ const radar: RadarApi = {
       createdAt: "2026-05-25T00:00:00.000Z",
       updatedAt: "2026-05-25T00:00:00.000Z",
       goal: payload.goal,
+      profileId: payload.profileId || "passive-map",
       status: "queued",
       policy: {
         maxRuntimeMs: 120000,
         maxSteps: 8,
         maxReplay: 1,
+        maxWorkflowRequests: 1,
         maxCaptureSample: 20,
         allowRawContext: false
       },
@@ -689,7 +812,20 @@ const radar: RadarApi = {
     return run;
   },
   getAgentRun: async (id) => agentRuns.find((run) => run.id === id) || null,
-  listAgentRuns: async () => agentRuns
+  listAgentRuns: async () => agentRuns,
+  getAgentRunMemory: async () => agentRunMemory,
+  saveAgentRunMemory: async (entry) => {
+    const saved = { ...entry, status: entry.status === "proposed" ? "confirmed" : entry.status };
+    agentRunMemory.unshift(saved);
+    return saved;
+  },
+  deleteAgentRunMemory: async (id) => {
+    const index = agentRunMemory.findIndex((entry) => entry.id === id);
+    if (index >= 0) {
+      agentRunMemory.splice(index, 1);
+    }
+    return { ok: true, memory: agentRunMemory };
+  }
 };
 
 contextBridge.exposeInMainWorld("radar", radar);

@@ -21,7 +21,12 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] Session dropdown changes sessions without deleting previous evidence.
 - [ ] Theme selector switches Bureau, Vellum, and Specter without unreadable text selection.
 - [ ] **Open Browser** opens or reports a clear browser-launch error.
+- [ ] **Search** or `Cmd/Ctrl+P` opens global search and can jump to HTTP/S, WebSocket, Repeater, Findings, Workflows, Plugins, Advanced, saved-filter, project-note, and saved-view results.
+- [ ] **Notes** opens the project artifacts panel; saving a project note and a current saved view survives project/session reload.
+- [ ] Project bundle **Preview Export** shows counts and raw-evidence warnings; **Preview Import** shows skipped conflicts and proposed scope without applying targets.
+- [ ] Handoff package preview includes reviewed findings by default, can opt into draft findings, and exports only referenced evidence.
 - [ ] Manual-First / AI-First toggle changes mode without starting an agent run.
+- [ ] AI-First profile selector and budget chips render before a run starts.
 - [ ] Bottom telemetry counts match visible request, WebSocket, TLS, and proxy state.
 
 ## 01 HTTP(S)
@@ -94,6 +99,7 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] Workflow run history shows status, inputs, results, and evidence.
 - [ ] Warning/failure results promote to draft findings.
 - [ ] AI-First can choose existing workflows by id but cannot invent hidden workflow behavior.
+- [ ] AI-prepared workflow drafts load into the visible editor and do not save or run until the operator clicks **Save** or **Run**.
 
 ## 08 Plugins
 
@@ -145,16 +151,21 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 ## AI-First Safety
 
 - [ ] Starting an AI-First run shows a visible timeline and stop control.
-- [ ] Run budgets are visible in policy/timeline state.
+- [ ] Run profile and budgets are visible for steps, replay, workflow requests, capture sample, timeout, and raw-context policy.
+- [ ] Observation Console shows the full saved transcript, not only the last few entries.
 - [ ] AI-First tab switches are visible.
+- [ ] Tool cards show rationale summaries, visible targets, tool result state, and policy blocks.
+- [ ] A forced failed passive tool produces a highlighted failure card with retry, retry-with-evidence, skip/continue, stop, and draft-finding recovery controls.
 - [ ] Replay probes remain scoped and capped.
+- [ ] AI findings missing evidence refs, affected assets, reproduction, severity rationale, remediation, or uncertainty are rejected in the transcript and do not enter Findings.
 - [ ] Findings created from AI remain draft/reviewable.
+- [ ] AI-proposed run memory can be confirmed or dismissed, manual memory can be created, memory search filters entries, and memory persists after project reload.
 - [ ] Raw context stays opt-in.
 - [ ] Stopping a run prevents additional tool steps.
 
 ## Local Data
 
-- [ ] Restart preserves projects, sessions, scope, captures, WebSocket frames, findings, workflows, plugins, and AI run history.
+- [ ] Restart preserves projects, sessions, scope, captures, WebSocket frames, findings, workflows, plugins, AI run history, and project-scoped AI run memory.
 - [ ] Loading another project does not merge evidence across projects.
 - [ ] Creating a new session does not delete previous session evidence.
 - [ ] Re-running **Load Demo** refreshes stable demo records instead of duplicating them.

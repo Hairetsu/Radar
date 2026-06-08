@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentCookie,
   AgentCapturedTrafficContext,
+  AgentContextSummary,
   AgentDecision,
   AgentDecisionContext,
   AgentDecisionFinding,
   AgentEvidenceObservation,
   AgentFinding,
+  AgentRunMemoryEntry,
   AgentRun,
   AgentRunRequest,
   AgentStorageState,
@@ -19,18 +21,22 @@ import type {
   AutomateSession,
   BrowserState,
   CapturedRequest,
+  Finding,
   InstalledPlugin,
   InterceptResponseDraft,
   InterceptState,
+  ProjectNote,
   ReplayDraft,
   ReplayEnvironment,
   ReplayResult,
+  SavedView,
   ReplayTabState,
   WebSocketEvent,
   WorkflowDefinition,
   WorkflowRun
 } from "../../shared/domain.js";
 import { buildAdvancedTestingSummary } from "../../shared/advancedTesting.js";
+import { buildAgentContextSummary, emptyAgentContextSummary } from "../../shared/agentContext.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeDraft } from "../../shared/draft.js";
@@ -39,6 +45,10 @@ import { buildSitemap } from "../../shared/sitemap.js";
 import { diffReplayHistory } from "../../shared/replayDiff.js";
 import { createReplayTab, normalizeReplayTabState } from "../../shared/replayTabs.js";
 import { parseTrafficQuery } from "../../shared/trafficQuery.js";
+import { normalizeAgentFindingWithGate } from "../../shared/agentQuality.js";
+import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
+import { agentProfileAllowsTool, normalizeAgentRunProfileId } from "../../shared/agentProfiles.js";
+import { normalizeWorkflowDefinition } from "../../shared/workflows.js";
 import { DEFAULT_AGENT_POLICY, blockedToolReason, normalizeAgentPolicy } from "./policy.js";
 import { availableToolNames, normalizeAgentToolCall } from "./tools.js";
 
@@ -62,6 +72,10 @@ type AgentRuntimeDeps = {
   listAutomateSessions: () => AutomateSession[];
   listWorkflows: () => WorkflowDefinition[];
   listWorkflowRuns: () => WorkflowRun[];
+  listFindings: () => Finding[];
+  listProjectNotes: () => ProjectNote[];
+  listSavedViews: () => SavedView[];
+  listRunMemory: () => AgentRunMemoryEntry[];
   listPlugins: () => InstalledPlugin[];
   runWorkflow: (input: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => Promise<WorkflowRun>;
   sendReplay: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
@@ -117,6 +131,7 @@ type RunCounters = {
   startedAt: number;
   stepCount: number;
   replayCount: number;
+  workflowRequestCount: number;
 };
 
 const running = new Set<string>();
@@ -137,6 +152,58 @@ function timeline(note: string, extra: Partial<AgentTimelineEntry> = {}): AgentT
     note,
     ...extra
   };
+}
+
+function visibleTargetForTool(call: AgentToolCall): AgentTimelineEntry["target"] {
+  switch (call.tool) {
+    case "showView":
+      return { view: call.input.view };
+    case "openBrowser":
+    case "navigateBrowser":
+      return { browserUrl: call.input.url };
+    case "prepareTrafficQuery":
+      return { view: "traffic", control: "traffic query" };
+    case "getCaptures":
+      return { view: "traffic" };
+    case "getInterceptQueue":
+    case "prepareInterceptEdit":
+      return { view: "intercept", evidenceId: "id" in call.input ? call.input.id : undefined };
+    case "sendReplay":
+    case "getReplayContext":
+    case "prepareReplayTab":
+    case "compareReplayResults":
+      return { view: "repeater" };
+    case "getAutomateContext":
+    case "prepareAutomateDraft":
+    case "analyzeAutomateResults":
+      return { view: "automate" };
+    case "getWorkflowCatalog":
+    case "runWorkflow":
+    case "prepareWorkflowDraft":
+      return { view: "workflows" };
+    case "getAgentContextSummary":
+      return { view: "sitemap", control: "AI context summary" };
+    case "getPluginInventory":
+      return { view: "plugins" };
+    case "getAdvancedTestingSummary":
+    case "analyzeSecurityHeaders":
+    case "analyzeCookieFlags":
+    case "checkCorsPolicy":
+      return { view: "advanced" };
+    case "getSitemapCoverage":
+      return { view: "sitemap" };
+    case "proposeRunMemory":
+      return { view: "advanced", control: "run memory" };
+    default:
+      return undefined;
+  }
+}
+
+function recoveryActionsForFailure(call?: AgentToolCall): AgentTimelineEntry["recoveryActions"] {
+  if (!call) {
+    return ["retry-with-evidence", "stop-run"];
+  }
+  return ["retry-tool", "retry-with-evidence", "skip-and-continue", "stop-run", "draft-finding"];
 }
 
 function withUpdate(run: AgentRun, saveRun: (run: AgentRun) => void, update: Partial<AgentRun>) {
@@ -308,23 +375,42 @@ function checkCorsPolicy(captures: CapturedRequest[]): AgentEvidenceObservation[
   return observations;
 }
 
-function findingFromDecision(input: AgentDecisionFinding): AgentFinding {
-  const evidenceRefs = Array.isArray(input.evidenceRefs) ? input.evidenceRefs.map(String).filter(Boolean) : [];
-  if (evidenceRefs.length === 0) {
-    throw new Error("Agent findings must cite at least one evidence reference.");
+function findingFromDecision(input: AgentDecisionFinding) {
+  return normalizeAgentFindingWithGate(input, createId("finding"), nowIso());
+}
+
+function runtimeContextSummary({
+  deps,
+  allowlist,
+  maxCaptureSample
+}: {
+  deps: AgentRuntimeDeps;
+  allowlist: string[];
+  maxCaptureSample: number;
+}): AgentContextSummary {
+  try {
+    const captures = deps.getCaptures();
+    const frames = deps.getWebSocketEvents();
+    const advancedSummary = buildAdvancedTestingSummary(
+      captures.filter((capture) => isAllowedTarget(capture.url, allowlist)),
+      frames.filter((frame) => isAllowedTarget(frame.url, allowlist))
+    );
+    return buildAgentContextSummary({
+      captures,
+      frames,
+      findings: deps.listFindings(),
+      workflows: deps.listWorkflows(),
+      workflowRuns: deps.listWorkflowRuns(),
+      projectNotes: deps.listProjectNotes(),
+      savedViews: deps.listSavedViews(),
+      runMemory: deps.listRunMemory(),
+      allowlist,
+      advancedSummary,
+      captureLimit: maxCaptureSample
+    });
+  } catch {
+    return emptyAgentContextSummary();
   }
-  return {
-    id: createId("finding"),
-    createdAt: nowIso(),
-    title: String(input.title || "Draft finding"),
-    confidence: input.confidence || "low",
-    evidenceRefs,
-    notes: String(input.notes || ""),
-    uncertainties: [
-      ...(Array.isArray(input.uncertainties) ? input.uncertainties.map(String) : []),
-      "Agent findings are draft-only until manually reviewed."
-    ]
-  };
 }
 
 function decisionContext({
@@ -342,6 +428,11 @@ function decisionContext({
 }): AgentDecisionContext {
   const activeAllowlist = deps.allowlist();
   const captures = runCaptures(run, deps.getCaptures(), activeAllowlist, "");
+  const contextSummary = runtimeContextSummary({
+    deps,
+    allowlist: activeAllowlist,
+    maxCaptureSample: run.policy.maxCaptureSample
+  });
   return {
     goal: run.goal,
     startUrl,
@@ -349,10 +440,14 @@ function decisionContext({
     allowlist: activeAllowlist,
     browserState: deps.getBrowserState(),
     policy: run.policy,
+    profile: run.profileId,
     stepCount: counters.stepCount,
     replayCount: counters.replayCount,
-    availableTools: availableToolNames(),
+    workflowRequestCount: counters.workflowRequestCount,
+    availableTools: availableToolNames().filter((tool) => agentProfileAllowsTool(run.profileId, tool)),
     capturedTraffic: capturedTrafficContext(captures, run.policy.maxCaptureSample),
+    contextSummary,
+    runMemory: deps.listRunMemory().slice(0, 16),
     timeline: run.timeline.slice(-16)
   };
 }
@@ -371,15 +466,22 @@ export class AgentRuntime {
     }
 
     const createdAt = nowIso();
+    const profileId = normalizeAgentRunProfileId(request.profileId);
     const run: AgentRun = {
       id: createId("agent"),
       sessionId: this.deps.currentSessionId(),
       createdAt,
       updatedAt: createdAt,
       goal,
+      profileId,
       status: "queued",
-      policy: normalizeAgentPolicy(request.policy),
-      timeline: [timeline("Run queued from AI-First goal prompt.")],
+      policy: normalizeAgentPolicy(request.policy, profileId),
+      timeline: [
+        timeline("Run queued from AI-First goal prompt.", {
+          phase: "status",
+          summary: `Queued with ${profileId} profile`
+        })
+      ],
       findings: []
     };
 
@@ -399,7 +501,7 @@ export class AgentRuntime {
     }
     return withUpdate(run, this.deps.saveRun, {
       status: "stopped",
-      timeline: [...run.timeline, timeline("Stop requested by operator.")]
+      timeline: [...run.timeline, timeline("Stop requested by operator.", { phase: "status" })]
     });
   }
 
@@ -422,7 +524,9 @@ export class AgentRuntime {
       call: normalizedCall,
       allowlist: this.deps.allowlist(),
       policy: run.policy,
+      profileId: run.profileId,
       replayCount: counters.replayCount,
+      workflowRequestCount: counters.workflowRequestCount,
       stepCount: counters.stepCount,
       startedAt: counters.startedAt
     });
@@ -432,6 +536,10 @@ export class AgentRuntime {
         timeline: [
           ...run.timeline,
           timeline(blocked, {
+            phase: "policy-block",
+            summary: `Policy blocked ${normalizedCall.tool}`,
+            target: visibleTargetForTool(normalizedCall),
+            recoveryActions: ["retry-with-evidence", "skip-and-continue", "stop-run"],
             toolCall: normalizedCall,
             toolResult: { tool: normalizedCall.tool, ok: false, error: blocked }
           })
@@ -440,7 +548,15 @@ export class AgentRuntime {
     }
 
     let next = withUpdate(run, this.deps.saveRun, {
-      timeline: [...run.timeline, timeline(`Tool call: ${normalizedCall.tool}`, { toolCall: normalizedCall })]
+      timeline: [
+        ...run.timeline,
+        timeline(`Tool call: ${normalizedCall.tool}`, {
+          phase: "tool-call",
+          summary: `${normalizedCall.tool} requested`,
+          target: visibleTargetForTool(normalizedCall),
+          toolCall: normalizedCall
+        })
+      ]
     });
     counters.stepCount += 1;
 
@@ -782,6 +898,18 @@ export class AgentRuntime {
           };
           break;
         }
+        case "getAgentContextSummary": {
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: runtimeContextSummary({
+              deps: this.deps,
+              allowlist: this.deps.allowlist(),
+              maxCaptureSample: run.policy.maxCaptureSample
+            })
+          };
+          break;
+        }
         case "getPluginInventory": {
           result = {
             tool: normalizedCall.tool,
@@ -815,10 +943,29 @@ export class AgentRuntime {
           };
           break;
         }
+        case "prepareWorkflowDraft": {
+          const workflow = normalizeWorkflowDefinition(normalizedCall.input.workflow);
+          if (!workflow) {
+            throw new Error("Prepared workflow definition was invalid.");
+          }
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              workflow,
+              note: normalizedCall.input.note || "Prepared workflow draft for operator review."
+            }
+          };
+          break;
+        }
         case "runWorkflow": {
           const workflow = this.deps.listWorkflows().find((item) => item.id === normalizedCall.input.workflowId);
           if (!workflow) {
             throw new Error("Workflow was not found.");
+          }
+          const requestedWorkflowBudget = workflow.mode === "active" ? workflow.scope.maxRequests : 0;
+          if (counters.workflowRequestCount + requestedWorkflowBudget > run.policy.maxWorkflowRequests) {
+            throw new Error("Workflow would exceed the AI-First workflow request budget.");
           }
           if (workflow.mode === "active" && counters.replayCount + workflow.scope.maxRequests > run.policy.maxReplay) {
             throw new Error("Workflow would exceed the AI-First replay budget.");
@@ -829,6 +976,7 @@ export class AgentRuntime {
             source: "ai"
           });
           counters.replayCount += workflowRun.actionCount;
+          counters.workflowRequestCount += workflowRun.actionCount || requestedWorkflowBudget;
           result = {
             tool: normalizedCall.tool,
             ok: true,
@@ -841,6 +989,31 @@ export class AgentRuntime {
           result = { tool: normalizedCall.tool, ok: true, data: await this.deps.sendReplay(normalizedCall.input.draft) };
           break;
         }
+        case "proposeRunMemory": {
+          const memory = normalizeAgentRunMemory(
+            {
+              ...normalizedCall.input,
+              id: createId("memory"),
+              sourceRunId: run.id,
+              status: "proposed",
+              createdAt: nowIso(),
+              updatedAt: nowIso()
+            },
+            createId("memory")
+          );
+          if (!memory) {
+            throw new Error("Run memory proposal requires a title and notes.");
+          }
+          result = {
+            tool: normalizedCall.tool,
+            ok: true,
+            data: {
+              memory,
+              note: "Proposed run memory for operator confirmation."
+            }
+          };
+          break;
+        }
       }
     } catch (error) {
       result = {
@@ -851,7 +1024,16 @@ export class AgentRuntime {
     }
 
     next = withUpdate(next, this.deps.saveRun, {
-      timeline: [...next.timeline, timeline(`Tool result: ${normalizedCall.tool}`, { toolResult: result })]
+      timeline: [
+        ...next.timeline,
+        timeline(`Tool result: ${normalizedCall.tool}`, {
+          phase: result.ok ? "tool-result" : "failure",
+          summary: result.ok ? `${normalizedCall.tool} completed` : `${normalizedCall.tool} failed`,
+          target: visibleTargetForTool(normalizedCall),
+          recoveryActions: result.ok ? undefined : recoveryActionsForFailure(normalizedCall),
+          toolResult: result
+        })
+      ]
     });
     return next;
   }
@@ -861,7 +1043,7 @@ export class AgentRuntime {
       return;
     }
     running.add(runId);
-    const counters = { startedAt: Date.now(), stepCount: 0, replayCount: 0 };
+    const counters = { startedAt: Date.now(), stepCount: 0, replayCount: 0, workflowRequestCount: 0 };
 
     try {
       let run = this.deps.loadRun(runId);
@@ -872,7 +1054,7 @@ export class AgentRuntime {
 
       run = withUpdate(run, this.deps.saveRun, {
         status: "running",
-        timeline: [...run.timeline, timeline("Run started. Scope and policy checks are active.")]
+        timeline: [...run.timeline, timeline("Run started. Scope and policy checks are active.", { phase: "status" })]
       });
 
       if (this.isStopped(runId)) {
@@ -904,15 +1086,30 @@ export class AgentRuntime {
         }
 
         if (decision.action === "finish") {
-          const nextFindings = (decision.findings || []).map(findingFromDecision);
+          const qualityResults = (decision.findings || []).map(findingFromDecision);
+          const nextFindings = qualityResults
+            .map((result) => result.finding)
+            .filter((finding): finding is AgentFinding => Boolean(finding));
+          const rejectedEntries = qualityResults
+            .filter((result) => !result.ok)
+            .map((result) =>
+              timeline(`AI draft finding rejected: ${result.reasons.join(", ")}`, {
+                phase: "failure",
+                summary: "Draft finding rejected by quality gate",
+                target: { view: "findings" },
+                recoveryActions: ["retry-with-evidence", "draft-finding", "stop-run"]
+              })
+            );
           run = withUpdate(run, this.deps.saveRun, {
             status: "completed",
             findings: nextFindings,
             timeline: [
               ...run.timeline,
+              ...rejectedEntries,
               timeline(
                 decision.rationale ||
-                  `Agent returned finish with ${nextFindings.length} draft finding${nextFindings.length === 1 ? "" : "s"}.`
+                  `Agent returned finish with ${nextFindings.length} draft finding${nextFindings.length === 1 ? "" : "s"}.`,
+                { phase: "status" }
               )
             ]
           });
@@ -925,7 +1122,14 @@ export class AgentRuntime {
 
         if (decision.rationale) {
           run = withUpdate(run, this.deps.saveRun, {
-            timeline: [...run.timeline, timeline(`Agent selected ${decision.call.tool}: ${decision.rationale}`)]
+            timeline: [
+              ...run.timeline,
+              timeline(`Agent selected ${decision.call.tool}: ${decision.rationale}`, {
+                phase: "decision",
+                summary: decision.rationale,
+                target: visibleTargetForTool(decision.call)
+              })
+            ]
           });
         }
         run = await this.callTool(run, counters, decision.call);
@@ -943,10 +1147,18 @@ export class AgentRuntime {
     } catch (error) {
       const run = this.deps.loadRun(runId);
       if (run) {
+        const message = error instanceof Error ? error.message : "Agent run failed.";
         withUpdate(run, this.deps.saveRun, {
           status: "failed",
-          error: error instanceof Error ? error.message : "Agent run failed.",
-          timeline: [...run.timeline, timeline("Run failed.")]
+          error: message,
+          timeline: [
+            ...run.timeline,
+            timeline(`Run failed: ${message}`, {
+              phase: "failure",
+              summary: message,
+              recoveryActions: recoveryActionsForFailure()
+            })
+          ]
         });
       }
     } finally {

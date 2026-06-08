@@ -9,8 +9,8 @@ Radar now has the complete first-generation workbench surface:
 - HTTP/S and WebSocket evidence capture.
 - Scope, proxy, SSL, and dedicated browser control.
 - Intercept, match/replace, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, and report export.
-- Local persistence for profiles, sessions, findings, workflows, plugins, SSL events, and AI-First runs.
-- Manual-First controls for risky operations and AI-First tools that stay visible, scoped, and bounded.
+- Local persistence for profiles, sessions, findings, workflows, plugins, SSL events, AI-First runs, and project-scoped AI run memory.
+- Manual-First controls for risky operations and AI-First profiles/tools that stay visible, scoped, budgeted, recoverable, and bounded.
 
 The next work should favor reliability, continuity across engagements, and depth inside the workflows operators repeat every day.
 
@@ -27,7 +27,7 @@ The next work should favor reliability, continuity across engagements, and depth
 
 1. **Release hardening and demo readiness.**
 2. **Project model, global search, and handoff.**
-3. **AI-First run profiles and quality gates.**
+3. **AI-First observation console, run profiles, and quality gates.**
 4. **Report builder depth and retest matrices.**
 5. **Advanced API/auth workflow generation.**
 6. **Plugin sandbox execution and SDK panels.**
@@ -71,12 +71,16 @@ Exit criteria:
 - An operator can start a project, search across all local evidence, and hand off a redacted bundle without using the filesystem manually.
 - Imported bundles cannot widen active scope or execute actions automatically.
 
-## Phase C - AI-First Run Profiles
+## Phase C - AI-First Observation And Run Profiles
 
-Purpose: make AI-First predictable for common assessment workflows.
+Purpose: make AI-First observable, recoverable, and predictable for common assessment workflows.
 
 Slices:
 
+- Add an AI-First observation console before adding more autonomy: a docked chat/transcript surface with the full run history, durable streaming updates, user messages, tool calls, tool results, evidence refs, policy blocks, and failed steps. The UI may virtualize rendering for performance, but it must not truncate the saved or inspectable run history.
+- Add operator-facing rationale summaries for each agent decision without exposing raw hidden chain-of-thought. The console should show why a tool was selected, what evidence it used, what it expected to change, and what happened.
+- Add visible action choreography for the main app and controlled browser. Every tool call should declare the Radar view, evidence row, form control, browser URL, DOM element, or workflow result it is acting on so the renderer can switch views, focus the relevant pane, pulse/highlight the active target, and clear the highlight when the result lands.
+- Add failure recovery states for tool errors and provider errors. A failed tool should create a highlighted transcript card with input summary, error, last visible app/browser state, affected evidence refs, and explicit next actions such as retry same tool, retry with refreshed evidence, skip and continue, stop run, or convert notes into a draft finding. The operator should never see a dead-end `Run failed` without context.
 - Add run profiles: Passive Map, Auth Review, API Hardening, Header/Cookie Review, Advanced API Review, and Report From Evidence.
 - Add visible run budgets for steps, replay count, capture sample, timeout, workflow requests, and raw-context policy.
 - Add AI-visible sitemap, findings, Advanced, and workflow context summaries.
@@ -86,6 +90,8 @@ Slices:
 
 Exit criteria:
 
+- A sequence such as `getStorageState` followed by a failed `analyzeSecurityHeaders` remains fully visible in the AI-First transcript, highlights the failed action in the console, preserves the previous evidence and browser state, and offers a controlled retry/continue/stop path.
+- While AI-First is running, the visible Radar workbench and controlled browser show what the agent is doing now: active tab, selected evidence, prepared draft, clicked/focused page element, or workflow result.
 - AI-First can complete a passive review profile with useful draft findings and no hidden mutation.
 - Active AI profiles remain opt-in, budgeted, and tied to existing Repeater/Workflow controls.
 
@@ -181,7 +187,7 @@ Exit criteria:
 
 ## Execution Status
 
-**Phase A - Release Hardening** is complete in `docs/ROADMAP2_EXECUTION.md`.
+**Phase A - Release Hardening**, **Phase B - Projects, Global Search, And Handoff**, and **Phase C - AI-First Observation And Run Profiles** are complete in `docs/ROADMAP2_EXECUTION.md`.
 
 Completed release-hardening slices:
 
@@ -194,7 +200,7 @@ Completed release-hardening slices:
 
 Next slice:
 
-Start **Phase B, Slice 1: Project terminology and model**. Track implementation status in `docs/ROADMAP2_EXECUTION.md`.
+Start **Phase D, Slice 1: Report section builder**. Track implementation status in `docs/ROADMAP2_EXECUTION.md`.
 
 ## Parking Lot
 

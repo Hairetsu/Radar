@@ -11,6 +11,8 @@ import type {
   CapturedRequest,
   Finding,
   InstalledPlugin,
+  ProjectNote,
+  SavedView,
   SslEvent,
   WebSocketEvent,
   WorkflowDefinition,
@@ -131,11 +133,13 @@ describe("localStore", () => {
       createdAt: "2026-05-25T12:00:00.000Z",
       updatedAt: "2026-05-25T12:00:01.000Z",
       goal: "Crash-safe timeline",
+      profileId: "passive-map",
       status: "completed",
       policy: {
         maxRuntimeMs: 120000,
         maxSteps: 4,
         maxReplay: 0,
+        maxWorkflowRequests: 0,
         maxCaptureSample: 10,
         allowRawContext: false
       },
@@ -165,6 +169,28 @@ describe("localStore", () => {
       status: "pending",
       warnings: [],
       installedAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+  }
+
+  function crashProjectNote(): ProjectNote {
+    return {
+      id: "note-crash",
+      title: "Crash-safe note",
+      body: "A partial project note write should roll back.",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+  }
+
+  function crashSavedView(): SavedView {
+    return {
+      id: "view-crash",
+      name: "Crash-safe view",
+      view: "traffic",
+      description: "A partial saved view write should roll back.",
+      state: { trafficQuery: "status:500" },
+      createdAt: "2026-05-25T12:00:00.000Z",
       updatedAt: "2026-05-25T12:00:00.000Z"
     };
   }
@@ -446,7 +472,7 @@ describe("localStore", () => {
     reopened.close();
   });
 
-  it("rolls back plugin records when workspace metadata cannot be updated", () => {
+  it("rolls back workspace-scoped records when workspace metadata cannot be updated", () => {
     const store = makeStore();
     const context = store.getActiveContext();
     store.close();
@@ -460,7 +486,73 @@ describe("localStore", () => {
 
     const reopened = openLocalStore(tmpDir);
     expect(() => reopened.upsertPlugin(context.workspace.id, crashPlugin())).toThrow(/blocked workspace touch/);
+    expect(() => reopened.upsertProjectNote(context.workspace.id, crashProjectNote())).toThrow(/blocked workspace touch/);
+    expect(() => reopened.upsertSavedView(context.workspace.id, crashSavedView())).toThrow(/blocked workspace touch/);
     expect(reopened.listPlugins(context.workspace.id)).toEqual([]);
+    expect(reopened.listProjectNotes(context.workspace.id)).toEqual([]);
+    expect(reopened.listSavedViews(context.workspace.id)).toEqual([]);
+    reopened.close();
+  });
+
+  it("persists project notes and saved views across store instances", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const note = store.upsertProjectNote(context.workspace.id, {
+      id: "note-1",
+      title: "Auth review",
+      body: "Remember to retest the session refresh endpoint.",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    });
+    const view = store.upsertSavedView(context.workspace.id, {
+      id: "view-1",
+      name: "Refresh traffic",
+      view: "traffic",
+      description: "Saved filter and selected request for session refresh.",
+      state: { trafficQuery: "path:/api/session", selectedCaptureId: "cap-1" },
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    });
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listProjectNotes(context.workspace.id)).toEqual([note]);
+    expect(reopened.listSavedViews(context.workspace.id)).toEqual([view]);
+
+    reopened.deleteProjectNote(context.workspace.id, note.id);
+    reopened.deleteSavedView(context.workspace.id, view.id);
+    expect(reopened.listProjectNotes(context.workspace.id)).toEqual([]);
+    expect(reopened.listSavedViews(context.workspace.id)).toEqual([]);
+    reopened.close();
+  });
+
+  it("persists project-scoped agent run memory across store instances", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const memory = store.upsertAgentRunMemory(context.workspace.id, {
+      id: "memory-1",
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z",
+      kind: "hypothesis",
+      status: "confirmed",
+      title: "Header redirect hypothesis",
+      notes: "Tested canonical redirect path and keep this for retest.",
+      sourceRunId: "agent-1",
+      evidenceRefs: ["capture:cap-1"],
+      retestState: "pending"
+    });
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listAgentRunMemory(context.workspace.id)).toEqual([memory]);
+    const dismissed = reopened.upsertAgentRunMemory(context.workspace.id, {
+      ...memory,
+      status: "dismissed",
+      dismissedReason: "Retest showed configured behavior.",
+      updatedAt: "2026-05-25T12:01:00.000Z"
+    });
+    expect(reopened.listAgentRunMemory(context.workspace.id)[0]).toEqual(dismissed);
+    expect(reopened.deleteAgentRunMemory(context.workspace.id, memory.id)).toEqual([]);
     reopened.close();
   });
 
@@ -1063,11 +1155,13 @@ describe("localStore", () => {
       createdAt: "2026-05-25T00:00:00.000Z",
       updatedAt: "2026-05-25T00:00:01.000Z",
       goal: "Inspect target",
+      profileId: "header-cookie-review",
       status: "completed",
       policy: {
         maxRuntimeMs: 120000,
         maxSteps: 8,
         maxReplay: 1,
+        maxWorkflowRequests: 1,
         maxCaptureSample: 20,
         allowRawContext: false
       },
@@ -1080,6 +1174,10 @@ describe("localStore", () => {
           confidence: "low",
           evidenceRefs: ["capture:cap-1"],
           notes: "Sampled HTTPS response did not include HSTS.",
+          affectedAssets: ["https://example.test"],
+          reproductionNotes: "Inspect capture:cap-1 response headers.",
+          severityRationale: "HSTS is absent on an HTTPS response.",
+          remediation: "Add Strict-Transport-Security after confirming HTTPS-only operation.",
           uncertainties: ["Review manually."]
         }
       ]

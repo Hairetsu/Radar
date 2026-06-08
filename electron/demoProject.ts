@@ -633,11 +633,13 @@ function demoAgentRun(sessionId: string): AgentRun {
     createdAt: "2026-05-25T14:08:00.000Z",
     updatedAt: "2026-05-25T14:09:00.000Z",
     goal: "Passive map the demo API and prepare evidence-backed findings without active testing.",
+    profileId: "passive-map",
     status: "completed",
     policy: {
       maxRuntimeMs: 120000,
       maxSteps: 8,
       maxReplay: 0,
+      maxWorkflowRequests: 0,
       maxCaptureSample: 25,
       allowRawContext: false
     },
@@ -677,6 +679,10 @@ function demoAgentRun(sessionId: string): AgentRun {
         confidence: "high",
         evidenceRefs: ["capture:demo-cap-account"],
         notes: "Authorization was present and Cache-Control allowed public caching.",
+        affectedAssets: ["https://api.demo.radar.test/account"],
+        reproductionNotes: "Inspect capture:demo-cap-account and confirm Authorization plus public Cache-Control on the response.",
+        severityRationale: "Authenticated responses with public caching can expose account data through shared caches.",
+        remediation: "Return private/no-store cache directives for authenticated account responses.",
         uncertainties: ["Confirm intended cache policy with application owner."]
       },
       {
@@ -686,6 +692,10 @@ function demoAgentRun(sessionId: string): AgentRun {
         confidence: "medium",
         evidenceRefs: ["capture:demo-cap-graphql", "websocket:demo-ws-received"],
         notes: "Advanced analysis found token-shaped values in a GraphQL response and WebSocket payload.",
+        affectedAssets: ["https://api.demo.radar.test/graphql", "wss://api.demo.radar.test/realtime"],
+        reproductionNotes: "Inspect capture:demo-cap-graphql and websocket:demo-ws-received for token-shaped response values.",
+        severityRationale: "Secret-shaped values in API responses can indicate accidental credential exposure.",
+        remediation: "Remove secrets from responses and replace them with scoped, non-sensitive identifiers.",
         uncertainties: ["Determine whether values are synthetic, expired, or live secrets."]
       }
     ]
