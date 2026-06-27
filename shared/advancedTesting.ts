@@ -1,4 +1,4 @@
-import type { CapturedRequest, ReplayDraft, WebSocketEvent } from "./domain.js";
+import type { CapturedRequest, ReplayDraft, WebSocketEvent, WorkflowDefinition } from "./domain.js";
 import { truncateText } from "./text.js";
 
 export type AdvancedEvidenceKind = "capture" | "websocket" | "import";
@@ -29,8 +29,29 @@ export type GraphQlOperation = {
   evidence: AdvancedEvidenceRef;
 };
 
+export type GraphQlOperationGroup = {
+  id: string;
+  host: string;
+  path: string;
+  operationType: GraphQlOperationType;
+  operationNames: string[];
+  count: number;
+  variableNames: string[];
+  introspectionCount: number;
+  batchedCount: number;
+};
+
+export type GraphQlVariableTemplate = {
+  id: string;
+  operationId: string;
+  operationName: string;
+  variablesJson: string;
+};
+
 export type GraphQlReview = {
   operations: GraphQlOperation[];
+  groups: GraphQlOperationGroup[];
+  variableTemplates: GraphQlVariableTemplate[];
   hosts: string[];
   operationCount: number;
   queryCount: number;
@@ -76,6 +97,19 @@ export type AuthMatrixRow = {
   verdict: "observed" | "protected" | "public" | "auth-change" | "ambiguous";
 };
 
+export type AuthStateComparison = {
+  id: string;
+  method: string;
+  host: string;
+  path: string;
+  leftState: AuthStateBucket;
+  rightState: AuthStateBucket;
+  leftStatus: string;
+  rightStatus: string;
+  verdict: "same" | "auth-gain" | "auth-loss" | "status-change";
+  evidenceIds: string[];
+};
+
 export type ParameterLocation =
   | "query"
   | "json"
@@ -105,6 +139,14 @@ export type SecretDetection = {
   evidence: AdvancedEvidenceRef;
 };
 
+export type SensitiveDataRule = {
+  id: string;
+  name: string;
+  severity: AdvancedSignalSeverity;
+  pattern: string;
+  enabled: boolean;
+};
+
 export type HeaderBehaviorSignal = {
   id: string;
   severity: AdvancedSignalSeverity;
@@ -126,7 +168,9 @@ export type AdvancedTestingSummary = {
   graphql: GraphQlReview;
   apiImport: ApiImportResult;
   authMatrix: AuthMatrixRow[];
+  authComparisons: AuthStateComparison[];
   parameters: ParameterFinding[];
+  secretRules: SensitiveDataRule[];
   secrets: SecretDetection[];
   headerSignals: HeaderBehaviorSignal[];
   proxyGuidance: ProxyGuidance[];
@@ -357,6 +401,49 @@ function graphqlOperationsFromFrame(event: WebSocketEvent, indexOffset: number) 
     .filter((operation): operation is GraphQlOperation => Boolean(operation));
 }
 
+export function groupGraphQlOperations(operations: GraphQlOperation[]): GraphQlOperationGroup[] {
+  const groups = new Map<string, GraphQlOperationGroup>();
+  for (const operation of operations) {
+    const key = `${operation.host}:${operation.path}:${operation.operationType}`;
+    const existing = groups.get(key) || {
+      id: cleanId(key),
+      host: operation.host,
+      path: operation.path,
+      operationType: operation.operationType,
+      operationNames: [],
+      count: 0,
+      variableNames: [],
+      introspectionCount: 0,
+      batchedCount: 0
+    };
+    existing.operationNames = uniqueSorted([...existing.operationNames, operation.operationName]).slice(0, 24);
+    existing.variableNames = uniqueSorted([...existing.variableNames, ...operation.variables]).slice(0, 40);
+    existing.count += 1;
+    existing.introspectionCount += operation.introspection ? 1 : 0;
+    existing.batchedCount += operation.batched ? 1 : 0;
+    groups.set(key, existing);
+  }
+  return Array.from(groups.values()).sort(
+    (left, right) => right.count - left.count || left.host.localeCompare(right.host) || left.path.localeCompare(right.path)
+  );
+}
+
+export function buildGraphQlVariableTemplates(operations: GraphQlOperation[]): GraphQlVariableTemplate[] {
+  return operations
+    .filter((operation) => operation.variables.length > 0)
+    .map((operation) => ({
+      id: cleanId(`variables-${operation.id}`),
+      operationId: operation.id,
+      operationName: operation.operationName,
+      variablesJson: JSON.stringify(
+        Object.fromEntries(operation.variables.map((variable) => [variable, `{{${variable}}}`])),
+        null,
+        2
+      )
+    }))
+    .slice(0, MAX_OPERATIONS);
+}
+
 export function analyzeGraphQl(captures: CapturedRequest[], frames: WebSocketEvent[] = []): GraphQlReview {
   const operations = [
     ...captures.flatMap((capture, index) => graphqlOperationsFromHttpCapture(capture, index)),
@@ -364,6 +451,8 @@ export function analyzeGraphQl(captures: CapturedRequest[], frames: WebSocketEve
   ].slice(0, MAX_OPERATIONS);
   return {
     operations,
+    groups: groupGraphQlOperations(operations),
+    variableTemplates: buildGraphQlVariableTemplates(operations),
     hosts: uniqueSorted(operations.map((operation) => operation.host)),
     operationCount: operations.length,
     queryCount: operations.filter((operation) => operation.operationType === "query").length,
@@ -642,6 +731,57 @@ export function buildAuthMatrix(captures: CapturedRequest[]): AuthMatrixRow[] {
     .slice(0, MAX_SIGNALS);
 }
 
+function firstStatus(value: string | undefined) {
+  return String(value || "").split(",")[0] || "";
+}
+
+function successfulStatus(value: string) {
+  return /^2\d\d/.test(value) || /^2xx/.test(value);
+}
+
+function deniedStatus(value: string) {
+  return /^(401|403|4xx)/.test(value);
+}
+
+export function compareAuthMatrixRows(rows: AuthMatrixRow[]): AuthStateComparison[] {
+  const comparisons: AuthStateComparison[] = [];
+  const states: AuthStateBucket[] = ["anonymous", "bearer", "basic", "cookie", "mixed"];
+  for (const row of rows) {
+    for (let leftIndex = 0; leftIndex < states.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < states.length; rightIndex += 1) {
+        const leftState = states[leftIndex];
+        const rightState = states[rightIndex];
+        const leftStatus = firstStatus(row.statuses[leftState]);
+        const rightStatus = firstStatus(row.statuses[rightState]);
+        if (!leftStatus || !rightStatus) {
+          continue;
+        }
+        const verdict: AuthStateComparison["verdict"] =
+          leftStatus === rightStatus
+            ? "same"
+            : deniedStatus(leftStatus) && successfulStatus(rightStatus)
+              ? "auth-gain"
+              : successfulStatus(leftStatus) && deniedStatus(rightStatus)
+                ? "auth-loss"
+                : "status-change";
+        comparisons.push({
+          id: cleanId(`${row.id}-${leftState}-${rightState}`),
+          method: row.method,
+          host: row.host,
+          path: row.path,
+          leftState,
+          rightState,
+          leftStatus,
+          rightStatus,
+          verdict,
+          evidenceIds: row.evidenceIds
+        });
+      }
+    }
+  }
+  return comparisons.slice(0, MAX_SIGNALS);
+}
+
 function collectJsonPaths(value: unknown, prefix = "", depth = 0): string[] {
   if (depth > 3 || !value || typeof value !== "object") {
     return [];
@@ -758,13 +898,49 @@ export function discoverParameters(captures: CapturedRequest[], frames: WebSocke
     .slice(0, MAX_PARAMETERS);
 }
 
-const SECRET_PATTERNS: Array<{ name: string; severity: AdvancedSignalSeverity; regex: RegExp }> = [
-  { name: "Private key", severity: "high", regex: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/gi },
-  { name: "AWS access key", severity: "high", regex: /\bAKIA[0-9A-Z]{16}\b/g },
-  { name: "JWT", severity: "medium", regex: /\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{8,}\b/g },
-  { name: "Stripe secret key", severity: "high", regex: /\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/g },
-  { name: "Slack token", severity: "high", regex: /\bxox[baprs]-[A-Za-z0-9-]{16,}\b/g },
-  { name: "Secret assignment", severity: "medium", regex: /\b(?:api[_-]?key|secret|token|password)["'\s:=]+[A-Za-z0-9_./+:-]{12,}/gi }
+export const DEFAULT_SENSITIVE_DATA_RULES: SensitiveDataRule[] = [
+  {
+    id: "private-key",
+    name: "Private key",
+    severity: "high",
+    pattern: "-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----",
+    enabled: true
+  },
+  {
+    id: "aws-access-key",
+    name: "AWS access key",
+    severity: "high",
+    pattern: "\\bAKIA[0-9A-Z]{16}\\b",
+    enabled: true
+  },
+  {
+    id: "jwt",
+    name: "JWT",
+    severity: "medium",
+    pattern: "\\beyJ[A-Za-z0-9_-]{12,}\\.[A-Za-z0-9_-]{12,}\\.[A-Za-z0-9_-]{8,}\\b",
+    enabled: true
+  },
+  {
+    id: "stripe-secret-key",
+    name: "Stripe secret key",
+    severity: "high",
+    pattern: "\\bsk_(?:live|test)_[A-Za-z0-9]{16,}\\b",
+    enabled: true
+  },
+  {
+    id: "slack-token",
+    name: "Slack token",
+    severity: "high",
+    pattern: "\\bxox[baprs]-[A-Za-z0-9-]{16,}\\b",
+    enabled: true
+  },
+  {
+    id: "secret-assignment",
+    name: "Secret assignment",
+    severity: "medium",
+    pattern: "\\b(?:api[_-]?key|secret|token|password)[\"'\\s:=]+[A-Za-z0-9_./+:-]{12,}",
+    enabled: true
+  }
 ];
 
 function maskSecret(value: string) {
@@ -780,16 +956,17 @@ function detectSecretsInText(input: {
   location: SecretDetection["location"];
   evidence: AdvancedEvidenceRef;
   seed: string;
+  rules: SensitiveDataRule[];
 }) {
   const findings: SecretDetection[] = [];
-  for (const pattern of SECRET_PATTERNS) {
-    const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
+  for (const rule of input.rules.filter((item) => item.enabled)) {
+    const regex = new RegExp(rule.pattern, "gi");
     for (const match of input.text.matchAll(regex)) {
       const value = match[0] || "";
       findings.push({
-        id: cleanId(`${input.seed}-${pattern.name}-${findings.length}`),
-        severity: pattern.severity,
-        pattern: pattern.name,
+        id: cleanId(`${input.seed}-${rule.id}-${findings.length}`),
+        severity: rule.severity,
+        pattern: rule.name,
         location: input.location,
         preview: maskSecret(value),
         evidence: input.evidence
@@ -804,6 +981,7 @@ function detectSecretsInText(input: {
 
 export function detectSensitiveData(captures: CapturedRequest[], frames: WebSocketEvent[] = []): SecretDetection[] {
   const findings: SecretDetection[] = [];
+  const rules = DEFAULT_SENSITIVE_DATA_RULES;
   for (const capture of captures) {
     const evidence = evidenceFromCapture(capture);
     findings.push(
@@ -811,7 +989,8 @@ export function detectSensitiveData(captures: CapturedRequest[], frames: WebSock
         text: capture.responseBody,
         location: "response-body",
         evidence,
-        seed: capture.id
+        seed: capture.id,
+        rules
       })
     );
     for (const [name, value] of Object.entries(capture.responseHeaders)) {
@@ -821,7 +1000,8 @@ export function detectSensitiveData(captures: CapturedRequest[], frames: WebSock
             text: value,
             location: "response-header",
             evidence,
-            seed: `${capture.id}-${name}`
+            seed: `${capture.id}-${name}`,
+            rules
           })
         );
       }
@@ -833,7 +1013,8 @@ export function detectSensitiveData(captures: CapturedRequest[], frames: WebSock
         text: event.payloadData,
         location: "websocket-payload",
         evidence: evidenceFromWebSocket(event),
-        seed: event.id
+        seed: event.id,
+        rules
       })
     );
   }
@@ -933,17 +1114,183 @@ export function analyzeHeaderBehavior(captures: CapturedRequest[]): HeaderBehavi
   return signals.slice(0, MAX_SIGNALS);
 }
 
+function workflowDraft(input: {
+  id: string;
+  name: string;
+  description: string;
+  mode?: "passive" | "active";
+  steps: WorkflowDefinition["steps"];
+  inputs?: WorkflowDefinition["inputs"];
+  maxRequests?: number;
+}): WorkflowDefinition {
+  const createdAt = new Date().toISOString();
+  const active = input.mode === "active";
+  return {
+    id: cleanId(input.id),
+    name: cleanLine(input.name, "Advanced workflow draft"),
+    description: cleanText(input.description),
+    mode: active ? "active" : "passive",
+    builtIn: false,
+    inputs: input.inputs || [],
+    scope: {
+      requireInScope: true,
+      allowActive: active,
+      maxRequests: active ? Math.min(Math.max(input.maxRequests || 1, 1), 12) : 0,
+      timeoutMs: 10_000,
+      delayMs: 0,
+      maxResults: active ? 40 : 80
+    },
+    steps: input.steps,
+    createdAt,
+    updatedAt: createdAt
+  };
+}
+
+export function workflowDraftFromApiImport(importResult: ApiImportResult): WorkflowDefinition | null {
+  if (!importResult.ok || importResult.drafts.length === 0) {
+    return null;
+  }
+  const methods = uniqueSorted(importResult.drafts.map((draft) => draft.method));
+  return workflowDraft({
+    id: `advanced-api-import-${importResult.sourceType}`,
+    name: `${importResult.sourceType.toUpperCase()} imported API review`,
+    description: `Review ${importResult.drafts.length} imported ${importResult.sourceType} operations before active use. Methods: ${methods.join(", ")}.`,
+    steps: [
+      { id: "security-headers", title: "Security headers", kind: "security-headers", config: { source: "api-import" } },
+      { id: "cors", title: "CORS behavior", kind: "cors-policy", config: { source: "api-import" } },
+      { id: "cache", title: "Cache behavior", kind: "cache-control", config: { source: "api-import" } },
+      { id: "metadata", title: "Metadata exposure", kind: "metadata-exposure", config: { source: "api-import" } }
+    ]
+  });
+}
+
+export function workflowDraftFromGraphQlOperation(operation: GraphQlOperation): WorkflowDefinition {
+  const stepKind = operation.operationType === "mutation" ? "metadata-exposure" : "security-headers";
+  return workflowDraft({
+    id: `advanced-graphql-${operation.id}`,
+    name: `GraphQL ${operation.operationName} review`,
+    description: `Review ${operation.operationType} operation on ${operation.host}${operation.path}. Variables: ${operation.variables.join(", ") || "none"}.`,
+    steps: [
+      {
+        id: "graphql-review",
+        title: "GraphQL evidence review",
+        kind: stepKind,
+        config: {
+          operation: operation.operationName,
+          type: operation.operationType,
+          path: operation.path
+        }
+      }
+    ]
+  });
+}
+
+export function workflowDraftFromAuthMatrixRow(row: AuthMatrixRow): WorkflowDefinition {
+  return workflowDraft({
+    id: `advanced-auth-${row.id}`,
+    name: `${row.method} ${row.path} auth comparison`,
+    description: `Replay the selected evidence without ambient credentials and compare authorization behavior. Observed verdict: ${row.verdict}.`,
+    mode: "active",
+    maxRequests: 1,
+    inputs: [
+      {
+        id: "capture-id",
+        label: "Capture ID",
+        type: "capture-id",
+        required: true,
+        defaultValue: row.evidenceIds[0] || ""
+      }
+    ],
+    steps: [
+      {
+        id: "strip-auth-replay",
+        title: "Replay without ambient credentials",
+        kind: "active-replay",
+        config: { stripAuth: "true", path: row.path, method: row.method }
+      }
+    ]
+  });
+}
+
+export function workflowDraftFromParameter(parameter: ParameterFinding): WorkflowDefinition {
+  return workflowDraft({
+    id: `advanced-parameter-${parameter.id}`,
+    name: `${parameter.name} parameter review`,
+    description: `Review ${parameter.location} parameter ${parameter.name} observed ${parameter.count} times across ${parameter.endpoints.length} endpoints.`,
+    steps: [
+      {
+        id: "parameter-metadata",
+        title: "Parameter evidence review",
+        kind: "metadata-exposure",
+        config: {
+          parameter: parameter.name,
+          location: parameter.location,
+          endpoints: String(parameter.endpoints.length)
+        }
+      }
+    ]
+  });
+}
+
+export function workflowDraftFromHeaderSignal(signal: HeaderBehaviorSignal): WorkflowDefinition {
+  const kind =
+    signal.kind === "cache-control" || signal.kind === "cache-poisoning"
+      ? "cache-control"
+      : signal.kind === "cors-vary"
+        ? "cors-policy"
+        : "security-headers";
+  return workflowDraft({
+    id: `advanced-header-${signal.id}`,
+    name: signal.title,
+    description: signal.message,
+    steps: [
+      {
+        id: "header-signal",
+        title: signal.title,
+        kind,
+        config: {
+          source: signal.kind,
+          evidence: signal.evidence.id
+        }
+      }
+    ]
+  });
+}
+
+export function workflowDraftFromSecret(secret: SecretDetection): WorkflowDefinition {
+  return workflowDraft({
+    id: `advanced-secret-${secret.id}`,
+    name: `${secret.pattern} disclosure review`,
+    description: `Review local ${secret.pattern} signal in ${secret.location}. Preview is masked: ${secret.preview}.`,
+    steps: [
+      {
+        id: "secret-metadata",
+        title: "Secret-shaped response review",
+        kind: "metadata-exposure",
+        config: {
+          pattern: secret.pattern,
+          evidence: secret.evidence.id,
+          location: secret.location
+        }
+      }
+    ]
+  });
+}
+
 export function buildAdvancedTestingSummary(
   captures: CapturedRequest[],
   frames: WebSocketEvent[] = [],
   importSource = "",
   fallbackBaseUrl = ""
 ): AdvancedTestingSummary {
+  const authMatrix = buildAuthMatrix(captures);
   return {
     graphql: analyzeGraphQl(captures, frames),
     apiImport: parseApiImport(importSource, fallbackBaseUrl),
-    authMatrix: buildAuthMatrix(captures),
+    authMatrix,
+    authComparisons: compareAuthMatrixRows(authMatrix),
     parameters: discoverParameters(captures, frames),
+    secretRules: DEFAULT_SENSITIVE_DATA_RULES,
     secrets: detectSensitiveData(captures, frames),
     headerSignals: analyzeHeaderBehavior(captures),
     proxyGuidance: ADVANCED_PROXY_GUIDANCE

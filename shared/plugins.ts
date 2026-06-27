@@ -1,21 +1,38 @@
 import type {
   InstalledPlugin,
+  PluginAuditEntry,
+  PluginDeveloperValidation,
   PluginInstallPreview,
   PluginInstallStatus,
   PluginManifest,
   PluginManifestPanel,
-  PluginPermission
+  PluginPermission,
+  PluginTrustLevel
 } from "./domain.js";
 
 export const PLUGIN_SCHEMA_VERSION = 1;
 export const PLUGIN_SDK_VERSION = "0.1";
+export const RADAR_PLUGIN_COMPAT_VERSION = "0.1.13";
 export const MAX_PLUGINS = 80;
 export const MAX_PLUGIN_PANELS = 6;
+export const MAX_PLUGIN_AUDIT_ENTRIES = 300;
 
 const MAX_LINE = 180;
 const MAX_TEXT = 2000;
 const pluginIdPattern = /^[a-z0-9][a-z0-9._-]{1,78}[a-z0-9]$/;
 const versionPattern = /^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i;
+const pluginAuditActions = [
+  "captures:list",
+  "frames:list",
+  "replay:prepare",
+  "replay:send",
+  "findings:create",
+  "workflows:list",
+  "workflows:save",
+  "workflows:run",
+  "panel:render",
+  "plugin:validate"
+] as const;
 
 export const PLUGIN_PERMISSIONS: PluginPermission[] = [
   "captures:read",
@@ -146,6 +163,75 @@ function manifestWarnings(manifest: PluginManifest) {
   return Array.from(warnings);
 }
 
+function parseVersion(value: string) {
+  const match = value.trim().match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3])
+  };
+}
+
+function compareVersions(left: string, right: string) {
+  const a = parseVersion(left);
+  const b = parseVersion(right);
+  if (!a || !b) {
+    return 0;
+  }
+  for (const key of ["major", "minor", "patch"] as const) {
+    if (a[key] > b[key]) {
+      return 1;
+    }
+    if (a[key] < b[key]) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+function normalizeTrustLevel(value: unknown, fallback: PluginTrustLevel): PluginTrustLevel {
+  const trust = cleanLine(value);
+  if (trust === "first-party" || trust === "verified-local" || trust === "local" || trust === "untrusted") {
+    return trust;
+  }
+  return fallback;
+}
+
+export function pluginCompatibilityWarnings(manifest: PluginManifest, radarVersion = RADAR_PLUGIN_COMPAT_VERSION) {
+  const warnings = new Set<string>();
+  const sdkMinor = manifest.sdkVersion.split(".").slice(0, 2).join(".");
+  if (sdkMinor && sdkMinor !== PLUGIN_SDK_VERSION) {
+    warnings.add(`Plugin SDK ${manifest.sdkVersion} differs from Radar SDK ${PLUGIN_SDK_VERSION}.`);
+  }
+  if (manifest.minRadarVersion && compareVersions(manifest.minRadarVersion, radarVersion) > 0) {
+    warnings.add(`Requires Radar ${manifest.minRadarVersion} or newer.`);
+  }
+  return Array.from(warnings);
+}
+
+export function pluginTrustLevel(input: {
+  manifest?: PluginManifest | null;
+  sourcePath?: string;
+  manifestPath?: string;
+  errors?: string[];
+}): PluginTrustLevel {
+  const source = String(input.sourcePath || "").replace(/\\/g, "/").toLowerCase();
+  const author = String(input.manifest?.author || "").toLowerCase();
+  if (author.includes("radar") || author.includes("hairetsu") || source.includes("/plugins/examples/") || source.includes("/plugins/first-party/")) {
+    return "first-party";
+  }
+  if (input.manifest && input.manifestPath && (input.errors || []).length === 0) {
+    return "verified-local";
+  }
+  if (input.sourcePath) {
+    return "local";
+  }
+  return "untrusted";
+}
+
 export function isPluginPermission(value: unknown): value is PluginPermission {
   return PLUGIN_PERMISSIONS.includes(value as PluginPermission);
 }
@@ -208,13 +294,16 @@ export function buildPluginInstallPreview(input: {
   if (!manifest) {
     return null;
   }
+  const compatibilityWarnings = pluginCompatibilityWarnings(manifest);
   return {
     manifest,
     sourcePath: String(input.sourcePath || ""),
     manifestPath: String(input.manifestPath || ""),
     requestedPermissions: manifest.permissions,
     permissionSummary: permissionSummary(manifest.permissions),
-    warnings: manifestWarnings(manifest)
+    trustLevel: pluginTrustLevel({ manifest, sourcePath: input.sourcePath, manifestPath: input.manifestPath }),
+    compatibilityWarnings,
+    warnings: [...manifestWarnings(manifest), ...compatibilityWarnings]
   };
 }
 
@@ -230,15 +319,23 @@ export function normalizeInstalledPlugin(input: unknown, installedAt = nowIso())
   const status = cleanLine(value.status) as PluginInstallStatus;
   const normalizedStatus: PluginInstallStatus =
     status === "approved" || status === "disabled" || status === "blocked" ? status : "pending";
+  const compatibilityWarnings = Array.isArray(value.compatibilityWarnings)
+    ? value.compatibilityWarnings.map((warning) => cleanLine(warning)).filter(Boolean).slice(0, 12)
+    : pluginCompatibilityWarnings(manifest);
   return {
     id: manifest.id,
     manifest,
     sourcePath: cleanLine(value.sourcePath),
     grantedPermissions,
     status: normalizedStatus,
+    trustLevel: normalizeTrustLevel(
+      value.trustLevel,
+      pluginTrustLevel({ manifest, sourcePath: cleanLine(value.sourcePath), manifestPath: "" })
+    ),
+    compatibilityWarnings,
     warnings: Array.isArray(value.warnings)
       ? value.warnings.map((warning) => cleanLine(warning)).filter(Boolean).slice(0, 12)
-      : manifestWarnings(manifest),
+      : [...manifestWarnings(manifest), ...compatibilityWarnings],
     installedAt: cleanLine(value.installedAt, installedAt),
     updatedAt: cleanLine(value.updatedAt, installedAt)
   };
@@ -273,4 +370,78 @@ export function hasPluginPermission(plugin: InstalledPlugin, permission: PluginP
 export function pluginPermissionSummary(plugin: InstalledPlugin | PluginManifest) {
   const permissions = "manifest" in plugin ? plugin.grantedPermissions : plugin.permissions;
   return permissionSummary(permissions);
+}
+
+function normalizeAuditAction(value: unknown): PluginAuditEntry["action"] {
+  const action = cleanLine(value);
+  return pluginAuditActions.includes(action as PluginAuditEntry["action"]) ? (action as PluginAuditEntry["action"]) : "plugin:validate";
+}
+
+function summarizeUnknown(value: unknown, fallback = "") {
+  if (typeof value === "string") {
+    return cleanText(value).slice(0, 500) || fallback;
+  }
+  try {
+    return JSON.stringify(value).slice(0, 500) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function normalizePluginAuditEntry(input: unknown, createdAt = nowIso()): PluginAuditEntry | null {
+  const value = objectValue(input);
+  const pluginId = cleanId(value.pluginId);
+  const pluginName = cleanLine(value.pluginName, pluginId || "Plugin");
+  if (!pluginId) {
+    return null;
+  }
+  const permission = isPluginPermission(value.permission) ? value.permission : undefined;
+  return {
+    id: cleanId(value.id, `plugin_audit_${createdAt.replace(/[^0-9]/g, "")}`),
+    pluginId,
+    pluginName,
+    action: normalizeAuditAction(value.action),
+    permission,
+    ok: value.ok === true,
+    message: cleanLine(value.message, value.ok === true ? "Plugin action completed." : "Plugin action failed."),
+    inputSummary: summarizeUnknown(value.inputSummary),
+    outputSummary: summarizeUnknown(value.outputSummary),
+    durationMs: Math.max(0, Math.min(Number(value.durationMs) || 0, 60_000)),
+    createdAt: cleanLine(value.createdAt, createdAt)
+  };
+}
+
+export function normalizePluginAuditEntries(input: unknown) {
+  return (Array.isArray(input) ? input : [])
+    .map((entry) => normalizePluginAuditEntry(entry))
+    .filter((entry): entry is PluginAuditEntry => Boolean(entry))
+    .slice(0, MAX_PLUGIN_AUDIT_ENTRIES);
+}
+
+export function pluginDeveloperValidation(input: {
+  sourcePath: string;
+  manifest?: PluginManifest | null;
+  warnings?: string[];
+  errors?: string[];
+  manifestPath?: string;
+}): PluginDeveloperValidation {
+  const manifestWarningsList = input.manifest ? manifestWarnings(input.manifest) : [];
+  const compatibilityWarnings = input.manifest ? pluginCompatibilityWarnings(input.manifest) : [];
+  const errors = (input.errors || []).map((error) => cleanLine(error)).filter(Boolean).slice(0, 20);
+  return {
+    ok: errors.length === 0,
+    sourcePath: cleanLine(input.sourcePath),
+    manifest: input.manifest || undefined,
+    trustLevel: pluginTrustLevel({
+      manifest: input.manifest,
+      sourcePath: input.sourcePath,
+      manifestPath: input.manifestPath,
+      errors
+    }),
+    warnings: [...manifestWarningsList, ...compatibilityWarnings, ...(input.warnings || [])]
+      .map((warning) => cleanLine(warning))
+      .filter(Boolean)
+      .slice(0, 24),
+    errors
+  };
 }

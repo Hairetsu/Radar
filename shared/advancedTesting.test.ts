@@ -5,9 +5,17 @@ import {
   analyzeHeaderBehavior,
   buildAdvancedTestingSummary,
   buildAuthMatrix,
+  compareAuthMatrixRows,
+  DEFAULT_SENSITIVE_DATA_RULES,
   detectSensitiveData,
   discoverParameters,
-  parseApiImport
+  parseApiImport,
+  workflowDraftFromApiImport,
+  workflowDraftFromAuthMatrixRow,
+  workflowDraftFromGraphQlOperation,
+  workflowDraftFromHeaderSignal,
+  workflowDraftFromParameter,
+  workflowDraftFromSecret
 } from "./advancedTesting.js";
 
 function capture(patch: Partial<CapturedRequest>): CapturedRequest {
@@ -80,6 +88,13 @@ describe("advanced testing analyzers", () => {
     expect(graphql.queryCount).toBe(1);
     expect(graphql.subscriptionCount).toBe(1);
     expect(graphql.operations[0].variables).toEqual(["role"]);
+    expect(graphql.groups.map((group) => group.operationType)).toEqual(expect.arrayContaining(["query", "subscription"]));
+    expect(graphql.variableTemplates[0]).toEqual(
+      expect.objectContaining({
+        operationName: "ListUsers",
+        variablesJson: JSON.stringify({ role: "{{role}}" }, null, 2)
+      })
+    );
   });
 
   it("handles batched introspection and unnamed GraphQL operations", () => {
@@ -223,6 +238,13 @@ describe("advanced testing analyzers", () => {
     expect(rows[0].verdict).toBe("protected");
     expect(rows[0].statuses.anonymous).toBe("403");
     expect(rows[0].statuses.bearer).toBe("200");
+    expect(compareAuthMatrixRows(rows)[0]).toEqual(
+      expect.objectContaining({
+        leftState: "anonymous",
+        rightState: "bearer",
+        verdict: "auth-gain"
+      })
+    );
   });
 
   it("classifies public, observed, mixed, and ambiguous auth matrix rows", () => {
@@ -282,19 +304,26 @@ describe("advanced testing analyzers", () => {
         capture({
           method: "POST",
           url: "https://api.example.test/users?page=2",
-          requestHeaders: {
-            Cookie: "sid=abc; theme=dark",
-            Authorization: "Bearer token",
-            "Content-Type": "application/json"
-          },
-          requestBody: JSON.stringify({ user: { email: "a@example.test" }, role: "admin" })
+        requestHeaders: {
+          Cookie: "sid=abc; theme=dark",
+          Authorization: "Bearer token",
+          "Content-Type": "application/json"
+        },
+          requestBody: JSON.stringify({ user: { email: "a@example.test" }, role: "admin", items: [{ id: 1 }], "": "blank" })
         })
       ],
       [frame({ payloadData: JSON.stringify({ action: "update", payload: { id: 1 } }) })]
     );
 
     expect(parameters.map((parameter) => `${parameter.location}:${parameter.name}`)).toEqual(
-      expect.arrayContaining(["query:page", "json:user.email", "cookie:sid", "header:Authorization", "websocket-json:payload.id"])
+      expect.arrayContaining([
+        "query:page",
+        "json:user.email",
+        "json:items.id",
+        "cookie:sid",
+        "header:Authorization",
+        "websocket-json:payload.id"
+      ])
     );
   });
 
@@ -330,6 +359,7 @@ describe("advanced testing analyzers", () => {
 
     expect(findings[0].pattern).toBe("JWT");
     expect(findings[0].preview).not.toContain("eyJzdWIiOiIxMjM0NTY3ODkwIn0");
+    expect(DEFAULT_SENSITIVE_DATA_RULES.some((rule) => rule.name === "JWT")).toBe(true);
   });
 
   it("detects response-header and WebSocket secret patterns", () => {
@@ -357,6 +387,13 @@ describe("advanced testing analyzers", () => {
     expect(findings.map((finding) => finding.pattern)).toEqual(
       expect.arrayContaining(["Private key", "AWS access key", "Secret assignment"])
     );
+  });
+
+  it("caps repeated secret matches per text source", () => {
+    const keys = Array.from({ length: 10 }, (_, index) => `AKIA${String(index).padStart(16, "A")}`).join(" ");
+    const findings = detectSensitiveData([capture({ responseBody: keys })]);
+
+    expect(findings.filter((finding) => finding.pattern === "AWS access key")).toHaveLength(6);
   });
 
   it("flags cache and header behavior signals", () => {
@@ -397,5 +434,50 @@ describe("advanced testing analyzers", () => {
 
     expect(summary.proxyGuidance.map((item) => item.id)).toEqual(["mobile-device", "thick-client", "cli"]);
     expect(summary.apiImport.ok).toBe(true);
+    expect(summary.authComparisons).toEqual([]);
+    expect(summary.secretRules.length).toBeGreaterThan(0);
+  });
+
+  it("builds workflow drafts from imported APIs and advanced local signals", () => {
+    const importResult = parseApiImport(
+      JSON.stringify({
+        openapi: "3.0.0",
+        servers: [{ url: "https://api.example.test" }],
+        paths: { "/users": { get: { operationId: "listUsers" } } }
+      })
+    );
+    const graphql = analyzeGraphQl([
+      capture({
+        id: "graphql-workflow",
+        method: "POST",
+        url: "https://api.example.test/graphql",
+        requestHeaders: { "Content-Type": "application/json" },
+        requestBody: JSON.stringify({ query: "mutation UpdateUser($id: ID) { updateUser(id: $id) { id } }", variables: { id: "1" } })
+      })
+    ]);
+    const authRows = buildAuthMatrix([
+      capture({ id: "anon-workflow", status: 401, requestHeaders: {} }),
+      capture({ id: "auth-workflow", status: 200, requestHeaders: { Authorization: "Bearer token" } })
+    ]);
+    const parameter = discoverParameters([capture({ url: "https://api.example.test/v1/users?role=admin" })])[0];
+    const headerSignal = analyzeHeaderBehavior([
+      capture({
+        requestHeaders: { Authorization: "Bearer token" },
+        responseHeaders: { "Cache-Control": "public, max-age=3600" }
+      })
+    ])[0];
+    const secret = detectSensitiveData([
+      capture({ responseBody: "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signaturepart123" })
+    ])[0];
+
+    expect(workflowDraftFromApiImport(importResult)?.steps.map((step) => step.kind)).toEqual(
+      expect.arrayContaining(["security-headers", "cors-policy", "cache-control", "metadata-exposure"])
+    );
+    expect(workflowDraftFromGraphQlOperation(graphql.operations[0]).name).toContain("GraphQL");
+    expect(workflowDraftFromAuthMatrixRow(authRows[0]).mode).toBe("active");
+    expect(workflowDraftFromParameter(parameter).steps[0].config.parameter).toBe("role");
+    expect(workflowDraftFromHeaderSignal(headerSignal).steps[0].kind).toBe("cache-control");
+    expect(workflowDraftFromSecret(secret).steps[0].config.pattern).toBe("JWT");
+    expect(workflowDraftFromApiImport(parseApiImport("{"))).toBeNull();
   });
 });

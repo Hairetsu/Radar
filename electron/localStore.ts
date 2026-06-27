@@ -43,6 +43,8 @@ import type {
   WebSocketDirection,
   WebSocketEvent,
   WorkflowDefinition,
+  PluginAuditEntry,
+  WorkflowRevision,
   WorkflowRun
 } from "../shared/domain.js";
 import {
@@ -53,15 +55,31 @@ import {
 import { normalizeEvidenceAnnotation, normalizeEvidenceAnnotations } from "../shared/evidenceTags.js";
 import { MAX_AGENT_RUN_MEMORY, normalizeAgentRunMemory, normalizeAgentRunMemoryList } from "../shared/agentMemory.js";
 import { MAX_FINDINGS, normalizeFinding, normalizeFindings } from "../shared/findings.js";
-import { approveInstalledPlugin, MAX_PLUGINS, normalizeInstalledPlugin, normalizeInstalledPlugins } from "../shared/plugins.js";
+import {
+  approveInstalledPlugin,
+  MAX_PLUGIN_AUDIT_ENTRIES,
+  MAX_PLUGINS,
+  normalizeInstalledPlugin,
+  normalizeInstalledPlugins,
+  normalizePluginAuditEntries,
+  normalizePluginAuditEntry
+} from "../shared/plugins.js";
 import { MAX_PROJECT_NOTES, MAX_SAVED_VIEWS, normalizeProjectNote, normalizeSavedView } from "../shared/projectArtifacts.js";
 import { normalizeReplayCollections } from "../shared/replayCollections.js";
 import { normalizeReplayEnvironments } from "../shared/replayVariables.js";
 import { normalizeReplayTabState } from "../shared/replayTabs.js";
 import { normalizeSavedFilters } from "../shared/savedFilters.js";
-import { MAX_WORKFLOWS, normalizeWorkflowDefinition, normalizeWorkflowDefinitions, normalizeWorkflowRun, normalizeWorkflowRuns } from "../shared/workflows.js";
+import {
+  createWorkflowRevision,
+  MAX_WORKFLOWS,
+  normalizeWorkflowDefinition,
+  normalizeWorkflowDefinitions,
+  normalizeWorkflowRevision,
+  normalizeWorkflowRun,
+  normalizeWorkflowRuns
+} from "../shared/workflows.js";
 
-export const LOCAL_STORE_SCHEMA_VERSION = 15;
+export const LOCAL_STORE_SCHEMA_VERSION = 16;
 
 const SCHEMA_VERSION = String(LOCAL_STORE_SCHEMA_VERSION);
 const DEFAULT_PROFILE_NAME = "Local Operator";
@@ -221,6 +239,10 @@ type WorkflowDefinitionRow = {
   workflow_json: string;
 };
 
+type WorkflowRevisionRow = {
+  revision_json: string;
+};
+
 type WorkflowRunRow = {
   id: string;
   started_at: string;
@@ -229,6 +251,10 @@ type WorkflowRunRow = {
 
 type PluginRow = {
   plugin_json: string;
+};
+
+type PluginAuditRow = {
+  audit_json: string;
 };
 
 function nowIso() {
@@ -831,12 +857,30 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (workspace_id, position)
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_workflow_revisions (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      workflow_id TEXT NOT NULL,
+      revision_id TEXT NOT NULL,
+      saved_at TEXT NOT NULL,
+      revision_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, workflow_id, revision_id)
+    );
+
     CREATE TABLE IF NOT EXISTS workspace_plugins (
       workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       plugin_json TEXT NOT NULL,
       PRIMARY KEY (workspace_id, plugin_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_plugin_audit (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      id TEXT NOT NULL,
+      plugin_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      audit_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, id)
     );
 
     CREATE TABLE IF NOT EXISTS session_automate_sessions (
@@ -881,8 +925,12 @@ export function openLocalStore(userDataPath: string) {
       ON session_findings(session_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workflow_runs_session_started
       ON session_workflow_runs(session_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_workflow_revisions_saved
+      ON workspace_workflow_revisions(workspace_id, workflow_id, saved_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workspace_plugins_updated
       ON workspace_plugins(workspace_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_plugin_audit_created
+      ON workspace_plugin_audit(workspace_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workspace_notes_updated
       ON workspace_project_notes(workspace_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workspace_saved_views_updated
@@ -1531,13 +1579,55 @@ export function openLocalStore(userDataPath: string) {
     return next;
   };
 
+  const listWorkflowRevisions = (workspaceId: string, workflowId: string, limit = 40) => {
+    const rows = db
+      .prepare(
+        "SELECT revision_json FROM workspace_workflow_revisions WHERE workspace_id = ? AND workflow_id = ? ORDER BY saved_at DESC, revision_id DESC LIMIT ?"
+      )
+      .all(workspaceId, workflowId, Math.max(1, Math.min(Number(limit) || 40, 80))) as WorkflowRevisionRow[];
+    return rows
+      .map((row) => normalizeWorkflowRevision(parseJsonObject<WorkflowRevision | null>(row.revision_json, null)))
+      .filter((entry): entry is WorkflowRevision => Boolean(entry));
+  };
+
+  const appendWorkflowRevision = (workspaceId: string, input: WorkflowRevision) => {
+    const revision = normalizeWorkflowRevision(input);
+    if (!revision) {
+      throw new Error("Workflow revision was invalid.");
+    }
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO workspace_workflow_revisions (workspace_id, workflow_id, revision_id, saved_at, revision_json)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(workspace_id, workflow_id, revision_id) DO UPDATE SET
+          saved_at = excluded.saved_at,
+          revision_json = excluded.revision_json
+      `).run(workspaceId, revision.workflowId, revision.id, revision.savedAt, JSON.stringify(revision));
+      db.prepare(`
+        DELETE FROM workspace_workflow_revisions
+        WHERE workspace_id = ?
+          AND workflow_id = ?
+          AND revision_id NOT IN (
+            SELECT revision_id FROM workspace_workflow_revisions
+            WHERE workspace_id = ? AND workflow_id = ?
+            ORDER BY saved_at DESC, revision_id DESC
+            LIMIT 80
+          )
+      `).run(workspaceId, revision.workflowId, workspaceId, revision.workflowId);
+    });
+    return revision;
+  };
+
   const upsertWorkflowDefinition = (workspaceId: string, input: WorkflowDefinition) => {
     const workflow = normalizeWorkflowDefinition({ ...input, builtIn: false, updatedAt: nowIso() });
     if (!workflow) {
       throw new Error("Workflow definition was invalid.");
     }
     const existing = listWorkflowDefinitions(workspaceId);
-    return setWorkflowDefinitions(workspaceId, [workflow, ...existing.filter((item) => item.id !== workflow.id)])[0];
+    const previous = existing.find((item) => item.id === workflow.id) || null;
+    const saved = setWorkflowDefinitions(workspaceId, [workflow, ...existing.filter((item) => item.id !== workflow.id)])[0];
+    appendWorkflowRevision(workspaceId, createWorkflowRevision(saved, previous));
+    return saved;
   };
 
   const deleteWorkflowDefinition = (workspaceId: string, workflowId: string) => {
@@ -1610,6 +1700,43 @@ export function openLocalStore(userDataPath: string) {
       db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
     });
     return listPlugins(workspaceId);
+  };
+
+  const listPluginAudit = (workspaceId: string, limit = 80) => {
+    const rows = db
+      .prepare("SELECT audit_json FROM workspace_plugin_audit WHERE workspace_id = ? ORDER BY created_at DESC, id DESC LIMIT ?")
+      .all(workspaceId, Math.max(1, Math.min(Number(limit) || 80, MAX_PLUGIN_AUDIT_ENTRIES))) as PluginAuditRow[];
+    return normalizePluginAuditEntries(
+      rows.map((row) => parseJsonObject<PluginAuditEntry | null>(row.audit_json, null)).filter(Boolean)
+    );
+  };
+
+  const appendPluginAudit = (workspaceId: string, input: PluginAuditEntry) => {
+    const entry = normalizePluginAuditEntry(input);
+    if (!entry) {
+      throw new Error("Plugin audit entry was invalid.");
+    }
+    runImmediateTransaction(db, () => {
+      db.prepare(`
+        INSERT INTO workspace_plugin_audit (workspace_id, id, plugin_id, created_at, audit_json)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
+          plugin_id = excluded.plugin_id,
+          created_at = excluded.created_at,
+          audit_json = excluded.audit_json
+      `).run(workspaceId, entry.id, entry.pluginId, entry.createdAt, JSON.stringify(entry));
+      db.prepare(`
+        DELETE FROM workspace_plugin_audit
+        WHERE workspace_id = ?
+          AND id NOT IN (
+            SELECT id FROM workspace_plugin_audit
+            WHERE workspace_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+          )
+      `).run(workspaceId, workspaceId, MAX_PLUGIN_AUDIT_ENTRIES);
+    });
+    return entry;
   };
 
   const listAutomateSessions = (sessionId: string, limit = 25) => {
@@ -2073,6 +2200,8 @@ export function openLocalStore(userDataPath: string) {
     setAutomatePayloadSets,
     listWorkflowDefinitions,
     setWorkflowDefinitions,
+    listWorkflowRevisions,
+    appendWorkflowRevision,
     upsertWorkflowDefinition,
     deleteWorkflowDefinition,
     listPlugins,
@@ -2081,6 +2210,8 @@ export function openLocalStore(userDataPath: string) {
     approvePlugin,
     setPluginStatus,
     deletePlugin,
+    listPluginAudit,
+    appendPluginAudit,
     listAutomateSessions,
     getAutomateSession,
     upsertAutomateSession,

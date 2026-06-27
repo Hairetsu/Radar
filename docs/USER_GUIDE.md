@@ -880,19 +880,30 @@ Every saved finding needs at least one evidence reference. Radar stores referenc
 The editor tracks:
 
 - Severity and confidence.
-- Status: draft, reviewed, accepted-risk, retest-passed, or retest-failed.
+- Status: draft, needs-evidence, reviewed, accepted-risk, fixed-pending-retest, retest-passed, or retest-failed.
+- Component, owner, and assignee.
 - Affected assets.
 - Reproduction steps.
 - Impact.
 - Remediation.
-- Notes and owner.
+- Notes.
 - Retest result.
 
 Use **Attach Capture** or **Attach Automate** to add current-session evidence to an existing finding during retest. Update the retest result and set status to **retest-passed** or **retest-failed** before export.
 
+The finding queue can be narrowed by text, status, severity, owner/assignee, and component. Radar also shows duplicate merge suggestions when findings share evidence, title terms, template, severity, component, or affected assets. Merges are operator-controlled: click **Merge** only after reviewing the primary and duplicate records.
+
 ### Report Export
 
-The report builder generates Markdown or HTML from the local findings inbox. Reviewed findings are included by default. Draft findings are opt-in. The evidence appendix is included by default with sensitive-looking metadata redacted; enable **Raw evidence** only when you intentionally want unredacted appendix metadata in the export preview.
+The report builder generates Markdown or HTML from the local findings inbox. Choose a local preset:
+
+| Preset | Use |
+| --- | --- |
+| **client-report** | Reviewed findings, redacted appendix, validation warnings, and retest matrix for deliverables. |
+| **internal-notes** | Draft-inclusive internal working notes with appendix and retest matrix. |
+| **raw-technical-appendix** | Draft-inclusive technical appendix with raw evidence metadata after explicit opt-in. |
+
+Add a report title, executive summary, methodology, scope, limitations, and change log when needed. Reviewed findings are included by default. Draft findings are opt-in. The evidence appendix is included by default with sensitive-looking metadata redacted; enable **Raw evidence** only when you intentionally want unredacted appendix metadata in the export preview. Client-report builds show validation warnings for missing evidence, reproduction, impact, or remediation.
 
 Use **Copy** to place the generated report on the clipboard or **Download** to save a `.md` or `.html` file.
 
@@ -900,7 +911,7 @@ Use **Copy** to place the generated report on the clipboard or **Download** to s
 
 Workflows are repeatable checks for the active workspace. They can be passive checks over scoped captures or active checks that send strictly bounded replay requests through the same scope-checked Repeater path.
 
-Open **07 Workflows** to see the catalog, definition editor, run inputs, run history, and result detail panes.
+Open **07 Workflows** to see the catalog, visual graph, step templates, definition editor, dry-run validation, run inputs, version history, run history, and result detail panes.
 
 ![Radar Workflows view](screens/radar-08-workflows.png)
 
@@ -928,6 +939,20 @@ The definition editor accepts JSON or a constrained YAML-like syntax. Workflow d
 
 Click **Save** to persist a custom workflow to the active workspace. Built-ins cannot be overwritten or deleted, but you can save an edited copy with a new id.
 
+### Graph, Templates, And Dry Run
+
+The Workflows editor keeps the raw definition as the source of truth, but adds authoring controls around it:
+
+- **Visual Graph** shows each step in order, whether it is passive or active, and the condition label for branched steps.
+- **Step Templates** insert reusable steps for security headers, cookie flags, CORS, cache control, metadata exposure, active replay, and browser-open checks.
+- **Dry Run** validates the current draft and inputs before save/run. It reports invalid definitions, duplicate step ids, missing required inputs, branch-skipped steps, runnable steps, estimated active requests, and cap violations.
+
+Conditional steps use `condition.inputId` and `condition.equals`. A dry run compares those against current inputs and shows skipped steps without running traffic.
+
+### Version History
+
+Each saved custom workflow appends a local revision record. The **Definition Diffs** panel shows recent saves with compact added/removed/changed fields for workflow metadata, inputs, scope, and steps. Built-in workflows remain immutable; edited built-ins save as custom copies.
+
 ### Running Workflows
 
 Select a workflow and click **Run**. For active selected-capture workflows:
@@ -952,27 +977,33 @@ Pass and info results stay in workflow history and are not promoted to findings.
 
 ## Plugins
 
-Plugins are local extensions installed from disk into the active workspace. Radar supports manifest preview, explicit permission approval, a workspace-local install registry, a typed SDK/API boundary, approved panel inventory, and first-party examples under `plugins/examples/`.
+Plugins are local extensions installed from disk into the active workspace. Radar supports manifest preview, developer validation, explicit permission approval, a workspace-local install registry, trust and compatibility markers, a typed SDK/API boundary, sandboxed approved panel rendering, plugin action audit logs, and first-party examples under `plugins/examples/`.
 
 Open **08 Plugins** to manage local extensions.
 
 The Plugins view has three working areas:
 
-- **Install local plugin** previews a folder path before adding anything to the registry.
-- **Installed registry** shows each plugin's status, requested permissions, granted permissions, warnings, source path, and operator actions.
-- **Panel inventory** lists approved plugin panels that can render inside the Radar console when the plugin requested `ui:panel`.
+- **Install local plugin** previews or validates a folder path before adding anything to the registry.
+- **Installed registry** shows each plugin's status, trust marker, compatibility warnings, requested permissions, granted permissions, source path, and operator actions.
+- **Plugin operations** include approved panel sandbox rendering, bounded SDK action execution, and an audit ledger for plugin calls.
 
 Plugin records belong to the active workspace. Switching projects switches the visible plugin registry.
 
 ### Install A Local Plugin
 
 1. Enter a plugin folder path such as `plugins/examples/jwt-helper`.
-2. Click **Preview**.
-3. Review the manifest id, version, source path, entry file, requested permissions, panels, and warnings.
+2. Click **Validate** to check the manifest and referenced entry/panel files without installing, or click **Preview** to inspect the manifest.
+3. Review the manifest id, version, trust label, compatibility warnings, source path, entry file, requested permissions, panels, and warnings.
 4. Click **Install** to add the plugin as **pending**.
 5. Click **Approve** to grant the requested permissions.
 
 Radar looks for `.radar-plugin/plugin.json` first, then `plugin.json` at the plugin root. Install does not execute plugin code. Approval grants only permissions requested by the manifest.
+
+You can also validate from a terminal:
+
+```bash
+pnpm plugin:validate -- plugins/examples/jwt-helper
+```
 
 ### Manifest Shape
 
@@ -1046,6 +1077,24 @@ Permission warnings are surfaced during preview and in the registry. Higher-impa
 
 Disabled and blocked plugins cannot use approved permissions.
 
+### Panels, SDK Console, And Audit
+
+Approved panels require the `ui:panel` permission. Click **Render** on an approved panel to load it into a sandboxed iframe with scripts disabled. HTML panels render directly; JavaScript module panels are displayed as source in the sandbox preview instead of being executed.
+
+The **SDK Console** accepts a JSON request such as:
+
+```json
+{
+  "pluginId": "jwt-helper",
+  "action": "captures:list",
+  "input": { "query": "" }
+}
+```
+
+Supported actions map to the permissions below and always pass through Radar's scope, replay, workflow, and finding validation. The console is for Manual-First operator testing; AI-First cannot run hidden plugin actions.
+
+The **Audit ledger** records SDK action calls, panel renders, and developer validation with plugin id, plugin name, action, permission, result, message, input/output summaries, timing, and timestamp.
+
 ### SDK And Examples
 
 The SDK surface lives in `shared/pluginSdk.ts`; the Electron local API enforcement lives in `electron/pluginApi.ts`. Extension authors should build against the SDK methods and let Radar enforce permissions, scope filtering, replay caps, finding evidence validation, and workflow caps.
@@ -1086,16 +1135,17 @@ Open **09 Advanced** to review:
 ![Radar Advanced view](screens/radar-09-advanced.png)
 
 - GraphQL operations, transport, variables, batching, and introspection signals.
-- OpenAPI or Postman JSON pasted into a text-only import preview.
-- Auth matrix rows grouped by method, host, path, anonymous status, and authenticated status.
+- GraphQL operation groups and variable templates for review.
+- OpenAPI or Postman JSON pasted into an import preview that can save reviewed drafts to Repeater collections or load one draft into Repeater without sending traffic.
+- Auth matrix rows grouped by method, host, path, anonymous status, authenticated status, and auth-state comparison signals.
 - Parameters discovered across query strings, JSON bodies, forms, multipart fields, cookies, headers, GraphQL variables, and WebSocket JSON payloads.
-- Secret-shaped response or frame data detected locally with masked previews.
-- Cache, CORS, host-header, redirect, and cache-poisoning behavior signals.
+- Secret-shaped response or frame data detected locally with masked previews and rule-pack severity.
+- Cache, CORS, host-header, redirect, and cache-poisoning behavior signals that can prepare visible workflow drafts.
 - Mobile, thick-client, and CLI proxy guidance tied to Radar's explicit proxy setup.
 
 ### GraphQL Review
 
-Radar extracts GraphQL operations from scoped HTTP/S captures and WebSocket frames when the request path, content type, or JSON payload is GraphQL-shaped. Each row shows the operation name, type, transport, path, variable count, batching flag, and introspection flag.
+Radar extracts GraphQL operations from scoped HTTP/S captures and WebSocket frames when the request path, content type, or JSON payload is GraphQL-shaped. Each row shows the operation name, type, transport, path, variable count, batching flag, and introspection flag. The panel also reports grouped operations and variable templates such as `{ "id": "{{id}}" }` for manual Repeater or workflow use.
 
 Use this to find:
 
@@ -1103,6 +1153,8 @@ Use this to find:
 - Mutations that deserve authorization review.
 - Batched operations that may need rate-limit or authorization checks.
 - Variables that should be promoted to Repeater or Automate for manual testing.
+
+Click **Draft Workflow** on an operation to load a visible workflow draft into **07 Workflows**. The draft is not saved or run until the operator reviews it and clicks **Save** or **Run**.
 
 ### API Import Preview
 
@@ -1113,7 +1165,7 @@ Paste OpenAPI or Postman JSON into the import field. Radar previews:
 - Import source type and parse errors.
 - Operation tags and request paths.
 
-The preview is not a file import, collection save, or replay action. It does not transmit requests. Copy or recreate useful drafts manually in Repeater or Workflows after reviewing headers and bodies.
+The preview does not transmit requests. Click **Save** to store the reviewed draft templates in Repeater collections, **Load** to copy the first or selected template into Repeater, or **Draft** to prepare a visible workflow draft for the import. Loading a template still requires a later **Transmit** click in Repeater before any request is sent.
 
 ### Auth Matrix
 
@@ -1129,7 +1181,7 @@ Verdicts:
 | **observed** | Only one auth state was seen. |
 | **ambiguous** | Multiple states were seen, but the status pattern is not conclusive. |
 
-Use the matrix as a triage surface, not proof. Confirm interesting rows manually in Repeater or with a saved workflow.
+Use the matrix as a triage surface, not proof. Radar also compares observed auth states and labels same, auth-gain, auth-loss, or status-change behavior when enough evidence exists. Click **Draft Workflow** on a row to prepare a bounded unauthenticated replay workflow for visible review.
 
 ### Parameter Discovery
 
@@ -1144,13 +1196,13 @@ Parameter discovery is local and evidence-driven. Radar records parameter names,
 - GraphQL variables.
 - WebSocket JSON keys.
 
-Use parameter names to decide where to add explicit Automate markers or where a workflow should focus.
+Use parameter names to decide where to add explicit Automate markers or where a workflow should focus. Click the parameter draft control to prepare a metadata-review workflow draft for the selected parameter.
 
 ### Local Secret Signals
 
-Secret detection scans scoped response bodies, selected response headers, and WebSocket payloads with local-only rules. Previews are masked before display. Radar currently flags secret-shaped content such as private keys, AWS access keys, JWTs, Stripe keys, Slack tokens, and generic token/secret assignments.
+Secret detection scans scoped response bodies, selected response headers, and WebSocket payloads with a local-only rule pack. Rules have ids, names, severity, and enabled state. Previews are masked before display. Radar currently flags secret-shaped content such as private keys, AWS access keys, JWTs, Stripe keys, Slack tokens, and generic token/secret assignments.
 
-These signals are not sent to AI unless you explicitly include raw context elsewhere. Treat detections as review leads and confirm against the selected capture or frame before creating a finding.
+These signals are not sent to AI unless you explicitly include raw context elsewhere. Treat detections as review leads and confirm against the selected capture or frame before creating a finding. Click **Draft Workflow** to prepare a visible metadata-review workflow for a selected signal.
 
 ### Header And Cache Behavior
 
@@ -1162,7 +1214,7 @@ The header behavior panel surfaces local observations that may deserve manual te
 - Host override values reflected in redirects or body content.
 - Cross-host redirects.
 
-Use these as bounded review hints. Active cache-poisoning or header-behavior probes still belong in Repeater or a scoped workflow the operator runs visibly.
+Use these as bounded review hints. Click **Draft Workflow** on a header signal to prepare a cache, CORS, or security-header workflow draft. Active cache-poisoning or header-behavior probes still belong in Repeater or a scoped workflow the operator reviews and runs visibly.
 
 ### Proxy Guidance
 
@@ -1176,7 +1228,7 @@ Use it alongside **12 SSL** proxy details and profile notes. Radar still require
 
 ### AI-First Visibility
 
-AI-First can switch to **09 Advanced** and call `getAdvancedTestingSummary`. The tool reads scoped local evidence and returns GraphQL, import-preview, auth matrix, parameter, secret, header behavior, and proxy guidance summaries. It cannot paste import JSON, import files, save collections, send imported requests, or run active probes.
+AI-First can switch to **09 Advanced** and call `getAdvancedTestingSummary`. The tool reads scoped local evidence and returns GraphQL groups/templates, import-preview, auth matrix/comparison, parameter, local secret-rule, header behavior, and proxy guidance summaries. It cannot paste import JSON, import files, save collections, send imported requests, save workflows, or run active probes.
 
 ## SSL And Proxy
 
@@ -1603,11 +1655,13 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 2. Open **06 Findings**.
 3. Choose a template.
 4. Click **Capture**, **Frame**, or **Automate**.
-5. Fill in reproduction, impact, remediation, affected assets, owner, and notes.
+5. Fill in reproduction, impact, remediation, affected assets, component, owner, assignee, and notes.
 6. Set status to **reviewed** when the finding is ready.
-7. Build a Markdown or HTML report preview.
-8. Leave **Raw evidence** off unless the appendix intentionally needs unredacted metadata.
-9. Copy or download the report.
+7. Use finding filters and merge suggestions to clean up duplicate drafts.
+8. Choose a report preset and add narrative sections such as executive summary, methodology, scope, limitations, and change log.
+9. Build a Markdown or HTML report preview and review validation warnings plus the retest matrix.
+10. Leave **Raw evidence** off unless the appendix intentionally needs unredacted metadata.
+11. Copy or download the report.
 
 ### Create Report Notes
 
@@ -1656,11 +1710,14 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 1. Capture target traffic under **11 Scope**.
 2. Open **09 Advanced**.
 3. Review GraphQL operations for mutations, batching, variables, and introspection.
-4. Paste OpenAPI or Postman JSON if you want text-only replay-template and sitemap-seed previews.
-5. Use the auth matrix to identify public, protected, and changed endpoint behavior.
-6. Review parameter discovery before adding explicit Automate markers.
-7. Confirm local secret or header/cache behavior signals against the original capture or frame.
-8. Move confirmed hypotheses into Repeater, Workflows, or Findings manually.
+4. Review GraphQL groups and variable templates; prepare a workflow draft only after checking the visible operation.
+5. Paste OpenAPI or Postman JSON if you want replay-template and sitemap-seed previews.
+6. Save reviewed import templates into Repeater collections, or load one template into Repeater for manual editing.
+7. Use the auth matrix and auth comparison counts to identify public, protected, and changed endpoint behavior.
+8. Review parameter discovery before adding explicit Automate markers.
+9. Confirm local secret or header/cache behavior signals against the original capture or frame.
+10. Prepare visible workflow drafts from interesting Advanced signals, then review/save/run them in **07 Workflows** manually.
+11. Move confirmed hypotheses into Repeater, Workflows, or Findings manually.
 
 ## Troubleshooting
 

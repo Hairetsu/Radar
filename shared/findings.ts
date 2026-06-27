@@ -9,6 +9,7 @@ import type {
   FindingEvidenceRef,
   FindingReport,
   FindingReportOptions,
+  FindingReportPreset,
   FindingSeverity,
   FindingTemplateId,
   ReplayHistoryEntry,
@@ -23,8 +24,74 @@ export const MAX_FINDING_LINE = 240;
 
 const findingSeverities = ["info", "low", "medium", "high", "critical"] as const;
 const findingConfidences = ["low", "medium", "high"] as const;
-const findingStatuses = ["draft", "reviewed", "accepted-risk", "retest-passed", "retest-failed"] as const;
+const findingStatuses = [
+  "draft",
+  "needs-evidence",
+  "reviewed",
+  "accepted-risk",
+  "fixed-pending-retest",
+  "retest-passed",
+  "retest-failed"
+] as const;
 const findingEvidenceKinds = ["capture", "websocket", "replay", "automate", "workflow", "ai"] as const;
+
+export type FindingFilters = {
+  status?: string;
+  severity?: string;
+  owner?: string;
+  component?: string;
+  text?: string;
+};
+
+export type FindingMergeSuggestion = {
+  id: string;
+  primaryId: string;
+  duplicateId: string;
+  score: number;
+  reasons: string[];
+};
+
+export type RetestMatrixRow = {
+  id: string;
+  title: string;
+  severity: FindingSeverity;
+  component: string;
+  owner: string;
+  status: (typeof findingStatuses)[number];
+  retestState: "not-ready" | "pending" | "passed" | "failed" | "accepted-risk";
+  evidenceCount: number;
+  updatedAt: string;
+};
+
+export const FINDING_REPORT_PRESETS: Record<FindingReportPreset, FindingReportOptions> = {
+  "internal-notes": {
+    format: "markdown",
+    preset: "internal-notes",
+    title: "Radar Internal Notes",
+    includeDrafts: true,
+    includeAppendix: true,
+    includeRawEvidence: false,
+    includeRetestMatrix: true
+  },
+  "client-report": {
+    format: "markdown",
+    preset: "client-report",
+    title: "Radar Client Report",
+    includeDrafts: false,
+    includeAppendix: true,
+    includeRawEvidence: false,
+    includeRetestMatrix: true
+  },
+  "raw-technical-appendix": {
+    format: "markdown",
+    preset: "raw-technical-appendix",
+    title: "Radar Raw Technical Appendix",
+    includeDrafts: true,
+    includeAppendix: true,
+    includeRawEvidence: true,
+    includeRetestMatrix: true
+  }
+};
 
 export type FindingTemplate = {
   id: FindingTemplateId;
@@ -235,6 +302,7 @@ export function normalizeFinding(input: unknown, createdAt = nowIso()): Finding 
     severity: normalizeEnum(record.severity, findingSeverities, "medium"),
     confidence: normalizeEnum(record.confidence, findingConfidences, "medium"),
     status,
+    component: cleanLine(record.component),
     affectedAssets: cleanStringList(record.affectedAssets),
     evidence: uniqueEvidence,
     reproductionSteps: cleanText(record.reproductionSteps),
@@ -242,6 +310,7 @@ export function normalizeFinding(input: unknown, createdAt = nowIso()): Finding 
     remediation: cleanText(record.remediation),
     notes: cleanText(record.notes),
     owner: cleanLine(record.owner),
+    assignee: cleanLine(record.assignee),
     retestResult: cleanText(record.retestResult),
     source: record.source === "ai" || record.source === "automate" || record.source === "workflow" ? record.source : "manual",
     sourceId: cleanLine(record.sourceId) || undefined,
@@ -269,6 +338,7 @@ export function findingFromTemplate(templateId: FindingTemplateId, evidence: Fin
     severity: template.severity,
     confidence: template.confidence,
     status: "draft",
+    component: "",
     affectedAssets: [],
     evidence: evidence.slice(0, MAX_FINDING_EVIDENCE),
     reproductionSteps: "",
@@ -276,6 +346,7 @@ export function findingFromTemplate(templateId: FindingTemplateId, evidence: Fin
     remediation: template.remediation,
     notes: "",
     owner: "",
+    assignee: "",
     retestResult: "",
     source: "manual",
     createdAt,
@@ -391,6 +462,200 @@ export function deleteFinding(findings: Finding[], findingId: string) {
   return findings.filter((finding) => finding.id !== findingId);
 }
 
+function normalizedSearchText(value: string) {
+  return String(value || "").trim().toLowerCase();
+}
+
+export function filterFindings(findings: Finding[], filters: FindingFilters = {}) {
+  const status = normalizedSearchText(filters.status || "all");
+  const severity = normalizedSearchText(filters.severity || "all");
+  const owner = normalizedSearchText(filters.owner || "");
+  const component = normalizedSearchText(filters.component || "");
+  const text = normalizedSearchText(filters.text || "");
+  return findings.filter((finding) => {
+    if (status && status !== "all" && finding.status !== status) {
+      return false;
+    }
+    if (severity && severity !== "all" && finding.severity !== severity) {
+      return false;
+    }
+    if (owner && !normalizedSearchText(`${finding.owner} ${finding.assignee}`).includes(owner)) {
+      return false;
+    }
+    if (component && !normalizedSearchText(finding.component).includes(component)) {
+      return false;
+    }
+    if (!text) {
+      return true;
+    }
+    return normalizedSearchText(
+      [
+        finding.title,
+        finding.component,
+        finding.owner,
+        finding.assignee,
+        finding.affectedAssets.join(" "),
+        finding.reproductionSteps,
+        finding.impact,
+        finding.remediation,
+        finding.notes,
+        finding.evidence.map((ref) => `${ref.kind}:${ref.id} ${ref.label}`).join(" ")
+      ].join(" ")
+    ).includes(text);
+  });
+}
+
+function overlapScore(left: string[], right: string[]) {
+  const leftSet = new Set(left.map(normalizedSearchText).filter(Boolean));
+  const rightSet = new Set(right.map(normalizedSearchText).filter(Boolean));
+  if (leftSet.size === 0 || rightSet.size === 0) {
+    return 0;
+  }
+  let overlap = 0;
+  for (const item of leftSet) {
+    if (rightSet.has(item)) {
+      overlap += 1;
+    }
+  }
+  return overlap / Math.max(leftSet.size, rightSet.size);
+}
+
+function titleWords(value: string) {
+  return normalizedSearchText(value)
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 3)
+    .slice(0, 16);
+}
+
+export function suggestFindingMerges(findings: Finding[], limit = 12): FindingMergeSuggestion[] {
+  const suggestions: FindingMergeSuggestion[] = [];
+  for (let leftIndex = 0; leftIndex < findings.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < findings.length; rightIndex += 1) {
+      const left = findings[leftIndex];
+      const right = findings[rightIndex];
+      const reasons: string[] = [];
+      let score = 0;
+
+      if (left.templateId && left.templateId === right.templateId) {
+        score += 24;
+        reasons.push(`same template ${left.templateId}`);
+      }
+      if (left.component && left.component === right.component) {
+        score += 16;
+        reasons.push(`same component ${left.component}`);
+      }
+      if (left.severity === right.severity) {
+        score += 8;
+        reasons.push(`same severity ${left.severity}`);
+      }
+      const assetOverlap = overlapScore(left.affectedAssets, right.affectedAssets);
+      if (assetOverlap > 0) {
+        score += Math.round(assetOverlap * 24);
+        reasons.push("overlapping assets");
+      }
+      const evidenceOverlap = overlapScore(
+        left.evidence.map(evidenceRefKey),
+        right.evidence.map(evidenceRefKey)
+      );
+      if (evidenceOverlap > 0) {
+        score += Math.round(evidenceOverlap * 30);
+        reasons.push("shared evidence");
+      }
+      const titleOverlap = overlapScore(titleWords(left.title), titleWords(right.title));
+      if (titleOverlap >= 0.35) {
+        score += Math.round(titleOverlap * 20);
+        reasons.push("similar title");
+      }
+
+      if (score >= 32) {
+        const primary = left.updatedAt >= right.updatedAt ? left : right;
+        const duplicate = primary.id === left.id ? right : left;
+        suggestions.push({
+          id: `${primary.id}:${duplicate.id}`,
+          primaryId: primary.id,
+          duplicateId: duplicate.id,
+          score,
+          reasons
+        });
+      }
+    }
+  }
+  return suggestions
+    .sort((left, right) => right.score - left.score || left.primaryId.localeCompare(right.primaryId))
+    .slice(0, limit);
+}
+
+function joinUniqueLines(...values: string[]) {
+  return Array.from(
+    new Set(
+      values
+        .flatMap((value) => String(value || "").split(/\n+/))
+        .map((line) => line.trim())
+        .filter(Boolean)
+    )
+  ).join("\n");
+}
+
+export function mergeFindings(primary: Finding, duplicate: Finding, mergedAt = nowIso()): Finding {
+  const evidence = Array.from(
+    new Map([...primary.evidence, ...duplicate.evidence].map((ref) => [evidenceRefKey(ref), ref])).values()
+  ).slice(0, MAX_FINDING_EVIDENCE);
+  const severity = findingSeverities.indexOf(duplicate.severity) > findingSeverities.indexOf(primary.severity)
+    ? duplicate.severity
+    : primary.severity;
+  const confidence = findingConfidences.indexOf(duplicate.confidence) > findingConfidences.indexOf(primary.confidence)
+    ? duplicate.confidence
+    : primary.confidence;
+  const merged = normalizeFinding(
+    {
+      ...primary,
+      severity,
+      confidence,
+      component: primary.component || duplicate.component,
+      affectedAssets: Array.from(new Set([...primary.affectedAssets, ...duplicate.affectedAssets])),
+      evidence,
+      reproductionSteps: joinUniqueLines(primary.reproductionSteps, duplicate.reproductionSteps),
+      impact: joinUniqueLines(primary.impact, duplicate.impact),
+      remediation: joinUniqueLines(primary.remediation, duplicate.remediation),
+      notes: joinUniqueLines(primary.notes, duplicate.notes, `Merged duplicate finding ${duplicate.id} on ${mergedAt}.`),
+      owner: primary.owner || duplicate.owner,
+      assignee: primary.assignee || duplicate.assignee,
+      retestResult: joinUniqueLines(primary.retestResult, duplicate.retestResult),
+      updatedAt: mergedAt
+    },
+    primary.createdAt
+  );
+  return merged || { ...primary, updatedAt: mergedAt };
+}
+
+export function buildRetestMatrix(findings: Finding[]): RetestMatrixRow[] {
+  return findings.map((finding) => {
+    const retestState: RetestMatrixRow["retestState"] =
+      finding.status === "retest-passed"
+        ? "passed"
+        : finding.status === "retest-failed"
+          ? "failed"
+          : finding.status === "accepted-risk"
+            ? "accepted-risk"
+            : finding.status === "fixed-pending-retest"
+              ? "pending"
+              : finding.evidence.length > 0
+                ? "not-ready"
+                : "not-ready";
+    return {
+      id: finding.id,
+      title: finding.title,
+      severity: finding.severity,
+      component: finding.component,
+      owner: finding.owner || finding.assignee,
+      status: finding.status,
+      retestState,
+      evidenceCount: finding.evidence.length,
+      updatedAt: finding.updatedAt
+    };
+  });
+}
+
 function markdownEscape(value: string) {
   return value.replace(/\r/g, "").trim();
 }
@@ -429,7 +694,9 @@ function findingMarkdown(finding: Finding, raw: boolean) {
     `Severity: ${finding.severity}`,
     `Confidence: ${finding.confidence}`,
     `Status: ${finding.status}`,
+    finding.component ? `Component: ${markdownEscape(finding.component)}` : "",
     finding.owner ? `Owner: ${markdownEscape(finding.owner)}` : "",
+    finding.assignee ? `Assignee: ${markdownEscape(finding.assignee)}` : "",
     finding.affectedAssets.length ? `Affected assets: ${finding.affectedAssets.join(", ")}` : "",
     "",
     "### Evidence",
@@ -466,6 +733,39 @@ function appendixMarkdown(findings: Finding[], raw: boolean) {
   ].join("\n");
 }
 
+function markdownSection(title: string, body?: string) {
+  const text = markdownEscape(body || "");
+  if (!text) {
+    return "";
+  }
+  return [`# ${title}`, "", text].join("\n");
+}
+
+function retestMatrixMarkdown(findings: Finding[]) {
+  const rows = buildRetestMatrix(findings);
+  if (rows.length === 0) {
+    return "";
+  }
+  return [
+    "# Retest Matrix",
+    "",
+    "| Finding | Severity | Component | Owner | Status | Retest | Evidence | Updated |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...rows.map((row) =>
+      [
+        markdownEscape(row.title).replace(/\|/g, "\\|"),
+        row.severity,
+        markdownEscape(row.component || "-").replace(/\|/g, "\\|"),
+        markdownEscape(row.owner || "-").replace(/\|/g, "\\|"),
+        row.status,
+        row.retestState,
+        String(row.evidenceCount),
+        row.updatedAt
+      ].join(" | ")
+    )
+  ].join("\n");
+}
+
 function markdownToHtml(markdown: string) {
   return markdown
     .split("\n")
@@ -478,6 +778,9 @@ function markdownToHtml(markdown: string) {
       }
       if (line.startsWith("### ")) {
         return `<h3>${htmlEscape(line.slice(4))}</h3>`;
+      }
+      if (line.startsWith("| ")) {
+        return `<pre>${htmlEscape(line)}</pre>`;
       }
       if (line.startsWith("- ")) {
         return `<li>${htmlEscape(line.slice(2))}</li>`;
@@ -493,30 +796,69 @@ export function buildFindingReport(
   options: Partial<FindingReportOptions> = {},
   title = "Radar Findings Report"
 ): FindingReport {
+  const preset = options.preset ? FINDING_REPORT_PRESETS[options.preset] : undefined;
   const reportOptions: FindingReportOptions = {
-    format: options.format || "markdown",
-    includeDrafts: Boolean(options.includeDrafts),
-    includeAppendix: options.includeAppendix !== false,
-    includeRawEvidence: Boolean(options.includeRawEvidence)
+    ...(preset || FINDING_REPORT_PRESETS["client-report"]),
+    ...options,
+    format: options.format || preset?.format || "markdown",
+    title: options.title || preset?.title || title,
+    includeDrafts: options.includeDrafts ?? Boolean(preset?.includeDrafts),
+    includeAppendix: options.includeAppendix ?? preset?.includeAppendix ?? true,
+    includeRawEvidence: options.includeRawEvidence ?? Boolean(preset?.includeRawEvidence),
+    includeRetestMatrix: options.includeRetestMatrix ?? preset?.includeRetestMatrix ?? true
   };
   const generatedAt = nowIso();
-  const included = findings.filter((finding) => reportOptions.includeDrafts || finding.status !== "draft");
+  const selectedIds = new Set(reportOptions.findingIds || []);
+  const included = findings.filter((finding) => {
+    if (selectedIds.size > 0 && !selectedIds.has(finding.id)) {
+      return false;
+    }
+    return reportOptions.includeDrafts || finding.status !== "draft";
+  });
+  const validationWarnings =
+    reportOptions.preset === "client-report"
+      ? included.flatMap((finding) => {
+          const warnings: string[] = [];
+          if (finding.evidence.length === 0) {
+            warnings.push(`${finding.title}: missing evidence`);
+          }
+          if (!finding.reproductionSteps.trim()) {
+            warnings.push(`${finding.title}: missing reproduction`);
+          }
+          if (!finding.impact.trim()) {
+            warnings.push(`${finding.title}: missing impact`);
+          }
+          if (!finding.remediation.trim()) {
+            warnings.push(`${finding.title}: missing remediation`);
+          }
+          return warnings;
+        })
+      : [];
   const bodyMarkdown = [
-    `# ${title}`,
+    `# ${reportOptions.title || title}`,
     "",
     `Generated: ${generatedAt}`,
     `Findings: ${included.length}`,
+    reportOptions.preset ? `Preset: ${reportOptions.preset}` : "",
+    validationWarnings.length > 0 ? `Validation warnings: ${validationWarnings.length}` : "",
     "",
+    markdownSection("Executive Summary", reportOptions.executiveSummary),
+    markdownSection("Methodology", reportOptions.methodology),
+    markdownSection("Scope", reportOptions.scopeSummary),
+    markdownSection("Limitations", reportOptions.limitations),
     ...included.map((finding) => findingMarkdown(finding, reportOptions.includeRawEvidence)),
+    reportOptions.includeRetestMatrix ? retestMatrixMarkdown(included) : "",
+    markdownSection("Change Log", reportOptions.changeLog),
     reportOptions.includeAppendix ? appendixMarkdown(included, reportOptions.includeRawEvidence) : ""
   ]
     .filter(Boolean)
     .join("\n\n");
   return {
     format: reportOptions.format,
-    title,
+    title: reportOptions.title || title,
     generatedAt,
     findingCount: included.length,
-    body: reportOptions.format === "html" ? markdownToHtml(bodyMarkdown) : bodyMarkdown
+    body: reportOptions.format === "html" ? markdownToHtml(bodyMarkdown) : bodyMarkdown,
+    validationWarnings
   };
 }

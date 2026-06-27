@@ -13,7 +13,15 @@ import {
 import { buildSitemap, sitemapQueryForNode, type SitemapNode } from "../../shared/sitemap.js";
 import { endpointInventoryForNode } from "../../shared/endpointInventory.js";
 import { diffSessionCaptures, type SessionDiffResult } from "../../shared/sessionDiff.js";
-import { buildAdvancedTestingSummary } from "../../shared/advancedTesting.js";
+import {
+  buildAdvancedTestingSummary,
+  workflowDraftFromApiImport,
+  workflowDraftFromAuthMatrixRow,
+  workflowDraftFromGraphQlOperation,
+  workflowDraftFromHeaderSignal,
+  workflowDraftFromParameter,
+  workflowDraftFromSecret
+} from "../../shared/advancedTesting.js";
 import { AGENT_RUN_PROFILES, agentBudgetLabels, getAgentRunProfile } from "../../shared/agentProfiles.js";
 import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
 import { annotationContext } from "../../shared/evidenceTags.js";
@@ -24,7 +32,7 @@ import {
   defaultReplayTabState,
   normalizeReplayTabState
 } from "../../shared/replayTabs.js";
-import { createCollectionItem } from "../../shared/replayCollections.js";
+import { createCollectionItem, normalizeReplayCollections } from "../../shared/replayCollections.js";
 import { createReplayEnvironment } from "../../shared/replayVariables.js";
 import { webSocketFrameToDraft } from "../../shared/websocketReplay.js";
 import {
@@ -46,13 +54,21 @@ import {
   evidenceRefFromWebSocket,
   FINDING_TEMPLATES,
   findingFromTemplate,
-  normalizeFinding
+  buildRetestMatrix,
+  mergeFindings as mergeFindingRecords,
+  normalizeFinding,
+  suggestFindingMerges
 } from "../../shared/findings.js";
 import {
   filterCapturesByQuery,
   filterWebSocketEventsByQuery,
   TRAFFIC_QUERY_EXAMPLES
 } from "../../shared/trafficQuery.js";
+import {
+  WORKFLOW_STEP_TEMPLATES,
+  validateWorkflowDraft,
+  workflowToGraph
+} from "../../shared/workflows.js";
 import type {
   BrowserState,
   BurstResult,
@@ -98,8 +114,15 @@ import type {
   AutomateResult,
   AutomateSession,
   WorkflowDefinition,
+  WorkflowDryRun,
+  WorkflowRevision,
   WorkflowRun,
+  PluginApiRequest,
+  PluginApiResult,
+  PluginAuditEntry,
+  PluginDeveloperValidation,
   PluginInstallPreview,
+  PluginPanelRender,
   PluginPermission,
   PluginInstallStatus,
   GlobalSearchResponse,
@@ -480,9 +503,16 @@ export function useRadarWorkbench() {
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [selectedWorkflowRunId, setSelectedWorkflowRunId] = useState("");
+  const [workflowDryRun, setWorkflowDryRun] = useState<WorkflowDryRun>(() => validateWorkflowDraft(""));
+  const [workflowRevisions, setWorkflowRevisions] = useState<WorkflowRevision[]>([]);
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
   const [pluginInstallPath, setPluginInstallPath] = useState("");
   const [pluginInstallPreview, setPluginInstallPreview] = useState<PluginInstallPreview | null>(null);
+  const [pluginAudit, setPluginAudit] = useState<PluginAuditEntry[]>([]);
+  const [pluginApiRequestText, setPluginApiRequestText] = useState("");
+  const [pluginApiResult, setPluginApiResult] = useState<PluginApiResult | null>(null);
+  const [pluginPanelRender, setPluginPanelRender] = useState<PluginPanelRender | null>(null);
+  const [pluginDeveloperValidation, setPluginDeveloperValidation] = useState<PluginDeveloperValidation | null>(null);
   const [advancedImportText, setAdvancedImportText] = useState("");
   const [selectedSitemapNodeId, setSelectedSitemapNodeId] = useState("");
   const [diffBaselineSessionId, setDiffBaselineSessionId] = useState("");
@@ -634,10 +664,16 @@ export function useRadarWorkbench() {
     [findings, selectedFindingId]
   );
 
+  const findingMergeSuggestions = useMemo(() => suggestFindingMerges(findings), [findings]);
+
+  const findingRetestMatrix = useMemo(() => buildRetestMatrix(findings), [findings]);
+
   const selectedWorkflow = useMemo(
     () => workflows.find((workflow) => workflow.id === selectedWorkflowId) || workflows[0] || null,
     [selectedWorkflowId, workflows]
   );
+
+  const selectedWorkflowGraph = useMemo(() => workflowToGraph(selectedWorkflow), [selectedWorkflow]);
 
   const selectedWorkflowRun = useMemo(
     () => workflowRuns.find((run) => run.id === selectedWorkflowRunId) || workflowRuns[0] || null,
@@ -994,6 +1030,29 @@ export function useRadarWorkbench() {
     return attachEvidenceToFinding([evidenceRefFromAutomateResult(activeAutomateSession, selectedAutomateResult)]);
   }, [activeAutomateSession, attachEvidenceToFinding, selectedAutomateResult]);
 
+  const mergeFindingPair = useCallback(
+    async (primaryId: string, duplicateId: string) => {
+      const primary = findings.find((finding) => finding.id === primaryId);
+      const duplicate = findings.find((finding) => finding.id === duplicateId);
+      if (!primary || !duplicate || primary.id === duplicate.id) {
+        setNotice("Select two finding records before merging.");
+        return null;
+      }
+      if (!window.radar?.saveFinding || !window.radar?.deleteFinding) {
+        setNotice("Run in Electron to merge findings.");
+        return null;
+      }
+      const merged = mergeFindingRecords(primary, duplicate);
+      const saved = await window.radar.saveFinding(merged);
+      await window.radar.deleteFinding(duplicate.id);
+      setFindings((items) => [saved, ...items.filter((finding) => finding.id !== saved.id && finding.id !== duplicate.id)]);
+      setSelectedFindingId(saved.id);
+      setNotice(`Merged duplicate finding into ${saved.title}`);
+      return saved;
+    },
+    [findings]
+  );
+
   const buildFindingReportPreview = useCallback(async (options: Partial<FindingReportOptions>) => {
     if (!window.radar?.buildFindingReport) {
       setNotice("Run in Electron to build reports.");
@@ -1014,6 +1073,8 @@ export function useRadarWorkbench() {
       const saved = await window.radar.saveWorkflow(workflow);
       setWorkflows((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
       setSelectedWorkflowId(saved.id);
+      const revisions = await (window.radar.getWorkflowRevisions?.(saved.id) ?? Promise.resolve([]));
+      setWorkflowRevisions(revisions);
       setNotice("Workflow saved");
       return saved;
     } catch (error) {
@@ -1021,6 +1082,36 @@ export function useRadarWorkbench() {
       return null;
     }
   }, []);
+
+  const validateWorkflowEditor = useCallback(async (definition: string | WorkflowDefinition, inputs: Record<string, string> = {}) => {
+    try {
+      const dryRun =
+        (await (window.radar?.validateWorkflow?.({ definition, inputs }) ?? Promise.resolve(validateWorkflowDraft(definition, inputs))));
+      setWorkflowDryRun(dryRun);
+      setNotice(dryRun.ok ? `Workflow dry run: ${dryRun.runnableStepIds.length} runnable steps` : "Workflow dry run found errors");
+      return dryRun;
+    } catch (error) {
+      const dryRun = validateWorkflowDraft(definition, inputs);
+      setWorkflowDryRun(dryRun);
+      setNotice(error instanceof Error ? error.message : "Workflow dry run failed");
+      return dryRun;
+    }
+  }, []);
+
+  const refreshWorkflowRevisions = useCallback(async (workflowId = selectedWorkflow?.id || "") => {
+    if (!workflowId || !window.radar?.getWorkflowRevisions) {
+      setWorkflowRevisions([]);
+      return [];
+    }
+    const revisions = await window.radar.getWorkflowRevisions(workflowId);
+    setWorkflowRevisions(revisions);
+    return revisions;
+  }, [selectedWorkflow]);
+
+  useEffect(() => {
+    setWorkflowDryRun(selectedWorkflow ? validateWorkflowDraft(selectedWorkflow) : validateWorkflowDraft(""));
+    void refreshWorkflowRevisions(selectedWorkflow?.id || "");
+  }, [refreshWorkflowRevisions, selectedWorkflow]);
 
   const deleteWorkflow = useCallback(
     async (workflowId = selectedWorkflow?.id || "") => {
@@ -1153,6 +1244,61 @@ export function useRadarWorkbench() {
     }
   }, []);
 
+  const refreshPluginAudit = useCallback(async () => {
+    if (!window.radar?.getPluginAudit) {
+      setPluginAudit([]);
+      return [];
+    }
+    const audit = await window.radar.getPluginAudit();
+    setPluginAudit(audit);
+    return audit;
+  }, []);
+
+  const runPluginApiRequest = useCallback(async () => {
+    if (!window.radar?.runPluginApiAction) {
+      setNotice("Run in Electron to execute plugin API actions.");
+      return null;
+    }
+    try {
+      const request = JSON.parse(pluginApiRequestText || "{}") as PluginApiRequest;
+      const result = await window.radar.runPluginApiAction(request);
+      setPluginApiResult(result);
+      await refreshPluginAudit();
+      setNotice(result.ok ? `Plugin action complete: ${result.action}` : result.error || "Plugin action failed");
+      return result;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Plugin API request must be valid JSON.");
+      return null;
+    }
+  }, [pluginApiRequestText, refreshPluginAudit]);
+
+  const renderPluginPanel = useCallback(
+    async (pluginId: string, panelId: string) => {
+      if (!pluginId || !panelId || !window.radar?.renderPluginPanel) {
+        setNotice("Run in Electron to render plugin panels.");
+        return null;
+      }
+      const render = await window.radar.renderPluginPanel({ pluginId, panelId });
+      setPluginPanelRender(render);
+      await refreshPluginAudit();
+      setNotice(render.ok ? `Panel ready: ${render.title}` : render.error || "Plugin panel render failed");
+      return render;
+    },
+    [refreshPluginAudit]
+  );
+
+  const validatePluginDeveloperSource = useCallback(async () => {
+    if (!pluginInstallPath.trim() || !window.radar?.validatePlugin) {
+      setNotice("Enter a local plugin folder before validation.");
+      return null;
+    }
+    const validation = await window.radar.validatePlugin(pluginInstallPath.trim());
+    setPluginDeveloperValidation(validation);
+    await refreshPluginAudit();
+    setNotice(validation.ok ? "Plugin developer validation passed" : "Plugin developer validation failed");
+    return validation;
+  }, [pluginInstallPath, refreshPluginAudit]);
+
   const refreshLocalLists = useCallback(async (context: LocalContext) => {
     if (!window.radar) {
       return;
@@ -1197,6 +1343,7 @@ export function useRadarWorkbench() {
           nextWorkflows,
           nextWorkflowRuns,
           nextPlugins,
+          nextPluginAudit,
           nextReplayTabState,
           nextReplayEnvironments,
           nextReplayCollections,
@@ -1222,6 +1369,7 @@ export function useRadarWorkbench() {
           window.radar.getWorkflows?.() ?? [],
           window.radar.getWorkflowRuns?.() ?? [],
           window.radar.getPlugins?.() ?? [],
+          window.radar.getPluginAudit?.() ?? [],
           window.radar.getReplayTabState?.() ?? defaultReplayTabState(),
           window.radar.getReplayEnvironments?.() ?? [],
           window.radar.getReplayCollections?.() ?? [],
@@ -1264,8 +1412,19 @@ export function useRadarWorkbench() {
         setAiPreparedWorkflowDraft(null);
         setWorkflowRuns(nextWorkflowRuns);
         setSelectedWorkflowRunId(nextWorkflowRuns[0]?.id || "");
+        setWorkflowDryRun(nextWorkflows[0] ? validateWorkflowDraft(nextWorkflows[0]) : validateWorkflowDraft(""));
+        setWorkflowRevisions([]);
         setPlugins(nextPlugins);
         setPluginInstallPreview(null);
+        setPluginAudit(nextPluginAudit);
+        setPluginApiResult(null);
+        setPluginPanelRender(null);
+        setPluginDeveloperValidation(null);
+        setPluginApiRequestText(
+          nextPlugins[0]
+            ? JSON.stringify({ pluginId: nextPlugins[0].id, action: "captures:list", input: { query: "" } }, null, 2)
+            : ""
+        );
         const normalizedTabs = normalizeReplayTabState(nextReplayTabState);
         setReplayTabState(normalizedTabs);
         setReplayEnvironments(nextReplayEnvironments);
@@ -2292,6 +2451,90 @@ export function useRadarWorkbench() {
     [advancedImportText, scopedTrafficCaptures, scopedWebSocketEvents, targets]
   );
 
+  const saveAdvancedImportAsCollection = useCallback(async () => {
+    if (!advancedSummary.apiImport.ok || advancedSummary.apiImport.replayTemplates.length === 0) {
+      setNotice("Paste a supported OpenAPI or Postman document before saving a collection.");
+      return null;
+    }
+    const now = new Date().toISOString();
+    const collectionName = advancedSummary.apiImport.drafts[0]?.collectionName || "Advanced import";
+    const collection: ReplayCollection = {
+      id: `collection-advanced-${now.replace(/[^0-9]/g, "")}`,
+      name: collectionName,
+      items: advancedSummary.apiImport.drafts.map((draft, index) => ({
+        ...createCollectionItem(draft.path || `Imported request ${index + 1}`, advancedSummary.apiImport.replayTemplates[index], now),
+        id: `item-advanced-${now.replace(/[^0-9]/g, "")}-${index + 1}`,
+        tags: ["advanced-import", draft.sourceType, ...draft.tags].slice(0, 12)
+      })),
+      createdAt: now,
+      updatedAt: now
+    };
+    const next = normalizeReplayCollections([collection, ...replayCollections], now);
+    await saveReplayCollectionsState(next);
+    setActiveView("repeater");
+    setNotice(`Saved ${collection.items.length} imported templates to ${collection.name}`);
+    return collection;
+  }, [advancedSummary.apiImport, replayCollections, saveReplayCollectionsState]);
+
+  const loadAdvancedImportDraftToRepeater = useCallback(
+    (draftId?: string) => {
+      const draft =
+        advancedSummary.apiImport.drafts.find((item) => item.id === draftId) ||
+        advancedSummary.apiImport.drafts[0] ||
+        null;
+      if (!draft) {
+        setNotice("Paste a supported API import before loading a template.");
+        return;
+      }
+      const replayDraft = { method: draft.method, url: draft.url, headers: draft.headers, body: draft.body };
+      setDraft(replayDraft);
+      setHeadersText(formatHeaders(replayDraft.headers));
+      setLastResponse(null);
+      setLastBurst(null);
+      setActiveView("repeater");
+      setNotice(`Loaded imported ${draft.method} ${draft.path} in Repeater`);
+    },
+    [advancedSummary.apiImport.drafts, setDraft]
+  );
+
+  const prepareAdvancedWorkflowDraft = useCallback(
+    (
+      kind: "api-import" | "graphql" | "auth-row" | "parameter" | "header-signal" | "secret",
+      id?: string
+    ) => {
+      let workflow: WorkflowDefinition | null = null;
+      if (kind === "api-import") {
+        workflow = workflowDraftFromApiImport(advancedSummary.apiImport);
+      } else if (kind === "graphql") {
+        const operation =
+          advancedSummary.graphql.operations.find((item) => item.id === id) || advancedSummary.graphql.operations[0];
+        workflow = operation ? workflowDraftFromGraphQlOperation(operation) : null;
+      } else if (kind === "auth-row") {
+        const row = advancedSummary.authMatrix.find((item) => item.id === id) || advancedSummary.authMatrix[0];
+        workflow = row ? workflowDraftFromAuthMatrixRow(row) : null;
+      } else if (kind === "parameter") {
+        const parameter = advancedSummary.parameters.find((item) => item.id === id) || advancedSummary.parameters[0];
+        workflow = parameter ? workflowDraftFromParameter(parameter) : null;
+      } else if (kind === "header-signal") {
+        const signal = advancedSummary.headerSignals.find((item) => item.id === id) || advancedSummary.headerSignals[0];
+        workflow = signal ? workflowDraftFromHeaderSignal(signal) : null;
+      } else {
+        const secret = advancedSummary.secrets.find((item) => item.id === id) || advancedSummary.secrets[0];
+        workflow = secret ? workflowDraftFromSecret(secret) : null;
+      }
+      if (!workflow) {
+        setNotice("No Advanced signal is available for a workflow draft.");
+        return null;
+      }
+      setAiPreparedWorkflowDraft(workflow);
+      setSelectedWorkflowId(workflow.id);
+      setActiveView("workflows");
+      setNotice(`Prepared workflow draft: ${workflow.name}`);
+      return workflow;
+    },
+    [advancedSummary]
+  );
+
   const annotationByEvidenceId = useMemo(() => {
     const map = new Map<string, EvidenceAnnotation>();
     for (const annotation of evidenceAnnotations) {
@@ -3018,6 +3261,7 @@ export function useRadarWorkbench() {
         nextWorkflows,
         nextWorkflowRuns,
         nextPlugins,
+        nextPluginAudit,
         nextAutomatePayloadSets,
         nextAutomateSessions
       ] = await Promise.all([
@@ -3035,6 +3279,7 @@ export function useRadarWorkbench() {
         window.radar.getWorkflows?.() ?? [],
         window.radar.getWorkflowRuns?.() ?? [],
         window.radar.getPlugins?.() ?? [],
+        window.radar.getPluginAudit?.() ?? [],
         window.radar.getAutomatePayloadSets?.() ?? [],
         window.radar.listAutomateSessions?.() ?? []
       ]);
@@ -3063,7 +3308,15 @@ export function useRadarWorkbench() {
       setSelectedWorkflowId(nextWorkflows[0]?.id || "");
       setWorkflowRuns(nextWorkflowRuns);
       setSelectedWorkflowRunId(nextWorkflowRuns[0]?.id || "");
+      setWorkflowDryRun(nextWorkflows[0] ? validateWorkflowDraft(nextWorkflows[0]) : validateWorkflowDraft(""));
+      setWorkflowRevisions([]);
       setPlugins(nextPlugins);
+      setPluginAudit(nextPluginAudit);
+      setPluginApiRequestText(
+        nextPlugins[0]
+          ? JSON.stringify({ pluginId: nextPlugins[0].id, action: "captures:list", input: { query: "" } }, null, 2)
+          : ""
+      );
       setAutomatePayloadSets(nextAutomatePayloadSets);
       setAutomateSessions(nextAutomateSessions);
       setActiveAutomateSessionId(nextAutomateSessions[0]?.id || "");
@@ -3350,6 +3603,8 @@ export function useRadarWorkbench() {
     selectedFinding,
     findingTemplates: FINDING_TEMPLATES,
     findingReport,
+    findingMergeSuggestions,
+    findingRetestMatrix,
     saveFinding,
     saveFindingPatch,
     deleteFinding,
@@ -3358,16 +3613,23 @@ export function useRadarWorkbench() {
     promoteAutomateResultToFinding,
     attachSelectedCaptureToFinding,
     attachSelectedAutomateResultToFinding,
+    mergeFindingPair,
     buildFindingReportPreview,
     workflows,
     selectedWorkflowId,
     setSelectedWorkflowId,
     selectedWorkflow,
+    selectedWorkflowGraph,
+    workflowStepTemplates: WORKFLOW_STEP_TEMPLATES,
+    workflowDryRun,
+    workflowRevisions,
     workflowRuns,
     selectedWorkflowRunId,
     setSelectedWorkflowRunId,
     selectedWorkflowRun,
     saveWorkflow,
+    validateWorkflowEditor,
+    refreshWorkflowRevisions,
     deleteWorkflow,
     runWorkflow,
     promoteWorkflowResultToFinding,
@@ -3381,9 +3643,22 @@ export function useRadarWorkbench() {
     approvePlugin,
     setPluginStatus,
     removePlugin,
+    pluginAudit,
+    refreshPluginAudit,
+    pluginApiRequestText,
+    setPluginApiRequestText,
+    pluginApiResult,
+    runPluginApiRequest,
+    pluginPanelRender,
+    renderPluginPanel,
+    pluginDeveloperValidation,
+    validatePluginDeveloperSource,
     advancedImportText,
     setAdvancedImportText,
     advancedSummary,
+    saveAdvancedImportAsCollection,
+    loadAdvancedImportDraftToRepeater,
+    prepareAdvancedWorkflowDraft,
     bulkDeleteCaptures,
     bulkExportCaptures,
     bulkTagCaptures,

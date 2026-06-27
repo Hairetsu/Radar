@@ -42,45 +42,45 @@ Detailed implementation slices for finishing Phase B and Phase C live in `docs/P
 
 | Slice | Status | Notes |
 | --- | --- | --- |
-| D1. Report section builder | Pending | Executive summary, methodology, scope, findings, appendix, retest matrix, change log. |
-| D2. Finding dedupe and merge suggestions | Pending | Keep operator-controlled merges. |
-| D3. Assignment and filter depth | Pending | Owner, component, status, severity, and retest filters. |
-| D4. Local report templates | Pending | Template storage remains local-only. |
-| D5. Retest matrix generation | Pending | Compare reviewed findings across sessions. |
-| D6. Export presets | Pending | Internal notes, client report, and raw technical appendix. |
+| D1. Report section builder | Complete | Added report title, preset, executive summary, methodology, scope, limitations, findings, appendix, retest matrix, change log, copy/download, and client-report validation warnings. |
+| D2. Finding dedupe and merge suggestions | Complete | Added shared merge scoring and an operator-controlled merge queue that combines evidence, assets, owner/assignee, severity, confidence, notes, and retest text only after a visible click. |
+| D3. Assignment and filter depth | Complete | Findings now track component and assignee, filter by text/status/severity/owner-or-assignee/component, and show assignment context in the queue. |
+| D4. Local report templates | Complete | Added local built-in report presets for internal notes, client reports, and raw technical appendices; no cloud template behavior was introduced. |
+| D5. Retest matrix generation | Complete | Added shared retest matrix rows and report rendering for pending, passed, failed, accepted-risk, and not-ready states. |
+| D6. Export presets | Complete | Report export options now apply internal-notes, client-report, and raw-technical-appendix presets with raw evidence remaining opt-in. |
 
 ## Phase E - Advanced API/Auth Depth
 
 | Slice | Status | Notes |
 | --- | --- | --- |
-| E1. Import previews to Repeater collections | Pending | OpenAPI/Postman items become reviewed drafts only. |
-| E2. Advanced-generated workflow drafts | Pending | Operations, mutations, auth matrix rows, and parameter inventory feed visible workflow drafts. |
-| E3. GraphQL helper depth | Pending | Grouping, variable templates, introspection diffing, batching review. |
-| E4. Auth-state comparison | Pending | Compare saved browser states against endpoint inventory. |
-| E5. Sensitive-data rule packs | Pending | Local rule packs, severity, and ignore lists. |
-| E6. Cache/header behavior workflows | Pending | Bounded workflows with explicit operator approval. |
+| E1. Import previews to Repeater collections | Complete | OpenAPI/Postman previews can save reviewed draft templates into Repeater collections or load a selected draft into Repeater without sending traffic. |
+| E2. Advanced-generated workflow drafts | Complete | API imports, GraphQL operations, auth matrix rows, parameters, header signals, and secret signals can prepare visible workflow drafts for manual review. |
+| E3. GraphQL helper depth | Complete | Added operation grouping, variable templates, host/type counts, batching review, and introspection review signals. |
+| E4. Auth-state comparison | Complete | Added auth-state comparison rows across observed anonymous, bearer, basic, cookie, and mixed evidence for each endpoint. |
+| E5. Sensitive-data rule packs | Complete | Added a local sensitive-data rule pack with rule ids, names, severities, enabled state, masked previews, and UI rule counts. |
+| E6. Cache/header behavior workflows | Complete | Cache, CORS, host-header, redirect, and secret/header signals now prepare bounded visible workflows with explicit operator Save/Run approval. |
 
 ## Phase F - Plugin Execution And SDK Panels
 
 | Slice | Status | Notes |
 | --- | --- | --- |
-| F1. Sandboxed plugin execution | Pending | Approved local plugins only. |
-| F2. Permissioned panel rendering | Pending | Scoped APIs and visible panel state. |
-| F3. Plugin audit logs | Pending | Log every SDK/API action. |
-| F4. Version and compatibility checks | Pending | Update prompts and manifest warnings. |
-| F5. Trust markers | Pending | First-party signing or trust labels. |
-| F6. Plugin developer CLI | Pending | Validate manifests and run plugin tests locally. |
+| F1. Sandboxed plugin execution | Complete | Approved local plugins execute only through Radar's bounded typed SDK action runner; actions reuse scope, replay, workflow, and finding validation. |
+| F2. Permissioned panel rendering | Complete | Approved `ui:panel` entries render in a no-script iframe sandbox; JavaScript panels are shown as source instead of being executed. |
+| F3. Plugin audit logs | Complete | SDK actions, panel renders, and developer validation write workspace-local audit entries with plugin id, permission, result, summaries, and timing. |
+| F4. Version and compatibility checks | Complete | Manifest preview, registry, install records, and validation surface SDK/min-Radar compatibility warnings. |
+| F5. Trust markers | Complete | Plugin preview and registry show first-party, verified-local, local, or untrusted labels. |
+| F6. Plugin developer CLI | Complete | `pnpm plugin:validate -- <plugin-path>` validates manifests, entry files, panel files, version shape, and SDK mismatch warnings. |
 
 ## Phase G - Visual Workflow Authoring
 
 | Slice | Status | Notes |
 | --- | --- | --- |
-| G1. Workflow graph/editor | Pending | Existing step kinds first. |
-| G2. Branching and conditions | Pending | Visual validation before save/run. |
-| G3. Reusable step templates | Pending | Headers, cookies, CORS, cache, metadata, auth replay, browser-open, Advanced checks. |
-| G4. Dry-run validation | Pending | Required before active workflows run. |
-| G5. Workflow diff/version history | Pending | Make revisions inspectable. |
-| G6. AI-assisted visible drafts | Pending | AI output loads into the editor and remains a draft. |
+| G1. Workflow graph/editor | Complete | Existing workflow definitions now produce a visual node/edge graph alongside the raw JSON/YAML-like editor. |
+| G2. Branching and conditions | Complete | Conditional steps show branch labels and dry-run skipped/runnable step sets. |
+| G3. Reusable step templates | Complete | Headers, cookies, CORS, cache, metadata, active replay, and browser-open templates can be inserted into the current draft. |
+| G4. Dry-run validation | Complete | The Workflows view validates draft definitions, required inputs, active request estimates, duplicate steps, skipped branches, and caps before operator save/run. |
+| G5. Workflow diff/version history | Complete | Saved custom workflows append local revision records with compact field/step/input diffs. |
+| G6. AI-assisted visible drafts | Complete | AI/Advanced-prepared workflow drafts load into the visible editor and stay unsaved until the operator clicks Save or Run. |
 
 ## Phase H - Distribution And Update Polish
 
@@ -95,4 +95,4 @@ Detailed implementation slices for finishing Phase B and Phase C live in `docs/P
 
 ## Current Next Slice
 
-Phase A, Phase B, and Phase C are complete. Continue with **D1. Report section builder** when starting Roadmap 2 Phase D.
+Phase A through Phase G are complete. Continue with the next roadmap slice by prioritizing scanner/content discovery, DOM/browser testing, or release-hardening items from `docs/PUBLIC_READINESS_AND_PARITY_PLAN.md`.

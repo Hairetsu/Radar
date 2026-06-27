@@ -55,6 +55,7 @@ const finding = (id: string): Finding => ({
   severity: "low",
   confidence: "high",
   status: "draft",
+  component: "",
   affectedAssets: ["https://app.test"],
   evidence: [
     {
@@ -70,6 +71,7 @@ const finding = (id: string): Finding => ({
   remediation: "Set CSP and frame protections.",
   notes: "CSP is missing frame-ancestors.",
   owner: "",
+  assignee: "",
   retestResult: "",
   source: "manual",
   createdAt: "2026-05-25T00:02:00.000Z",
@@ -137,6 +139,8 @@ const plugin: InstalledPlugin = {
   sourcePath: "/tmp/plugin",
   grantedPermissions: ["captures:read"],
   status: "approved",
+  trustLevel: "first-party",
+  compatibilityWarnings: [],
   warnings: [],
   installedAt: "2026-05-25T00:00:00.000Z",
   updatedAt: "2026-05-25T00:00:00.000Z"
@@ -247,6 +251,27 @@ describe("global search", () => {
             }
           }
         ],
+        groups: [
+          {
+            id: "graphql-app-test-graphql-mutation",
+            host: "app.test",
+            path: "/graphql",
+            operationType: "mutation",
+            operationNames: ["UpdateProfile"],
+            count: 1,
+            variableNames: ["id"],
+            introspectionCount: 0,
+            batchedCount: 0
+          }
+        ],
+        variableTemplates: [
+          {
+            id: "variables-gql-1",
+            operationId: "gql-1",
+            operationName: "UpdateProfile",
+            variablesJson: JSON.stringify({ id: "{{id}}" }, null, 2)
+          }
+        ],
         hosts: ["app.test"],
         operationCount: 1,
         queryCount: 0,
@@ -267,6 +292,20 @@ describe("global search", () => {
           verdict: "protected"
         }
       ],
+      authComparisons: [
+        {
+          id: "auth-1-anonymous-cookie",
+          method: "GET",
+          host: "app.test",
+          path: "/admin",
+          leftState: "anonymous",
+          rightState: "cookie",
+          leftStatus: "403",
+          rightStatus: "200",
+          verdict: "auth-gain",
+          evidenceIds: ["cap-2"]
+        }
+      ],
       parameters: [
         {
           id: "param-1",
@@ -285,6 +324,15 @@ describe("global search", () => {
               createdAt: "2026-05-25T00:00:00.000Z"
             }
           ]
+        }
+      ],
+      secretRules: [
+        {
+          id: "jwt",
+          name: "JWT",
+          severity: "medium",
+          pattern: "jwt",
+          enabled: true
         }
       ],
       secrets: [

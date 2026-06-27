@@ -2,7 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { installedPluginFromPreview, pluginManifestCandidates, readPluginInstallPreview } from "./plugins.js";
+import {
+  installedPluginFromPreview,
+  pluginManifestCandidates,
+  readPluginInstallPreview,
+  renderInstalledPluginPanel,
+  validatePluginSource
+} from "./plugins.js";
 
 describe("electron plugin registry helpers", () => {
   let tmpDir = "";
@@ -77,5 +83,55 @@ describe("electron plugin registry helpers", () => {
       expect(preview.manifest.permissions).toEqual([...permissions]);
       expect(preview.manifest.panels).toHaveLength(1);
     }
+  });
+
+  it("validates local plugin entries and renders approved panels in a sandbox payload", () => {
+    const root = makeDir();
+    const manifestPath = path.join(root, ".radar-plugin", "plugin.json");
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.mkdirSync(path.join(root, "dist"), { recursive: true });
+    fs.writeFileSync(path.join(root, "dist", "index.js"), "export default {};", "utf8");
+    fs.writeFileSync(path.join(root, "panel.html"), "<strong>Panel</strong>", "utf8");
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        id: "panel-helper",
+        name: "Panel Helper",
+        version: "1.0.0",
+        author: "Radar",
+        entry: "dist/index.js",
+        permissions: ["captures:read"],
+        panels: [{ id: "main", title: "Main Panel", entry: "panel.html" }]
+      }),
+      "utf8"
+    );
+
+    const validation = validatePluginSource(root);
+    expect(validation.ok).toBe(true);
+    expect(validation.trustLevel).toBe("first-party");
+
+    const approved = installedPluginFromPreview(readPluginInstallPreview(root), "approved");
+    approved.grantedPermissions = ["captures:read", "ui:panel"];
+    const render = renderInstalledPluginPanel(approved, "main");
+    expect(render).toMatchObject({ ok: true, runtimeStatus: "ready", title: "Main Panel" });
+    expect(render.html).toContain("<strong>Panel</strong>");
+    expect(renderInstalledPluginPanel(approved, "missing")).toMatchObject({ ok: false, error: "Plugin panel was not found." });
+    expect(renderInstalledPluginPanel({ ...approved, grantedPermissions: ["captures:read"] }, "main")).toMatchObject({
+      ok: false,
+      error: "Plugin is not approved for ui:panel."
+    });
+
+    fs.writeFileSync(path.join(root, "panel.js"), "console.log('panel');", "utf8");
+    const modulePanel = renderInstalledPluginPanel(
+      {
+        ...approved,
+        manifest: {
+          ...approved.manifest,
+          panels: [{ id: "module", title: "Module Panel", entry: "panel.js" }]
+        }
+      },
+      "module"
+    );
+    expect(modulePanel.warnings[0]).toMatch(/JavaScript module/);
   });
 });
