@@ -427,7 +427,14 @@ export type FindingSeverity = "info" | "low" | "medium" | "high" | "critical";
 
 export type FindingConfidence = "low" | "medium" | "high";
 
-export type FindingStatus = "draft" | "reviewed" | "accepted-risk" | "retest-passed" | "retest-failed";
+export type FindingStatus =
+  | "draft"
+  | "needs-evidence"
+  | "reviewed"
+  | "accepted-risk"
+  | "fixed-pending-retest"
+  | "retest-passed"
+  | "retest-failed";
 
 export type FindingEvidenceKind =
   | "capture"
@@ -463,6 +470,7 @@ export type Finding = {
   severity: FindingSeverity;
   confidence: FindingConfidence;
   status: FindingStatus;
+  component: string;
   affectedAssets: string[];
   evidence: FindingEvidenceRef[];
   reproductionSteps: string;
@@ -470,6 +478,7 @@ export type Finding = {
   remediation: string;
   notes: string;
   owner: string;
+  assignee: string;
   retestResult: string;
   source: "manual" | "ai" | "automate" | "workflow";
   sourceId?: string;
@@ -478,11 +487,22 @@ export type Finding = {
   reviewedAt?: string;
 };
 
+export type FindingReportPreset = "internal-notes" | "client-report" | "raw-technical-appendix";
+
 export type FindingReportOptions = {
   format: "markdown" | "html";
+  preset?: FindingReportPreset;
+  title?: string;
   includeDrafts: boolean;
   includeAppendix: boolean;
   includeRawEvidence: boolean;
+  includeRetestMatrix?: boolean;
+  executiveSummary?: string;
+  methodology?: string;
+  scopeSummary?: string;
+  limitations?: string;
+  changeLog?: string;
+  findingIds?: string[];
 };
 
 export type FindingReport = {
@@ -491,6 +511,7 @@ export type FindingReport = {
   generatedAt: string;
   findingCount: number;
   body: string;
+  validationWarnings?: string[];
 };
 
 export type WorkflowMode = "passive" | "active";
@@ -584,6 +605,67 @@ export type WorkflowRun = {
   error?: string;
 };
 
+export type WorkflowStepTemplate = {
+  id: string;
+  title: string;
+  description: string;
+  step: WorkflowStep;
+};
+
+export type WorkflowGraphNode = {
+  id: string;
+  title: string;
+  kind: WorkflowStepKind;
+  active: boolean;
+  condition?: WorkflowCondition;
+};
+
+export type WorkflowGraphEdge = {
+  from: string;
+  to: string;
+  label: string;
+};
+
+export type WorkflowGraph = {
+  nodes: WorkflowGraphNode[];
+  edges: WorkflowGraphEdge[];
+};
+
+export type WorkflowValidationIssue = {
+  severity: "error" | "warning";
+  message: string;
+  stepId?: string;
+};
+
+export type WorkflowDryRun = {
+  ok: boolean;
+  workflow?: WorkflowDefinition;
+  graph: WorkflowGraph;
+  issues: WorkflowValidationIssue[];
+  activeStepCount: number;
+  passiveStepCount: number;
+  estimatedRequests: number;
+  skippedStepIds: string[];
+  runnableStepIds: string[];
+};
+
+export type WorkflowDiffEntry = {
+  kind: "added" | "removed" | "changed";
+  field: string;
+  before?: string;
+  after?: string;
+};
+
+export type WorkflowRevision = {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  savedAt: string;
+  summary: string;
+  diff: WorkflowDiffEntry[];
+  workflow: WorkflowDefinition;
+};
+
 export type PluginPermission =
   | "captures:read"
   | "frames:read"
@@ -619,12 +701,18 @@ export type PluginManifest = {
 
 export type PluginInstallStatus = "pending" | "approved" | "disabled" | "blocked";
 
+export type PluginTrustLevel = "first-party" | "verified-local" | "local" | "untrusted";
+
+export type PluginRuntimeStatus = "idle" | "running" | "ready" | "failed";
+
 export type InstalledPlugin = {
   id: string;
   manifest: PluginManifest;
   sourcePath: string;
   grantedPermissions: PluginPermission[];
   status: PluginInstallStatus;
+  trustLevel: PluginTrustLevel;
+  compatibilityWarnings: string[];
   warnings: string[];
   installedAt: string;
   updatedAt: string;
@@ -636,6 +724,8 @@ export type PluginInstallPreview = {
   manifestPath: string;
   requestedPermissions: PluginPermission[];
   permissionSummary: string[];
+  trustLevel: PluginTrustLevel;
+  compatibilityWarnings: string[];
   warnings: string[];
 };
 
@@ -660,6 +750,41 @@ export type PluginApiResult = {
   action: PluginApiAction;
   data: unknown;
   error?: string;
+};
+
+export type PluginPanelRender = {
+  ok: boolean;
+  pluginId: string;
+  panelId: string;
+  title: string;
+  html: string;
+  sourcePath: string;
+  runtimeStatus: PluginRuntimeStatus;
+  warnings: string[];
+  error?: string;
+};
+
+export type PluginAuditEntry = {
+  id: string;
+  pluginId: string;
+  pluginName: string;
+  action: PluginApiAction | "panel:render" | "plugin:validate";
+  permission?: PluginPermission;
+  ok: boolean;
+  message: string;
+  inputSummary: string;
+  outputSummary: string;
+  durationMs: number;
+  createdAt: string;
+};
+
+export type PluginDeveloperValidation = {
+  ok: boolean;
+  sourcePath: string;
+  manifest?: PluginManifest;
+  trustLevel: PluginTrustLevel;
+  warnings: string[];
+  errors: string[];
 };
 
 export type ReplayHistoryEntry = {

@@ -2,6 +2,7 @@ import type {
   CapturedRequest,
   Finding,
   InstalledPlugin,
+  PluginAuditEntry,
   PluginApiAction,
   PluginApiRequest,
   PluginApiResult,
@@ -29,6 +30,7 @@ export type PluginApiDependencies = {
   saveWorkflow: (workflow: WorkflowDefinition) => WorkflowDefinition;
   runWorkflow: (payload: { workflowId: string; inputs?: Record<string, string>; source: "manual" }) => Promise<WorkflowRun>;
   sendReplay: (draft: ReplayDraft) => Promise<ReplayResult>;
+  recordAudit?: (entry: PluginAuditEntry) => void;
 };
 
 const actionPermissions: Record<PluginApiAction, PluginPermission> = {
@@ -101,30 +103,68 @@ function normalizeWorkflowInputs(value: unknown) {
   return Object.fromEntries(Object.entries(input).map(([key, entry]) => [key, String(entry || "")]));
 }
 
+function createAuditId() {
+  return `plugin_audit_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function summarize(value: unknown) {
+  if (typeof value === "string") {
+    return value.slice(0, 500);
+  }
+  try {
+    return JSON.stringify(value).slice(0, 500);
+  } catch {
+    return "";
+  }
+}
+
 export async function runPluginApiAction(input: unknown, deps: PluginApiDependencies): Promise<PluginApiResult> {
   const request = normalizeApiRequest(input);
   if (!request) {
     return actionError("captures:list", "Plugin API request was invalid.");
   }
+  const started = Date.now();
+  const finish = (result: PluginApiResult, plugin?: InstalledPlugin | null) => {
+    deps.recordAudit?.({
+      id: createAuditId(),
+      pluginId: request.pluginId,
+      pluginName: plugin?.manifest.name || request.pluginId,
+      action: request.action,
+      permission: actionPermissions[request.action],
+      ok: result.ok,
+      message: result.ok ? "Plugin API action completed." : result.error || "Plugin API action failed.",
+      inputSummary: summarize(request.input),
+      outputSummary: summarize(result.ok ? result.data : result.error),
+      durationMs: Date.now() - started,
+      createdAt: new Date().toISOString()
+    });
+    return result;
+  };
   const plugin = deps.getPlugin(request.pluginId);
   if (!plugin) {
-    return actionError(request.action, "Plugin was not installed.");
+    return finish(actionError(request.action, "Plugin was not installed."));
   }
   if (!hasPluginPermission(plugin, actionPermissions[request.action])) {
-    return actionError(request.action, `Plugin is not approved for ${actionPermissions[request.action]}.`);
+    return finish(actionError(request.action, `Plugin is not approved for ${actionPermissions[request.action]}.`), plugin);
   }
 
   try {
     if (request.action === "captures:list") {
-      return actionResult(
-        request.action,
-        filteredCaptures(scopedCaptures(deps.listCaptures(), deps.allowlist()), request.input.query)
+      return finish(
+        actionResult(
+          request.action,
+          filteredCaptures(scopedCaptures(deps.listCaptures(), deps.allowlist()), request.input.query)
+        ),
+        plugin
       );
     }
     if (request.action === "frames:list") {
-      return actionResult(
-        request.action,
-        filteredFrames(scopedFrames(deps.listWebSocketEvents(), deps.allowlist()), request.input.query)
+      return finish(
+        actionResult(
+          request.action,
+          filteredFrames(scopedFrames(deps.listWebSocketEvents(), deps.allowlist()), request.input.query)
+        ),
+        plugin
       );
     }
     if (request.action === "replay:prepare") {
@@ -132,41 +172,44 @@ export async function runPluginApiAction(input: unknown, deps: PluginApiDependen
       if (!isAllowedTarget(draft.url, deps.allowlist())) {
         throw new Error("Replay draft URL is outside the current scope allowlist.");
       }
-      return actionResult(request.action, draft);
+      return finish(actionResult(request.action, draft), plugin);
     }
     if (request.action === "replay:send") {
       const draft = normalizeDraft(request.input.draft as ReplayDraft);
       if (!isAllowedTarget(draft.url, deps.allowlist())) {
         throw new Error("Replay URL is outside the current scope allowlist.");
       }
-      return actionResult(request.action, await deps.sendReplay(draft));
+      return finish(actionResult(request.action, await deps.sendReplay(draft)), plugin);
     }
     if (request.action === "findings:create") {
       const finding = normalizeFinding(request.input.finding);
       if (!finding) {
         throw new Error("Plugin finding needs a title and at least one evidence reference.");
       }
-      return actionResult(request.action, deps.saveFinding({ ...finding, status: "draft", source: "manual" }));
+      return finish(actionResult(request.action, deps.saveFinding({ ...finding, status: "draft", source: "manual" })), plugin);
     }
     if (request.action === "workflows:list") {
-      return actionResult(request.action, deps.listWorkflows());
+      return finish(actionResult(request.action, deps.listWorkflows()), plugin);
     }
     if (request.action === "workflows:save") {
       const workflow = normalizeWorkflowDefinition(request.input.workflow);
       if (!workflow || workflow.builtIn) {
         throw new Error("Plugin workflow definition was invalid.");
       }
-      return actionResult(request.action, deps.saveWorkflow({ ...workflow, builtIn: false }));
+      return finish(actionResult(request.action, deps.saveWorkflow({ ...workflow, builtIn: false })), plugin);
     }
     const workflowId = String(request.input.workflowId || "").trim();
     if (!workflowId) {
       throw new Error("Plugin workflow run needs a workflow id.");
     }
-    return actionResult(
-      request.action,
-      await deps.runWorkflow({ workflowId, inputs: normalizeWorkflowInputs(request.input.inputs), source: "manual" })
+    return finish(
+      actionResult(
+        request.action,
+        await deps.runWorkflow({ workflowId, inputs: normalizeWorkflowInputs(request.input.inputs), source: "manual" })
+      ),
+      plugin
     );
   } catch (error) {
-    return actionError(request.action, error instanceof Error ? error.message : "Plugin API action failed.");
+    return finish(actionError(request.action, error instanceof Error ? error.message : "Plugin API action failed."), plugin);
   }
 }

@@ -196,6 +196,9 @@ afterEach(() => {
   vi.mocked(window.radar!.getTargets).mockResolvedValue([]);
   vi.mocked(window.radar!.setTargets).mockClear();
   vi.mocked(window.radar!.setTargets).mockResolvedValue(undefined as unknown as string[]);
+  vi.mocked(window.radar!.getReplayCollections).mockResolvedValue([]);
+  vi.mocked(window.radar!.setReplayCollections).mockClear();
+  vi.mocked(window.radar!.setReplayCollections).mockImplementation(async (items) => items);
   vi.mocked(window.radar!.getWebSocketEvents).mockResolvedValue([]);
   vi.mocked(window.radar!.getAutomatePayloadSets).mockResolvedValue([]);
   vi.mocked(window.radar!.setAutomatePayloadSets).mockClear();
@@ -216,15 +219,22 @@ afterEach(() => {
   vi.mocked(window.radar!.getWorkflows).mockResolvedValue([]);
   vi.mocked(window.radar!.saveWorkflow).mockClear();
   vi.mocked(window.radar!.deleteWorkflow).mockClear();
+  vi.mocked(window.radar!.validateWorkflow).mockClear();
+  vi.mocked(window.radar!.getWorkflowRevisions).mockClear();
+  vi.mocked(window.radar!.getWorkflowRevisions).mockResolvedValue([]);
   vi.mocked(window.radar!.getWorkflowRuns).mockResolvedValue([]);
   vi.mocked(window.radar!.runWorkflow).mockClear();
   vi.mocked(window.radar!.promoteWorkflowResultToFinding).mockClear();
   vi.mocked(window.radar!.getPlugins).mockResolvedValue([]);
+  vi.mocked(window.radar!.getPluginAudit).mockResolvedValue([]);
   vi.mocked(window.radar!.previewPluginInstall).mockClear();
   vi.mocked(window.radar!.installPlugin).mockClear();
   vi.mocked(window.radar!.approvePlugin).mockClear();
   vi.mocked(window.radar!.setPluginStatus).mockClear();
   vi.mocked(window.radar!.removePlugin).mockClear();
+  vi.mocked(window.radar!.renderPluginPanel).mockClear();
+  vi.mocked(window.radar!.validatePlugin).mockClear();
+  vi.mocked(window.radar!.runPluginApiAction).mockClear();
   vi.mocked(window.radar!.seedDemoProject).mockClear();
   vi.mocked(window.radar!.listLocalSessions).mockResolvedValue([
     {
@@ -688,6 +698,29 @@ describe("App", () => {
       expect(screen.getByTestId("advancedImportPreview")).toHaveTextContent("GET");
       expect(screen.getByTestId("advancedImportPreview")).toHaveTextContent("/users");
     });
+
+    fireEvent.click(screen.getByTestId("saveAdvancedImportCollection"));
+    await waitFor(() => {
+      expect(window.radar!.setReplayCollections).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "Advanced API",
+            items: expect.arrayContaining([expect.objectContaining({ name: "/users" })])
+          })
+        ])
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("view-advanced"));
+    fireEvent.click(await screen.findByTestId("draftAdvancedImportWorkflow"));
+    expect(await screen.findByRole("heading", { name: "Workflows" })).toBeInTheDocument();
+    expect(screen.getByTestId("aiPreparedWorkflowDraft")).toBeInTheDocument();
+    expect(screen.getByTestId("workflowDefinition")).toHaveTextContent("OPENAPI imported API review");
+
+    fireEvent.click(screen.getByTestId("view-advanced"));
+    fireEvent.click(await screen.findByTestId("loadAdvancedImportDraft"));
+    expect(await screen.findByRole("heading", { name: "Repeater" })).toBeInTheDocument();
+    expect((screen.getByTestId("repeaterUrl") as HTMLInputElement).value).toBe("https://allowed.test/users");
   });
 
   it("marks automate payload positions and loads a materialized preview into repeater", async () => {
@@ -757,11 +790,36 @@ describe("App", () => {
       );
     });
 
+    fireEvent.change(await screen.findByTestId("findingComponent"), { target: { value: "Admin Console" } });
+    fireEvent.change(screen.getByTestId("findingAssignee"), { target: { value: "Dana" } });
+    vi.mocked(window.radar!.saveFinding).mockClear();
+    fireEvent.click(screen.getByTestId("saveFinding"));
+    await waitFor(() => {
+      expect(window.radar!.saveFinding).toHaveBeenCalledWith(
+        expect.objectContaining({
+          component: "Admin Console",
+          assignee: "Dana"
+        })
+      );
+    });
+
+    fireEvent.change(screen.getByTestId("findingReportPreset"), { target: { value: "raw-technical-appendix" } });
+    fireEvent.change(screen.getByTestId("findingReportTitle"), { target: { value: "External Report" } });
+    fireEvent.change(screen.getByTestId("findingReportExecutiveSummary"), {
+      target: { value: "One reviewed issue is ready for delivery." }
+    });
     fireEvent.click(screen.getByTestId("buildFindingReport"));
 
     await waitFor(() => {
       expect(window.radar!.buildFindingReport).toHaveBeenCalledWith(
-        expect.objectContaining({ format: "markdown", includeAppendix: true })
+        expect.objectContaining({
+          format: "markdown",
+          preset: "raw-technical-appendix",
+          title: "External Report",
+          executiveSummary: "One reviewed issue is ready for delivery.",
+          includeAppendix: true,
+          includeRetestMatrix: true
+        })
       );
       expect(screen.getByTestId("findingReportPreview")).toHaveTextContent("Missing security headers");
     });
@@ -834,6 +892,35 @@ describe("App", () => {
   });
 
   it("saves an edited workflow definition from the workflows view", async () => {
+    vi.mocked(window.radar!.getWorkflowRevisions).mockResolvedValue([
+      {
+        id: "revision-1",
+        workflowId: "builtin-security-headers",
+        workflowName: "Security Headers",
+        savedAt: "2026-05-25T00:00:00.000Z",
+        summary: "Initial workflow version saved",
+        diff: [{ kind: "added", field: "workflow", after: "Security Headers" }],
+        workflow: {
+          id: "builtin-security-headers",
+          name: "Security Headers",
+          description: "Checks response headers.",
+          mode: "passive",
+          builtIn: true,
+          inputs: [],
+          scope: {
+            requireInScope: true,
+            allowActive: false,
+            maxRequests: 0,
+            timeoutMs: 10000,
+            delayMs: 0,
+            maxResults: 40
+          },
+          steps: [{ id: "headers", title: "Security headers", kind: "security-headers", config: {} }],
+          createdAt: "2026-05-25T00:00:00.000Z",
+          updatedAt: "2026-05-25T00:00:00.000Z"
+        }
+      }
+    ]);
     vi.mocked(window.radar!.getWorkflows).mockResolvedValue([
       {
         id: "builtin-security-headers",
@@ -859,6 +946,12 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByTestId("view-workflows"));
+    expect(await screen.findByTestId("workflowGraph")).toHaveTextContent("Security headers");
+    fireEvent.click(screen.getByTestId("validateWorkflow"));
+    await waitFor(() => expect(window.radar!.validateWorkflow).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("workflowTemplate-cache-control"));
+    expect(screen.getByTestId("workflowDryRun")).toHaveTextContent("runnable");
+    expect(await screen.findByTestId("workflowRevisions")).toHaveTextContent("Initial workflow version saved");
     fireEvent.click(await screen.findByTestId("saveWorkflow"));
 
     await waitFor(() => {
@@ -891,16 +984,36 @@ describe("App", () => {
       sourcePath: "/tmp/jwt-helper",
       grantedPermissions: [],
       status: "pending" as const,
+      trustLevel: "first-party" as const,
+      compatibilityWarnings: [],
       warnings: [],
       installedAt: "2026-05-25T00:00:00.000Z",
       updatedAt: "2026-05-25T00:00:00.000Z"
     };
     vi.mocked(window.radar!.getPlugins).mockResolvedValueOnce([]).mockResolvedValue([plugin]);
+    vi.mocked(window.radar!.getPluginAudit).mockResolvedValue([
+      {
+        id: "plugin-audit-1",
+        pluginId: "jwt-helper",
+        pluginName: "JWT Helper",
+        action: "captures:list",
+        permission: "captures:read",
+        ok: true,
+        message: "Plugin API action completed.",
+        inputSummary: "{}",
+        outputSummary: "[]",
+        durationMs: 1,
+        createdAt: "2026-05-25T00:00:03.000Z"
+      }
+    ]);
 
     render(<App />);
 
     fireEvent.click(await screen.findByTestId("view-plugins"));
     fireEvent.change(screen.getByTestId("pluginInstallPath"), { target: { value: "/tmp/jwt-helper" } });
+    fireEvent.click(screen.getByTestId("validatePlugin"));
+    await waitFor(() => expect(window.radar!.validatePlugin).toHaveBeenCalledWith("/tmp/jwt-helper"));
+    expect(await screen.findByTestId("pluginDeveloperValidation")).toHaveTextContent("passed");
     fireEvent.click(screen.getByTestId("previewPlugin"));
 
     expect(await screen.findByTestId("pluginInstallPreview")).toHaveTextContent("JWT Helper");
@@ -917,6 +1030,21 @@ describe("App", () => {
         permissions: ["captures:read", "ui:panel"]
       })
     );
+    fireEvent.click(await screen.findByTestId("renderPluginPanel-jwt-helper-token-panel"));
+    await waitFor(() =>
+      expect(window.radar!.renderPluginPanel).toHaveBeenCalledWith({
+        pluginId: "jwt-helper",
+        panelId: "token-panel"
+      })
+    );
+    expect(await screen.findByTestId("pluginPanelRender")).toHaveTextContent("Token Panel");
+
+    fireEvent.change(screen.getByTestId("pluginApiRequest"), {
+      target: { value: JSON.stringify({ pluginId: "jwt-helper", action: "captures:list", input: { query: "" } }) }
+    });
+    fireEvent.click(screen.getByTestId("runPluginApi"));
+    await waitFor(() => expect(window.radar!.runPluginApiAction).toHaveBeenCalled());
+    expect(await screen.findByTestId("pluginAudit")).toHaveTextContent("Plugin API action completed");
 
     fireEvent.click(screen.getByTestId("disablePlugin-jwt-helper"));
     await waitFor(() =>

@@ -23,7 +23,7 @@ import type {
 } from "../shared/domain.js";
 import { defaultProxyProfiles } from "../shared/proxyProfiles.js";
 import { defaultReplayTabState } from "../shared/replayTabs.js";
-import { BUILT_IN_WORKFLOWS } from "../shared/workflows.js";
+import { BUILT_IN_WORKFLOWS, validateWorkflowDraft } from "../shared/workflows.js";
 
 const context: LocalContext = {
   profile: {
@@ -323,6 +323,7 @@ const findings: Finding[] = [
     severity: "low",
     confidence: "high",
     status: "reviewed",
+    component: "API Gateway",
     affectedAssets: ["https://hairetsu.test/api/users"],
     evidence: [
       {
@@ -338,6 +339,7 @@ const findings: Finding[] = [
     remediation: "Add HSTS, X-Content-Type-Options, and frame protections where appropriate.",
     notes: "Seeded screenshot finding.",
     owner: "platform",
+    assignee: "appsec",
     retestResult: "",
     source: "manual",
     createdAt: "2026-05-25T00:04:00.000Z",
@@ -386,6 +388,21 @@ const workflowRuns: WorkflowRun[] = [
 ];
 
 const plugins: InstalledPlugin[] = [];
+const pluginAudit = [
+  {
+    id: "plugin_audit_screenshot",
+    pluginId: "screenshot-plugin",
+    pluginName: "Screenshot Plugin",
+    action: "captures:list" as const,
+    permission: "captures:read" as const,
+    ok: true,
+    message: "Plugin API action completed.",
+    inputSummary: "{}",
+    outputSummary: "[]",
+    durationMs: 1,
+    createdAt: "2026-05-25T00:07:30.000Z"
+  }
+];
 
 function pluginPreview(sourcePath: string): PluginInstallPreview {
   return {
@@ -406,6 +423,8 @@ function pluginPreview(sourcePath: string): PluginInstallPreview {
     },
     requestedPermissions: ["captures:read", "ui:panel"],
     permissionSummary: ["Read in-scope HTTP/S captures", "Render plugin panels inside the Radar console"],
+    trustLevel: "first-party",
+    compatibilityWarnings: [],
     warnings: []
   };
 }
@@ -417,6 +436,8 @@ function pluginFromPreview(preview: PluginInstallPreview): InstalledPlugin {
     sourcePath: preview.sourcePath,
     grantedPermissions: [],
     status: "pending",
+    trustLevel: preview.trustLevel,
+    compatibilityWarnings: preview.compatibilityWarnings,
     warnings: preview.warnings,
     installedAt: "2026-05-25T00:07:00.000Z",
     updatedAt: "2026-05-25T00:07:00.000Z"
@@ -698,6 +719,18 @@ const radar: RadarApi = {
     workflows.splice(0, workflows.length, ...next);
     return { ok: true, workflows };
   },
+  validateWorkflow: async (payload) => validateWorkflowDraft(payload.definition, payload.inputs || {}),
+  getWorkflowRevisions: async (id) => [
+    {
+      id: "workflow_revision_screenshot",
+      workflowId: id,
+      workflowName: workflows.find((workflow) => workflow.id === id)?.name || "Workflow",
+      savedAt: "2026-05-25T00:06:30.000Z",
+      summary: "Initial workflow version saved",
+      diff: [{ kind: "added", field: "workflow", after: id }],
+      workflow: workflows.find((workflow) => workflow.id === id) || workflows[0]
+    }
+  ],
   getWorkflowRuns: async () => workflowRuns,
   runWorkflow: async () => {
     workflowRuns.splice(0, workflowRuns.length, workflowRuns[0]);
@@ -714,6 +747,8 @@ const radar: RadarApi = {
       sourcePath: preview.sourcePath,
       grantedPermissions: [],
       status: "pending",
+      trustLevel: preview.trustLevel,
+      compatibilityWarnings: preview.compatibilityWarnings,
       warnings: preview.warnings,
       installedAt: "2026-05-25T00:07:00.000Z",
       updatedAt: "2026-05-25T00:07:00.000Z"
@@ -742,6 +777,25 @@ const radar: RadarApi = {
     plugins.splice(0, plugins.length, ...plugins.filter((plugin) => plugin.id !== id));
     return { ok: true, plugins };
   },
+  getPluginAudit: async () => pluginAudit,
+  renderPluginPanel: async (payload) => ({
+    ok: true,
+    pluginId: payload.pluginId,
+    panelId: payload.panelId,
+    title: "Screenshot Panel",
+    html: "<!doctype html><body style='background:#060807;color:#d8e2d5;font:12px monospace;padding:16px'>Sandboxed screenshot panel</body>",
+    sourcePath: "plugins/examples/screenshot/panel.html",
+    runtimeStatus: "ready",
+    warnings: []
+  }),
+  validatePlugin: async (sourcePath) => ({
+    ok: true,
+    sourcePath,
+    manifest: pluginPreview(sourcePath).manifest,
+    trustLevel: "first-party",
+    warnings: [],
+    errors: []
+  }),
   runPluginApiAction: async (request) => ({ ok: true, action: request.action, data: [] }),
   getTargets: async () => targets,
   setTargets: async (nextTargets) => {

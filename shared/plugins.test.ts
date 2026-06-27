@@ -6,9 +6,13 @@ import {
   normalizeInstalledPlugin,
   normalizeInstalledPlugins,
   normalizePluginManifest,
+  normalizePluginAuditEntry,
   parsePluginManifestJson,
+  pluginCompatibilityWarnings,
+  pluginDeveloperValidation,
   pluginPermissionLabel,
-  pluginPermissionSummary
+  pluginPermissionSummary,
+  pluginTrustLevel
 } from "./plugins.js";
 
 const manifest = {
@@ -33,6 +37,7 @@ describe("plugins", () => {
     const preview = buildPluginInstallPreview({ manifest, sourcePath: "/tmp/jwt-helper" });
     expect(preview?.permissionSummary).toContain("Read in-scope HTTP/S captures");
     expect(preview?.manifestPath).toBe("");
+    expect(preview?.trustLevel).toBe("first-party");
     expect(preview?.warnings.join(" ")).toMatch(/Replay sending/);
   });
 
@@ -68,5 +73,32 @@ describe("plugins", () => {
     ]);
     expect(normalized).toHaveLength(1);
     expect(normalized[0].manifest.name).toBe("Second");
+  });
+
+  it("marks compatibility, trust, and audit metadata", () => {
+    const normalized = normalizePluginManifest({ ...manifest, sdkVersion: "9.9.0", minRadarVersion: "9.0.0" })!;
+    expect(pluginCompatibilityWarnings(normalized).join(" ")).toMatch(/Requires Radar 9.0.0/);
+    expect(pluginTrustLevel({ manifest: normalized, sourcePath: "/tmp/plugin", manifestPath: "/tmp/plugin.json" })).toBe("first-party");
+
+    const audit = normalizePluginAuditEntry({
+      pluginId: "jwt-helper",
+      pluginName: "JWT Helper",
+      action: "captures:list",
+      permission: "captures:read",
+      ok: true,
+      inputSummary: { query: "status:200" },
+      outputSummary: ["cap-1"]
+    });
+    expect(audit).toMatchObject({ pluginId: "jwt-helper", action: "captures:list", ok: true });
+    expect(normalizePluginAuditEntry({ pluginName: "Missing Id" })).toBeNull();
+    expect(normalizePluginAuditEntry({ pluginId: "jwt-helper", action: "unknown", ok: false })?.action).toBe("plugin:validate");
+
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(normalizePluginAuditEntry({ pluginId: "jwt-helper", inputSummary: circular })?.inputSummary).toBe("");
+    expect(pluginDeveloperValidation({ sourcePath: "", errors: ["bad manifest"] })).toMatchObject({
+      ok: false,
+      trustLevel: "untrusted"
+    });
   });
 });
