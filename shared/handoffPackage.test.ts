@@ -63,6 +63,7 @@ const finding = (status: Finding["status"]): Finding => ({
   severity: "high",
   confidence: "high",
   status,
+  component: "",
   affectedAssets: ["https://app.test"],
   evidence: [
     { id: "cap-1", kind: "capture", label: "GET /cap-1", createdAt: "2026-05-25T00:00:00.000Z", metadata: {} },
@@ -73,6 +74,7 @@ const finding = (status: Finding["status"]): Finding => ({
   remediation: "Fix.",
   notes: "",
   owner: "",
+  assignee: "",
   retestResult: "",
   source: "manual",
   createdAt: "2026-05-25T00:00:00.000Z",

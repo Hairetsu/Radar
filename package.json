@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "test": "pnpm lint && pnpm test:unit && pnpm build",
     "screenshots": "pnpm build && electron dist-electron/electron/screenshot.js",
+    "plugin:validate": "node scripts/validate-plugin.mjs",
     "icons": "bash scripts/build-icon.sh",
     "pack": "pnpm build && electron-builder --dir",
     "dist": "pnpm build && electron-builder"

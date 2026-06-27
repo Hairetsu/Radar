@@ -7,14 +7,20 @@ import type {
   ReplayResult,
   WorkflowCondition,
   WorkflowDefinition,
+  WorkflowDiffEntry,
+  WorkflowDryRun,
+  WorkflowGraph,
   WorkflowInput,
   WorkflowMode,
+  WorkflowRevision,
   WorkflowResult,
   WorkflowRun,
   WorkflowRunSource,
   WorkflowScopePolicy,
   WorkflowStep,
-  WorkflowStepKind
+  WorkflowStepTemplate,
+  WorkflowStepKind,
+  WorkflowValidationIssue
 } from "./domain.js";
 import { isAllowedTarget } from "./allowlist.js";
 import { normalizeFinding } from "./findings.js";
@@ -40,6 +46,51 @@ const workflowStepKinds = [
   "active-replay",
   "browser-open"
 ] as const;
+
+export const WORKFLOW_STEP_TEMPLATES: WorkflowStepTemplate[] = [
+  {
+    id: "security-headers",
+    title: "Security Headers",
+    description: "Inspect scoped responses for missing browser hardening headers.",
+    step: { id: "headers", title: "Security header coverage", kind: "security-headers", config: {} }
+  },
+  {
+    id: "cookie-flags",
+    title: "Cookie Flags",
+    description: "Check Set-Cookie directives for Secure, HttpOnly, and SameSite.",
+    step: { id: "cookies", title: "Cookie flag coverage", kind: "cookie-flags", config: {} }
+  },
+  {
+    id: "cors-policy",
+    title: "CORS Policy",
+    description: "Find wildcard, credentialed, or reflective CORS behavior.",
+    step: { id: "cors", title: "CORS policy", kind: "cors-policy", config: {} }
+  },
+  {
+    id: "cache-control",
+    title: "Sensitive Cache Control",
+    description: "Review sensitive responses for defensive cache directives.",
+    step: { id: "cache", title: "Sensitive cache control", kind: "cache-control", config: {} }
+  },
+  {
+    id: "metadata-exposure",
+    title: "Metadata Exposure",
+    description: "Detect technology headers, debug content, and secret-shaped responses.",
+    step: { id: "metadata", title: "Metadata exposure", kind: "metadata-exposure", config: {} }
+  },
+  {
+    id: "active-replay",
+    title: "Active Replay",
+    description: "Replay a selected capture through Radar's scoped active caps.",
+    step: { id: "replay", title: "Scoped active replay", kind: "active-replay", config: { stripAuth: "true" } }
+  },
+  {
+    id: "browser-open",
+    title: "Browser Open",
+    description: "Open an operator-provided URL in the embedded browser.",
+    step: { id: "open", title: "Open browser target", kind: "browser-open", config: { urlInput: "url" } }
+  }
+];
 
 const defaultPassiveScope: WorkflowScopePolicy = {
   requireInScope: true,
@@ -464,6 +515,175 @@ export function shouldRunWorkflowStep(step: WorkflowStep, inputs: Record<string,
 
 export function isActiveWorkflowStep(step: WorkflowStep) {
   return step.kind === "active-replay" || step.kind === "browser-open";
+}
+
+export function workflowToGraph(definition: WorkflowDefinition | null): WorkflowGraph {
+  if (!definition) {
+    return { nodes: [], edges: [] };
+  }
+  const nodes = definition.steps.map((step) => ({
+    id: step.id,
+    title: step.title,
+    kind: step.kind,
+    active: isActiveWorkflowStep(step),
+    condition: step.condition
+  }));
+  return {
+    nodes,
+    edges: definition.steps.slice(1).map((step, index) => ({
+      from: definition.steps[index].id,
+      to: step.id,
+      label: step.condition ? `if ${step.condition.inputId} = ${step.condition.equals}` : "then"
+    }))
+  };
+}
+
+export function workflowTemplateById(templateId: string) {
+  return WORKFLOW_STEP_TEMPLATES.find((template) => template.id === templateId) || null;
+}
+
+function workflowIssue(severity: "error" | "warning", message: string, stepId?: string) {
+  return { severity, message, stepId };
+}
+
+export function validateWorkflowDraft(input: unknown, inputs: Record<string, string> = {}): WorkflowDryRun {
+  const definition = typeof input === "string" ? parseWorkflowDefinition(input) : normalizeWorkflowDefinition(input);
+  if (!definition) {
+    return {
+      ok: false,
+      graph: { nodes: [], edges: [] },
+      issues: [workflowIssue("error", "Workflow definition is invalid or has no supported steps.")],
+      activeStepCount: 0,
+      passiveStepCount: 0,
+      estimatedRequests: 0,
+      skippedStepIds: [],
+      runnableStepIds: []
+    };
+  }
+  const issues: WorkflowValidationIssue[] = [];
+  const seenStepIds = new Set<string>();
+  for (const step of definition.steps) {
+    if (seenStepIds.has(step.id)) {
+      issues.push(workflowIssue("error", `Duplicate workflow step id: ${step.id}`, step.id));
+    }
+    seenStepIds.add(step.id);
+    if (step.condition && !definition.inputs.some((item) => item.id === step.condition?.inputId)) {
+      issues.push(workflowIssue("warning", `Condition references an input that is not declared: ${step.condition.inputId}`, step.id));
+    }
+  }
+  const activeStepCount = definition.steps.filter(isActiveWorkflowStep).length;
+  const passiveStepCount = definition.steps.length - activeStepCount;
+  const normalizedInputs = Object.fromEntries(
+    definition.inputs.map((item) => [item.id, cleanLine(inputs[item.id], item.defaultValue)])
+  );
+  for (const item of definition.inputs) {
+    if (item.required && !normalizedInputs[item.id]) {
+      issues.push(workflowIssue("warning", `Required input is empty for dry run: ${item.label}`));
+    }
+  }
+  const runnableStepIds = definition.steps
+    .filter((step) => shouldRunWorkflowStep(step, normalizedInputs))
+    .map((step) => step.id);
+  const skippedStepIds = definition.steps
+    .filter((step) => !runnableStepIds.includes(step.id))
+    .map((step) => step.id);
+  const estimatedRequests = definition.steps
+    .filter((step) => runnableStepIds.includes(step.id) && isActiveWorkflowStep(step))
+    .length;
+  if (estimatedRequests > 0 && !definition.scope.allowActive) {
+    issues.push(workflowIssue("error", "Active steps require scope.allowActive to be true."));
+  }
+  if (estimatedRequests > definition.scope.maxRequests) {
+    issues.push(workflowIssue("error", `Dry run estimates ${estimatedRequests} active requests, above cap ${definition.scope.maxRequests}.`));
+  }
+  if (definition.mode === "passive" && activeStepCount > 0) {
+    issues.push(workflowIssue("warning", "Workflow mode will be treated as active because it contains active steps."));
+  }
+  return {
+    ok: !issues.some((issue) => issue.severity === "error"),
+    workflow: definition,
+    graph: workflowToGraph(definition),
+    issues,
+    activeStepCount,
+    passiveStepCount,
+    estimatedRequests,
+    skippedStepIds,
+    runnableStepIds
+  };
+}
+
+function fieldDiff(kind: WorkflowDiffEntry["kind"], field: string, before?: unknown, after?: unknown): WorkflowDiffEntry {
+  return {
+    kind,
+    field,
+    before: before === undefined ? undefined : cleanLine(before),
+    after: after === undefined ? undefined : cleanLine(after)
+  };
+}
+
+export function diffWorkflowDefinitions(before: WorkflowDefinition | null | undefined, after: WorkflowDefinition): WorkflowDiffEntry[] {
+  if (!before) {
+    return [fieldDiff("added", "workflow", undefined, after.name)];
+  }
+  const diffs: WorkflowDiffEntry[] = [];
+  for (const field of ["name", "description", "mode"] as const) {
+    if (before[field] !== after[field]) {
+      diffs.push(fieldDiff("changed", field, before[field], after[field]));
+    }
+  }
+  for (const field of ["maxRequests", "timeoutMs", "delayMs", "maxResults", "allowActive", "requireInScope"] as const) {
+    if (before.scope[field] !== after.scope[field]) {
+      diffs.push(fieldDiff("changed", `scope.${field}`, before.scope[field], after.scope[field]));
+    }
+  }
+  const beforeInputs = new Map(before.inputs.map((input) => [input.id, input]));
+  const afterInputs = new Map(after.inputs.map((input) => [input.id, input]));
+  for (const input of before.inputs) {
+    if (!afterInputs.has(input.id)) {
+      diffs.push(fieldDiff("removed", `inputs.${input.id}`, input.label));
+    }
+  }
+  for (const input of after.inputs) {
+    const previous = beforeInputs.get(input.id);
+    if (!previous) {
+      diffs.push(fieldDiff("added", `inputs.${input.id}`, undefined, input.label));
+    } else if (JSON.stringify(previous) !== JSON.stringify(input)) {
+      diffs.push(fieldDiff("changed", `inputs.${input.id}`, previous.label, input.label));
+    }
+  }
+  const beforeSteps = new Map(before.steps.map((step) => [step.id, step]));
+  const afterSteps = new Map(after.steps.map((step) => [step.id, step]));
+  for (const step of before.steps) {
+    if (!afterSteps.has(step.id)) {
+      diffs.push(fieldDiff("removed", `steps.${step.id}`, step.title));
+    }
+  }
+  for (const step of after.steps) {
+    const previous = beforeSteps.get(step.id);
+    if (!previous) {
+      diffs.push(fieldDiff("added", `steps.${step.id}`, undefined, step.title));
+    } else if (JSON.stringify(previous) !== JSON.stringify(step)) {
+      diffs.push(fieldDiff("changed", `steps.${step.id}`, `${previous.kind}:${previous.title}`, `${step.kind}:${step.title}`));
+    }
+  }
+  return diffs;
+}
+
+export function createWorkflowRevision(
+  workflow: WorkflowDefinition,
+  previous?: WorkflowDefinition | null,
+  savedAt = nowIso()
+): WorkflowRevision {
+  const diff = diffWorkflowDefinitions(previous, workflow);
+  return {
+    id: createId("workflow_revision"),
+    workflowId: workflow.id,
+    workflowName: workflow.name,
+    savedAt,
+    summary: previous ? `${diff.length} changes saved` : "Initial workflow version saved",
+    diff,
+    workflow
+  };
 }
 
 export function normalizeWorkflowInputs(definition: WorkflowDefinition, input: Record<string, unknown> = {}) {
@@ -970,6 +1190,53 @@ export function normalizeWorkflowRun(input: unknown): WorkflowRun | null {
 export function normalizeWorkflowRuns(input: unknown): WorkflowRun[] {
   const values = Array.isArray(input) ? input : [];
   return values.map(normalizeWorkflowRun).filter((entry): entry is WorkflowRun => Boolean(entry));
+}
+
+export function normalizeWorkflowRevision(input: unknown): WorkflowRevision | null {
+  const value = objectValue(input);
+  const workflow = normalizeWorkflowDefinition(value.workflow);
+  const workflowId = cleanId(value.workflowId, workflow?.id || "");
+  if (!workflow || !workflowId) {
+    return null;
+  }
+  const diff = (Array.isArray(value.diff) ? value.diff : [])
+    .map((entry): WorkflowDiffEntry | null => {
+      const item = objectValue(entry);
+      const kind = normalizeEnum(item.kind, ["added", "removed", "changed"] as const, "changed");
+      const field = cleanLine(item.field);
+      if (!field) {
+        return null;
+      }
+      const diffEntry: WorkflowDiffEntry = {
+        kind,
+        field
+      };
+      if (typeof item.before === "string") {
+        diffEntry.before = cleanLine(item.before);
+      }
+      if (typeof item.after === "string") {
+        diffEntry.after = cleanLine(item.after);
+      }
+      return diffEntry;
+    })
+    .filter((entry): entry is WorkflowDiffEntry => Boolean(entry))
+    .slice(0, 80);
+  return {
+    id: cleanId(value.id, createId("workflow_revision")),
+    workflowId,
+    workflowName: cleanLine(value.workflowName, workflow.name),
+    savedAt: cleanLine(value.savedAt, nowIso()),
+    summary: cleanLine(value.summary, diff.length > 0 ? `${diff.length} changes saved` : "Workflow version saved"),
+    diff,
+    workflow
+  };
+}
+
+export function normalizeWorkflowRevisions(input: unknown): WorkflowRevision[] {
+  return (Array.isArray(input) ? input : [])
+    .map((entry) => normalizeWorkflowRevision(entry))
+    .filter((entry): entry is WorkflowRevision => Boolean(entry))
+    .slice(0, 80);
 }
 
 export function findingFromWorkflowResult(run: WorkflowRun, resultItem: WorkflowResult): Finding | null {

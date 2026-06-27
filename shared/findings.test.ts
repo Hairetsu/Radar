@@ -1,17 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFindingReport,
+  buildRetestMatrix,
   deleteFinding,
   evidenceRefFromAutomateResult,
   evidenceRefFromCapture,
   evidenceRefFromReplay,
   evidenceRefFromWebSocket,
+  filterFindings,
   findingFromAgentFinding,
   findingFromTemplate,
+  mergeFindings,
   normalizeFinding,
   normalizeFindingEvidenceRef,
   normalizeFindings,
   parseFindingEvidenceRef,
+  suggestFindingMerges,
   upsertFinding
 } from "./findings.js";
 import type { AutomateSession, CapturedRequest, ReplayHistoryEntry, WebSocketEvent } from "./domain.js";
@@ -140,6 +144,181 @@ describe("findings", () => {
     });
     expect(html.body).toContain("<h2>Draft issue</h2>");
     expect(html.body).toContain("ordinary metadata");
+  });
+
+  it("handles selected report ids, empty sections, and html table/list rendering", () => {
+    const first = normalizeFinding({
+      id: "finding-selected",
+      title: "Selected finding",
+      status: "reviewed",
+      evidence: ["capture:selected"],
+      reproductionSteps: "Replay the request.",
+      impact: "Impact is documented.",
+      remediation: "Remediation is documented."
+    });
+    const second = normalizeFinding({
+      id: "finding-skipped",
+      title: "Skipped finding",
+      status: "reviewed",
+      evidence: ["capture:skipped"]
+    });
+
+    const selected = buildFindingReport([first, second].filter(Boolean) as NonNullable<typeof first>[], {
+      format: "html",
+      findingIds: ["finding-selected"],
+      includeRetestMatrix: true,
+      includeAppendix: true
+    });
+    expect(selected.body).toContain("<h2>Selected finding</h2>");
+    expect(selected.body).not.toContain("Skipped finding");
+    expect(selected.body).toContain("<pre>| Finding | Severity | Component | Owner | Status | Retest | Evidence | Updated |</pre>");
+    expect(selected.body).toContain("<ul>");
+
+    const empty = buildFindingReport([], {
+      format: "markdown",
+      includeRetestMatrix: true,
+      includeAppendix: true
+    });
+    expect(empty.body).not.toContain("# Retest Matrix");
+    expect(empty.body).not.toContain("# Evidence Appendix");
+  });
+
+  it("builds preset reports with section copy, validation warnings, and retest matrix rows", () => {
+    const finding = normalizeFinding({
+      title: "Missing tenant authorization",
+      severity: "high",
+      confidence: "high",
+      status: "fixed-pending-retest",
+      component: "Accounts API",
+      owner: "Platform",
+      assignee: "Dana",
+      evidence: [evidenceRefFromCapture(capture)],
+      affectedAssets: ["https://example.test/admin"]
+    });
+
+    const report = buildFindingReport(finding ? [finding] : [], {
+      format: "markdown",
+      preset: "client-report",
+      title: "Client Security Report",
+      executiveSummary: "One high-risk authorization issue remains pending retest.",
+      methodology: "Manual proxy review and bounded replay.",
+      scopeSummary: "Accounts API only.",
+      limitations: "No production mutation testing.",
+      changeLog: "Initial delivery.",
+      includeRetestMatrix: true
+    });
+
+    expect(report.title).toBe("Client Security Report");
+    expect(report.body).toContain("# Executive Summary");
+    expect(report.body).toContain("Component: Accounts API");
+    expect(report.body).toContain("# Retest Matrix");
+    expect(report.body).toContain("fixed-pending-retest | pending");
+    expect(report.validationWarnings).toEqual(
+      expect.arrayContaining([
+        "Missing tenant authorization: missing reproduction",
+        "Missing tenant authorization: missing impact",
+        "Missing tenant authorization: missing remediation"
+      ])
+    );
+  });
+
+  it("filters, suggests, and merges duplicate finding records", () => {
+    const replay: ReplayHistoryEntry = {
+      id: "replay-headers",
+      sentAt: "2026-01-01T00:00:00.000Z",
+      draft: { method: "GET", url: "https://example.test", headers: {}, body: "" },
+      result: {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        durationMs: 10,
+        headers: {},
+        body: "",
+        bytes: 0
+      }
+    };
+    const primary = normalizeFinding({
+      id: "finding-primary",
+      title: "Missing security headers",
+      templateId: "headers",
+      severity: "medium",
+      confidence: "medium",
+      status: "reviewed",
+      component: "Edge",
+      owner: "Web",
+      affectedAssets: ["https://example.test"],
+      evidence: [evidenceRefFromCapture(capture)],
+      reproductionSteps: "Inspect the response.",
+      updatedAt: "2026-01-02T00:00:00.000Z"
+    });
+    const duplicate = normalizeFinding({
+      id: "finding-duplicate",
+      title: "Missing response security headers",
+      templateId: "headers",
+      severity: "high",
+      confidence: "high",
+      status: "needs-evidence",
+      component: "Edge",
+      assignee: "Dana",
+      affectedAssets: ["https://example.test"],
+      evidence: [evidenceRefFromReplay(replay)],
+      remediation: "Add HSTS and frame protections.",
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    });
+    const findings = [primary, duplicate].filter(Boolean) as NonNullable<typeof primary>[];
+
+    expect(filterFindings(findings, { owner: "dana" })).toHaveLength(1);
+    expect(filterFindings(findings, { component: "edge", text: "security" })).toHaveLength(2);
+    expect(suggestFindingMerges(findings)[0]).toEqual(
+      expect.objectContaining({ primaryId: "finding-primary", duplicateId: "finding-duplicate" })
+    );
+    const sharedEvidenceDuplicate = normalizeFinding({
+      id: "finding-shared-evidence",
+      title: "Security headers missing",
+      severity: "medium",
+      confidence: "medium",
+      status: "reviewed",
+      evidence: [evidenceRefFromCapture(capture)],
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    });
+    expect(
+      suggestFindingMerges([primary, sharedEvidenceDuplicate].filter(Boolean) as NonNullable<typeof primary>[])[0]?.reasons
+    ).toContain("shared evidence");
+
+    const merged = primary && duplicate ? mergeFindings(primary, duplicate, "2026-01-03T00:00:00.000Z") : null;
+    expect(merged?.severity).toBe("high");
+    expect(merged?.confidence).toBe("high");
+    expect(merged?.assignee).toBe("Dana");
+    expect(merged?.evidence).toHaveLength(2);
+    expect(merged?.notes).toContain("Merged duplicate finding finding-duplicate");
+  });
+
+  it("builds retest matrix states for accepted, pending, passed, and failed findings", () => {
+    const rows = buildRetestMatrix(
+      (["fixed-pending-retest", "retest-passed", "retest-failed", "accepted-risk"] as const)
+        .map((status) =>
+          normalizeFinding({
+            title: `Finding ${status}`,
+            status,
+            evidence: [evidenceRefFromCapture(capture)]
+          })
+        )
+        .filter(Boolean) as NonNullable<ReturnType<typeof normalizeFinding>>[]
+    );
+
+    expect(rows.map((row) => row.retestState)).toEqual(["pending", "passed", "failed", "accepted-risk"]);
+  });
+
+  it("warns when a client-report input record is missing evidence", () => {
+    const malformed = {
+      ...(normalizeFinding({ title: "Malformed imported finding", status: "reviewed", evidence: ["capture:malformed"] }) as NonNullable<
+        ReturnType<typeof normalizeFinding>
+      >),
+      evidence: []
+    };
+    const report = buildFindingReport([malformed], { format: "markdown", preset: "client-report" });
+
+    expect(report.validationWarnings).toContain("Malformed imported finding: missing evidence");
   });
 
   it("creates automate evidence references with session context", () => {

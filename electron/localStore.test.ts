@@ -167,6 +167,8 @@ describe("localStore", () => {
       sourcePath: "/tmp/crash-plugin",
       grantedPermissions: [],
       status: "pending",
+      trustLevel: "first-party",
+      compatibilityWarnings: [],
       warnings: [],
       installedAt: "2026-05-25T12:00:00.000Z",
       updatedAt: "2026-05-25T12:00:00.000Z"
@@ -815,6 +817,7 @@ describe("localStore", () => {
       severity: "low",
       confidence: "high",
       status: "reviewed",
+      component: "",
       affectedAssets: ["https://example.test"],
       evidence: [
         {
@@ -830,8 +833,10 @@ describe("localStore", () => {
       remediation: "Add HSTS and frame protections.",
       notes: "Reviewed manually.",
       owner: "web team",
+      assignee: "",
       retestResult: "",
       source: "manual",
+      sourceId: undefined,
       createdAt: "2026-05-25T12:00:00.000Z",
       updatedAt: "2026-05-25T12:00:01.000Z",
       reviewedAt: "2026-05-25T12:00:01.000Z"
@@ -1259,6 +1264,62 @@ describe("localStore", () => {
     expect(reopened.getReplayTabState(context.workspace.id).tabs[0].name).toBe("Auth tab");
     expect(reopened.listReplayEnvironments(context.workspace.id)[0]?.name).toBe("Staging");
     expect(reopened.listReplayCollections(context.workspace.id)[0]?.items[0]?.name).toBe("Login");
+    reopened.close();
+  });
+
+  it("persists plugin audit entries and workflow revision history", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const workflow: WorkflowDefinition = {
+      id: "workflow-history",
+      name: "Workflow History",
+      description: "Exercises revision persistence.",
+      mode: "passive",
+      builtIn: false,
+      inputs: [],
+      scope: {
+        requireInScope: true,
+        allowActive: false,
+        maxRequests: 0,
+        timeoutMs: 10000,
+        delayMs: 0,
+        maxResults: 20
+      },
+      steps: [{ id: "headers", title: "Headers", kind: "security-headers", config: {} }],
+      createdAt: "2026-05-25T12:00:00.000Z",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    };
+
+    store.upsertWorkflowDefinition(context.workspace.id, workflow);
+    store.upsertWorkflowDefinition(context.workspace.id, {
+      ...workflow,
+      name: "Workflow History Updated",
+      updatedAt: "2026-05-25T12:01:00.000Z"
+    });
+    store.appendPluginAudit(context.workspace.id, {
+      id: "plugin-audit-1",
+      pluginId: "crash-plugin",
+      pluginName: "Crash Plugin",
+      action: "captures:list",
+      permission: "captures:read",
+      ok: true,
+      message: "Plugin API action completed.",
+      inputSummary: "{}",
+      outputSummary: "[]",
+      durationMs: 2,
+      createdAt: "2026-05-25T12:02:00.000Z"
+    });
+
+    store.close();
+    const reopened = openLocalStore(tmpDir);
+    const revisions = reopened.listWorkflowRevisions(context.workspace.id, workflow.id);
+    expect(revisions.length).toBeGreaterThanOrEqual(2);
+    expect(revisions.some((revision) => revision.diff.some((entry) => entry.field === "name"))).toBe(true);
+    expect(reopened.listPluginAudit(context.workspace.id)[0]).toMatchObject({
+      pluginId: "crash-plugin",
+      action: "captures:list",
+      ok: true
+    });
     reopened.close();
   });
 });

@@ -74,6 +74,7 @@ import type { CapturedRequest, WebSocketDirection, WebSocketEvent } from "./type
 import type {
   Finding,
   FindingConfidence,
+  FindingReportPreset,
   FindingSeverity,
   FindingStatus,
   FindingTemplateId,
@@ -171,7 +172,16 @@ const requestMenuDangerClass =
 
 const findingSeverities: FindingSeverity[] = ["info", "low", "medium", "high", "critical"];
 const findingConfidences: FindingConfidence[] = ["low", "medium", "high"];
-const findingStatuses: FindingStatus[] = ["draft", "reviewed", "accepted-risk", "retest-passed", "retest-failed"];
+const findingStatuses: FindingStatus[] = [
+  "draft",
+  "needs-evidence",
+  "reviewed",
+  "accepted-risk",
+  "fixed-pending-retest",
+  "retest-passed",
+  "retest-failed"
+];
+const findingReportPresets: FindingReportPreset[] = ["client-report", "internal-notes", "raw-technical-appendix"];
 
 const bundleRedactionOptions: Array<{ id: ProjectBundleRedactionProfile; label: string }> = [
   { id: "redacted-evidence", label: "Redacted Evidence" },
@@ -225,8 +235,11 @@ function findingStatusTone(status: FindingStatus): "good" | "warn" | "danger" | 
   if (status === "retest-failed") {
     return "danger";
   }
-  if (status === "accepted-risk") {
+  if (status === "accepted-risk" || status === "needs-evidence") {
     return "warn";
+  }
+  if (status === "fixed-pending-retest") {
+    return "move";
   }
   return "ghost";
 }
@@ -270,6 +283,33 @@ function pluginStatusTone(status: PluginInstallStatus): "good" | "warn" | "dange
     return "danger";
   }
   return "ghost";
+}
+
+function pluginTrustTone(trust: string): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (trust === "first-party") {
+    return "good";
+  }
+  if (trust === "verified-local") {
+    return "move";
+  }
+  if (trust === "untrusted") {
+    return "danger";
+  }
+  return "ghost";
+}
+
+function validationTone(severity: string): "good" | "warn" | "danger" | "move" | "ghost" {
+  return severity === "error" ? "danger" : "warn";
+}
+
+function diffTone(kind: string): "good" | "warn" | "danger" | "move" | "ghost" {
+  if (kind === "added") {
+    return "good";
+  }
+  if (kind === "removed") {
+    return "danger";
+  }
+  return "move";
 }
 
 function advancedSignalTone(severity: string): "good" | "warn" | "danger" | "move" | "ghost" {
@@ -499,8 +539,20 @@ export function App() {
   const [findingTemplateId, setFindingTemplateId] = useState<FindingTemplateId>("headers");
   const [findingDraft, setFindingDraft] = useState<Finding | null>(null);
   const [findingReportFormat, setFindingReportFormat] = useState<"markdown" | "html">("markdown");
+  const [findingReportPreset, setFindingReportPreset] = useState<FindingReportPreset>("client-report");
+  const [findingReportTitle, setFindingReportTitle] = useState("Radar Client Report");
   const [findingReportIncludeDrafts, setFindingReportIncludeDrafts] = useState(false);
   const [findingReportIncludeRaw, setFindingReportIncludeRaw] = useState(false);
+  const [findingReportExecutiveSummary, setFindingReportExecutiveSummary] = useState("");
+  const [findingReportMethodology, setFindingReportMethodology] = useState("");
+  const [findingReportScopeSummary, setFindingReportScopeSummary] = useState("");
+  const [findingReportLimitations, setFindingReportLimitations] = useState("");
+  const [findingReportChangeLog, setFindingReportChangeLog] = useState("");
+  const [findingStatusFilter, setFindingStatusFilter] = useState<FindingStatus | "all">("all");
+  const [findingSeverityFilter, setFindingSeverityFilter] = useState<FindingSeverity | "all">("all");
+  const [findingOwnerFilter, setFindingOwnerFilter] = useState("all");
+  const [findingComponentFilter, setFindingComponentFilter] = useState("all");
+  const [findingTextFilter, setFindingTextFilter] = useState("");
   const [workflowEditorText, setWorkflowEditorText] = useState("");
   const [workflowEditorError, setWorkflowEditorError] = useState("");
   const [workflowInputs, setWorkflowInputs] = useState<Record<string, string>>({});
@@ -691,6 +743,73 @@ export function App() {
     : false;
   const activeAgentRun = workbench.activeAgentRun;
   const activeAgentRunning = activeAgentRun?.status === "queued" || activeAgentRun?.status === "running";
+  const findingOwnerOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          workbench.findings
+            .flatMap((finding) => [finding.owner, finding.assignee])
+            .map((value) => value.trim())
+            .filter(Boolean)
+        )
+      ).sort((left, right) => left.localeCompare(right)),
+    [workbench.findings]
+  );
+  const findingComponentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          workbench.findings
+            .map((finding) => finding.component.trim())
+            .filter(Boolean)
+        )
+      ).sort((left, right) => left.localeCompare(right)),
+    [workbench.findings]
+  );
+  const filteredFindings = useMemo(() => {
+    const query = findingTextFilter.trim().toLowerCase();
+    return workbench.findings.filter((finding) => {
+      if (findingStatusFilter !== "all" && finding.status !== findingStatusFilter) {
+        return false;
+      }
+      if (findingSeverityFilter !== "all" && finding.severity !== findingSeverityFilter) {
+        return false;
+      }
+      if (
+        findingOwnerFilter !== "all" &&
+        finding.owner.trim() !== findingOwnerFilter &&
+        finding.assignee.trim() !== findingOwnerFilter
+      ) {
+        return false;
+      }
+      if (findingComponentFilter !== "all" && finding.component.trim() !== findingComponentFilter) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [
+        finding.title,
+        finding.component,
+        finding.owner,
+        finding.assignee,
+        finding.status,
+        finding.severity,
+        finding.affectedAssets.join(" "),
+        finding.notes
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [
+    findingComponentFilter,
+    findingOwnerFilter,
+    findingSeverityFilter,
+    findingStatusFilter,
+    findingTextFilter,
+    workbench.findings
+  ]);
   const sidebarViewStats: Record<WorkView, string> = {
     traffic: `${workbench.trafficCaptures.length}/${workbench.scopedTrafficCaptures.length} in scope`,
     websocket: `${workbench.filteredWebSocketEvents.length}/${workbench.webSocketEvents.length} frames`,
@@ -701,7 +820,10 @@ export function App() {
     automate: workbench.activeAutomateSession
       ? `${workbench.activeAutomateSession.results.length}/${workbench.activeAutomateSession.payloads.length} ${workbench.activeAutomateSession.status}`
       : `${workbench.automatePositions.length} positions`,
-    findings: `${workbench.findings.length} findings`,
+    findings:
+      filteredFindings.length === workbench.findings.length
+        ? `${workbench.findings.length} findings`
+        : `${filteredFindings.length}/${workbench.findings.length} findings`,
     workflows: `${workbench.workflowRuns.length} runs`,
     plugins: `${workbench.approvedPlugins.length}/${workbench.plugins.length} approved`,
     advanced: `${workbench.advancedSummary.parameters.length} params`,
@@ -803,12 +925,31 @@ export function App() {
     void workbench.saveFinding({
       ...findingDraft,
       title: findingDraft.title.trim(),
+      component: findingDraft.component.trim(),
+      owner: findingDraft.owner.trim(),
+      assignee: findingDraft.assignee.trim(),
       affectedAssets: findingDraft.affectedAssets.map((asset) => asset.trim()).filter(Boolean),
       updatedAt: new Date().toISOString(),
       reviewedAt:
         findingDraft.status === "reviewed" && !findingDraft.reviewedAt
           ? new Date().toISOString()
           : findingDraft.reviewedAt
+    });
+  };
+  const buildFindingReport = () => {
+    void workbench.buildFindingReportPreview({
+      format: findingReportFormat,
+      preset: findingReportPreset,
+      title: findingReportTitle.trim() || undefined,
+      includeDrafts: findingReportIncludeDrafts,
+      includeAppendix: true,
+      includeRawEvidence: findingReportIncludeRaw,
+      includeRetestMatrix: true,
+      executiveSummary: findingReportExecutiveSummary,
+      methodology: findingReportMethodology,
+      scopeSummary: findingReportScopeSummary,
+      limitations: findingReportLimitations,
+      changeLog: findingReportChangeLog
     });
   };
   const saveWorkflowEditor = () => {
@@ -824,6 +965,38 @@ export function App() {
       id: parsed.builtIn ? `${parsed.id}-custom` : parsed.id,
       updatedAt: new Date().toISOString()
     });
+  };
+  const validateWorkflowEditorDryRun = () => {
+    void workbench.validateWorkflowEditor(workflowEditorText, workflowInputs);
+  };
+  const insertWorkflowTemplate = (templateId: string) => {
+    const template = workbench.workflowStepTemplates.find((item) => item.id === templateId);
+    const parsed = parseWorkflowDefinition(workflowEditorText) || workbench.selectedWorkflow;
+    if (!template || !parsed) {
+      setWorkflowEditorError("Select or draft a workflow before inserting a template.");
+      return;
+    }
+    const activeTemplate = template.step.kind === "active-replay" || template.step.kind === "browser-open";
+    const nextStep = {
+      ...template.step,
+      id: `${template.step.id}-${parsed.steps.length + 1}`
+    };
+    const nextWorkflow: WorkflowDefinition = {
+      ...parsed,
+      mode: activeTemplate ? "active" : parsed.mode,
+      scope: activeTemplate
+        ? {
+            ...parsed.scope,
+            allowActive: true,
+            maxRequests: Math.max(parsed.scope.maxRequests, 1)
+          }
+        : parsed.scope,
+      steps: [...parsed.steps, nextStep],
+      updatedAt: new Date().toISOString()
+    };
+    setWorkflowEditorError("");
+    setWorkflowEditorText(workflowDefinitionText(nextWorkflow));
+    void workbench.validateWorkflowEditor(nextWorkflow, workflowInputs);
   };
   const runSelectedWorkflow = () => {
     if (!workbench.selectedWorkflow) {
@@ -1896,14 +2069,7 @@ export function App() {
                   <Button
                     variant="solid"
                     type="button"
-                    onClick={() =>
-                      void workbench.buildFindingReportPreview({
-                        format: findingReportFormat,
-                        includeDrafts: findingReportIncludeDrafts,
-                        includeAppendix: true,
-                        includeRawEvidence: findingReportIncludeRaw
-                      })
-                    }
+                    onClick={buildFindingReport}
                     data-testid="buildFindingReportHeader"
                   >
                     <ExternalLink size={14} strokeWidth={1.7} />
@@ -3948,7 +4114,7 @@ export function App() {
 
           {workbench.activeView === "findings" && (
             <div className="grid min-h-0 [grid-template-columns:minmax(300px,0.42fr)_minmax(460px,1fr)] max-[1180px]:grid-cols-1">
-              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_auto] max-[1180px]:border-r-0 max-[1180px]:border-b">
+              <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_auto_minmax(0,1fr)_auto] max-[1180px]:border-r-0 max-[1180px]:border-b">
                 <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(4,minmax(0,1fr))]">
                   {[
                     ["Total", workbench.findings.length],
@@ -3967,6 +4133,70 @@ export function App() {
                   ))}
                 </div>
 
+                <div className="grid gap-2 border-b border-rule bg-ink/35 p-3" data-testid="findingFilters">
+                  <Input
+                    value={findingTextFilter}
+                    onChange={(event) => setFindingTextFilter(event.target.value)}
+                    placeholder="Filter title, asset, owner, notes"
+                    aria-label="Filter findings"
+                    data-testid="findingTextFilter"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      variant="compact"
+                      value={findingStatusFilter}
+                      onChange={(event) => setFindingStatusFilter(event.target.value as FindingStatus | "all")}
+                      data-testid="findingStatusFilter"
+                    >
+                      <option value="all">All status</option>
+                      {findingStatuses.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </Select>
+                    <Select
+                      variant="compact"
+                      value={findingSeverityFilter}
+                      onChange={(event) => setFindingSeverityFilter(event.target.value as FindingSeverity | "all")}
+                      data-testid="findingSeverityFilter"
+                    >
+                      <option value="all">All severity</option>
+                      {findingSeverities.map((severity) => (
+                        <option key={severity} value={severity}>
+                          {severity}
+                        </option>
+                      ))}
+                    </Select>
+                    <Select
+                      variant="compact"
+                      value={findingOwnerFilter}
+                      onChange={(event) => setFindingOwnerFilter(event.target.value)}
+                      data-testid="findingOwnerFilter"
+                    >
+                      <option value="all">All owners</option>
+                      {findingOwnerOptions.map((owner) => (
+                        <option key={owner} value={owner}>
+                          {owner}
+                        </option>
+                      ))}
+                    </Select>
+                    <Select
+                      variant="compact"
+                      value={findingComponentFilter}
+                      onChange={(event) => setFindingComponentFilter(event.target.value)}
+                      data-testid="findingComponentFilter"
+                    >
+                      <option value="all">All components</option>
+                      {findingComponentOptions.map((component) => (
+                        <option key={component} value={component}>
+                          {component}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="min-h-0 overflow-auto radar-traffic-list" data-testid="findingsList">
                   {workbench.findings.length === 0 && (
                     <EmptyState>
@@ -3974,7 +4204,13 @@ export function App() {
                       <span>No findings yet</span>
                     </EmptyState>
                   )}
-                  {workbench.findings.map((finding) => (
+                  {workbench.findings.length > 0 && filteredFindings.length === 0 && (
+                    <EmptyState>
+                      <Search size={18} strokeWidth={1.4} />
+                      <span>No findings match the current filters</span>
+                    </EmptyState>
+                  )}
+                  {filteredFindings.map((finding) => (
                     <Button
                       key={finding.id}
                       variant="ghost"
@@ -3997,13 +4233,50 @@ export function App() {
                         {finding.title}
                       </strong>
                       <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted">
-                        {finding.evidence.map((ref) => `${ref.kind}:${ref.id}`).join(", ")}
+                        {[finding.component, finding.assignee || finding.owner, `${finding.evidence.length} evidence`]
+                          .filter(Boolean)
+                          .join(" / ")}
                       </span>
                     </Button>
                   ))}
                 </div>
 
                 <div className="grid gap-2 border-t border-rule p-3">
+                  {workbench.findingMergeSuggestions.length > 0 && (
+                    <div className="grid gap-2 border border-signal/25 bg-signal/[0.04] p-3" data-testid="findingMergeQueue">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-signal">
+                          Merge Queue
+                        </span>
+                        <StatusBadge tone="move">{workbench.findingMergeSuggestions.length}</StatusBadge>
+                      </div>
+                      {workbench.findingMergeSuggestions.slice(0, 3).map((suggestion) => {
+                        const primary = workbench.findings.find((finding) => finding.id === suggestion.primaryId);
+                        const duplicate = workbench.findings.find((finding) => finding.id === suggestion.duplicateId);
+                        return (
+                          <div key={suggestion.id} className="grid gap-2 border border-rule bg-ink/35 p-2">
+                            <div className="min-w-0 font-mono text-[10px] text-muted">
+                              <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-copy">
+                                {primary?.title || suggestion.primaryId}
+                              </span>
+                              <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                                duplicate: {duplicate?.title || suggestion.duplicateId}
+                              </span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              type="button"
+                              onClick={() => void workbench.mergeFindingPair(suggestion.primaryId, suggestion.duplicateId)}
+                              data-testid={`mergeFinding-${suggestion.primaryId}-${suggestion.duplicateId}`}
+                            >
+                              <GitCompare size={13} strokeWidth={1.7} />
+                              Merge
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <FieldLabel htmlFor="findingTemplateSelect">Template</FieldLabel>
                   <Select
                     id="findingTemplateSelect"
@@ -4131,7 +4404,7 @@ export function App() {
                         </div>
                       </div>
 
-                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
                         <div>
                           <FieldLabel htmlFor="findingAssets">Affected Assets</FieldLabel>
                           <Textarea
@@ -4150,14 +4423,36 @@ export function App() {
                             data-testid="findingAssets"
                           />
                         </div>
-                        <div>
-                          <FieldLabel htmlFor="findingOwner">Owner</FieldLabel>
-                          <Input
-                            id="findingOwner"
-                            value={findingDraft.owner}
-                            onChange={(event) => updateFindingDraft({ owner: event.target.value })}
-                            data-testid="findingOwner"
-                          />
+                        <div className="grid content-start gap-3">
+                          <div>
+                            <FieldLabel htmlFor="findingComponent">Component</FieldLabel>
+                            <Input
+                              id="findingComponent"
+                              value={findingDraft.component}
+                              onChange={(event) => updateFindingDraft({ component: event.target.value })}
+                              data-testid="findingComponent"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <FieldLabel htmlFor="findingOwner">Owner</FieldLabel>
+                              <Input
+                                id="findingOwner"
+                                value={findingDraft.owner}
+                                onChange={(event) => updateFindingDraft({ owner: event.target.value })}
+                                data-testid="findingOwner"
+                              />
+                            </div>
+                            <div>
+                              <FieldLabel htmlFor="findingAssignee">Assignee</FieldLabel>
+                              <Input
+                                id="findingAssignee"
+                                value={findingDraft.assignee}
+                                onChange={(event) => updateFindingDraft({ assignee: event.target.value })}
+                                data-testid="findingAssignee"
+                              />
+                            </div>
+                          </div>
                           <div className="mt-3 flex flex-wrap gap-2">
                             <StatusBadge tone={findingDraft.source === "ai" ? "move" : findingDraft.source === "automate" ? "warn" : "ghost"}>
                               {findingDraft.source}
@@ -4264,9 +4559,21 @@ export function App() {
                   )}
                 </div>
 
-                <div className="grid min-h-0 border-t border-rule bg-ink/25 [grid-template-columns:minmax(260px,0.36fr)_minmax(0,1fr)] max-[900px]:grid-cols-1">
-                  <div className="grid content-start gap-3 border-r border-rule p-4 max-[900px]:border-r-0 max-[900px]:border-b">
+                <div className="grid min-h-0 border-t border-rule bg-ink/25 [grid-template-columns:minmax(320px,0.44fr)_minmax(0,1fr)] max-[900px]:grid-cols-1">
+                  <div className="grid min-h-0 content-start gap-3 overflow-auto border-r border-rule p-4 max-[900px]:border-r-0 max-[900px]:border-b">
                     <div className="grid grid-cols-2 gap-2">
+                      <Select
+                        variant="compact"
+                        value={findingReportPreset}
+                        onChange={(event) => setFindingReportPreset(event.target.value as FindingReportPreset)}
+                        data-testid="findingReportPreset"
+                      >
+                        {findingReportPresets.map((preset) => (
+                          <option key={preset} value={preset}>
+                            {preset}
+                          </option>
+                        ))}
+                      </Select>
                       <Select
                         variant="compact"
                         value={findingReportFormat}
@@ -4276,21 +4583,55 @@ export function App() {
                         <option value="markdown">Markdown</option>
                         <option value="html">HTML</option>
                       </Select>
-                      <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() =>
-                          void workbench.buildFindingReportPreview({
-                            format: findingReportFormat,
-                            includeDrafts: findingReportIncludeDrafts,
-                            includeAppendix: true,
-                            includeRawEvidence: findingReportIncludeRaw
-                          })
-                        }
-                        data-testid="buildFindingReport"
-                      >
-                        Build
-                      </Button>
+                    </div>
+                    <Input
+                      value={findingReportTitle}
+                      onChange={(event) => setFindingReportTitle(event.target.value)}
+                      aria-label="Report title"
+                      data-testid="findingReportTitle"
+                    />
+                    <div className="grid gap-2 xl:grid-cols-2">
+                      <Textarea
+                        value={findingReportExecutiveSummary}
+                        onChange={(event) => setFindingReportExecutiveSummary(event.target.value)}
+                        placeholder="Executive summary"
+                        className="h-[78px]"
+                        data-testid="findingReportExecutiveSummary"
+                      />
+                      <Textarea
+                        value={findingReportScopeSummary}
+                        onChange={(event) => setFindingReportScopeSummary(event.target.value)}
+                        placeholder="Scope summary"
+                        className="h-[78px]"
+                        data-testid="findingReportScopeSummary"
+                      />
+                      <Textarea
+                        value={findingReportMethodology}
+                        onChange={(event) => setFindingReportMethodology(event.target.value)}
+                        placeholder="Methodology"
+                        className="h-[78px]"
+                        data-testid="findingReportMethodology"
+                      />
+                      <Textarea
+                        value={findingReportLimitations}
+                        onChange={(event) => setFindingReportLimitations(event.target.value)}
+                        placeholder="Limitations"
+                        className="h-[78px]"
+                        data-testid="findingReportLimitations"
+                      />
+                    </div>
+                    <Textarea
+                      value={findingReportChangeLog}
+                      onChange={(event) => setFindingReportChangeLog(event.target.value)}
+                      placeholder="Change log"
+                      className="h-[70px]"
+                      data-testid="findingReportChangeLog"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge tone="move">{workbench.findingRetestMatrix.length} retest rows</StatusBadge>
+                      <StatusBadge tone={(workbench.findingReport?.validationWarnings?.length || 0) > 0 ? "warn" : "good"}>
+                        {workbench.findingReport?.validationWarnings?.length || 0} warnings
+                      </StatusBadge>
                     </div>
                     <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
                       <input
@@ -4309,6 +4650,15 @@ export function App() {
                       Raw evidence
                     </label>
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="solid"
+                        type="button"
+                        onClick={buildFindingReport}
+                        data-testid="buildFindingReport"
+                      >
+                        <ExternalLink size={13} strokeWidth={1.7} />
+                        Build
+                      </Button>
                       <Button
                         variant="outline"
                         type="button"
@@ -4331,9 +4681,18 @@ export function App() {
                       </Button>
                     </div>
                   </div>
-                  <pre className="min-h-0 overflow-auto p-4 text-[11px]" data-testid="findingReportPreview">
-                    {workbench.findingReport?.body || "Build a report preview from reviewed findings. Drafts and raw evidence are opt-in."}
-                  </pre>
+                  <div className="flex min-h-0 flex-col">
+                    {(workbench.findingReport?.validationWarnings?.length || 0) > 0 && (
+                      <div className="border-b border-rule bg-rust/5 p-3 font-mono text-[10px] text-rust" data-testid="findingReportWarnings">
+                        {workbench.findingReport?.validationWarnings?.slice(0, 5).map((warning) => (
+                          <div key={warning}>{warning}</div>
+                        ))}
+                      </div>
+                    )}
+                    <pre className="min-h-0 flex-1 overflow-auto p-4 text-[11px]" data-testid="findingReportPreview">
+                      {workbench.findingReport?.body || "Build a report preview from reviewed findings. Drafts and raw evidence are opt-in."}
+                    </pre>
+                  </div>
                 </div>
               </div>
             </div>
@@ -4441,6 +4800,101 @@ export function App() {
                         </div>
                       </div>
                     )}
+                    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+                      <div className="grid gap-3 border border-rule bg-ink/25 p-3" data-testid="workflowGraph">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <FieldLabel>Visual Graph</FieldLabel>
+                          <StatusBadge tone={workbench.workflowDryRun.ok ? "good" : "danger"}>
+                            {workbench.workflowDryRun.ok ? "dry-run clean" : "needs review"}
+                          </StatusBadge>
+                        </div>
+                        <div className="grid gap-2">
+                          {workbench.selectedWorkflowGraph.nodes.length === 0 && <EmptyState>No workflow graph available</EmptyState>}
+                          {workbench.selectedWorkflowGraph.nodes.map((node, index) => (
+                            <div key={node.id} className="grid gap-2 border border-rule bg-surface/40 p-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge tone={node.active ? "warn" : "good"}>{node.active ? "active" : "passive"}</StatusBadge>
+                                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+                                  {String(index + 1).padStart(2, "0")} / {node.kind}
+                                </span>
+                                <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[13px] uppercase tracking-[0.04em] text-bone">
+                                  {node.title}
+                                </strong>
+                              </div>
+                              {node.condition && (
+                                <span className="font-mono text-[10px] text-sand">
+                                  branch if {node.condition.inputId} = {node.condition.equals}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {workbench.selectedWorkflowGraph.edges.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {workbench.selectedWorkflowGraph.edges.map((edge) => (
+                              <StatusBadge key={`${edge.from}-${edge.to}`} tone="ghost">
+                                {`${edge.from} -> ${edge.to}: ${edge.label}`}
+                              </StatusBadge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid gap-3 border border-rule bg-ink/25 p-3" data-testid="workflowStepTemplates">
+                        <FieldLabel>Step Templates</FieldLabel>
+                        <div className="grid gap-2">
+                          {workbench.workflowStepTemplates.map((template) => (
+                            <Button
+                              key={template.id}
+                              variant="ghost"
+                              type="button"
+                              className="h-auto justify-start gap-2 border border-rule bg-surface/40 px-2 py-2 text-left normal-case"
+                              onClick={() => insertWorkflowTemplate(template.id)}
+                              data-testid={`workflowTemplate-${template.id}`}
+                            >
+                              <FilePlus2 size={13} strokeWidth={1.7} />
+                              <span className="min-w-0">
+                                <span className="block font-display text-[12px] uppercase tracking-[0.04em] text-bone">
+                                  {template.title}
+                                </span>
+                                <span className="line-clamp-2 text-[10px] leading-4 text-muted">{template.description}</span>
+                              </span>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 border border-rule bg-ink/25 p-3" data-testid="workflowDryRun">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <FieldLabel>Dry-Run Validation</FieldLabel>
+                        <div className="flex flex-wrap gap-1.5">
+                          <StatusBadge tone="good">{workbench.workflowDryRun.passiveStepCount} passive</StatusBadge>
+                          <StatusBadge tone={workbench.workflowDryRun.activeStepCount > 0 ? "warn" : "ghost"}>
+                            {workbench.workflowDryRun.estimatedRequests} active req
+                          </StatusBadge>
+                          <StatusBadge>{workbench.workflowDryRun.runnableStepIds.length} runnable</StatusBadge>
+                        </div>
+                      </div>
+                      {workbench.workflowDryRun.issues.length === 0 ? (
+                        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                          No dry-run issues for the current draft.
+                        </span>
+                      ) : (
+                        <div className="grid gap-1">
+                          {workbench.workflowDryRun.issues.map((issue) => (
+                            <StatusBadge key={`${issue.severity}-${issue.message}`} tone={validationTone(issue.severity)}>
+                              {issue.severity}: {issue.message}
+                            </StatusBadge>
+                          ))}
+                        </div>
+                      )}
+                      {workbench.workflowDryRun.skippedStepIds.length > 0 && (
+                        <span className="font-mono text-[10px] text-sand">
+                          Skipped by branch conditions: {workbench.workflowDryRun.skippedStepIds.join(", ")}
+                        </span>
+                      )}
+                    </div>
                     {workbench.selectedWorkflow && workbench.selectedWorkflow.inputs.length > 0 && (
                       <div className="grid gap-3 border border-rule bg-ink/25 p-3">
                         <FieldLabel>Inputs</FieldLabel>
@@ -4485,10 +4939,14 @@ export function App() {
                   </div>
                 </div>
 
-                <div className="grid gap-2 border-t border-rule p-3 md:grid-cols-3">
+                <div className="grid gap-2 border-t border-rule p-3 md:grid-cols-4">
                   <Button variant="outline" type="button" onClick={saveWorkflowEditor} data-testid="saveWorkflow">
                     <FilePlus2 size={13} strokeWidth={1.7} />
                     Save
+                  </Button>
+                  <Button variant="outline" type="button" onClick={validateWorkflowEditorDryRun} data-testid="validateWorkflow">
+                    <ShieldCheck size={13} strokeWidth={1.7} />
+                    Dry Run
                   </Button>
                   <Button
                     variant="solid"
@@ -4518,7 +4976,7 @@ export function App() {
                 </div>
               </div>
 
-              <div className="grid min-h-0 [grid-template-rows:minmax(220px,0.42fr)_minmax(0,1fr)] max-[1320px]:col-span-2 max-[900px]:col-span-1">
+              <div className="grid min-h-0 [grid-template-rows:minmax(180px,0.3fr)_minmax(160px,0.26fr)_minmax(0,1fr)] max-[1320px]:col-span-2 max-[900px]:col-span-1">
                 <div className="min-h-0 overflow-auto border-b border-rule radar-traffic-list" data-testid="workflowRunHistory">
                   {workbench.workflowRuns.length === 0 && <EmptyState>No workflow runs yet</EmptyState>}
                   {workbench.workflowRuns.map((run) => (
@@ -4545,6 +5003,40 @@ export function App() {
                       <span className="font-mono text-[10px] text-muted">{run.startedAt}</span>
                     </Button>
                   ))}
+                </div>
+
+                <div className="min-h-0 overflow-auto border-b border-rule p-4" data-testid="workflowRevisions">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                        Version history
+                      </span>
+                      <h2 className="mt-1 font-display text-[18px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
+                        Definition Diffs
+                      </h2>
+                    </div>
+                    <StatusBadge>{workbench.workflowRevisions.length} saved</StatusBadge>
+                  </div>
+                  {workbench.workflowRevisions.length === 0 && <EmptyState>No saved revisions yet</EmptyState>}
+                  <div className="grid gap-2">
+                    {workbench.workflowRevisions.slice(0, 4).map((revision) => (
+                      <div key={revision.id} className="grid gap-2 border border-rule bg-ink/25 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <strong className="font-display text-[13px] uppercase tracking-[0.04em] text-bone">
+                            {revision.summary}
+                          </strong>
+                          <span className="font-mono text-[9px] text-muted">{revision.savedAt}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {revision.diff.slice(0, 5).map((diff) => (
+                            <StatusBadge key={`${revision.id}-${diff.kind}-${diff.field}`} tone={diffTone(diff.kind)}>
+                              {diff.kind} {diff.field}
+                            </StatusBadge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="min-h-0 overflow-auto p-4" data-testid="workflowResults">
@@ -4628,7 +5120,7 @@ export function App() {
                         placeholder="/path/to/plugin or /path/to/plugin.json"
                         data-testid="pluginInstallPath"
                       />
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid gap-2 md:grid-cols-3">
                         <Button
                           variant="outline"
                           type="button"
@@ -4638,6 +5130,16 @@ export function App() {
                         >
                           <Search size={13} strokeWidth={1.7} />
                           Preview
+                        </Button>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => void workbench.validatePluginDeveloperSource()}
+                          disabled={!workbench.pluginInstallPath.trim()}
+                          data-testid="validatePlugin"
+                        >
+                          <ShieldCheck size={13} strokeWidth={1.7} />
+                          Validate
                         </Button>
                         <Button
                           variant="solid"
@@ -4663,7 +5165,12 @@ export function App() {
                               {workbench.pluginInstallPreview.manifest.name}
                             </h2>
                           </div>
-                          <StatusBadge>{workbench.pluginInstallPreview.manifest.version}</StatusBadge>
+                          <div className="flex flex-wrap gap-1.5">
+                            <StatusBadge>{workbench.pluginInstallPreview.manifest.version}</StatusBadge>
+                            <StatusBadge tone={pluginTrustTone(workbench.pluginInstallPreview.trustLevel)}>
+                              {workbench.pluginInstallPreview.trustLevel}
+                            </StatusBadge>
+                          </div>
                         </div>
                         <p className="text-[12px] leading-6 text-copy">
                           {workbench.pluginInstallPreview.manifest.description || "No description supplied."}
@@ -4699,11 +5206,26 @@ export function App() {
                         <span>Preview a local manifest before installing.</span>
                       </EmptyState>
                     )}
+                    {workbench.pluginDeveloperValidation && (
+                      <div className="grid gap-1 border border-rule bg-surface/45 p-2" data-testid="pluginDeveloperValidation">
+                        <div className="flex items-center justify-between gap-2">
+                          <FieldLabel>Developer Validation</FieldLabel>
+                          <StatusBadge tone={workbench.pluginDeveloperValidation.ok ? "good" : "danger"}>
+                            {workbench.pluginDeveloperValidation.ok ? "passed" : "failed"}
+                          </StatusBadge>
+                        </div>
+                        {[...workbench.pluginDeveloperValidation.errors, ...workbench.pluginDeveloperValidation.warnings].slice(0, 5).map((item) => (
+                          <span key={item} className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="grid min-h-0 [grid-template-rows:minmax(0,1fr)_minmax(220px,0.42fr)]">
+              <div className="grid min-h-0 [grid-template-rows:minmax(0,0.95fr)_minmax(420px,0.7fr)]">
                 <div className="min-h-0 overflow-auto radar-traffic-list" data-testid="pluginRegistry">
                   {workbench.plugins.length === 0 && <EmptyState>No local plugins installed</EmptyState>}
                   {workbench.plugins.map((plugin) => (
@@ -4712,6 +5234,7 @@ export function App() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge tone={pluginStatusTone(plugin.status)}>{plugin.status}</StatusBadge>
+                            <StatusBadge tone={pluginTrustTone(plugin.trustLevel || "local")}>{plugin.trustLevel || "local"}</StatusBadge>
                             <StatusBadge>{plugin.manifest.version}</StatusBadge>
                             <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted">
                               {plugin.manifest.id}
@@ -4797,45 +5320,162 @@ export function App() {
                           ))}
                         </div>
                       )}
+                      {(plugin.compatibilityWarnings || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {(plugin.compatibilityWarnings || []).map((warning) => (
+                            <StatusBadge key={warning} tone="danger">
+                              {warning}
+                            </StatusBadge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
                 <div className="min-h-0 overflow-auto border-t border-rule p-4" data-testid="pluginPanels">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
-                        Approved panels
-                      </span>
-                      <h2 className="mt-1 font-display text-[24px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
-                        Extension Surfaces
-                      </h2>
-                    </div>
-                    <StatusBadge tone="move">{workbench.approvedPlugins.length} approved</StatusBadge>
-                  </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {workbench.approvedPlugins.flatMap((plugin) =>
-                      plugin.manifest.panels.map((panel) => (
-                        <div key={`${plugin.id}:${panel.id}`} className="grid gap-2 border border-rule bg-ink/25 p-3">
-                          <div className="flex items-center gap-2">
-                            <Plug size={14} strokeWidth={1.7} className="text-signal" />
-                            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[14px] uppercase tracking-[0.04em] text-bone">
-                              {panel.title}
-                            </strong>
-                          </div>
-                          <span className="font-mono text-[10px] text-muted">{plugin.manifest.name}</span>
-                          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-copy">
-                            {panel.entry}
+                  <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1fr)_minmax(260px,0.8fr)]">
+                    <div className="grid gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                            Approved panels
                           </span>
+                          <h2 className="mt-1 font-display text-[22px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
+                            Sandbox
+                          </h2>
                         </div>
-                      ))
-                    )}
-                    {workbench.approvedPlugins.every((plugin) => plugin.manifest.panels.length === 0) && (
-                      <EmptyState className="min-h-[130px] md:col-span-2 xl:col-span-3">
-                        <Plug size={18} strokeWidth={1.4} />
-                        <span>No approved plugin panels</span>
-                      </EmptyState>
-                    )}
+                        <StatusBadge tone="move">{workbench.approvedPlugins.length} approved</StatusBadge>
+                      </div>
+                      <div className="grid max-h-[300px] gap-2 overflow-auto">
+                        {workbench.approvedPlugins.flatMap((plugin) =>
+                          plugin.manifest.panels.map((panel) => (
+                            <div key={`${plugin.id}:${panel.id}`} className="grid gap-2 border border-rule bg-ink/25 p-3">
+                              <div className="flex items-center gap-2">
+                                <Plug size={14} strokeWidth={1.7} className="text-signal" />
+                                <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[14px] uppercase tracking-[0.04em] text-bone">
+                                  {panel.title}
+                                </strong>
+                              </div>
+                              <span className="font-mono text-[10px] text-muted">{plugin.manifest.name}</span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-copy">
+                                  {panel.entry}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="compact"
+                                  type="button"
+                                  onClick={() => void workbench.renderPluginPanel(plugin.id, panel.id)}
+                                  data-testid={`renderPluginPanel-${plugin.id}-${panel.id}`}
+                                >
+                                  <Play size={12} strokeWidth={1.7} />
+                                  Render
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        {workbench.approvedPlugins.every((plugin) => plugin.manifest.panels.length === 0) && (
+                          <EmptyState className="min-h-[130px]">
+                            <Plug size={18} strokeWidth={1.4} />
+                            <span>No approved plugin panels</span>
+                          </EmptyState>
+                        )}
+                      </div>
+                      {workbench.pluginPanelRender && (
+                        <div className="grid gap-2 border border-rule bg-surface/45 p-2" data-testid="pluginPanelRender">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <FieldLabel>{workbench.pluginPanelRender.title}</FieldLabel>
+                            <StatusBadge tone={workbench.pluginPanelRender.ok ? "good" : "danger"}>
+                              {workbench.pluginPanelRender.runtimeStatus}
+                            </StatusBadge>
+                          </div>
+                          {workbench.pluginPanelRender.ok ? (
+                            <iframe
+                              title={workbench.pluginPanelRender.title}
+                              sandbox=""
+                              srcDoc={workbench.pluginPanelRender.html}
+                              className="h-[180px] w-full border border-rule bg-ink"
+                            />
+                          ) : (
+                            <pre className="max-h-[180px] overflow-auto text-[10px] text-rust">
+                              {workbench.pluginPanelRender.error}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3 border border-rule bg-ink/25 p-3" data-testid="pluginApiConsole">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                            SDK Console
+                          </span>
+                          <h2 className="mt-1 font-display text-[22px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
+                            Bounded Execution
+                          </h2>
+                        </div>
+                        <StatusBadge>{workbench.pluginApiResult?.action || "idle"}</StatusBadge>
+                      </div>
+                      <Textarea
+                        variant="code"
+                        className="min-h-[150px]"
+                        value={workbench.pluginApiRequestText}
+                        onChange={(event) => workbench.setPluginApiRequestText(event.target.value)}
+                        data-testid="pluginApiRequest"
+                      />
+                      <Button
+                        variant="solid"
+                        type="button"
+                        onClick={() => void workbench.runPluginApiRequest()}
+                        disabled={!workbench.pluginApiRequestText.trim()}
+                        data-testid="runPluginApi"
+                      >
+                        <Terminal size={13} strokeWidth={1.7} />
+                        Run Action
+                      </Button>
+                      {workbench.pluginApiResult && (
+                        <pre className="max-h-[170px] overflow-auto text-[10px]" data-testid="pluginApiResult">
+                          {JSON.stringify(workbench.pluginApiResult, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3 border border-rule bg-ink/25 p-3" data-testid="pluginAudit">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-signal">
+                            Audit ledger
+                          </span>
+                          <h2 className="mt-1 font-display text-[22px] uppercase leading-none tracking-[0.03em] text-bone [font-stretch:75%]">
+                            Plugin Calls
+                          </h2>
+                        </div>
+                        <Button variant="ghost" size="compact" type="button" onClick={() => void workbench.refreshPluginAudit()}>
+                          <History size={12} strokeWidth={1.7} />
+                          Refresh
+                        </Button>
+                      </div>
+                      <div className="grid max-h-[340px] gap-2 overflow-auto">
+                        {workbench.pluginAudit.length === 0 && <EmptyState>No plugin audit entries yet</EmptyState>}
+                        {workbench.pluginAudit.slice(0, 12).map((entry) => (
+                          <div key={entry.id} className="grid gap-1 border border-rule bg-surface/40 p-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge tone={entry.ok ? "good" : "danger"}>{entry.ok ? "ok" : "blocked"}</StatusBadge>
+                              <StatusBadge>{entry.action}</StatusBadge>
+                              {entry.permission && <StatusBadge tone="ghost">{entry.permission}</StatusBadge>}
+                            </div>
+                            <strong className="font-display text-[12px] uppercase tracking-[0.04em] text-bone">
+                              {entry.pluginName}
+                            </strong>
+                            <span className="font-mono text-[10px] text-muted">{entry.createdAt}</span>
+                            <span className="line-clamp-2 text-[11px] leading-5 text-copy">{entry.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -4885,6 +5525,38 @@ export function App() {
                         </StatusBadge>
                         <StatusBadge>{workbench.advancedSummary.apiImport.sitemapSeeds.length} seeds</StatusBadge>
                       </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => void workbench.saveAdvancedImportAsCollection()}
+                          disabled={workbench.advancedSummary.apiImport.drafts.length === 0}
+                          data-testid="saveAdvancedImportCollection"
+                        >
+                          <FolderOpen size={13} strokeWidth={1.7} />
+                          Save
+                        </Button>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => workbench.loadAdvancedImportDraftToRepeater()}
+                          disabled={workbench.advancedSummary.apiImport.drafts.length === 0}
+                          data-testid="loadAdvancedImportDraft"
+                        >
+                          <Repeat2 size={13} strokeWidth={1.7} />
+                          Load
+                        </Button>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => workbench.prepareAdvancedWorkflowDraft("api-import")}
+                          disabled={workbench.advancedSummary.apiImport.drafts.length === 0}
+                          data-testid="draftAdvancedImportWorkflow"
+                        >
+                          <GitCompare size={13} strokeWidth={1.7} />
+                          Draft
+                        </Button>
+                      </div>
                       {workbench.advancedSummary.apiImport.error && (
                         <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-rust">
                           {workbench.advancedSummary.apiImport.error}
@@ -4917,6 +5589,26 @@ export function App() {
                               ))}
                             </div>
                           )}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              type="button"
+                              onClick={() => workbench.loadAdvancedImportDraftToRepeater(draft.id)}
+                              data-testid={`loadAdvancedImportDraft-${draft.id}`}
+                            >
+                              <Repeat2 size={13} strokeWidth={1.7} />
+                              Load
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              type="button"
+                              onClick={() => workbench.prepareAdvancedWorkflowDraft("api-import")}
+                              data-testid={`draftAdvancedImportWorkflow-${draft.id}`}
+                            >
+                              <GitCompare size={13} strokeWidth={1.7} />
+                              Workflow
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -4925,7 +5617,7 @@ export function App() {
               </div>
 
               <div className="grid min-h-0 grid-cols-2 gap-px overflow-auto bg-rule max-[900px]:grid-cols-1" data-testid="advancedWorkbench">
-                <section className="min-h-[280px] bg-ink p-4">
+                <section className="min-h-[280px] overflow-auto bg-ink p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Braces size={15} strokeWidth={1.7} className="text-signal" />
@@ -4933,12 +5625,16 @@ export function App() {
                         GraphQL Review
                       </h3>
                     </div>
-                    <StatusBadge tone="move">{workbench.advancedSummary.graphql.hosts.length} hosts</StatusBadge>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <StatusBadge tone="move">{workbench.advancedSummary.graphql.hosts.length} hosts</StatusBadge>
+                      <StatusBadge>{workbench.advancedSummary.graphql.groups.length} groups</StatusBadge>
+                      <StatusBadge>{workbench.advancedSummary.graphql.variableTemplates.length} vars</StatusBadge>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     {workbench.advancedSummary.graphql.operations.length === 0 && <EmptyState>No GraphQL operations observed</EmptyState>}
                     {workbench.advancedSummary.graphql.operations.slice(0, 8).map((operation) => (
-                      <div key={operation.id} className="grid gap-1 border border-rule bg-surface/35 p-3">
+                      <div key={operation.id} className="grid gap-2 border border-rule bg-surface/35 p-3">
                         <div className="flex min-w-0 items-center gap-2">
                           <StatusBadge tone={operation.introspection ? "warn" : "ghost"}>{operation.operationType}</StatusBadge>
                           <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
@@ -4950,12 +5646,22 @@ export function App() {
                           {operation.batched ? " / batched" : ""}
                           {operation.introspection ? " / introspection" : ""}
                         </span>
+                        <Button
+                          variant="outline"
+                          size="compact"
+                          type="button"
+                          onClick={() => workbench.prepareAdvancedWorkflowDraft("graphql", operation.id)}
+                          data-testid={`draftGraphqlWorkflow-${operation.id}`}
+                        >
+                          <GitCompare size={13} strokeWidth={1.7} />
+                          Draft
+                        </Button>
                       </div>
                     ))}
                   </div>
                 </section>
 
-                <section className="min-h-[280px] bg-ink p-4">
+                <section className="min-h-[280px] overflow-auto bg-ink p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <ShieldCheck size={15} strokeWidth={1.7} className="text-signal" />
@@ -4963,7 +5669,10 @@ export function App() {
                         Auth Matrix
                       </h3>
                     </div>
-                    <StatusBadge>{workbench.advancedSummary.authMatrix.length} rows</StatusBadge>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <StatusBadge>{workbench.advancedSummary.authMatrix.length} rows</StatusBadge>
+                      <StatusBadge tone="move">{workbench.advancedSummary.authComparisons.length} comparisons</StatusBadge>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     {workbench.advancedSummary.authMatrix.length === 0 && <EmptyState>No auth-state comparisons observed</EmptyState>}
@@ -4984,12 +5693,22 @@ export function App() {
                             </StatusBadge>
                           ))}
                         </div>
+                        <Button
+                          variant="outline"
+                          size="compact"
+                          type="button"
+                          onClick={() => workbench.prepareAdvancedWorkflowDraft("auth-row", row.id)}
+                          data-testid={`draftAuthWorkflow-${row.id}`}
+                        >
+                          <GitCompare size={13} strokeWidth={1.7} />
+                          Draft
+                        </Button>
                       </div>
                     ))}
                   </div>
                 </section>
 
-                <section className="min-h-[280px] bg-ink p-4">
+                <section className="min-h-[280px] overflow-auto bg-ink p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Search size={15} strokeWidth={1.7} className="text-signal" />
@@ -5011,13 +5730,25 @@ export function App() {
                             {parameter.location} / {parameter.endpoints.length} endpoints
                           </span>
                         </div>
-                        <StatusBadge>{parameter.count}</StatusBadge>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <StatusBadge>{parameter.count}</StatusBadge>
+                          <Button
+                            variant="outline"
+                            size="compact"
+                            type="button"
+                            onClick={() => workbench.prepareAdvancedWorkflowDraft("parameter", parameter.id)}
+                            data-testid={`draftParameterWorkflow-${parameter.id}`}
+                          >
+                            <GitCompare size={13} strokeWidth={1.7} />
+                            Draft
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </section>
 
-                <section className="min-h-[280px] bg-ink p-4">
+                <section className="min-h-[280px] overflow-auto bg-ink p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <ShieldAlert size={15} strokeWidth={1.7} className="text-rust" />
@@ -5025,14 +5756,17 @@ export function App() {
                         Local Secret Signals
                       </h3>
                     </div>
-                    <StatusBadge tone={workbench.advancedSummary.secrets.length > 0 ? "danger" : "good"}>
-                      {workbench.advancedSummary.secrets.length}
-                    </StatusBadge>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <StatusBadge>{workbench.advancedSummary.secretRules.length} rules</StatusBadge>
+                      <StatusBadge tone={workbench.advancedSummary.secrets.length > 0 ? "danger" : "good"}>
+                        {workbench.advancedSummary.secrets.length}
+                      </StatusBadge>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     {workbench.advancedSummary.secrets.length === 0 && <EmptyState>No secret-shaped response data detected</EmptyState>}
                     {workbench.advancedSummary.secrets.slice(0, 8).map((secret) => (
-                      <div key={secret.id} className="grid gap-1 border border-rust/35 bg-rust/5 p-3">
+                      <div key={secret.id} className="grid gap-2 border border-rust/35 bg-rust/5 p-3">
                         <div className="flex min-w-0 items-center gap-2">
                           <StatusBadge tone={advancedSignalTone(secret.severity)}>{secret.severity}</StatusBadge>
                           <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
@@ -5042,12 +5776,22 @@ export function App() {
                         <span className="font-mono text-[10px] text-muted">
                           {secret.location} / {secret.preview}
                         </span>
+                        <Button
+                          variant="outline"
+                          size="compact"
+                          type="button"
+                          onClick={() => workbench.prepareAdvancedWorkflowDraft("secret", secret.id)}
+                          data-testid={`draftSecretWorkflow-${secret.id}`}
+                        >
+                          <GitCompare size={13} strokeWidth={1.7} />
+                          Draft
+                        </Button>
                       </div>
                     ))}
                   </div>
                 </section>
 
-                <section className="min-h-[280px] bg-ink p-4">
+                <section className="min-h-[280px] overflow-auto bg-ink p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <FileCode2 size={15} strokeWidth={1.7} className="text-signal" />
@@ -5060,7 +5804,7 @@ export function App() {
                   <div className="grid gap-2">
                     {workbench.advancedSummary.headerSignals.length === 0 && <EmptyState>No cache or header behavior signals</EmptyState>}
                     {workbench.advancedSummary.headerSignals.slice(0, 8).map((signal) => (
-                      <div key={signal.id} className="grid gap-1 border border-rule bg-surface/35 p-3">
+                      <div key={signal.id} className="grid gap-2 border border-rule bg-surface/35 p-3">
                         <div className="flex min-w-0 items-center gap-2">
                           <StatusBadge tone={advancedSignalTone(signal.severity)}>{signal.kind}</StatusBadge>
                           <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-bone">
@@ -5068,12 +5812,22 @@ export function App() {
                           </strong>
                         </div>
                         <p className="text-[11.5px] leading-5 text-copy">{signal.message}</p>
+                        <Button
+                          variant="outline"
+                          size="compact"
+                          type="button"
+                          onClick={() => workbench.prepareAdvancedWorkflowDraft("header-signal", signal.id)}
+                          data-testid={`draftHeaderWorkflow-${signal.id}`}
+                        >
+                          <GitCompare size={13} strokeWidth={1.7} />
+                          Draft
+                        </Button>
                       </div>
                     ))}
                   </div>
                 </section>
 
-                <section className="min-h-[280px] bg-ink p-4">
+                <section className="min-h-[280px] overflow-auto bg-ink p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Smartphone size={15} strokeWidth={1.7} className="text-signal" />

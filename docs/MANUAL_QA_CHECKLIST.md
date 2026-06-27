@@ -81,12 +81,14 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 
 ## 06 Findings
 
-- [ ] Demo findings appear with severity, confidence, status, owner, and retest fields.
+- [ ] Demo findings appear with severity, confidence, status, component, owner, assignee, and retest fields.
+- [ ] Text, status, severity, owner/assignee, and component filters narrow the findings queue.
 - [ ] Template selection creates a draft with expected impact/remediation copy.
 - [ ] Evidence can be attached from selected captures, WebSocket frames, Automate results, and Workflow results.
+- [ ] Duplicate merge suggestions show primary/duplicate context and merge only after clicking **Merge**.
 - [ ] Save persists edits across session reload.
 - [ ] Delete removes only the selected finding.
-- [ ] Markdown and HTML report previews generate with redacted appendices by default.
+- [ ] Markdown and HTML report previews generate with report presets, narrative sections, validation warnings, retest matrix, and redacted appendices by default.
 - [ ] Raw evidence export requires explicit opt-in.
 
 ## 07 Workflows
@@ -94,6 +96,10 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] Built-in workflows are visible and cannot be deleted.
 - [ ] Demo saved workflow appears in the saved workflow list.
 - [ ] JSON/YAML-like workflow definitions validate before save.
+- [ ] Visual graph shows step order, active/passive markers, and branch condition labels.
+- [ ] Step template buttons insert supported workflow steps into the visible draft.
+- [ ] Dry Run reports runnable/skipped steps, required input warnings, active request estimates, and cap errors.
+- [ ] Saved workflow edits create local revision history entries with compact diffs.
 - [ ] Passive workflows run without sending traffic.
 - [ ] Active workflows require scope and action caps.
 - [ ] Workflow run history shows status, inputs, results, and evidence.
@@ -105,20 +111,25 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 
 - [ ] Demo plugin appears as approved with requested and granted permissions.
 - [ ] Local plugin preview reads manifest without executing plugin code.
+- [ ] Plugin validation checks manifest, entry, panel files, compatibility warnings, and trust marker before install.
 - [ ] Install creates a pending registry record.
 - [ ] Approve grants only requested permissions.
 - [ ] Disable, block, and remove update only the selected plugin.
-- [ ] Panel inventory shows approved panel declarations.
+- [ ] Approved panels render in the no-script sandbox, and unapproved panels are blocked.
+- [ ] SDK console executes only approved bounded actions and shows result JSON.
+- [ ] Plugin audit ledger records SDK actions, panel renders, and validation with permission/result metadata.
 - [ ] AI-First can read plugin inventory but cannot install, approve, or execute plugins invisibly.
 
 ## 09 Advanced
 
-- [ ] Demo GraphQL operations are listed.
+- [ ] Demo GraphQL operations, groups, variable templates, batching, and introspection signals are listed.
 - [ ] OpenAPI/Postman import preview creates draft templates and sitemap seeds without sending traffic.
-- [ ] Auth matrix rows summarize observed anonymous/bearer/cookie behavior.
+- [ ] Reviewed import previews can save to Repeater collections and load a selected draft into Repeater without transmitting.
+- [ ] Advanced signals can prepare visible workflow drafts, and those drafts do not save or run until the operator uses **07 Workflows** controls.
+- [ ] Auth matrix rows and auth comparison counts summarize observed anonymous/bearer/basic/cookie/mixed behavior.
 - [ ] Parameter inventory includes query, JSON, cookie, GraphQL, and WebSocket JSON sources where present.
-- [ ] Secret detections show masked previews.
-- [ ] Cache/CORS/host/redirect signals show evidence links.
+- [ ] Secret detections show masked previews and local rule-pack counts.
+- [ ] Cache/CORS/host/redirect signals show evidence links and workflow draft controls.
 - [ ] Proxy guidance remains local text-only guidance.
 - [ ] AI-First can read the Advanced summary but cannot import files or run requests invisibly.
 

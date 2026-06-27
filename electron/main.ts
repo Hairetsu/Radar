@@ -45,7 +45,8 @@ import type {
   WorkflowRunSource,
   PluginInstallStatus,
   PluginPermission,
-  PluginApiRequest
+  PluginApiRequest,
+  PluginAuditEntry
 } from "../shared/domain.js";
 import {
   assignmentsForPayload,
@@ -113,11 +114,12 @@ import {
   normalizeWorkflowInputs,
   isActiveWorkflowStep,
   replayDraftFromCapture,
-  shouldRunWorkflowStep
+  shouldRunWorkflowStep,
+  validateWorkflowDraft
 } from "../shared/workflows.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
 import { seedDemoProject } from "./demoProject.js";
-import { installedPluginFromPreview, readPluginInstallPreview } from "./plugins.js";
+import { installedPluginFromPreview, readPluginInstallPreview, renderInstalledPluginPanel, validatePluginSource } from "./plugins.js";
 import { runPluginApiAction as runPluginApiActionForPlugin } from "./pluginApi.js";
 import {
   loadSettings as loadAiSettings,
@@ -2419,6 +2421,23 @@ function deleteWorkflowDefinition(id: unknown) {
   return { ok: true, workflows: workflowCatalog() };
 }
 
+function validateWorkflowDefinition(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const inputs =
+    payload.inputs && typeof payload.inputs === "object" && !Array.isArray(payload.inputs)
+      ? Object.fromEntries(Object.entries(payload.inputs).map(([key, value]) => [key, String(value || "")]))
+      : {};
+  return validateWorkflowDraft("definition" in payload ? payload.definition : input, inputs);
+}
+
+function getWorkflowRevisions(id: unknown) {
+  const workflowId = String(id || "").trim();
+  if (!workflowId || !localStore || !localContext) {
+    return [];
+  }
+  return localStore.listWorkflowRevisions(localContext.workspace.id, workflowId, 60);
+}
+
 function listPlugins() {
   return activeLocalStore().listPlugins(activeLocalContext().workspace.id);
 }
@@ -2464,6 +2483,104 @@ function removePlugin(id: unknown) {
   return { ok: true, plugins };
 }
 
+function summarizeAuditValue(value: unknown) {
+  if (typeof value === "string") {
+    return value.slice(0, 500);
+  }
+  try {
+    return JSON.stringify(value).slice(0, 500);
+  } catch {
+    return "";
+  }
+}
+
+function appendPluginAudit(entry: PluginAuditEntry) {
+  if (!localStore || !localContext) {
+    return entry;
+  }
+  return localStore.appendPluginAudit(localContext.workspace.id, entry);
+}
+
+function pluginAuditEntry(input: Omit<PluginAuditEntry, "id" | "createdAt" | "durationMs"> & { durationMs?: number }): PluginAuditEntry {
+  return {
+    ...input,
+    id: `plugin_audit_${randomUUID()}`,
+    durationMs: input.durationMs || 0,
+    createdAt: new Date().toISOString()
+  };
+}
+
+function getPluginAudit() {
+  return localStore && localContext ? localStore.listPluginAudit(localContext.workspace.id, 120) : [];
+}
+
+function renderPluginPanel(input: unknown) {
+  const payload = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const pluginId = String(payload.pluginId || "").trim();
+  const panelId = String(payload.panelId || "").trim();
+  const plugin = pluginId ? activeLocalStore().getPlugin(activeLocalContext().workspace.id, pluginId) : null;
+  const started = Date.now();
+  if (!plugin) {
+    const message = "Plugin was not installed.";
+    appendPluginAudit(
+      pluginAuditEntry({
+        pluginId: pluginId || "unknown",
+        pluginName: pluginId || "Unknown plugin",
+        action: "panel:render",
+        permission: "ui:panel",
+        ok: false,
+        message,
+        inputSummary: summarizeAuditValue(payload),
+        outputSummary: message
+      })
+    );
+    return {
+      ok: false,
+      pluginId,
+      panelId,
+      title: "Missing panel",
+      html: "",
+      sourcePath: "",
+      runtimeStatus: "failed",
+      warnings: [],
+      error: message
+    };
+  }
+  const render = renderInstalledPluginPanel(plugin, panelId);
+  appendPluginAudit(
+    pluginAuditEntry({
+      pluginId: plugin.id,
+      pluginName: plugin.manifest.name,
+      action: "panel:render",
+      permission: "ui:panel",
+      ok: render.ok,
+      message: render.ok ? "Plugin panel rendered in sandbox." : render.error || "Plugin panel render failed.",
+      inputSummary: summarizeAuditValue(payload),
+      outputSummary: summarizeAuditValue({ panelId: render.panelId, warnings: render.warnings, error: render.error }),
+      durationMs: Date.now() - started
+    })
+  );
+  return render;
+}
+
+function validatePluginDeveloperSource(sourcePath: unknown) {
+  const started = Date.now();
+  const validation = validatePluginSource(sourcePath);
+  appendPluginAudit(
+    pluginAuditEntry({
+      pluginId: validation.manifest?.id || "plugin-dev",
+      pluginName: validation.manifest?.name || "Plugin validation",
+      action: "plugin:validate",
+      ok: validation.ok,
+      message: validation.ok ? "Plugin developer validation passed." : "Plugin developer validation failed.",
+      inputSummary: summarizeAuditValue({ sourcePath }),
+      outputSummary: summarizeAuditValue({ errors: validation.errors, warnings: validation.warnings }),
+      durationMs: Date.now() - started
+    })
+  );
+  return validation;
+}
+
 function runPluginApiRequest(input: unknown) {
   return runPluginApiActionForPlugin(input as PluginApiRequest, {
     getPlugin: (pluginId) => activeLocalStore().getPlugin(activeLocalContext().workspace.id, pluginId),
@@ -2474,7 +2591,8 @@ function runPluginApiRequest(input: unknown) {
     listWorkflows: () => workflowCatalog(),
     saveWorkflow: (workflow) => saveWorkflowDefinition(workflow),
     runWorkflow: (payload) => runWorkflow(payload),
-    sendReplay: (draft) => sendRequest({ draft })
+    sendReplay: (draft) => sendRequest({ draft }),
+    recordAudit: (entry) => appendPluginAudit(entry)
   });
 }
 
@@ -3488,6 +3606,14 @@ ipcMain.handle("workflows:delete", (_event, id) => {
   return deleteWorkflowDefinition(id);
 });
 
+ipcMain.handle("workflows:validate", (_event, payload) => {
+  return validateWorkflowDefinition(payload);
+});
+
+ipcMain.handle("workflows:revisions", (_event, id) => {
+  return getWorkflowRevisions(id);
+});
+
 ipcMain.handle("workflows:runs", () => {
   return localStore && localContext ? localStore.listWorkflowRuns(localContext.session.id) : [];
 });
@@ -3522,6 +3648,18 @@ ipcMain.handle("plugins:status", (_event, payload) => {
 
 ipcMain.handle("plugins:remove", (_event, id) => {
   return removePlugin(id);
+});
+
+ipcMain.handle("plugins:audit", () => {
+  return getPluginAudit();
+});
+
+ipcMain.handle("plugins:panel", (_event, payload) => {
+  return renderPluginPanel(payload);
+});
+
+ipcMain.handle("plugins:validate", (_event, sourcePath) => {
+  return validatePluginDeveloperSource(sourcePath);
 });
 
 ipcMain.handle("plugins:api", (_event, request) => {

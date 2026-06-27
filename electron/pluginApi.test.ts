@@ -29,6 +29,8 @@ const approvedPlugin: InstalledPlugin = {
   sourcePath: "/tmp/jwt-helper",
   grantedPermissions: ["captures:read", "frames:read", "replay:prepare", "replay:send", "findings:write", "workflows:read"],
   status: "approved",
+  trustLevel: "first-party",
+  compatibilityWarnings: [],
   warnings: [],
   installedAt: "2026-05-25T12:00:00.000Z",
   updatedAt: "2026-05-25T12:00:00.000Z"
@@ -66,7 +68,7 @@ const frame: WebSocketEvent = {
   allowed: true
 };
 
-function deps(plugin: InstalledPlugin | null = approvedPlugin): PluginApiDependencies {
+function deps(plugin: InstalledPlugin | null = approvedPlugin, recordAudit = vi.fn()): PluginApiDependencies {
   const replayResult: ReplayResult = {
     ok: true,
     status: 200,
@@ -85,7 +87,8 @@ function deps(plugin: InstalledPlugin | null = approvedPlugin): PluginApiDepende
     listWorkflows: () => [],
     saveWorkflow: vi.fn((workflow: WorkflowDefinition) => workflow),
     runWorkflow: vi.fn(async () => ({ id: "run-1" }) as WorkflowRun),
-    sendReplay: vi.fn(async () => replayResult)
+    sendReplay: vi.fn(async () => replayResult),
+    recordAudit
   };
 }
 
@@ -95,18 +98,25 @@ describe("plugin API executor", () => {
       ok: false,
       error: "Plugin was not installed."
     });
+    const recordAudit = vi.fn();
     await expect(
       runPluginApiAction(
         { pluginId: "jwt-helper", action: "replay:send", input: { draft: { method: "GET", url: "https://example.test", headers: {}, body: "" } } },
-        deps({ ...approvedPlugin, grantedPermissions: ["captures:read"] })
+        deps({ ...approvedPlugin, grantedPermissions: ["captures:read"] }, recordAudit)
       )
     ).resolves.toMatchObject({ ok: false, error: "Plugin is not approved for replay:send." });
+    expect(recordAudit).toHaveBeenCalledWith(expect.objectContaining({ pluginId: "jwt-helper", action: "replay:send", ok: false }));
   });
 
   it("filters captures and frames to saved scope before query matching", async () => {
-    const captureResult = await runPluginApiAction({ pluginId: "jwt-helper", action: "captures:list", input: { query: "method:POST" } }, deps());
+    const recordAudit = vi.fn();
+    const captureResult = await runPluginApiAction(
+      { pluginId: "jwt-helper", action: "captures:list", input: { query: "method:POST" } },
+      deps(approvedPlugin, recordAudit)
+    );
     expect(captureResult.ok).toBe(true);
     expect(captureResult.data).toEqual([capture]);
+    expect(recordAudit).toHaveBeenCalledWith(expect.objectContaining({ pluginId: "jwt-helper", action: "captures:list", ok: true }));
 
     const frameResult = await runPluginApiAction({ pluginId: "jwt-helper", action: "frames:list", input: { query: "payload:pong" } }, deps());
     expect(frameResult.ok).toBe(true);

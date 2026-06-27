@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
+import { validateWorkflowDraft } from "../../shared/workflows.js";
 import "@testing-library/jest-dom/vitest";
 
 const radarApi = {
@@ -414,6 +415,8 @@ const radarApi = {
   getWorkflows: vi.fn(async () => []),
   saveWorkflow: vi.fn(async (workflow) => workflow),
   deleteWorkflow: vi.fn(async () => ({ ok: true, workflows: [] })),
+  validateWorkflow: vi.fn(async (payload) => validateWorkflowDraft(payload.definition, payload.inputs || {})),
+  getWorkflowRevisions: vi.fn(async () => []),
   getWorkflowRuns: vi.fn(async () => []),
   runWorkflow: vi.fn(async (payload) => ({
     id: "workflow-run-test",
@@ -475,6 +478,8 @@ const radarApi = {
     manifestPath: `${sourcePath}/plugin.json`,
     requestedPermissions: ["captures:read", "ui:panel"],
     permissionSummary: ["Read in-scope HTTP/S captures", "Render plugin panels inside the Radar console"],
+    trustLevel: "first-party",
+    compatibilityWarnings: [],
     warnings: []
   })),
   installPlugin: vi.fn(async (sourcePath) => ({
@@ -495,6 +500,8 @@ const radarApi = {
     sourcePath,
     grantedPermissions: [],
     status: "pending",
+    trustLevel: "first-party",
+    compatibilityWarnings: [],
     warnings: [],
     installedAt: "2026-05-25T00:00:00.000Z",
     updatedAt: "2026-05-25T00:00:00.000Z"
@@ -517,6 +524,8 @@ const radarApi = {
     sourcePath: "/tmp/jwt-helper",
     grantedPermissions: payload.permissions,
     status: "approved",
+    trustLevel: "first-party",
+    compatibilityWarnings: [],
     warnings: [],
     installedAt: "2026-05-25T00:00:00.000Z",
     updatedAt: "2026-05-25T00:00:01.000Z"
@@ -539,11 +548,44 @@ const radarApi = {
     sourcePath: "/tmp/jwt-helper",
     grantedPermissions: ["captures:read", "ui:panel"],
     status: payload.status,
+    trustLevel: "first-party",
+    compatibilityWarnings: [],
     warnings: [],
     installedAt: "2026-05-25T00:00:00.000Z",
     updatedAt: "2026-05-25T00:00:02.000Z"
   })),
   removePlugin: vi.fn(async () => ({ ok: true, plugins: [] })),
+  getPluginAudit: vi.fn(async () => []),
+  renderPluginPanel: vi.fn(async (payload) => ({
+    ok: true,
+    pluginId: payload.pluginId,
+    panelId: payload.panelId,
+    title: "Token Panel",
+    html: "<strong>Token Panel</strong>",
+    sourcePath: "/tmp/jwt-helper/panel.html",
+    runtimeStatus: "ready",
+    warnings: []
+  })),
+  validatePlugin: vi.fn(async (sourcePath) => ({
+    ok: true,
+    sourcePath,
+    manifest: {
+      schemaVersion: 1,
+      id: "jwt-helper",
+      name: "JWT Helper",
+      version: "1.0.0",
+      description: "Decode token-shaped values.",
+      author: "Radar",
+      sdkVersion: "0.1",
+      minRadarVersion: "",
+      entry: "dist/index.js",
+      permissions: ["captures:read", "ui:panel"],
+      panels: [{ id: "token-panel", title: "Token Panel", entry: "panel.html" }]
+    },
+    trustLevel: "first-party",
+    warnings: [],
+    errors: []
+  })),
   runPluginApiAction: vi.fn(async (request) => ({ ok: true, action: request.action, data: [] })),
   getTargets: vi.fn(async () => []),
   onCapture: vi.fn(() => () => undefined),

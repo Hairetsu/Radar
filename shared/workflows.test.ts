@@ -5,17 +5,24 @@ import {
   activeBrowserWorkflowResult,
   activeReplayWorkflowResult,
   allWorkflows,
+  createWorkflowRevision,
   createWorkflowRunRecord,
+  diffWorkflowDefinitions,
   evaluatePassiveWorkflow,
   findingFromWorkflowResult,
   isActiveWorkflowStep,
   normalizeWorkflowDefinition,
+  normalizeWorkflowRevision,
+  normalizeWorkflowRevisions,
+  validateWorkflowDraft,
   normalizeWorkflowInputs,
   normalizeWorkflowRun,
   normalizeWorkflowRuns,
   parseWorkflowDefinition,
   replayDraftFromCapture,
   shouldRunWorkflowStep,
+  workflowTemplateById,
+  workflowToGraph,
   workflowEvidenceRef
 } from "./workflows.js";
 
@@ -197,6 +204,58 @@ steps:
     expect(shouldRunWorkflowStep(workflow.steps[0], { enabled: "no" })).toBe(false);
     expect(isActiveWorkflowStep(workflow.steps[0])).toBe(false);
     expect(evaluatePassiveWorkflow(workflow, [capture, capture], ["https://example.test"], { enabled: "yes" })).toHaveLength(1);
+  });
+
+  it("builds authoring graph, templates, dry-run issues, and revisions", () => {
+    const template = workflowTemplateById("cache-control");
+    expect(template?.step.kind).toBe("cache-control");
+
+    const workflow = normalizeWorkflowDefinition({
+      id: "authoring",
+      name: "Authoring",
+      inputs: [{ id: "enabled", label: "Enabled", type: "text", defaultValue: "no" }],
+      steps: [
+        { id: "headers", kind: "security-headers", title: "Headers" },
+        { id: "cache", kind: "cache-control", title: "Cache", condition: { inputId: "enabled", equals: "yes" } }
+      ]
+    })!;
+    const graph = workflowToGraph(workflow);
+    expect(graph.nodes).toHaveLength(2);
+    expect(graph.edges[0]).toMatchObject({ from: "headers", to: "cache" });
+
+    const dryRun = validateWorkflowDraft(workflow, { enabled: "no" });
+    expect(dryRun.ok).toBe(true);
+    expect(dryRun.skippedStepIds).toEqual(["cache"]);
+
+    const changed = normalizeWorkflowDefinition({
+      ...workflow,
+      name: "Authoring Updated",
+      steps: [...workflow.steps, { id: "metadata", kind: "metadata-exposure", title: "Metadata" }]
+    })!;
+    expect(diffWorkflowDefinitions(workflow, changed).map((entry) => entry.field)).toContain("name");
+    const revision = createWorkflowRevision(changed, workflow, "2026-05-25T12:00:00.000Z");
+    expect(revision.diff.some((entry) => entry.field === "steps.metadata")).toBe(true);
+
+    expect(validateWorkflowDraft("{").ok).toBe(false);
+    const duplicate = validateWorkflowDraft({
+      ...workflow,
+      steps: [
+        { id: "headers", kind: "security-headers", title: "Headers" },
+        { id: "headers", kind: "cache-control", title: "Cache" }
+      ]
+    });
+    expect(duplicate.issues.some((issue) => issue.message.includes("Duplicate"))).toBe(true);
+
+    expect(normalizeWorkflowRevision({ workflow: null })).toBeNull();
+    const normalizedRevision = normalizeWorkflowRevision({
+      workflow,
+      diff: [
+        { kind: "removed", field: "steps.old", before: "Old step" },
+        { kind: "unknown", field: "" }
+      ]
+    });
+    expect(normalizedRevision?.diff).toEqual([{ kind: "removed", field: "steps.old", before: "Old step" }]);
+    expect(normalizeWorkflowRevisions({})).toEqual([]);
   });
 
   it("strips credentials for active replay and classifies replay outcomes", () => {

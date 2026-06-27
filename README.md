@@ -17,10 +17,10 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 - Clone captured requests into a repeater with full header and body editing, multiple named tabs, per-tab replay history, response diffing, environment variables, collections, request transforms, and WebSocket frame replay.
 - Single replay plus capped burst replay (count, parallelism, delay) for hardening checks.
 - Automate surface that detects explicit `{{payload:name}}` markers in the active repeater draft, persists inline payload sets and wordlist references, runs scoped sessions with count/concurrency/delay/timeout caps, clusters results, applies match/extract rules, exports result evidence, and promotes interesting attempts to Repeater or draft findings.
-- Findings inbox with severity, confidence, status, affected assets, evidence references, reproduction, impact, remediation, owner, retest result, common templates, Markdown/HTML report export, and redacted evidence appendices.
-- Workflows surface with built-in passive checks, declarative JSON/YAML-like definitions, scoped active replay/browser checks, saved workflow definitions, session run history, and promotion of warning/failure results into draft findings.
-- Plugins surface for local plugin manifest preview, workspace-local install registry, explicit permission approval, disable/block/remove controls, approved panel inventory, TypeScript SDK/API contracts, and first-party example plugins.
-- Advanced testing surface for GraphQL operation extraction, OpenAPI/Postman preview imports, auth-state matrix review, parameter discovery, local secret detection, header/cache behavior signals, and mobile/thick-client proxy guidance.
+- Findings inbox with severity, confidence, status, component, owner, assignee, affected assets, evidence references, reproduction, impact, remediation, retest result, common templates, duplicate merge suggestions, retest matrix rows, report presets, Markdown/HTML report export, and redacted evidence appendices.
+- Workflows surface with built-in passive checks, declarative JSON/YAML-like definitions, visual graph review, branch/dry-run validation, reusable step templates, scoped active replay/browser checks, saved definition revisions, session run history, and promotion of warning/failure results into draft findings.
+- Plugins surface for local plugin manifest preview and developer validation, workspace-local install registry, explicit permission approval, trust/compatibility markers, disable/block/remove controls, sandboxed approved panel rendering, bounded SDK action console, plugin audit ledger, TypeScript SDK/API contracts, and first-party example plugins.
+- Advanced testing surface for GraphQL operation extraction, grouping, and variable templates; OpenAPI/Postman preview imports to Repeater drafts or collections; auth-state matrix and comparison review; parameter discovery; local sensitive-data rule detection; header/cache behavior signals; workflow draft preparation; and mobile/thick-client proxy guidance.
 - Scope-filtered HTTP/S and WebSocket evidence for focusing on selected targets.
 - Local HTTPS proxy mode for external browsers, with a Radar-generated CA, SPKI fingerprint, and per-workspace setup notes for browser, CLI, and device clients.
 - SSL/cert event log for visibility into trusted vs. blocked endpoints.
@@ -46,7 +46,7 @@ pnpm install
 pnpm dev
 ```
 
-This starts Vite on `127.0.0.1:5173`, then launches Electron pointing at it. `pnpm build` runs `tsc` and a production Vite build into `dist/`. `pnpm lint` runs ESLint. `pnpm screenshots` rebuilds and refreshes README screenshots into `docs/screens/`.
+This starts Vite on `127.0.0.1:5173`, then launches Electron pointing at it. `pnpm build` runs `tsc` and a production Vite build into `dist/`. `pnpm lint` runs ESLint. `pnpm screenshots` rebuilds and refreshes README screenshots into `docs/screens/`. `pnpm plugin:validate -- <plugin-path>` validates a local plugin manifest and referenced entry/panel files without installing it.
 
 ## Install (Releases)
 
@@ -107,23 +107,23 @@ Manual payload-position testing for the active Repeater draft. Use explicit `{{p
 
 ### 06 — Findings
 
-Durable findings inbox shared by Manual-First and AI-First. Create draft findings from selected HTTP/S captures, WebSocket frames, or Automate results; choose templates for common web classes; track severity, confidence, status, affected assets, reproduction, impact, remediation, owner, notes, and retest result; attach new evidence during retest; and build Markdown or HTML reports with redacted evidence appendices by default. Raw evidence export is an explicit toggle.
+Durable findings inbox shared by Manual-First and AI-First. Create draft findings from selected HTTP/S captures, WebSocket frames, or Automate results; choose templates for common web classes; filter by text, status, severity, owner/assignee, and component; track severity, confidence, status, component, affected assets, reproduction, impact, remediation, owner, assignee, notes, and retest result; review operator-controlled duplicate merge suggestions; attach new evidence during retest; and build Markdown or HTML reports with local presets, narrative sections, validation warnings, retest matrix rows, and redacted evidence appendices by default. Raw evidence export is an explicit toggle.
 
 ### 07 — Workflows
 
 ![Radar Workflows view](docs/screens/radar-08-workflows.png)
 
-Repeatable security checks for the active workspace. Operators can run built-in workflows for security headers, cookie flags, CORS/cache control, metadata exposure, and selected-capture unauthenticated replay; save custom declarative JSON or constrained YAML-like workflow definitions with passive, replay, or browser-open steps; inspect scope policy, caps, inputs, steps, run history, pass/warn/fail results, and evidence references; and promote warning/failure results into draft Findings.
+Repeatable security checks for the active workspace. Operators can run built-in workflows for security headers, cookie flags, CORS/cache control, metadata exposure, and selected-capture unauthenticated replay; save custom declarative JSON or constrained YAML-like workflow definitions with passive, replay, or browser-open steps; inspect a visual graph, branch conditions, dry-run validation, reusable templates, local revision diffs, scope policy, caps, inputs, run history, pass/warn/fail results, and evidence references; and promote warning/failure results into draft Findings.
 
 ### 08 — Plugins
 
-Local extension management for Radar's Phase 7 SDK. Preview a folder containing `.radar-plugin/plugin.json` or `plugin.json`, inspect requested permissions and warnings, install it into the active workspace as pending, then explicitly approve only the requested permissions before plugin SDK calls can read scoped evidence, create draft findings, prepare/send scoped replay, or work with saved workflows. Disable, block, or remove installed plugins from the same view. Approved plugin panels are listed in the console; live plugin execution remains behind the SDK/API permission boundary. First-party examples live under `plugins/examples/`.
+Local extension management for Radar's SDK. Preview or validate a folder containing `.radar-plugin/plugin.json` or `plugin.json`, inspect requested permissions, compatibility warnings, and trust markers, install it into the active workspace as pending, then explicitly approve only the requested permissions before plugin SDK calls can read scoped evidence, create draft findings, prepare/send scoped replay, or work with saved workflows. Disable, block, or remove installed plugins from the same view. Approved panels render in a no-script sandbox iframe, bounded SDK actions can be exercised from the console, and every plugin action writes to the workspace audit ledger. First-party examples live under `plugins/examples/`.
 
 ### 09 — Advanced
 
 ![Radar Advanced view](docs/screens/radar-09-advanced.png)
 
-Advanced API and auth testing helpers for the active scoped evidence. Radar extracts GraphQL operations from HTTP/S requests and WebSocket frames, previews OpenAPI/Postman JSON imports into draft replay templates and sitemap seeds, groups observed anonymous/authenticated status behavior into an auth matrix, discovers parameters across query/body/cookies/headers/frames, detects secret-shaped response data locally with masked previews, flags cache/header behavior signals, and keeps mobile/thick-client proxy guidance near the evidence. Import preview is text-only and does not transmit traffic.
+Advanced API and auth testing helpers for the active scoped evidence. Radar extracts and groups GraphQL operations from HTTP/S requests and WebSocket frames, prepares variable templates, previews OpenAPI/Postman JSON imports into draft replay templates and sitemap seeds, saves reviewed imports into Repeater collections, loads selected imports into Repeater without sending traffic, compares observed anonymous/bearer/basic/cookie/mixed status behavior, discovers parameters across query/body/cookies/headers/frames, detects secret-shaped response data with a local rule pack and masked previews, flags cache/header behavior signals, prepares visible workflow drafts from Advanced signals, and keeps mobile/thick-client proxy guidance near the evidence. Import preview does not transmit traffic.
 
 ### 10 — Sitemap
 

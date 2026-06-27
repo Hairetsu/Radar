@@ -542,6 +542,7 @@ function demoFindings(): Finding[] {
       severity: "medium",
       confidence: "high",
       status: "reviewed",
+      component: "Accounts API",
       affectedAssets: [`${DEMO_ORIGIN}/api/me`],
       evidence: [
         {
@@ -557,6 +558,7 @@ function demoFindings(): Finding[] {
       remediation: "Return Cache-Control: no-store or private for authenticated JSON responses.",
       notes: "Seeded demo finding for report and retest walkthroughs.",
       owner: "demo-api",
+      assignee: "platform-security",
       retestResult: "Pending retest after cache policy update.",
       source: "manual",
       createdAt: "2026-05-25T14:05:00.000Z",
@@ -570,6 +572,7 @@ function demoFindings(): Finding[] {
       severity: "high",
       confidence: "medium",
       status: "draft",
+      component: "GraphQL Gateway",
       affectedAssets: [`${DEMO_ORIGIN}/graphql`, DEMO_WS],
       evidence: [
         {
@@ -592,6 +595,7 @@ function demoFindings(): Finding[] {
       remediation: "Remove debug secrets from responses and restrict realtime event payloads to required fields.",
       notes: "Seeded draft finding to exercise Advanced signal review and report export.",
       owner: "platform-security",
+      assignee: "appsec",
       retestResult: "",
       source: "ai",
       sourceId: "demo-agent-passive-map",
@@ -620,6 +624,8 @@ function demoPlugin(): InstalledPlugin {
     sourcePath: "plugins/examples/demo-evidence-panel",
     grantedPermissions: ["captures:read", "frames:read", "findings:write", "ui:panel"],
     status: "approved",
+    trustLevel: "first-party",
+    compatibilityWarnings: [],
     warnings: [],
     installedAt: CREATED_AT,
     updatedAt: UPDATED_AT
