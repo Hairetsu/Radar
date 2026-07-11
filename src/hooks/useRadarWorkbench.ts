@@ -3571,17 +3571,23 @@ export function useRadarWorkbench() {
       return;
     }
     let cancelled = false;
+    let inFlight = false;
     const load = async () => {
-      if (!window.radar || cancelled) {
+      if (!window.radar || cancelled || inFlight) {
         return;
       }
-      const [nextProfiles, nextSessions] = await Promise.all([
-        window.radar.listLocalProfiles(),
-        window.radar.listLocalSessions(activeProfileId)
-      ]);
-      if (!cancelled) {
-        setProfiles(nextProfiles);
-        setSessions(nextSessions);
+      inFlight = true;
+      try {
+        const [nextProfiles, nextSessions] = await Promise.all([
+          window.radar.listLocalProfiles(),
+          window.radar.listLocalSessions(activeProfileId)
+        ]);
+        if (!cancelled) {
+          setProfiles(nextProfiles);
+          setSessions(nextSessions);
+        }
+      } finally {
+        inFlight = false;
       }
     };
     load();
@@ -3594,55 +3600,61 @@ export function useRadarWorkbench() {
 
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
     const load = async () => {
-      if (!window.radar || cancelled) {
+      if (!window.radar || cancelled || inFlight) {
         return;
       }
-      const [
-        nextCaptures,
-        nextSslEvents,
-        nextWebSocketEvents,
-        nextBrowserState,
-        nextProxyState,
-        nextInterceptState,
-        nextAgentRuns,
-        nextAgentRunMemory,
-        nextFindings,
-        nextWorkflowRuns,
-        nextAutomateSessions
-      ] = await Promise.all([
-        window.radar.getCaptures(),
-        window.radar.getSslEvents(),
-        loadWebSocketEvents(),
-        window.radar.getBrowserState(),
-        window.radar.getProxyState(),
-        loadInterceptState(),
-        window.radar.listAgentRuns(),
-        window.radar.getAgentRunMemory?.() ?? [],
-        window.radar.getFindings?.() ?? [],
-        window.radar.getWorkflowRuns?.() ?? [],
-        window.radar.listAutomateSessions?.() ?? []
-      ]);
-      if (!cancelled) {
-        setCaptures(nextCaptures);
-        setSslEvents(nextSslEvents);
-        setWebSocketEvents(nextWebSocketEvents);
-        setBrowserState(nextBrowserState);
-        setProxyState(nextProxyState);
-        setInterceptState(nextInterceptState);
-        setAgentRuns(nextAgentRuns);
-        setAgentRunMemory(nextAgentRunMemory);
-        setFindings(nextFindings);
-        setSelectedFindingId((current) => current || nextFindings[0]?.id || "");
-        setWorkflowRuns(nextWorkflowRuns);
-        setSelectedWorkflowRunId((current) => current || nextWorkflowRuns[0]?.id || "");
-        setAutomateSessions(nextAutomateSessions);
-        setActiveAutomateSessionId((current) => current || nextAutomateSessions[0]?.id || "");
+      inFlight = true;
+      try {
+        const [
+          nextCaptures,
+          nextSslEvents,
+          nextWebSocketEvents,
+          nextBrowserState,
+          nextProxyState,
+          nextInterceptState,
+          nextAgentRuns,
+          nextAgentRunMemory,
+          nextFindings,
+          nextWorkflowRuns,
+          nextAutomateSessions
+        ] = await Promise.all([
+          window.radar.getCaptures(),
+          window.radar.getSslEvents(),
+          loadWebSocketEvents(),
+          window.radar.getBrowserState(),
+          window.radar.getProxyState(),
+          loadInterceptState(),
+          window.radar.listAgentRuns(),
+          window.radar.getAgentRunMemory?.() ?? [],
+          window.radar.getFindings?.() ?? [],
+          window.radar.getWorkflowRuns?.() ?? [],
+          window.radar.listAutomateSessions?.() ?? []
+        ]);
+        if (!cancelled) {
+          setCaptures(nextCaptures);
+          setSslEvents(nextSslEvents);
+          setWebSocketEvents(nextWebSocketEvents);
+          setBrowserState(nextBrowserState);
+          setProxyState(nextProxyState);
+          setInterceptState(nextInterceptState);
+          setAgentRuns(nextAgentRuns);
+          setAgentRunMemory(nextAgentRunMemory);
+          setFindings(nextFindings);
+          setSelectedFindingId((current) => current || nextFindings[0]?.id || "");
+          setWorkflowRuns(nextWorkflowRuns);
+          setSelectedWorkflowRunId((current) => current || nextWorkflowRuns[0]?.id || "");
+          setAutomateSessions(nextAutomateSessions);
+          setActiveAutomateSessionId((current) => current || nextAutomateSessions[0]?.id || "");
+        }
+      } finally {
+        inFlight = false;
       }
     };
 
     load();
-    const timer = setInterval(load, 900);
+    const timer = setInterval(load, 1_500);
     return () => {
       cancelled = true;
       clearInterval(timer);
