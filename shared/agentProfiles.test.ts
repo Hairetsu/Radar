@@ -25,6 +25,11 @@ describe("agentProfiles", () => {
     expect(agentProfileAllowsTool("header-cookie-review", "analyzeSecurityHeaders")).toBe(true);
     expect(agentProfileAllowsTool("header-cookie-review", "prepareWorkflowDraft")).toBe(false);
     expect(agentProfileAllowsTool("advanced-api-review", "runWorkflow")).toBe(true);
+    expect(getAgentRunProfile("advanced-api-review").capabilityCeiling).toMatchObject({
+      maxRiskTier: "active",
+      maxConcurrency: 1
+    });
+    expect(getAgentRunProfile("passive-map").capabilityCeiling.maxRiskTier).toBe("navigate");
   });
 
   it("formats visible budget labels", () => {

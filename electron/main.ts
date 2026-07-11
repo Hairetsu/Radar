@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
@@ -64,8 +64,11 @@ import {
 import type {
   AgentAuthStateSummary,
   AgentCookie,
+  AgentCapabilityActionRequest,
+  AgentMissionSteeringRequest,
   AgentRun,
   AgentRunMemoryEntry,
+  AgentRunRecoveryRequest,
   AgentStorageState
 } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
@@ -82,6 +85,12 @@ import {
 import { normalizeSavedFilters } from "../shared/savedFilters.js";
 import { prepareReplayDraft } from "../shared/replayVariables.js";
 import { normalizeWebSocketReplayDraft } from "../shared/websocketReplay.js";
+import {
+  normalizeIdentityProfile,
+  type IdentityActivationRecord,
+  type IdentityProfile,
+  type IdentityProfileDraft
+} from "../shared/identityProfiles.js";
 import { filterCapturesByQuery, filterWebSocketEventsByQuery } from "../shared/trafficQuery.js";
 import { searchGlobal } from "../shared/globalSearch.js";
 import {
@@ -118,6 +127,12 @@ import {
   validateWorkflowDraft
 } from "../shared/workflows.js";
 import { openLocalStore, type LocalStore } from "./localStore.js";
+import { applyCaptureAttribution } from "./captureAttribution.js";
+import {
+  createIdentityActivation,
+  createSerializedIdentityActivator,
+  identityBrowserProfileDir
+} from "./identityProfiles.js";
 import { seedDemoProject } from "./demoProject.js";
 import { installedPluginFromPreview, readPluginInstallPreview, renderInstalledPluginPanel, validatePluginSource } from "./plugins.js";
 import { runPluginApiAction as runPluginApiActionForPlugin } from "./pluginApi.js";
@@ -139,6 +154,7 @@ import {
 } from "./ai/index.js";
 import { AgentRuntime } from "./agent/runtime.js";
 import { createAiAgentPlanner } from "./agent/planner.js";
+import { findCdpEndpointForUrl, type CdpListEntry } from "./chromeDebugging.js";
 import { findSystemBrowser } from "./systemBrowser.js";
 import { ensureRadarKeychainInSearchList, trustProxyCa } from "./trustCa.js";
 
@@ -158,8 +174,12 @@ let chromeProcess: ChildProcess | null = null;
 let proxyServer: ReturnType<typeof getLocal> | undefined;
 let allowlist = [...defaultAllowlist];
 const captured = new Map<string, CapturedRequest>();
+const CAPTURE_SESSION_ID = Symbol("captureSessionId");
+type SessionBoundCapture = CapturedRequest & { [CAPTURE_SESSION_ID]?: string };
+const captureSessionIds = new Map<string, string>();
 const webSocketEvents: WebSocketEvent[] = [];
 const webSocketConnections = new Map<string, { url: string; initiator: string }>();
+const webSocketSessionIds = new Map<string, string>();
 const attachedContents = new Set<number>();
 const sslEvents: SslEvent[] = [];
 const interceptQueue = new Map<string, PendingIntercept>();
@@ -169,6 +189,35 @@ let localContext: LocalContext | null = null;
 let agentRuntime: AgentRuntime | null = null;
 let activeAgentRunId = "";
 let activeNavigationId = "";
+let activeActionId = "";
+let activeIdentityId = "";
+let activeActivationId = "";
+let activeSequenceRunId = "";
+let activeExperimentId = "";
+let activeChromeProfileDir = "";
+const serializeIdentityActivation = createSerializedIdentityActivator();
+let chromeObserverSocket: CdpSocket | null = null;
+let chromeObserverInstanceId = "";
+let chromeObserverSessionId = "";
+let chromeObserverCommandId = 0;
+const chromeObserverRequests = new Map<string, string>();
+const chromeObserverWebSockets = new Map<
+  string,
+  {
+    url: string;
+    agentRunId?: string;
+    navigationId?: string;
+    actionId?: string;
+    identityId?: string;
+    activationId?: string;
+    sequenceRunId?: string;
+    experimentId?: string;
+  }
+>();
+const chromeObserverPending = new Map<
+  number,
+  { resolve: (value: unknown) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }
+>();
 let browserState: BrowserState = {
   open: false,
   url: "",
@@ -264,9 +313,37 @@ function activeAgentRuntime() {
   return agentRuntime;
 }
 
+function endActiveIdentityActivation() {
+  if (localStore && localContext && activeActivationId) {
+    try {
+      const activation = localStore
+        .listIdentityActivations(localContext.session.id, 100)
+        .find((item) => item.id === activeActivationId && item.status === "active");
+      if (activation) {
+        localStore.upsertIdentityActivation(localContext.session.id, {
+          ...activation,
+          status: "ended",
+          endedAt: new Date().toISOString()
+        });
+      }
+    } catch {
+      /* Context shutdown remains fail-closed even if lifecycle persistence fails. */
+    }
+  }
+  activeIdentityId = "";
+  activeActivationId = "";
+  activeActionId = "";
+  activeNavigationId = "";
+  activeSequenceRunId = "";
+  activeExperimentId = "";
+  activeChromeProfileDir = "";
+}
+
 function activateLocalContext(nextContext: LocalContext) {
   const profileChanged = Boolean(localContext && localContext.profile.id !== nextContext.profile.id);
-  if (profileChanged) {
+  const workspaceChanged = Boolean(localContext && localContext.workspace.id !== nextContext.workspace.id);
+  if (profileChanged || workspaceChanged) {
+    endActiveIdentityActivation();
     stopChromeProcess();
     browserState = {
       open: false,
@@ -283,7 +360,35 @@ function activateLocalContext(nextContext: LocalContext) {
 }
 
 function rememberCapture(entry: CapturedRequest) {
-  const existing = captured.get(entry.id);
+  const currentSessionId = localContext?.session.id || "";
+  const explicitSessionId = (entry as SessionBoundCapture)[CAPTURE_SESSION_ID] || "";
+  const boundSessionId = explicitSessionId || captureSessionIds.get(entry.id) || currentSessionId;
+  if (boundSessionId && !captureSessionIds.has(entry.id)) {
+    captureSessionIds.set(entry.id, boundSessionId);
+    while (captureSessionIds.size > HOT_CAPTURE_LIMIT * 4) {
+      const oldest = captureSessionIds.keys().next().value;
+      if (!oldest) break;
+      captureSessionIds.delete(oldest);
+    }
+  }
+  const isActiveSession = Boolean(boundSessionId && boundSessionId === currentSessionId);
+  const existing = isActiveSession ? captured.get(entry.id) : undefined;
+  entry = applyCaptureAttribution(
+    entry,
+    existing,
+    entry.source === "proxy" || !isActiveSession
+      ? {}
+      : {
+          agentRunId: activeAgentRunId,
+          navigationId: activeNavigationId,
+          actionId: activeActionId,
+          identityId: activeIdentityId,
+          activationId: activeActivationId,
+          sequenceRunId: activeSequenceRunId,
+          experimentId: activeExperimentId
+        }
+  );
+  if (boundSessionId) (entry as SessionBoundCapture)[CAPTURE_SESSION_ID] = boundSessionId;
   if (existing?.intercept && !entry.intercept) {
     entry.intercept = existing.intercept;
   }
@@ -300,26 +405,33 @@ function rememberCapture(entry: CapturedRequest) {
     }
     entry.rewrites = existing.rewrites;
   }
-  if (activeAgentRunId && !entry.agentRunId) {
-    entry.agentRunId = activeAgentRunId;
-  }
-  if (activeNavigationId && !entry.navigationId) {
-    entry.navigationId = activeNavigationId;
-  }
-
-  captured.set(entry.id, entry);
-  lastCaptureChangeAt = Date.now();
-  while (captured.size > HOT_CAPTURE_LIMIT) {
-    const oldest = captured.keys().next().value;
-    if (!oldest) {
-      break;
+  if (isActiveSession) {
+    captured.set(entry.id, entry);
+    lastCaptureChangeAt = Date.now();
+    while (captured.size > HOT_CAPTURE_LIMIT) {
+      const oldest = captured.keys().next().value;
+      if (!oldest) {
+        break;
+      }
+      captured.delete(oldest);
     }
-    captured.delete(oldest);
   }
 
-  if (localStore && localContext) {
-    localStore.upsertCapture(localContext.session.id, entry);
+  if (localStore && boundSessionId) {
+    localStore.upsertCapture(boundSessionId, entry);
   }
+}
+
+function bindCaptureEntryToSession(entry: CapturedRequest, sessionId: string) {
+  if (!entry.id || !sessionId) return entry;
+  (entry as SessionBoundCapture)[CAPTURE_SESSION_ID] = sessionId;
+  if (!captureSessionIds.has(entry.id)) captureSessionIds.set(entry.id, sessionId);
+  return entry;
+}
+
+function bindCaptureToCurrentSession(captureId: string) {
+  const sessionId = localContext?.session.id || "";
+  if (captureId && sessionId && !captureSessionIds.has(captureId)) captureSessionIds.set(captureId, sessionId);
 }
 
 function parseCaptureUrlParts(url: string) {
@@ -555,8 +667,11 @@ async function queueInterceptRequest(req: CompletedRequest): Promise<ProxyReques
     return undefined;
   }
 
+  const requestSessionId = localContext?.session.id || "";
+  bindCaptureToCurrentSession(req.id);
   const bodyText = truncateText(await req.body.getText().catch(() => ""));
   let capture = proxyRequestToCapture({ req, bodyText, rules: allowlist });
+  bindCaptureEntryToSession(capture, requestSessionId);
   const rewriteResult = applyScopedMatchReplace(capture, "request");
   capture = rewriteResult.capture;
   if (rewriteResult.changed) {
@@ -751,6 +866,8 @@ function websocketEvent({
 
 function rememberWebSocketConnection(requestId: string, url: string, initiator = "") {
   webSocketConnections.set(requestId, { url, initiator });
+  const sessionId = localContext?.session.id || "";
+  if (sessionId && !webSocketSessionIds.has(requestId)) webSocketSessionIds.set(requestId, sessionId);
   while (webSocketConnections.size > HOT_WEBSOCKET_LIMIT) {
     const oldest = webSocketConnections.keys().next().value;
     if (!oldest) {
@@ -833,11 +950,28 @@ function rememberProxyWebSocketClose(close: WebSocketClose) {
 }
 
 function rememberWebSocketEvent(event: WebSocketEvent) {
-  webSocketEvents.unshift(event);
-  webSocketEvents.splice(HOT_WEBSOCKET_LIMIT);
+  const currentSessionId = localContext?.session.id || "";
+  const boundSessionId = webSocketSessionIds.get(event.requestId) || currentSessionId;
+  if (boundSessionId && !webSocketSessionIds.has(event.requestId)) {
+    webSocketSessionIds.set(event.requestId, boundSessionId);
+  }
+  const isActiveSession = Boolean(boundSessionId && boundSessionId === currentSessionId);
+  if (event.initiator !== "proxy" && isActiveSession) {
+    event.agentRunId ||= activeAgentRunId || undefined;
+    event.navigationId ||= activeNavigationId || undefined;
+    event.actionId ||= activeActionId || undefined;
+    event.identityId ||= activeIdentityId || undefined;
+    event.activationId ||= activeActivationId || undefined;
+    event.sequenceRunId ||= activeSequenceRunId || undefined;
+    event.experimentId ||= activeExperimentId || undefined;
+  }
+  if (isActiveSession) {
+    webSocketEvents.unshift(event);
+    webSocketEvents.splice(HOT_WEBSOCKET_LIMIT);
+  }
 
-  if (localStore && localContext) {
-    localStore.insertWebSocketEvent(localContext.session.id, event);
+  if (localStore && boundSessionId) {
+    localStore.insertWebSocketEvent(boundSessionId, event);
   }
 }
 
@@ -850,13 +984,16 @@ function hydrateActiveLocalState() {
   interceptRules = localStore.listInterceptRules(localContext.workspace.id);
   matchReplaceRules = localStore.listMatchReplaceRules(localContext.workspace.id);
   captured.clear();
-  webSocketConnections.clear();
   for (const entry of localStore.listCaptures(localContext.session.id, HOT_CAPTURE_LIMIT).reverse()) {
+    captureSessionIds.set(entry.id, localContext.session.id);
+    bindCaptureEntryToSession(entry, localContext.session.id);
     captured.set(entry.id, entry);
   }
 
   sslEvents.splice(0, sslEvents.length, ...localStore.listSslEvents(localContext.session.id, 80));
-  webSocketEvents.splice(0, webSocketEvents.length, ...localStore.listWebSocketEvents(localContext.session.id, HOT_WEBSOCKET_LIMIT));
+  const storedWebSockets = localStore.listWebSocketEvents(localContext.session.id, HOT_WEBSOCKET_LIMIT);
+  for (const event of storedWebSockets) webSocketSessionIds.set(event.requestId, localContext.session.id);
+  webSocketEvents.splice(0, webSocketEvents.length, ...storedWebSockets);
 }
 
 function listHttpCaptures(limit = 400) {
@@ -909,13 +1046,6 @@ async function evaluateElectronPage<T>(script: string) {
   }
   return targetBrowserWindow.webContents.executeJavaScript(script, true) as Promise<T>;
 }
-
-type CdpListEntry = {
-  type?: string;
-  url?: string;
-  title?: string;
-  webSocketDebuggerUrl?: string;
-};
 
 type CdpSocket = {
   readyState: number;
@@ -1069,6 +1199,224 @@ async function withCdpPage<T>(callback: (sendCommand: (method: string, params?: 
   } finally {
     socket.close();
   }
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function stopChromeObserver() {
+  for (const pending of chromeObserverPending.values()) {
+    clearTimeout(pending.timeout);
+    pending.reject(new Error("Chrome observer stopped."));
+  }
+  chromeObserverPending.clear();
+  chromeObserverRequests.clear();
+  chromeObserverWebSockets.clear();
+  chromeObserverInstanceId = "";
+  chromeObserverSessionId = "";
+  try {
+    chromeObserverSocket?.close();
+  } catch {
+    /* ignore */
+  }
+  chromeObserverSocket = null;
+}
+
+function chromeObserverSendCommand(method: string, params: Record<string, unknown> = {}) {
+  const socket = chromeObserverSocket;
+  if (!socket || socket.readyState !== 1) {
+    return Promise.reject(new Error("Chrome observer is not connected."));
+  }
+  chromeObserverCommandId += 1;
+  const id = chromeObserverCommandId;
+  return new Promise<unknown>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      chromeObserverPending.delete(id);
+      reject(new Error(`Chrome observer command timed out: ${method}`));
+    }, 5_000);
+    chromeObserverPending.set(id, { resolve, reject, timeout });
+    socket.send(JSON.stringify({ id, method, params }));
+  });
+}
+
+async function handleChromeObserverEvent(method: string, rawParams: unknown) {
+  const params = recordValue(rawParams);
+  const rawRequestId = String(params.requestId || "");
+  if (!rawRequestId) return;
+  const captureId = chromeObserverRequests.get(rawRequestId) || `chrome_${chromeObserverInstanceId}_${rawRequestId}`;
+
+  if (method === "Network.webSocketCreated") {
+    const context = {
+      url: String(params.url || ""),
+      agentRunId: activeAgentRunId || undefined,
+      navigationId: activeNavigationId || undefined,
+      actionId: activeActionId || undefined,
+      identityId: activeIdentityId || undefined,
+      activationId: activeActivationId || undefined,
+      sequenceRunId: activeSequenceRunId || undefined,
+      experimentId: activeExperimentId || undefined
+    };
+    chromeObserverWebSockets.set(rawRequestId, context);
+    rememberWebSocketEvent({
+      ...websocketEvent({
+        requestId: rawRequestId,
+        url: context.url,
+        direction: "handshake",
+        payloadData: "WebSocket created",
+        initiator: "chrome-cdp"
+      }),
+      ...context
+    });
+    return;
+  }
+
+  const webSocketContext = chromeObserverWebSockets.get(rawRequestId);
+  if (webSocketContext && method.startsWith("Network.webSocket")) {
+    const frame = recordValue(params.response);
+    const request = recordValue(params.request);
+    const response = recordValue(params.response);
+    const direction: WebSocketDirection =
+      method === "Network.webSocketFrameSent"
+        ? "sent"
+        : method === "Network.webSocketFrameReceived"
+          ? "received"
+          : method === "Network.webSocketFrameError"
+            ? "error"
+            : method === "Network.webSocketClosed"
+              ? "closed"
+              : "handshake";
+    const event = websocketEvent({
+      requestId: rawRequestId,
+      url: webSocketContext.url,
+      direction,
+      opcode: typeof frame.opcode === "number" ? frame.opcode : undefined,
+      payloadData:
+        String(frame.payloadData || params.errorMessage || "") ||
+        (direction === "closed" ? "WebSocket closed" : direction === "handshake" ? "WebSocket handshake" : ""),
+      status: typeof response.status === "number" ? response.status : undefined,
+      statusText: String(response.statusText || ""),
+      error: direction === "error" ? String(params.errorMessage || "WebSocket frame error") : undefined,
+      requestHeaders: recordValue(request.headers),
+      responseHeaders: recordValue(response.headers),
+      initiator: "chrome-cdp"
+    });
+    rememberWebSocketEvent({ ...event, ...webSocketContext });
+    if (direction === "closed") chromeObserverWebSockets.delete(rawRequestId);
+    return;
+  }
+
+  if (method === "Network.requestWillBeSent") {
+    const request = recordValue(params.request);
+    const initiator = recordValue(params.initiator);
+    const next = toCaptureEntry({
+      requestId: captureId,
+      request: {
+        method: String(request.method || "GET"),
+        url: String(request.url || ""),
+        headers: recordValue(request.headers),
+        postData: String(request.postData || ""),
+        frameUrl: String(params.documentURL || params.frameId || ""),
+        initiator: String(initiator.type || "")
+      },
+      rules: allowlist
+    });
+    bindCaptureEntryToSession(next, chromeObserverSessionId);
+    chromeObserverRequests.set(rawRequestId, captureId);
+    rememberCapture(next);
+    return;
+  }
+
+  const entry = captured.get(captureId);
+  if (!entry) return;
+  if (method === "Network.responseReceived") {
+    const response = recordValue(params.response);
+    const securityDetails = recordValue(response.securityDetails);
+    const timing = recordValue(response.timing);
+    entry.status = typeof response.status === "number" ? response.status : null;
+    entry.statusText = String(response.statusText || "");
+    entry.mimeType = String(response.mimeType || "");
+    entry.type = String(params.type || "Other");
+    entry.responseHeaders = safeJsonHeaders(recordValue(response.headers));
+    entry.tls = Object.keys(securityDetails).length
+      ? {
+          protocol: String(securityDetails.protocol || ""),
+          issuer: String(securityDetails.issuer || ""),
+          subjectName: String(securityDetails.subjectName || ""),
+          validFrom: Number(securityDetails.validFrom || 0),
+          validTo: Number(securityDetails.validTo || 0)
+        }
+      : null;
+    if (typeof timing.receiveHeadersEnd === "number") {
+      entry.durationMs = Math.max(0, Math.round(timing.receiveHeadersEnd));
+    }
+    rememberCapture(entry);
+    return;
+  }
+  if (method === "Network.loadingFinished") {
+    try {
+      const bodyResult = recordValue(
+        await chromeObserverSendCommand("Network.getResponseBody", { requestId: rawRequestId })
+      );
+      const body = String(bodyResult.body || "");
+      entry.responseBody = truncateText(
+        bodyResult.base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body
+      );
+    } catch {
+      entry.responseBody = "";
+    }
+    if (typeof params.encodedDataLength === "number") entry.encodedDataLength = params.encodedDataLength;
+    rememberCapture(entry);
+    return;
+  }
+  if (method === "Network.loadingFailed") {
+    entry.statusText = String(params.errorText || "Failed");
+    rememberCapture(entry);
+  }
+}
+
+async function startChromeObserver(endpoint: string) {
+  stopChromeObserver();
+  const targets = await waitForChromeDebugger(endpoint, 8_000);
+  const target = targets.find((item) => item.type === "page" && item.webSocketDebuggerUrl) || targets.find((item) => item.webSocketDebuggerUrl);
+  if (!target?.webSocketDebuggerUrl) throw new Error("No debuggable Chrome page is available for causal capture.");
+  const WebSocketCtor = (globalThis as unknown as { WebSocket?: new (url: string) => CdpSocket }).WebSocket;
+  if (!WebSocketCtor) throw new Error("WebSocket support is not available in this runtime.");
+  const socket = new WebSocketCtor(target.webSocketDebuggerUrl);
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Timed out connecting the Chrome causal observer.")), 5_000);
+    socket.addEventListener("open", () => {
+      clearTimeout(timeout);
+      resolve();
+    }, { once: true });
+    socket.addEventListener("error", () => {
+      clearTimeout(timeout);
+      reject(new Error("Chrome causal observer connection failed."));
+    }, { once: true });
+  });
+  chromeObserverSocket = socket;
+  chromeObserverInstanceId = randomUUID();
+  chromeObserverSessionId = localContext?.session.id || "";
+  socket.addEventListener("message", (event) => {
+    let message: Record<string, unknown>;
+    try {
+      message = recordValue(JSON.parse(String(event.data || "{}")));
+    } catch {
+      return;
+    }
+    if (typeof message.id === "number") {
+      const pending = chromeObserverPending.get(message.id);
+      if (!pending) return;
+      clearTimeout(pending.timeout);
+      chromeObserverPending.delete(message.id);
+      const error = recordValue(message.error);
+      if (Object.keys(error).length) pending.reject(new Error(String(error.message || "Chrome observer command failed.")));
+      else pending.resolve(message.result);
+      return;
+    }
+    if (typeof message.method === "string") void handleChromeObserverEvent(message.method, message.params);
+  });
+  await chromeObserverSendCommand("Network.enable", { maxPostDataSize: MAX_REPLAY_BODY });
 }
 
 type CdpRuntimeEvaluation<T> = {
@@ -1301,6 +1649,8 @@ type SavedAuthState = AgentStorageState & {
   createdAt: string;
 };
 
+const LEGACY_AUTH_SNAPSHOTS_ENABLED = false;
+
 function authStatesPath() {
   return path.join(app.getPath("userData"), "agent-auth-states.json");
 }
@@ -1330,6 +1680,12 @@ function authStateSummary(state: SavedAuthState): AgentAuthStateSummary {
 }
 
 async function saveAuthState({ name }: { name: string }) {
+  if (!LEGACY_AUTH_SNAPSHOTS_ENABLED) {
+    throw new Error("Legacy global auth snapshots are disabled. Use a workspace-scoped dedicated Identity Lab profile.");
+  }
+  if (activeActivationId) {
+    throw new Error("Legacy auth snapshots cannot be saved from an active dedicated Identity Lab profile.");
+  }
   if (!name) {
     throw new Error("Auth state name is required.");
   }
@@ -1341,6 +1697,12 @@ async function saveAuthState({ name }: { name: string }) {
 }
 
 async function loadAuthState({ name }: { name: string }) {
+  if (!LEGACY_AUTH_SNAPSHOTS_ENABLED) {
+    throw new Error("Legacy global auth snapshots are disabled. Use a workspace-scoped dedicated Identity Lab profile.");
+  }
+  if (activeActivationId) {
+    throw new Error("Legacy auth snapshots cannot be loaded into an active dedicated Identity Lab profile.");
+  }
   const state = readAuthStates().find((item) => item.name === name);
   if (!state) {
     throw new Error(`Auth state not found: ${name}`);
@@ -1354,6 +1716,11 @@ async function loadAuthState({ name }: { name: string }) {
     await waitForNetworkIdle({ idleMs: 500, timeoutMs: 5000 });
   }
   await withCdpPage(async (sendCommand) => {
+    await sendCommand("Network.clearBrowserCookies");
+    await sendCommand("Storage.clearDataForOrigin", {
+      origin: state.origin,
+      storageTypes: "all"
+    });
     await sendCommand("Network.setCookies", { cookies: state.cookies });
   });
   const expression = `(() => {
@@ -1368,14 +1735,21 @@ async function loadAuthState({ name }: { name: string }) {
   await evaluateChromePage<boolean>(expression);
   await evaluateChromePage<boolean>("(() => { location.reload(); return true; })()");
   await waitForNetworkIdle({ idleMs: 500, timeoutMs: 5000 });
+  activeIdentityId = state.name;
   return authStateSummary(state);
 }
 
 async function listAuthStates() {
+  if (!LEGACY_AUTH_SNAPSHOTS_ENABLED) {
+    throw new Error("Legacy global auth snapshots are disabled. Use Identity Lab profiles.");
+  }
   return { states: readAuthStates().map(authStateSummary) };
 }
 
 async function compareAuthStates({ left, right }: { left: string; right: string }) {
+  if (!LEGACY_AUTH_SNAPSHOTS_ENABLED) {
+    throw new Error("Legacy global auth snapshots are disabled. Use recorded Identity Lab comparisons.");
+  }
   const states = readAuthStates();
   const leftState = states.find((item) => item.name === left);
   const rightState = states.find((item) => item.name === right);
@@ -1420,8 +1794,217 @@ async function compareAuthStates({ left, right }: { left: string; right: string 
   return { left, right, observations };
 }
 
+function identityProfiles() {
+  const context = activeLocalContext();
+  return activeLocalStore().listIdentityProfiles(context.workspace.id);
+}
+
+function normalizeIdentityDraft(
+  draft: IdentityProfileDraft | Partial<IdentityProfileDraft>,
+  existing?: IdentityProfile
+) {
+  const context = activeLocalContext();
+  const now = new Date().toISOString();
+  const raw = draft && typeof draft === "object" ? draft : ({} as Partial<IdentityProfileDraft>);
+  const profile = normalizeIdentityProfile({
+    ...(existing || {}),
+    id: existing?.id || `identity_${randomUUID()}`,
+    workspaceId: context.workspace.id,
+    label: raw.label ?? existing?.label,
+    kind: raw.kind ?? existing?.kind,
+    roleLabel: raw.roleLabel ?? existing?.roleLabel,
+    tenantLabel: raw.tenantLabel ?? existing?.tenantLabel,
+    origin: raw.origin ?? existing?.origin,
+    notes: raw.notes ?? existing?.notes,
+    isolation: existing?.isolation || "dedicated-profile",
+    health: existing?.health || "unknown",
+    refreshMode: raw.refreshMode ?? existing?.refreshMode ?? "manual",
+    refreshWorkflowId: raw.refreshWorkflowId ?? existing?.refreshWorkflowId,
+    maxHealthAgeMs: raw.maxHealthAgeMs ?? existing?.maxHealthAgeMs,
+    jarRevision: existing?.jarRevision || 0,
+    containerId: existing?.containerId || `container-${existing?.id || "new"}`,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+    lastActivatedAt: existing?.lastActivatedAt,
+    lastCheckedAt: existing?.lastCheckedAt,
+    lastEvidenceRef: existing?.lastEvidenceRef,
+    authFingerprint: existing?.authFingerprint,
+    archivedAt: existing?.archivedAt
+  });
+  if (!profile) throw new Error("Identity profile metadata is invalid.");
+  if (!isAllowedTarget(profile.origin, allowlist)) {
+    throw new Error(`Identity origin is outside the current saved Scope: ${profile.origin}`);
+  }
+  if (!existing) profile.containerId = `container-${profile.id}`;
+  return profile;
+}
+
+function createIdentityProfile(draft: IdentityProfileDraft) {
+  const profile = normalizeIdentityDraft(draft);
+  return activeLocalStore().upsertIdentityProfile(profile.workspaceId, profile);
+}
+
+function updateIdentityProfile(payload: { id: string; draft: Partial<IdentityProfileDraft> }) {
+  const context = activeLocalContext();
+  const existing = activeLocalStore().getIdentityProfile(context.workspace.id, String(payload?.id || ""));
+  if (!existing || existing.archivedAt) throw new Error("Identity profile was not found in this workspace.");
+  const profile = normalizeIdentityDraft(payload?.draft || {}, existing);
+  return activeLocalStore().upsertIdentityProfile(context.workspace.id, profile);
+}
+
+function sortedIdentityState(state: AgentStorageState) {
+  const sortedRecord = (value: Record<string, string>) =>
+    Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)));
+  return {
+    origin: state.origin,
+    cookies: [...state.cookies]
+      .map((cookie) => ({ ...cookie }))
+      .sort((left, right) =>
+        `${left.domain || ""}\n${left.path || ""}\n${left.name}`.localeCompare(
+          `${right.domain || ""}\n${right.path || ""}\n${right.name}`
+        )
+      ),
+    localStorage: sortedRecord(state.localStorage),
+    sessionStorage: sortedRecord(state.sessionStorage)
+  };
+}
+
+async function currentIdentityFingerprint() {
+  return createHash("sha256").update(JSON.stringify(sortedIdentityState(await getStorageState()))).digest("hex");
+}
+
+async function activateIdentityProfile({ identityId }: { identityId: string }) {
+  const context = activeLocalContext();
+  const store = activeLocalStore();
+  const identity = store.getIdentityProfile(context.workspace.id, String(identityId || ""));
+  if (!identity || identity.archivedAt) throw new Error("Identity profile was not found in this workspace.");
+  if (identity.isolation !== "dedicated-profile") {
+    throw new Error("Only dedicated-profile identities can be activated as isolated browser contexts.");
+  }
+  if (!isAllowedTarget(identity.origin, allowlist)) {
+    throw new Error(`Identity origin is outside the current saved Scope: ${identity.origin}`);
+  }
+  const inheritedActionId = activeActionId;
+  const prior = store.listIdentityActivations(context.session.id, 100).find((item) => item.status === "active");
+  if (prior) {
+    store.upsertIdentityActivation(context.session.id, {
+      ...prior,
+      status: "ended",
+      endedAt: new Date().toISOString()
+    });
+  }
+  try {
+    const activated = await activateDedicatedIdentityBrowser(identity.id, identity.origin);
+    const settled = await waitForNetworkIdle({ idleMs: 500, timeoutMs: 5_000 });
+    if (!settled.idle) throw new Error("Identity activation did not reach a bounded network-idle checkpoint.");
+    const fingerprint = await currentIdentityFingerprint();
+    const page = await getPageText();
+    if (!isAllowedTarget(page.url, allowlist)) {
+      throw new Error(`Identity activation redirected outside saved Scope: ${page.url}`);
+    }
+    const activation: IdentityActivationRecord = {
+      id: activated.activationId,
+      sessionId: context.session.id,
+      workspaceId: context.workspace.id,
+      identityId: identity.id,
+      startedAt: activated.activatedAt,
+      status: "active",
+      browserInstanceId: chromeObserverInstanceId || `browser_${randomUUID()}`,
+      authFingerprint: fingerprint
+    };
+    store.upsertIdentityActivation(context.session.id, activation);
+    const changed = fingerprint !== identity.authFingerprint;
+    const nextIdentity = store.upsertIdentityProfile(context.workspace.id, {
+      ...identity,
+      authFingerprint: fingerprint,
+      jarRevision: identity.jarRevision + (changed ? 1 : 0),
+      lastActivatedAt: activated.activatedAt,
+      updatedAt: activated.activatedAt
+    });
+    if (!inheritedActionId) activeActionId = "";
+    activeNavigationId = "";
+    return { identity: nextIdentity, activation, url: page.url };
+  } catch (error) {
+    endActiveIdentityActivation();
+    stopChromeProcess();
+    throw error;
+  }
+}
+
+async function verifyIdentityProfile({ identityId }: { identityId: string }) {
+  const { identity, activation } = await activateIdentityProfile({ identityId });
+  if (!activeActionId) activeActionId = `action_${randomUUID()}`;
+  activeNavigationId = `nav_${randomUUID()}`;
+  try {
+    await withCdpPage(async (sendCommand) => {
+      await sendCommand("Page.reload", { ignoreCache: false });
+    });
+    await waitForNetworkIdle({ idleMs: 700, timeoutMs: 8_000 });
+    const page = await getPageText();
+    if (!isAllowedTarget(page.url, allowlist)) {
+      throw new Error(`Identity verification redirected outside saved Scope: ${page.url}`);
+    }
+    const scoped = listHttpCaptures(400)
+      .filter(
+        (capture) =>
+          capture.identityId === identity.id &&
+          capture.activationId === activation.id &&
+          (() => {
+            try {
+              return new URL(capture.url).origin === identity.origin;
+            } catch {
+              return false;
+            }
+          })()
+      )
+      .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+    const primary = scoped.find((capture) => capture.type === "Document") || scoped[0];
+    const now = new Date().toISOString();
+    const health =
+      primary?.status === 401 || primary?.status === 403
+        ? "expired"
+        : primary?.status && primary.status >= 200 && primary.status < 400
+          ? "healthy"
+          : primary
+            ? "stale"
+            : "error";
+    return activeLocalStore().upsertIdentityProfile(identity.workspaceId, {
+      ...identity,
+      health,
+      lastCheckedAt: now,
+      lastEvidenceRef: primary ? `capture:${primary.id}` : undefined,
+      updatedAt: now
+    });
+  } finally {
+    activeActionId = "";
+    activeNavigationId = "";
+  }
+}
+
+function archiveIdentityProfile(identityId: string) {
+  const context = activeLocalContext();
+  const identity = activeLocalStore().getIdentityProfile(context.workspace.id, String(identityId || ""));
+  if (!identity) throw new Error("Identity profile was not found in this workspace.");
+  if (activeIdentityId === identity.id) {
+    endActiveIdentityActivation();
+    stopChromeProcess();
+  }
+  activeLocalStore().archiveIdentityProfile(context.workspace.id, identity.id);
+  return { ok: true, identities: identityProfiles() };
+}
+
+function identityLabContext() {
+  const captures = listHttpCaptures(2_000);
+  return {
+    identities: identityProfiles(),
+    activeIdentityId: activeIdentityId || undefined,
+    activeActivationId: activeActivationId || undefined,
+    attributedCaptureCount: captures.filter((capture) => capture.identityId && capture.activationId).length
+  };
+}
+
 function createAgentRuntime() {
-  return new AgentRuntime({
+  const runtime = new AgentRuntime({
     currentSessionId: () => activeLocalContext().session.id,
     allowlist: () => allowlist.slice(),
     saveRun: (run) => {
@@ -1470,14 +2053,26 @@ function createAgentRuntime() {
     loadAuthState,
     listAuthStates,
     compareAuthStates,
+    listIdentityProfiles: identityProfiles,
+    getIdentityLabContext: async () => identityLabContext(),
+    activateIdentityProfile,
+    verifyIdentityProfile: async (input) => {
+      const identity = await verifyIdentityProfile(input);
+      return { identity, url: (await getPageText()).url };
+    },
     decideNextAction: createAiAgentPlanner(app.getPath("userData")),
     setActiveRunId: (runId) => {
       activeAgentRunId = runId || "";
       if (!runId) {
         activeNavigationId = "";
       }
+    },
+    setActiveActionContext: (context) => {
+      activeActionId = context?.actionId || "";
     }
   });
+  runtime.revokeAllGrantedLeases("Agent runtime or active session changed.");
+  return runtime;
 }
 
 function syncAgentFindingsToInbox(run: AgentRun) {
@@ -1591,6 +2186,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  endActiveIdentityActivation();
+  stopChromeProcess();
   localStore?.close();
   localStore = null;
 });
@@ -1646,6 +2243,10 @@ function syncBrowserState() {
 }
 
 function chromeProfileDir() {
+  if (activeChromeProfileDir) {
+    fs.mkdirSync(activeChromeProfileDir, { recursive: true, mode: 0o700 });
+    return activeChromeProfileDir;
+  }
   const profileId = localContext?.profile.id || "default";
   const profileDir = path.join(app.getPath("userData"), "profiles", profileId, "proxy-browser-profile");
   fs.mkdirSync(profileDir, { recursive: true });
@@ -1653,6 +2254,7 @@ function chromeProfileDir() {
 }
 
 function stopChromeProcess() {
+  stopChromeObserver();
   if (!chromeProcess || chromeProcess.killed) {
     chromeProcess = null;
     return;
@@ -1665,11 +2267,44 @@ function stopChromeProcess() {
   chromeProcess = null;
 }
 
+async function activateDedicatedIdentityBrowser(identityId: string, startUrl: string) {
+  return serializeIdentityActivation(async () => {
+    const nextUrl = normalizeBrowserUrl(startUrl);
+    if (!isAllowedTarget(nextUrl, allowlist)) {
+      throw new Error(`Identity activation URL is out of scope: ${nextUrl}`);
+    }
+    const context = activeLocalContext();
+    const profileDir = identityBrowserProfileDir(app.getPath("userData"), context.profile.id, identityId);
+    const activation = createIdentityActivation(profileDir, identityId);
+    fs.mkdirSync(profileDir, { recursive: true, mode: 0o700 });
+    stopChromeProcess();
+    activeIdentityId = activation.identityId;
+    activeActivationId = activation.activationId;
+    if (!activeActionId) activeActionId = `action_${randomUUID()}`;
+    activeChromeProfileDir = profileDir;
+    try {
+      await openRealChrome(nextUrl);
+      if (!browserState.open || activeActivationId !== activation.activationId) {
+        throw new Error("Dedicated identity browser did not remain active after launch.");
+      }
+      return activation;
+    } catch (error) {
+      stopChromeProcess();
+      activeIdentityId = "";
+      activeActivationId = "";
+      activeActionId = "";
+      activeChromeProfileDir = "";
+      throw error;
+    }
+  });
+}
+
 async function openRealChrome(urlString: string) {
   const nextUrl = normalizeBrowserUrl(urlString);
   const browser = findSystemBrowser();
   const proxy = await startMitmProxy(proxyState.port);
   const remoteDebuggingPort = await findOpenPort(9223);
+  const profileDir = chromeProfileDir();
 
   stopChromeProcess();
 
@@ -1679,7 +2314,7 @@ async function openRealChrome(urlString: string) {
   }
 
   const args = [
-    `--user-data-dir=${chromeProfileDir()}`,
+    `--user-data-dir=${profileDir}`,
     `--remote-debugging-port=${remoteDebuggingPort}`,
     "--no-first-run",
     "--no-default-browser-check",
@@ -1709,6 +2344,7 @@ async function openRealChrome(urlString: string) {
     if (chromeProcess !== launched) {
       return;
     }
+    endActiveIdentityActivation();
     browserState = {
       ...browserState,
       open: false,
@@ -1717,19 +2353,52 @@ async function openRealChrome(urlString: string) {
     chromeProcess = null;
   });
 
+  const remoteDebuggingUrl = `http://127.0.0.1:${remoteDebuggingPort}`;
+
   browserState = {
     open: true,
     url: nextUrl,
     title: browser.channel,
     loading: false,
     engine: "chrome",
-    remoteDebuggingUrl: `http://127.0.0.1:${remoteDebuggingPort}`,
-    profileDir: chromeProfileDir(),
+    remoteDebuggingUrl,
+    profileDir,
     executablePath: browser.executablePath,
     channel: browser.channel
   };
 
-  await waitForChromeDebugger(`http://127.0.0.1:${remoteDebuggingPort}`, 8000);
+  try {
+    await waitForChromeDebugger(remoteDebuggingUrl, 8000);
+    await startChromeObserver(remoteDebuggingUrl);
+    await chromeObserverSendCommand("Page.reload", { ignoreCache: false });
+  } catch (error) {
+    const recoveredDebuggingUrl = await findCdpEndpointForUrl({
+      requestedUrl: nextUrl,
+      fetchTargets: fetchCdpTargets
+    });
+    if (recoveredDebuggingUrl) {
+      browserState = {
+        ...browserState,
+        open: true,
+        loading: false,
+        remoteDebuggingUrl: recoveredDebuggingUrl
+      };
+      await startChromeObserver(recoveredDebuggingUrl);
+      await chromeObserverSendCommand("Page.reload", { ignoreCache: false });
+      console.warn(
+        `[radar] Chrome reused an existing debugging endpoint at ${recoveredDebuggingUrl}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`
+      );
+      return browserState;
+    }
+    if (chromeProcess !== launched || !browserState.open || browserState.remoteDebuggingUrl !== remoteDebuggingUrl) {
+      throw error;
+    }
+    console.warn(
+      `[radar] Chrome debugging endpoint was not ready after launch: ${error instanceof Error ? error.message : "unknown error"}`
+    );
+  }
   return browserState;
 }
 
@@ -1784,8 +2453,12 @@ async function startMitmProxy(port = 8088) {
   await proxyServer.start(Number(port) || 8088);
 
   await proxyServer.on("request", async (req) => {
+    const requestSessionId = localContext?.session.id || "";
+    bindCaptureToCurrentSession(req.id);
     const text = await req.body.getText().catch(() => "");
-    rememberCapture(proxyRequestToCapture({ req, bodyText: truncateText(text), rules: allowlist }));
+    const capture = proxyRequestToCapture({ req, bodyText: truncateText(text), rules: allowlist });
+    bindCaptureEntryToSession(capture, requestSessionId);
+    rememberCapture(capture);
   });
 
   await proxyServer.on("response", async (res) => {
@@ -3679,12 +4352,48 @@ ipcMain.handle("targets:set", (_event, targets) => {
   return allowlist;
 });
 
+ipcMain.handle("identity:profiles:list", () => identityProfiles());
+
+ipcMain.handle("identity:profiles:create", (_event, draft: IdentityProfileDraft) => createIdentityProfile(draft));
+
+ipcMain.handle("identity:profiles:update", (_event, payload) => updateIdentityProfile(payload));
+
+ipcMain.handle("identity:profiles:activate", (_event, payload) => activateIdentityProfile(payload));
+
+ipcMain.handle("identity:profiles:verify", (_event, id) => verifyIdentityProfile({ identityId: String(id || "") }));
+
+ipcMain.handle("identity:profiles:archive", (_event, id) => archiveIdentityProfile(String(id || "")));
+
+ipcMain.handle("identity:activations:list", () =>
+  activeLocalStore().listIdentityActivations(activeLocalContext().session.id, 100)
+);
+
 ipcMain.handle("repeater:send", async (_event, input) => {
   return sendRequest(input);
 });
 
 ipcMain.handle("agent:start", (_event, payload) => {
   return activeAgentRuntime().start(payload || {});
+});
+
+ipcMain.handle("agent:pause", (_event, id) => {
+  return activeAgentRuntime().pause(String(id || ""));
+});
+
+ipcMain.handle("agent:resume", (_event, id) => {
+  return activeAgentRuntime().resume(String(id || ""));
+});
+
+ipcMain.handle("agent:recover", (_event, id, request: AgentRunRecoveryRequest) => {
+  return activeAgentRuntime().recover(String(id || ""), request || { action: "stop-run" });
+});
+
+ipcMain.handle("agent:mission:steer", (_event, id, request: AgentMissionSteeringRequest) => {
+  return activeAgentRuntime().steerMission(String(id || ""), request);
+});
+
+ipcMain.handle("agent:capabilities:update", (_event, id, request: AgentCapabilityActionRequest) => {
+  return activeAgentRuntime().updateCapabilities(String(id || ""), request);
 });
 
 ipcMain.handle("agent:stop", (_event, id) => {

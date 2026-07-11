@@ -7,6 +7,7 @@ import type {
   AgentFinding,
   AgentPolicy,
   AgentRun,
+  AgentRunCheckpoint,
   AgentRunMemoryEntry,
   AgentRunProfileId,
   AgentRunStatus,
@@ -54,6 +55,15 @@ import {
 } from "../shared/automate.js";
 import { normalizeEvidenceAnnotation, normalizeEvidenceAnnotations } from "../shared/evidenceTags.js";
 import { MAX_AGENT_RUN_MEMORY, normalizeAgentRunMemory, normalizeAgentRunMemoryList } from "../shared/agentMemory.js";
+import { normalizeAgentMission } from "../shared/agentMission.js";
+import { normalizeAgentCapabilityState } from "../shared/agentCapabilities.js";
+import {
+  MAX_IDENTITY_PROFILES,
+  normalizeIdentityActivation,
+  normalizeIdentityProfile,
+  type IdentityActivationRecord,
+  type IdentityProfile
+} from "../shared/identityProfiles.js";
 import { MAX_FINDINGS, normalizeFinding, normalizeFindings } from "../shared/findings.js";
 import {
   approveInstalledPlugin,
@@ -79,12 +89,13 @@ import {
   normalizeWorkflowRuns
 } from "../shared/workflows.js";
 
-export const LOCAL_STORE_SCHEMA_VERSION = 16;
+export const LOCAL_STORE_SCHEMA_VERSION = 20;
 
 const SCHEMA_VERSION = String(LOCAL_STORE_SCHEMA_VERSION);
 const DEFAULT_PROFILE_NAME = "Local Operator";
 const DEFAULT_WORKSPACE_NAME = "Default Workspace";
 const MAX_NAME_LENGTH = 80;
+const MAX_IDENTITY_ACTIVATIONS = 500;
 
 type LocalStoreMigration = {
   version: number;
@@ -147,6 +158,11 @@ type CaptureRow = {
   source: CapturedRequest["source"];
   agent_run_id: string | null;
   navigation_id: string | null;
+  action_id: string | null;
+  identity_id: string | null;
+  activation_id: string | null;
+  sequence_run_id: string | null;
+  experiment_id: string | null;
   frame_url: string | null;
   initiator: string | null;
   tls_json: string | null;
@@ -180,6 +196,13 @@ type WebSocketEventRow = {
   request_headers_json: string;
   response_headers_json: string;
   initiator: string | null;
+  agent_run_id: string | null;
+  navigation_id: string | null;
+  action_id: string | null;
+  identity_id: string | null;
+  activation_id: string | null;
+  sequence_run_id: string | null;
+  experiment_id: string | null;
   allowed: number;
 };
 
@@ -194,6 +217,9 @@ type AgentRunRow = {
   policy_json: string;
   timeline_json: string;
   findings_json: string;
+  checkpoint_json: string;
+  mission_json: string;
+  capabilities_json: string;
   error: string | null;
 };
 
@@ -255,6 +281,24 @@ type PluginRow = {
 
 type PluginAuditRow = {
   audit_json: string;
+};
+
+type IdentityProfileRow = {
+  id: string;
+  workspace_id: string;
+  updated_at: string;
+  archived_at: string | null;
+  profile_json: string;
+};
+
+type IdentityActivationRow = {
+  id: string;
+  session_id: string;
+  workspace_id: string;
+  identity_id: string;
+  started_at: string;
+  updated_at: string;
+  activation_json: string;
 };
 
 function nowIso() {
@@ -488,6 +532,11 @@ function toCapture(row: CaptureRow): CapturedRequest {
     source: row.source,
     agentRunId: row.agent_run_id || undefined,
     navigationId: row.navigation_id || undefined,
+    actionId: row.action_id || undefined,
+    identityId: row.identity_id || undefined,
+    activationId: row.activation_id || undefined,
+    sequenceRunId: row.sequence_run_id || undefined,
+    experimentId: row.experiment_id || undefined,
     frameUrl: row.frame_url || undefined,
     initiator: row.initiator || undefined,
     tls: parseTlsJson(row.tls_json)
@@ -532,11 +581,54 @@ function toWebSocketEvent(row: WebSocketEventRow): WebSocketEvent {
     requestHeaders: parseRecordJson(row.request_headers_json),
     responseHeaders: parseRecordJson(row.response_headers_json),
     initiator: row.initiator || undefined,
+    agentRunId: row.agent_run_id || undefined,
+    navigationId: row.navigation_id || undefined,
+    actionId: row.action_id || undefined,
+    identityId: row.identity_id || undefined,
+    activationId: row.activation_id || undefined,
+    sequenceRunId: row.sequence_run_id || undefined,
+    experimentId: row.experiment_id || undefined,
     allowed: row.allowed === 1
   };
 }
 
+function toIdentityProfile(row: IdentityProfileRow): IdentityProfile {
+  const profile = normalizeIdentityProfile(parseJsonObject(row.profile_json, null));
+  if (!profile || profile.id !== row.id || profile.workspaceId !== row.workspace_id) {
+    throw new Error(`Stored identity profile is invalid: ${row.id}`);
+  }
+  return profile;
+}
+
+function toIdentityActivation(row: IdentityActivationRow): IdentityActivationRecord {
+  const activation = normalizeIdentityActivation(parseJsonObject(row.activation_json, null));
+  if (
+    !activation ||
+    activation.id !== row.id ||
+    activation.sessionId !== row.session_id ||
+    activation.workspaceId !== row.workspace_id ||
+    activation.identityId !== row.identity_id
+  ) {
+    throw new Error(`Stored identity activation is invalid: ${row.id}`);
+  }
+  return activation;
+}
+
 function toAgentRun(row: AgentRunRow): AgentRun {
+  const checkpointValue = parseJsonObject<Partial<AgentRunCheckpoint> | null>(row.checkpoint_json, null);
+  const checkpoint = checkpointValue && typeof checkpointValue.startUrl === "string"
+    ? (checkpointValue as AgentRunCheckpoint)
+    : null;
+  const mission = normalizeAgentMission(
+    parseJsonObject(row.mission_json, null),
+    row.goal,
+    checkpoint?.startUrl || "",
+    row.created_at
+  );
+  const capabilities = normalizeAgentCapabilityState(
+    parseJsonObject(row.capabilities_json, null),
+    row.created_at
+  );
   return {
     id: row.id,
     sessionId: row.session_id,
@@ -555,7 +647,10 @@ function toAgentRun(row: AgentRunRow): AgentRun {
     }),
     timeline: parseJsonArray<AgentTimelineEntry>(row.timeline_json),
     findings: parseJsonArray<AgentFinding>(row.findings_json),
-    error: row.error || undefined
+    mission,
+    capabilities,
+    ...(checkpoint ? { checkpoint } : {}),
+    ...(row.error ? { error: row.error } : {})
   };
 }
 
@@ -694,6 +789,11 @@ export function openLocalStore(userDataPath: string) {
       source TEXT NOT NULL CHECK (source IN ('browser', 'repeater', 'proxy')),
       agent_run_id TEXT,
       navigation_id TEXT,
+      action_id TEXT,
+      identity_id TEXT,
+      activation_id TEXT,
+      sequence_run_id TEXT,
+      experiment_id TEXT,
       frame_url TEXT,
       initiator TEXT,
       tls_json TEXT,
@@ -732,6 +832,13 @@ export function openLocalStore(userDataPath: string) {
       request_headers_json TEXT NOT NULL,
       response_headers_json TEXT NOT NULL,
       initiator TEXT,
+      agent_run_id TEXT,
+      navigation_id TEXT,
+      action_id TEXT,
+      identity_id TEXT,
+      activation_id TEXT,
+      sequence_run_id TEXT,
+      experiment_id TEXT,
       allowed INTEGER NOT NULL,
       PRIMARY KEY (session_id, id)
     );
@@ -756,6 +863,9 @@ export function openLocalStore(userDataPath: string) {
       policy_json TEXT NOT NULL,
       timeline_json TEXT NOT NULL,
       findings_json TEXT NOT NULL,
+      checkpoint_json TEXT NOT NULL DEFAULT '{}',
+      mission_json TEXT NOT NULL DEFAULT '{}',
+      capabilities_json TEXT NOT NULL DEFAULT '{}',
       error TEXT,
       PRIMARY KEY (session_id, id)
     );
@@ -810,6 +920,15 @@ export function openLocalStore(userDataPath: string) {
       id TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       memory_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, id)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_identity_profiles (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      id TEXT NOT NULL UNIQUE,
+      updated_at TEXT NOT NULL,
+      archived_at TEXT,
+      profile_json TEXT NOT NULL,
       PRIMARY KEY (workspace_id, id)
     );
 
@@ -907,6 +1026,19 @@ export function openLocalStore(userDataPath: string) {
       PRIMARY KEY (session_id, id)
     );
 
+    CREATE TABLE IF NOT EXISTS session_identity_activations (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      id TEXT NOT NULL UNIQUE,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      identity_id TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      activation_json TEXT NOT NULL,
+      PRIMARY KEY (session_id, id),
+      FOREIGN KEY (workspace_id, identity_id)
+        REFERENCES workspace_identity_profiles(workspace_id, id) ON DELETE RESTRICT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_captures_session_started
       ON captures(session_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_captures_session_host
@@ -937,6 +1069,12 @@ export function openLocalStore(userDataPath: string) {
       ON workspace_saved_views(workspace_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_workspace_agent_memory_updated
       ON workspace_agent_memory(workspace_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_workspace_identity_profiles_updated
+      ON workspace_identity_profiles(workspace_id, archived_at, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_session_identity_activations_started
+      ON session_identity_activations(session_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_session_identity_activations_identity
+      ON session_identity_activations(session_id, identity_id, started_at DESC);
   `);
 
     const captureColumns = new Set(
@@ -949,6 +1087,11 @@ export function openLocalStore(userDataPath: string) {
     const captureColumnMigrations: Array<[string, string]> = [
       ["agent_run_id", "TEXT"],
       ["navigation_id", "TEXT"],
+      ["action_id", "TEXT"],
+      ["identity_id", "TEXT"],
+      ["activation_id", "TEXT"],
+      ["sequence_run_id", "TEXT"],
+      ["experiment_id", "TEXT"],
       ["frame_url", "TEXT"],
       ["initiator", "TEXT"],
       ["intercept_json", "TEXT"],
@@ -957,6 +1100,27 @@ export function openLocalStore(userDataPath: string) {
     for (const [name, type] of captureColumnMigrations) {
       if (!captureColumns.has(name)) {
         db.exec(`ALTER TABLE captures ADD COLUMN ${name} ${type}`);
+      }
+    }
+    const webSocketColumns = new Set(
+      (
+        db.prepare("PRAGMA table_info(websocket_events)").all() as Array<{
+          name: string;
+        }>
+      ).map((column) => column.name)
+    );
+    const webSocketColumnMigrations: Array<[string, string]> = [
+      ["agent_run_id", "TEXT"],
+      ["navigation_id", "TEXT"],
+      ["action_id", "TEXT"],
+      ["identity_id", "TEXT"],
+      ["activation_id", "TEXT"],
+      ["sequence_run_id", "TEXT"],
+      ["experiment_id", "TEXT"]
+    ];
+    for (const [name, type] of webSocketColumnMigrations) {
+      if (!webSocketColumns.has(name)) {
+        db.exec(`ALTER TABLE websocket_events ADD COLUMN ${name} ${type}`);
       }
     }
     const agentRunColumns = new Set(
@@ -969,9 +1133,22 @@ export function openLocalStore(userDataPath: string) {
     if (!agentRunColumns.has("profile_id")) {
       db.exec("ALTER TABLE agent_runs ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'passive-map'");
     }
+    if (!agentRunColumns.has("checkpoint_json")) {
+      db.exec("ALTER TABLE agent_runs ADD COLUMN checkpoint_json TEXT NOT NULL DEFAULT '{}'");
+    }
+    if (!agentRunColumns.has("mission_json")) {
+      db.exec("ALTER TABLE agent_runs ADD COLUMN mission_json TEXT NOT NULL DEFAULT '{}'");
+    }
+    if (!agentRunColumns.has("capabilities_json")) {
+      db.exec("ALTER TABLE agent_runs ADD COLUMN capabilities_json TEXT NOT NULL DEFAULT '{}'");
+    }
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_captures_session_agent_run
       ON captures(session_id, agent_run_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_captures_session_action
+      ON captures(session_id, action_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_captures_session_identity
+      ON captures(session_id, identity_id, started_at DESC);
   `);
   };
 
@@ -1455,6 +1632,274 @@ export function openLocalStore(userDataPath: string) {
     return listAgentRunMemory(workspaceId);
   };
 
+  const requireWorkspace = (workspaceId: string) => {
+    const row = db.prepare("SELECT id FROM workspaces WHERE id = ?").get(workspaceId) as { id: string } | undefined;
+    if (!row) {
+      throw new Error(`Workspace not found: ${workspaceId}`);
+    }
+    return row.id;
+  };
+
+  const requireSessionWorkspace = (sessionId: string) => {
+    const row = db.prepare("SELECT workspace_id FROM sessions WHERE id = ?").get(sessionId) as
+      | { workspace_id: string }
+      | undefined;
+    if (!row) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    return row.workspace_id;
+  };
+
+  const identityProfileRowById = (identityId: string) =>
+    db
+      .prepare("SELECT id, workspace_id, updated_at, archived_at, profile_json FROM workspace_identity_profiles WHERE id = ?")
+      .get(identityId) as IdentityProfileRow | undefined;
+
+  const listIdentityProfiles = (
+    workspaceId: string,
+    options: { includeArchived?: boolean } = {}
+  ): IdentityProfile[] => {
+    requireWorkspace(workspaceId);
+    const rows = options.includeArchived
+      ? (db
+          .prepare(`
+            SELECT id, workspace_id, updated_at, archived_at, profile_json
+            FROM workspace_identity_profiles
+            WHERE workspace_id = ?
+            ORDER BY archived_at IS NOT NULL ASC, updated_at DESC, id ASC
+            LIMIT ?
+          `)
+          .all(workspaceId, MAX_IDENTITY_PROFILES) as IdentityProfileRow[])
+      : (db
+          .prepare(`
+            SELECT id, workspace_id, updated_at, archived_at, profile_json
+            FROM workspace_identity_profiles
+            WHERE workspace_id = ? AND archived_at IS NULL
+            ORDER BY updated_at DESC, id ASC
+            LIMIT ?
+          `)
+          .all(workspaceId, MAX_IDENTITY_PROFILES) as IdentityProfileRow[]);
+    return rows.map(toIdentityProfile);
+  };
+
+  const getIdentityProfile = (workspaceId: string, identityId: string) => {
+    requireWorkspace(workspaceId);
+    const row = identityProfileRowById(identityId);
+    if (!row) {
+      return null;
+    }
+    if (row.workspace_id !== workspaceId) {
+      throw new Error(`Identity profile ${identityId} does not belong to workspace ${workspaceId}.`);
+    }
+    return toIdentityProfile(row);
+  };
+
+  const upsertIdentityProfile = (workspaceId: string, input: IdentityProfile) => {
+    requireWorkspace(workspaceId);
+    const normalized = normalizeIdentityProfile(input);
+    if (!normalized) {
+      throw new Error("Identity profile was invalid.");
+    }
+    if (normalized.workspaceId !== workspaceId) {
+      throw new Error(`Identity profile ${normalized.id} does not belong to workspace ${workspaceId}.`);
+    }
+
+    const existingRow = identityProfileRowById(normalized.id);
+    if (existingRow && existingRow.workspace_id !== workspaceId) {
+      throw new Error(`Identity profile ${normalized.id} already belongs to another workspace.`);
+    }
+    const existing = existingRow ? toIdentityProfile(existingRow) : null;
+    if (existing && Date.parse(normalized.updatedAt) < Date.parse(existing.updatedAt)) {
+      throw new Error(`Identity profile ${normalized.id} update is older than the stored revision.`);
+    }
+    if (existing && normalized.jarRevision < existing.jarRevision) {
+      throw new Error(`Identity profile ${normalized.id} jar revision cannot decrease.`);
+    }
+
+    const profile = normalizeIdentityProfile({
+      ...normalized,
+      createdAt: existing?.createdAt || normalized.createdAt,
+      containerId: existing?.containerId || normalized.containerId,
+      archivedAt: existing?.archivedAt || normalized.archivedAt
+    });
+    if (!profile) {
+      throw new Error("Identity profile was invalid after normalization.");
+    }
+
+    runImmediateTransaction(db, () => {
+      if (!existing) {
+        const count = db
+          .prepare("SELECT COUNT(*) AS count FROM workspace_identity_profiles WHERE workspace_id = ?")
+          .get(workspaceId) as { count: number };
+        if (Number(count.count) >= MAX_IDENTITY_PROFILES) {
+          throw new Error(`Identity profile limit reached for workspace ${workspaceId}.`);
+        }
+      }
+      db.prepare(`
+        INSERT INTO workspace_identity_profiles (workspace_id, id, updated_at, archived_at, profile_json)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          archived_at = excluded.archived_at,
+          profile_json = excluded.profile_json
+      `).run(
+        workspaceId,
+        profile.id,
+        profile.updatedAt,
+        profile.archivedAt ?? null,
+        JSON.stringify(profile)
+      );
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(profile.updatedAt, workspaceId);
+    });
+    return profile;
+  };
+
+  const archiveIdentityProfile = (workspaceId: string, identityId: string, archivedAt = nowIso()) => {
+    const existing = getIdentityProfile(workspaceId, identityId);
+    if (!existing) {
+      throw new Error(`Identity profile not found: ${identityId}`);
+    }
+    if (existing.archivedAt) {
+      return existing;
+    }
+    if (!Number.isFinite(Date.parse(archivedAt))) {
+      throw new Error("Identity archive timestamp was invalid.");
+    }
+    const timestamp = new Date(archivedAt).toISOString();
+    const archived = normalizeIdentityProfile({
+      ...existing,
+      updatedAt: timestamp,
+      archivedAt: timestamp
+    });
+    if (!archived) {
+      throw new Error("Identity profile could not be archived.");
+    }
+    return upsertIdentityProfile(workspaceId, archived);
+  };
+
+  const activationRowById = (activationId: string) =>
+    db
+      .prepare(`
+        SELECT id, session_id, workspace_id, identity_id, started_at, updated_at, activation_json
+        FROM session_identity_activations
+        WHERE id = ?
+      `)
+      .get(activationId) as IdentityActivationRow | undefined;
+
+  const listIdentityActivations = (sessionId: string, limit = 100): IdentityActivationRecord[] => {
+    const workspaceId = requireSessionWorkspace(sessionId);
+    const rows = db
+      .prepare(`
+        SELECT id, session_id, workspace_id, identity_id, started_at, updated_at, activation_json
+        FROM session_identity_activations
+        WHERE session_id = ?
+        ORDER BY started_at DESC, id DESC
+        LIMIT ?
+      `)
+      .all(sessionId, Math.max(1, Math.min(Number(limit) || 100, MAX_IDENTITY_ACTIVATIONS))) as IdentityActivationRow[];
+    return rows.map((row) => {
+      if (row.workspace_id !== workspaceId) {
+        throw new Error(`Stored identity activation ${row.id} does not belong to session workspace ${workspaceId}.`);
+      }
+      return toIdentityActivation(row);
+    });
+  };
+
+  const upsertIdentityActivation = (sessionId: string, input: IdentityActivationRecord) => {
+    const workspaceId = requireSessionWorkspace(sessionId);
+    const normalized = normalizeIdentityActivation(input);
+    if (!normalized) {
+      throw new Error("Identity activation was invalid.");
+    }
+    if (normalized.sessionId !== sessionId || normalized.workspaceId !== workspaceId) {
+      throw new Error(`Identity activation ${normalized.id} does not belong to session ${sessionId}.`);
+    }
+
+    const profileRow = identityProfileRowById(normalized.identityId);
+    if (!profileRow || profileRow.workspace_id !== workspaceId) {
+      throw new Error(`Identity profile ${normalized.identityId} does not belong to session workspace ${workspaceId}.`);
+    }
+    const existingRow = activationRowById(normalized.id);
+    if (existingRow && existingRow.session_id !== sessionId) {
+      throw new Error(`Identity activation ${normalized.id} already belongs to another session.`);
+    }
+    const existing = existingRow ? toIdentityActivation(existingRow) : null;
+    if (!existing && profileRow.archived_at) {
+      throw new Error(`Archived identity profile cannot be activated: ${normalized.identityId}`);
+    }
+    if (
+      existing &&
+      (existing.workspaceId !== normalized.workspaceId ||
+        existing.identityId !== normalized.identityId ||
+        existing.startedAt !== normalized.startedAt ||
+        existing.browserInstanceId !== normalized.browserInstanceId)
+    ) {
+      throw new Error(`Identity activation ${normalized.id} immutable fields cannot change.`);
+    }
+    if (existing?.authFingerprint && normalized.authFingerprint && existing.authFingerprint !== normalized.authFingerprint) {
+      throw new Error(`Identity activation ${normalized.id} auth fingerprint cannot change.`);
+    }
+    if (normalized.endedAt && Date.parse(normalized.endedAt) < Date.parse(normalized.startedAt)) {
+      throw new Error(`Identity activation ${normalized.id} ended before it started.`);
+    }
+    if (existing?.endedAt && normalized.endedAt && existing.endedAt !== normalized.endedAt) {
+      throw new Error(`Identity activation ${normalized.id} end timestamp cannot change.`);
+    }
+    const allowedTransitions: Record<
+      IdentityActivationRecord["status"],
+      IdentityActivationRecord["status"][]
+    > = {
+      starting: ["starting", "active", "failed"],
+      active: ["active", "ended", "failed"],
+      ended: ["ended"],
+      failed: ["failed"]
+    };
+    if (existing && !allowedTransitions[existing.status].includes(normalized.status)) {
+      throw new Error(`Identity activation ${normalized.id} cannot transition from ${existing.status} to ${normalized.status}.`);
+    }
+
+    const activation = normalizeIdentityActivation({
+      ...normalized,
+      authFingerprint: normalized.authFingerprint || existing?.authFingerprint,
+      endedAt: normalized.endedAt || existing?.endedAt,
+      error: normalized.error || existing?.error
+    });
+    if (!activation) {
+      throw new Error("Identity activation was invalid after normalization.");
+    }
+
+    const updatedAt = nowIso();
+    runImmediateTransaction(db, () => {
+      if (!existing) {
+        const count = db
+          .prepare("SELECT COUNT(*) AS count FROM session_identity_activations WHERE session_id = ?")
+          .get(sessionId) as { count: number };
+        if (Number(count.count) >= MAX_IDENTITY_ACTIVATIONS) {
+          throw new Error(`Identity activation limit reached for session ${sessionId}.`);
+        }
+      }
+      db.prepare(`
+        INSERT INTO session_identity_activations (
+          session_id, id, workspace_id, identity_id, started_at, updated_at, activation_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_id, id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          activation_json = excluded.activation_json
+      `).run(
+        sessionId,
+        activation.id,
+        workspaceId,
+        activation.identityId,
+        activation.startedAt,
+        updatedAt,
+        JSON.stringify(activation)
+      );
+      db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(updatedAt, sessionId);
+    });
+    return activation;
+  };
+
   const getReplayTabState = (workspaceId: string) => {
     const row = db
       .prepare("SELECT state_json FROM workspace_replay_tabs WHERE workspace_id = ?")
@@ -1928,9 +2373,10 @@ export function openLocalStore(userDataPath: string) {
         session_id, id, started_at, method, url, host, path,
         request_headers_json, request_body, status, status_text, mime_type, resource_type,
         response_headers_json, response_body, duration_ms, encoded_data_length, allowed,
-        source, agent_run_id, navigation_id, frame_url, initiator, tls_json, intercept_json, rewrite_json, updated_at
+        source, agent_run_id, navigation_id, action_id, identity_id, activation_id, sequence_run_id, experiment_id,
+        frame_url, initiator, tls_json, intercept_json, rewrite_json, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(session_id, id) DO UPDATE SET
         started_at = excluded.started_at,
         method = excluded.method,
@@ -1951,6 +2397,11 @@ export function openLocalStore(userDataPath: string) {
         source = excluded.source,
         agent_run_id = excluded.agent_run_id,
         navigation_id = excluded.navigation_id,
+        action_id = excluded.action_id,
+        identity_id = excluded.identity_id,
+        activation_id = excluded.activation_id,
+        sequence_run_id = excluded.sequence_run_id,
+        experiment_id = excluded.experiment_id,
         frame_url = excluded.frame_url,
         initiator = excluded.initiator,
         tls_json = excluded.tls_json,
@@ -1979,6 +2430,11 @@ export function openLocalStore(userDataPath: string) {
       capture.source,
       capture.agentRunId || null,
       capture.navigationId || null,
+      capture.actionId || null,
+      capture.identityId || null,
+      capture.activationId || null,
+      capture.sequenceRunId || null,
+      capture.experimentId || null,
       capture.frameUrl || null,
       capture.initiator || null,
       capture.tls ? JSON.stringify(capture.tls) : null,
@@ -2035,9 +2491,10 @@ export function openLocalStore(userDataPath: string) {
     db.prepare(`
       INSERT OR REPLACE INTO websocket_events (
         session_id, id, request_id, created_at, url, host, direction, opcode, payload_data, size,
-        status, status_text, error, request_headers_json, response_headers_json, initiator, allowed
+        status, status_text, error, request_headers_json, response_headers_json, initiator,
+        agent_run_id, navigation_id, action_id, identity_id, activation_id, sequence_run_id, experiment_id, allowed
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       sessionId,
       event.id,
@@ -2055,6 +2512,13 @@ export function openLocalStore(userDataPath: string) {
       JSON.stringify(event.requestHeaders || {}),
       JSON.stringify(event.responseHeaders || {}),
       event.initiator ?? null,
+      event.agentRunId ?? null,
+      event.navigationId ?? null,
+      event.actionId ?? null,
+      event.identityId ?? null,
+      event.activationId ?? null,
+      event.sequenceRunId ?? null,
+      event.experimentId ?? null,
       event.allowed ? 1 : 0
     );
     db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
@@ -2113,9 +2577,9 @@ export function openLocalStore(userDataPath: string) {
     runImmediateTransaction(db, () => {
       db.prepare(`
         INSERT INTO agent_runs (
-          session_id, id, created_at, updated_at, goal, profile_id, status, policy_json, timeline_json, findings_json, error
+          session_id, id, created_at, updated_at, goal, profile_id, status, policy_json, timeline_json, findings_json, checkpoint_json, mission_json, capabilities_json, error
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_id, id) DO UPDATE SET
           updated_at = excluded.updated_at,
           goal = excluded.goal,
@@ -2124,6 +2588,9 @@ export function openLocalStore(userDataPath: string) {
           policy_json = excluded.policy_json,
           timeline_json = excluded.timeline_json,
           findings_json = excluded.findings_json,
+          checkpoint_json = excluded.checkpoint_json,
+          mission_json = excluded.mission_json,
+          capabilities_json = excluded.capabilities_json,
           error = excluded.error
       `).run(
         sessionId,
@@ -2136,6 +2603,9 @@ export function openLocalStore(userDataPath: string) {
         JSON.stringify(run.policy),
         JSON.stringify(run.timeline),
         JSON.stringify(run.findings),
+        JSON.stringify(run.checkpoint || {}),
+        JSON.stringify(run.mission || {}),
+        JSON.stringify(run.capabilities || {}),
         run.error ?? null
       );
       db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.updatedAt, sessionId);
@@ -2190,6 +2660,12 @@ export function openLocalStore(userDataPath: string) {
     listAgentRunMemory,
     upsertAgentRunMemory,
     deleteAgentRunMemory,
+    listIdentityProfiles,
+    getIdentityProfile,
+    upsertIdentityProfile,
+    archiveIdentityProfile,
+    listIdentityActivations,
+    upsertIdentityActivation,
     getReplayTabState,
     setReplayTabState,
     listReplayEnvironments,

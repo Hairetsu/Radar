@@ -17,6 +17,7 @@ import type {
   WorkflowRun
 } from "./domain.js";
 import type { AdvancedTestingSummary } from "./advancedTesting.js";
+import type { IdentityActivationRecord, IdentityProfile } from "./identityProfiles.js";
 
 export type AppMode = "manual-first" | "ai-first";
 
@@ -35,6 +36,13 @@ export type AgentWorkbenchView =
   | "ssl";
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
+
+export type AgentRunRecoveryAction =
+  | "retry-tool"
+  | "retry-with-evidence"
+  | "skip-and-continue"
+  | "stop-run"
+  | "draft-finding";
 
 export type AgentRunProfileId =
   | "passive-map"
@@ -66,6 +74,9 @@ export type AgentToolName =
   | "loadAuthState"
   | "listAuthStates"
   | "compareAuthStates"
+  | "getIdentityLabContext"
+  | "activateIdentityProfile"
+  | "verifyIdentityProfile"
   | "analyzeSecurityHeaders"
   | "analyzeCookieFlags"
   | "checkCorsPolicy"
@@ -185,6 +196,9 @@ export type AgentToolCall =
   | { tool: "loadAuthState"; input: { name: string } }
   | { tool: "listAuthStates"; input: Record<string, never> }
   | { tool: "compareAuthStates"; input: { left: string; right: string } }
+  | { tool: "getIdentityLabContext"; input: Record<string, never> }
+  | { tool: "activateIdentityProfile"; input: { identityId: string } }
+  | { tool: "verifyIdentityProfile"; input: { identityId: string } }
   | { tool: "analyzeSecurityHeaders"; input: { targetOrigin?: string } }
   | { tool: "analyzeCookieFlags"; input: { targetOrigin?: string } }
   | { tool: "checkCorsPolicy"; input: { targetOrigin?: string } }
@@ -261,6 +275,22 @@ export type AgentToolResult =
   | { tool: "loadAuthState"; ok: true; data: AgentAuthStateSummary }
   | { tool: "listAuthStates"; ok: true; data: { states: AgentAuthStateSummary[] } }
   | { tool: "compareAuthStates"; ok: true; data: { left: string; right: string; observations: AgentEvidenceObservation[] } }
+  | {
+      tool: "getIdentityLabContext";
+      ok: true;
+      data: {
+        identities: IdentityProfile[];
+        activeIdentityId?: string;
+        activeActivationId?: string;
+        attributedCaptureCount: number;
+      };
+    }
+  | {
+      tool: "activateIdentityProfile";
+      ok: true;
+      data: { identity: IdentityProfile; activation: IdentityActivationRecord; url: string };
+    }
+  | { tool: "verifyIdentityProfile"; ok: true; data: { identity: IdentityProfile; url: string } }
   | { tool: "analyzeSecurityHeaders"; ok: true; data: { observations: AgentEvidenceObservation[] } }
   | { tool: "analyzeCookieFlags"; ok: true; data: { observations: AgentEvidenceObservation[] } }
   | { tool: "checkCorsPolicy"; ok: true; data: { observations: AgentEvidenceObservation[] } }
@@ -371,9 +401,184 @@ export type AgentDecisionFinding = {
   uncertainties?: string[];
 };
 
+export type AgentMissionStatus = "active" | "awaiting-operator" | "completed" | "stopped";
+export type AgentMissionPriority = 1 | 2 | 3 | 4 | 5;
+export type AgentObjectiveStatus = "planned" | "active" | "blocked" | "completed" | "dismissed";
+export type AgentHypothesisStatus = "open" | "testing" | "supported" | "rejected" | "blocked" | "stale";
+export type AgentExperimentStatus = "planned" | "running" | "passed" | "failed" | "blocked" | "skipped";
+export type AgentClaimStatus = "lead" | "supported" | "contradicted" | "verified";
+export type AgentCoverageStatus = "untested" | "planned" | "testing" | "covered" | "blocked";
+export type AgentCoverageDimension = "host" | "endpoint" | "identity" | "state" | "control";
+
+export type AgentMissionObjective = {
+  id: string;
+  title: string;
+  description: string;
+  status: AgentObjectiveStatus;
+  priority: AgentMissionPriority;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentMissionHypothesis = {
+  id: string;
+  objectiveId?: string;
+  statement: string;
+  rationale: string;
+  status: AgentHypothesisStatus;
+  priority: AgentMissionPriority;
+  pinned: boolean;
+  evidenceRefs: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentMissionExperiment = {
+  id: string;
+  hypothesisId?: string;
+  title: string;
+  method: string;
+  expectedObservation: string;
+  status: AgentExperimentStatus;
+  evidenceRefs: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentMissionClaim = {
+  id: string;
+  hypothesisId?: string;
+  statement: string;
+  status: AgentClaimStatus;
+  confidence: "low" | "medium" | "high";
+  evidenceRefs: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentMissionCoverageCell = {
+  id: string;
+  dimension: AgentCoverageDimension;
+  label: string;
+  status: AgentCoverageStatus;
+  evidenceRefs: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentMissionOperatorQuestion = {
+  id: string;
+  prompt: string;
+  status: "open" | "answered" | "dismissed";
+  answer?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentMission = {
+  version: 1;
+  revision: number;
+  goal: string;
+  status: AgentMissionStatus;
+  createdAt: string;
+  updatedAt: string;
+  stopReason?: string;
+  objectives: AgentMissionObjective[];
+  hypotheses: AgentMissionHypothesis[];
+  experiments: AgentMissionExperiment[];
+  claims: AgentMissionClaim[];
+  coverage: AgentMissionCoverageCell[];
+  operatorQuestions: AgentMissionOperatorQuestion[];
+};
+
+export type AgentMissionUpdate =
+  | {
+      kind: "objective";
+      id?: string;
+      title: string;
+      description?: string;
+      status?: AgentObjectiveStatus;
+      priority?: AgentMissionPriority;
+    }
+  | {
+      kind: "hypothesis";
+      id?: string;
+      objectiveId?: string;
+      statement: string;
+      rationale?: string;
+      status?: AgentHypothesisStatus;
+      priority?: AgentMissionPriority;
+      evidenceRefs?: string[];
+    }
+  | {
+      kind: "experiment";
+      id?: string;
+      hypothesisId?: string;
+      title: string;
+      method?: string;
+      expectedObservation?: string;
+      status?: AgentExperimentStatus;
+      evidenceRefs?: string[];
+    }
+  | {
+      kind: "claim";
+      id?: string;
+      hypothesisId?: string;
+      statement: string;
+      status?: AgentClaimStatus;
+      confidence?: "low" | "medium" | "high";
+      evidenceRefs?: string[];
+    }
+  | {
+      kind: "coverage";
+      id?: string;
+      dimension: AgentCoverageDimension;
+      label: string;
+      status?: AgentCoverageStatus;
+      evidenceRefs?: string[];
+    }
+  | { kind: "operator-question"; id?: string; prompt: string }
+  | { kind: "mission-status"; status: AgentMissionStatus; stopReason?: string };
+
+export type AgentMissionPatch = {
+  baseRevision: number;
+  updates: AgentMissionUpdate[];
+};
+
+export type AgentMissionEntityKind = "objective" | "hypothesis" | "experiment" | "claim" | "coverage";
+
+export type AgentMissionSteeringAction =
+  | { action: "add-objective"; title: string; description?: string; priority?: AgentMissionPriority }
+  | {
+      action: "add-hypothesis";
+      statement: string;
+      rationale?: string;
+      objectiveId?: string;
+      priority?: AgentMissionPriority;
+    }
+  | {
+      action: "update-item";
+      entity: AgentMissionEntityKind;
+      id: string;
+      status?: AgentObjectiveStatus | AgentHypothesisStatus | AgentExperimentStatus | AgentClaimStatus | AgentCoverageStatus;
+      priority?: AgentMissionPriority;
+      pinned?: boolean;
+    }
+  | { action: "ask-operator"; prompt: string }
+  | { action: "answer-operator"; questionId: string; answer: string }
+  | { action: "dismiss-operator"; questionId: string };
+
+export type AgentMissionSteeringRequest = { expectedRevision: number } & AgentMissionSteeringAction;
+
 export type AgentDecision =
-  | { action: "tool"; call: AgentToolCall; rationale?: string }
-  | { action: "finish"; rationale?: string; findings?: AgentDecisionFinding[] };
+  | {
+      action: "tool";
+      call: AgentToolCall;
+      rationale?: string;
+      missionPatch?: AgentMissionPatch;
+      leaseRequest?: AgentCapabilityLeaseRequest;
+    }
+  | { action: "finish"; rationale?: string; findings?: AgentDecisionFinding[]; missionPatch?: AgentMissionPatch };
 
 export type AgentDecisionContext = {
   goal: string;
@@ -390,6 +595,8 @@ export type AgentDecisionContext = {
   capturedTraffic: AgentCapturedTrafficContext[];
   contextSummary: AgentContextSummary;
   runMemory: AgentRunMemoryEntry[];
+  mission: AgentMission;
+  capabilities: AgentCapabilityState;
   timeline: AgentTimelineEntry[];
 };
 
@@ -405,9 +612,31 @@ export type AgentTimelineEntry = {
     browserUrl?: string;
     control?: string;
   };
-  recoveryActions?: Array<"retry-tool" | "retry-with-evidence" | "skip-and-continue" | "stop-run" | "draft-finding">;
+  recoveryActions?: AgentRunRecoveryAction[];
+  capabilityReceiptId?: string;
+  actionId?: string;
+  identityId?: string;
   toolCall?: AgentToolCall;
   toolResult?: AgentToolResult;
+};
+
+export type AgentRunPendingRecovery = {
+  action: "retry-tool" | "retry-with-evidence";
+  entryId: string;
+  call?: AgentToolCall;
+};
+
+export type AgentRunCheckpoint = {
+  startUrl: string;
+  targetOrigin: string;
+  stepCount: number;
+  replayCount: number;
+  workflowRequestCount: number;
+  elapsedMs: number;
+  lastResumedAt: string;
+  activeIdentity?: string;
+  pendingCapabilityCall?: AgentToolCall;
+  pendingRecovery?: AgentRunPendingRecovery;
 };
 
 export type AgentFinding = {
@@ -433,11 +662,96 @@ export type AgentPolicy = {
   allowRawContext: boolean;
 };
 
+export type AgentRiskTier = "navigate" | "reversible" | "active" | "destructive";
+export type AgentCapabilityLeaseStatus = "draft" | "granted" | "revoked" | "expired" | "exhausted";
+
+export type AgentCapabilityCeiling = {
+  maxRiskTier: Exclude<AgentRiskTier, "destructive">;
+  maxDurationMs: number;
+  maxUses: number;
+  maxRequests: number;
+  maxConcurrency: number;
+  maxPayloadBytes: number;
+};
+
+export type AgentCapabilityGrant = {
+  origin: string;
+  method: string;
+  pathPrefix: string;
+  identity: string;
+};
+
+export type AgentCapabilityLeaseRequest = {
+  name: string;
+  riskTier: AgentRiskTier;
+  tools: AgentToolName[];
+  grants: AgentCapabilityGrant[];
+  durationMs: number;
+  maxUses: number;
+  maxRequests: number;
+  maxConcurrency: number;
+  maxPayloadBytes: number;
+  reason: string;
+};
+
+export type AgentCapabilityLease = AgentCapabilityLeaseRequest & {
+  id: string;
+  status: AgentCapabilityLeaseStatus;
+  createdAt: string;
+  updatedAt: string;
+  grantedAt?: string;
+  expiresAt?: string;
+  revokedAt?: string;
+  revocationReason?: string;
+  usedUses: number;
+  usedRequests: number;
+  scopeSnapshot: string[];
+  authFingerprint?: string;
+};
+
+export type AgentCapabilityReceipt = {
+  id: string;
+  leaseId?: string;
+  createdAt: string;
+  tool: AgentToolName;
+  riskTier: AgentRiskTier;
+  decision: "allowed" | "blocked" | "revoked";
+  status: "decided" | "started" | "succeeded" | "failed" | "unknown";
+  origin: string;
+  method: string;
+  path: string;
+  identity: string;
+  requestCost: number;
+  payloadBytes: number;
+  reason: string;
+  finishedAt?: string;
+  outcomeReason?: string;
+};
+
+export type AgentCapabilityState = {
+  version: 1;
+  revision: number;
+  leases: AgentCapabilityLease[];
+  receipts: AgentCapabilityReceipt[];
+};
+
+export type AgentCapabilityAction =
+  | { action: "propose"; lease: AgentCapabilityLeaseRequest }
+  | { action: "grant"; leaseId: string }
+  | { action: "revoke"; leaseId: string; reason?: string };
+
+export type AgentCapabilityActionRequest = { expectedRevision: number } & AgentCapabilityAction;
+
 export type AgentRunRequest = {
   goal: string;
   startUrl?: string;
   profileId?: AgentRunProfileId;
   policy?: Partial<AgentPolicy>;
+};
+
+export type AgentRunRecoveryRequest = {
+  action: AgentRunRecoveryAction;
+  entryId?: string;
 };
 
 export type AgentRun = {
@@ -449,6 +763,9 @@ export type AgentRun = {
   profileId: AgentRunProfileId;
   status: AgentRunStatus;
   policy: AgentPolicy;
+  checkpoint?: AgentRunCheckpoint;
+  mission?: AgentMission;
+  capabilities?: AgentCapabilityState;
   timeline: AgentTimelineEntry[];
   findings: AgentFinding[];
   error?: string;

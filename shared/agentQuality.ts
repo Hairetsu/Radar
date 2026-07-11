@@ -1,4 +1,6 @@
 import type { AgentDecisionFinding, AgentFindingQualityGate } from "./agent-types.js";
+import type { AgentEvidenceCatalog } from "./agentEvidence.js";
+import { resolveAgentEvidenceRef } from "./agentEvidence.js";
 
 const MAX_LIST = 24;
 const MAX_TEXT = 4000;
@@ -20,7 +22,10 @@ function cleanList(value: unknown) {
     .slice(0, MAX_LIST);
 }
 
-export function evaluateAgentFindingQuality(input: AgentDecisionFinding): AgentFindingQualityGate {
+export function evaluateAgentFindingQuality(
+  input: AgentDecisionFinding,
+  evidenceCatalog?: AgentEvidenceCatalog
+): AgentFindingQualityGate {
   const evidenceRefs = cleanList(input.evidenceRefs);
   const affectedAssets = cleanList(input.affectedAssets);
   const reproductionNotes = cleanText(input.reproductionNotes);
@@ -35,6 +40,14 @@ export function evaluateAgentFindingQuality(input: AgentDecisionFinding): AgentF
   }
   if (evidenceRefs.length === 0) {
     reasons.push("at least one evidence reference is required");
+  }
+  if (evidenceCatalog) {
+    for (const evidenceRef of evidenceRefs) {
+      const resolution = resolveAgentEvidenceRef(evidenceRef, evidenceCatalog);
+      if (!resolution.ok) {
+        reasons.push(resolution.message);
+      }
+    }
   }
   if (affectedAssets.length === 0) {
     reasons.push("at least one affected asset is required");
@@ -77,9 +90,10 @@ export function evaluateAgentFindingQuality(input: AgentDecisionFinding): AgentF
 export function normalizeAgentFindingWithGate(
   input: AgentDecisionFinding,
   id: string,
-  createdAt: string
+  createdAt: string,
+  evidenceCatalog?: AgentEvidenceCatalog
 ): AgentFindingQualityGate {
-  const gate = evaluateAgentFindingQuality(input);
+  const gate = evaluateAgentFindingQuality(input, evidenceCatalog);
   if (!gate.ok || !gate.finding) {
     return gate;
   }
