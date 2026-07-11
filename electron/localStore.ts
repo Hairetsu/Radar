@@ -1361,14 +1361,19 @@ export function openLocalStore(userDataPath: string) {
         `
         SELECT
           sessions.*,
-          COUNT(DISTINCT captures.id) AS capture_count,
-          COUNT(DISTINCT ssl_events.id) AS ssl_event_count
+          (
+            SELECT COUNT(*)
+            FROM captures
+            WHERE captures.session_id = sessions.id
+          ) AS capture_count,
+          (
+            SELECT COUNT(*)
+            FROM ssl_events
+            WHERE ssl_events.session_id = sessions.id
+          ) AS ssl_event_count
         FROM sessions
         INNER JOIN workspaces ON workspaces.id = sessions.workspace_id
-        LEFT JOIN captures ON captures.session_id = sessions.id
-        LEFT JOIN ssl_events ON ssl_events.session_id = sessions.id
         WHERE workspaces.profile_id = ?
-        GROUP BY sessions.id
         ORDER BY sessions.updated_at DESC, sessions.started_at DESC
       `
       )
