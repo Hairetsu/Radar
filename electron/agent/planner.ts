@@ -6,8 +6,12 @@ import type {
   AgentToolCall,
   AgentWorkbenchView
 } from "../../shared/agent-types.js";
+import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
+import { normalizeAgentMissionPatch } from "../../shared/agentMission.js";
+import { normalizeAgentCapabilityLeaseRequest } from "../../shared/agentCapabilities.js";
 import { normalizeAutomateRules } from "../../shared/automate.js";
 import { normalizeDraft } from "../../shared/draft.js";
+import { normalizeWorkflowDefinition } from "../../shared/workflows.js";
 import { redactBody, redactHeaders } from "../ai/context.js";
 import { complete } from "../ai/providers.js";
 import { loadSettings } from "../ai/settings.js";
@@ -21,6 +25,9 @@ Stop only when you have enough evidence, there are no useful in-scope actions le
 The profile field and availableTools list are authoritative. Do not call tools that are absent from availableTools.
 The capturedTraffic field already contains the current run's in-scope HTTP evidence across redirects and canonical hostnames.
 The contextSummary field contains redacted local sitemap, finding, Advanced, workflow, note, saved-view, and run-memory summaries. Use it before asking for raw or broad evidence.
+The mission field is the durable operational plan. Keep objectives, falsifiable hypotheses, bounded experiments, evidence-backed claims, and explicit coverage gaps current with a revision-checked missionPatch. Reuse stable ids. Do not change hypothesis pins; pins are operator-owned.
+When operator input is required, add an operator-question update. Radar will pause before another tool runs. Do not guess past a missing authorization, identity, or destructive side-effect decision.
+The capabilities field is the durable authority ledger. Browser navigation, auth-state mutation, form interaction, replay, and active workflows require a granted lease matching one exact origin/method/path/identity tuple. If no grant matches, include a minimal leaseRequest for the selected tool; this only creates a review draft and Radar pauses before execution. Never request destructive or DELETE authority.
 Do not repeat getCaptures just to reread the same capturedTraffic. Use getCaptures only when you need a fresh sample after navigation, clicking, form submission, or replay.
 If page/DOM tools fail because the Chrome debugging endpoint is unavailable, choose openBrowser with browserState.url or startUrl to reopen the controlled browser, then continue.
 For queued intercept traffic, use getInterceptQueue to inspect and prepareInterceptEdit to load visible draft edits. Never forward or drop intercepted traffic; those actions are operator-confirmed.
@@ -30,8 +37,8 @@ For plugins and Advanced testing, use getPluginInventory and getAdvancedTestingS
 Any finish findings must include evidenceRefs, affectedAssets, reproductionNotes, severityRationale, remediation, and uncertainties. Weak findings will be rejected by Radar's quality gate.
 
 Return JSON only in one of these forms:
-{"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action"}
-{"action":"finish","rationale":"why the run is complete","findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"affectedAssets":["https://example.com"],"reproductionNotes":"string","severityRationale":"string","remediation":"string","notes":"string","uncertainties":["string"]}]}`;
+{"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action","leaseRequest":{"name":"Open scoped target","riskTier":"navigate","tools":["openBrowser"],"grants":[{"origin":"https://example.com","method":"GET","pathPrefix":"/","identity":"current"}],"durationMs":120000,"maxUses":1,"maxRequests":1,"maxConcurrency":1,"maxPayloadBytes":0,"reason":"Open the exact scoped target once"},"missionPatch":{"baseRevision":0,"updates":[{"kind":"hypothesis","id":"hyp-authz","objectiveId":"obj-primary","statement":"Authorization may be inconsistent","status":"testing"},{"kind":"experiment","id":"exp-authz-map","hypothesisId":"hyp-authz","title":"Map authenticated endpoints","expectedObservation":"Scoped endpoints and auth signals","status":"running"}]}}
+{"action":"finish","rationale":"why the run is complete and what remains untested","missionPatch":{"baseRevision":1,"updates":[{"kind":"mission-status","status":"completed","stopReason":"No useful scoped actions remain"}]},"findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"affectedAssets":["https://example.com"],"reproductionNotes":"string","severityRationale":"string","remediation":"string","notes":"string","uncertainties":["string"]}]}`;
 
 const WORK_VIEWS: AgentWorkbenchView[] = [
   "traffic",
@@ -268,7 +275,10 @@ function buildUserPrompt(context: AgentDecisionContext) {
       capturedTraffic: context.capturedTraffic.map((capture) => compactCapturedTraffic(capture, includeRaw)),
       contextSummary: context.contextSummary,
       runMemory: context.runMemory,
+      mission: compactMission(context.mission),
+      capabilities: compactCapabilities(context.capabilities),
       timeline: context.timeline.map((entry) => ({
+        id: entry.id,
         note: entry.note,
         phase: entry.phase,
         summary: entry.summary,
@@ -280,6 +290,66 @@ function buildUserPrompt(context: AgentDecisionContext) {
     null,
     2
   );
+}
+
+function compactCapabilities(state: AgentDecisionContext["capabilities"]) {
+  return {
+    revision: state.revision,
+    leases: state.leases.map((lease) => ({
+      id: lease.id,
+      name: lease.name,
+      status: lease.status,
+      riskTier: lease.riskTier,
+      tools: lease.tools,
+      grants: lease.grants,
+      expiresAt: lease.expiresAt,
+      remainingUses: Math.max(0, lease.maxUses - lease.usedUses),
+      remainingRequests: Math.max(0, lease.maxRequests - lease.usedRequests),
+      reason: lease.reason,
+      revocationReason: lease.revocationReason
+    })),
+    recentReceipts: state.receipts.slice(-16)
+  };
+}
+
+function compactMission(mission: AgentDecisionContext["mission"]) {
+  const objectives = [...mission.objectives]
+    .sort((left, right) => left.priority - right.priority || left.id.localeCompare(right.id))
+    .slice(0, 16);
+  const hypotheses = [...mission.hypotheses]
+    .sort(
+      (left, right) =>
+        Number(right.pinned) - Number(left.pinned) || left.priority - right.priority || left.id.localeCompare(right.id)
+    )
+    .slice(0, 32);
+  const experiments = [...mission.experiments]
+    .sort((left, right) => left.status.localeCompare(right.status) || left.id.localeCompare(right.id))
+    .slice(0, 40);
+  const claims = [...mission.claims]
+    .sort((left, right) => left.status.localeCompare(right.status) || left.id.localeCompare(right.id))
+    .slice(0, 32);
+  const coverage = [...mission.coverage]
+    .sort((left, right) => left.status.localeCompare(right.status) || left.dimension.localeCompare(right.dimension) || left.id.localeCompare(right.id))
+    .slice(0, 64);
+  return {
+    version: mission.version,
+    revision: mission.revision,
+    status: mission.status,
+    stopReason: mission.stopReason,
+    counts: {
+      objectives: mission.objectives.length,
+      hypotheses: mission.hypotheses.length,
+      experiments: mission.experiments.length,
+      claims: mission.claims.length,
+      coverage: mission.coverage.length
+    },
+    objectives,
+    hypotheses,
+    experiments,
+    claims,
+    coverage,
+    operatorQuestions: mission.operatorQuestions
+  };
 }
 
 function objectValue(value: unknown) {
@@ -350,8 +420,13 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
     case "getCookies":
     case "getStorageState":
     case "listAuthStates":
+    case "getIdentityLabContext":
+    case "getReplayContext":
     case "getAutomateContext":
     case "getWorkflowCatalog":
+    case "getAgentContextSummary":
+    case "getPluginInventory":
+    case "getAdvancedTestingSummary":
       return { tool, input: {} };
     case "clickElement":
     case "submitForm":
@@ -363,6 +438,9 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
       return { tool, input: { name: String(input.name || "") } };
     case "compareAuthStates":
       return { tool, input: { left: String(input.left || ""), right: String(input.right || "") } };
+    case "activateIdentityProfile":
+    case "verifyIdentityProfile":
+      return { tool, input: { identityId: String(input.identityId || "") } };
     case "getCaptures":
       return {
         tool,
@@ -378,6 +456,21 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
           limit: Number.isFinite(Number(input.limit)) ? Math.max(1, Math.min(Math.round(Number(input.limit)), 100)) : undefined
         }
       };
+    case "getSitemapCoverage":
+      return {
+        tool,
+        input: {
+          limit: Number.isFinite(Number(input.limit)) ? Math.max(1, Math.min(Math.round(Number(input.limit)), 40)) : undefined
+        }
+      };
+    case "prepareTrafficQuery":
+      return {
+        tool,
+        input: {
+          query: String(input.query || "").trim().slice(0, 400),
+          reason: String(input.reason || parsed.rationale || "").slice(0, 240)
+        }
+      };
     case "analyzeSecurityHeaders":
     case "analyzeCookieFlags":
     case "checkCorsPolicy":
@@ -390,6 +483,28 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
             ...objectValue(input.draft),
             headers: stringRecord(objectValue(input.draft).headers)
           })
+        }
+      };
+    case "prepareReplayTab":
+      return {
+        tool,
+        input: {
+          name: String(input.name || "").trim().slice(0, 60),
+          draft: normalizeDraft({
+            ...objectValue(input.draft),
+            headers: stringRecord(objectValue(input.draft).headers)
+          }),
+          environmentId: String(input.environmentId || "").trim().slice(0, 80),
+          note: String(input.note || "").slice(0, 240)
+        }
+      };
+    case "compareReplayResults":
+      return {
+        tool,
+        input: {
+          leftHistoryId: String(input.leftHistoryId || "").trim(),
+          rightHistoryId: String(input.rightHistoryId || "").trim(),
+          tabId: String(input.tabId || "").trim()
         }
       };
     case "prepareInterceptEdit":
@@ -438,6 +553,13 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
       };
     case "analyzeAutomateResults":
       return { tool, input: { sessionId: String(input.sessionId || "").slice(0, 120) } };
+    case "prepareWorkflowDraft": {
+      const workflow = normalizeWorkflowDefinition(input.workflow);
+      if (!workflow) {
+        throw new Error("Prepared workflow definition was invalid.");
+      }
+      return { tool, input: { workflow, note: String(input.note || "").slice(0, 240) } };
+    }
     case "runWorkflow":
       return {
         tool,
@@ -450,6 +572,23 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
           )
         }
       };
+    case "proposeRunMemory": {
+      const memory = normalizeAgentRunMemory(input, "memory-draft");
+      if (!memory) {
+        throw new Error("Run memory proposal requires a title and notes.");
+      }
+      return {
+        tool,
+        input: {
+          kind: memory.kind,
+          title: memory.title,
+          notes: memory.notes,
+          evidenceRefs: memory.evidenceRefs,
+          dismissedReason: memory.dismissedReason,
+          retestState: memory.retestState
+        }
+      };
+    }
     default:
       throw new Error(`Invalid agent tool: ${tool}`);
   }
@@ -457,11 +596,23 @@ function normalizeToolCall(parsed: Record<string, unknown>): AgentToolCall {
 
 export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDecision {
   const action = String(parsed.action || "").toLowerCase();
+  const missionPatch = normalizeAgentMissionPatch(parsed.missionPatch);
+  const leaseRequest = normalizeAgentCapabilityLeaseRequest(parsed.leaseRequest);
+  if (parsed.missionPatch !== undefined && !missionPatch) {
+    throw new Error("Agent missionPatch was invalid or empty.");
+  }
+  if (parsed.leaseRequest !== undefined && !leaseRequest) {
+    throw new Error("Agent leaseRequest was invalid or insufficiently bounded.");
+  }
   if (action === "finish") {
+    if (leaseRequest) {
+      throw new Error("Agent finish decisions cannot request a capability lease.");
+    }
     return {
       action: "finish",
       rationale: String(parsed.rationale || ""),
-      findings: normalizeFindings(parsed.findings)
+      findings: normalizeFindings(parsed.findings),
+      ...(missionPatch ? { missionPatch } : {})
     };
   }
 
@@ -469,7 +620,9 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
     return {
       action: "tool",
       call: normalizeToolCall(parsed),
-      rationale: String(parsed.rationale || "")
+      rationale: String(parsed.rationale || ""),
+      ...(missionPatch ? { missionPatch } : {}),
+      ...(leaseRequest ? { leaseRequest } : {})
     };
   }
 

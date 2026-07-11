@@ -1,4 +1,4 @@
-import type { AgentPolicy, AgentRunProfileId, AgentToolName } from "./agent-types.js";
+import type { AgentCapabilityCeiling, AgentPolicy, AgentRunProfileId, AgentToolName } from "./agent-types.js";
 
 export type AgentRunProfile = {
   id: AgentRunProfileId;
@@ -6,6 +6,16 @@ export type AgentRunProfile = {
   description: string;
   policy: AgentPolicy;
   allowedTools: AgentToolName[];
+  capabilityCeiling: AgentCapabilityCeiling;
+};
+
+export const DEFAULT_AGENT_CAPABILITY_CEILING: AgentCapabilityCeiling = {
+  maxRiskTier: "active",
+  maxDurationMs: 5 * 60_000,
+  maxUses: 10,
+  maxRequests: 20,
+  maxConcurrency: 1,
+  maxPayloadBytes: 256 * 1024
 };
 
 export const DEFAULT_AGENT_POLICY: AgentPolicy = {
@@ -37,6 +47,7 @@ const passiveObserveTools: AgentToolName[] = [
   "getWorkflowCatalog",
   "getPluginInventory",
   "getAdvancedTestingSummary",
+  "getIdentityLabContext",
   "proposeRunMemory"
 ];
 
@@ -49,10 +60,8 @@ const browserReviewTools: AgentToolName[] = [
   "clickElement",
   "fillInput",
   "submitForm",
-  "listAuthStates",
-  "saveAuthState",
-  "loadAuthState",
-  "compareAuthStates"
+  "activateIdentityProfile",
+  "verifyIdentityProfile"
 ];
 
 const prepareReviewTools: AgentToolName[] = [
@@ -85,21 +94,24 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
     label: "Passive Map",
     description: "Read scoped traffic, sitemap coverage, local context, and passive evidence without replay or workflow execution.",
     policy: policy({ maxReplay: 0, maxWorkflowRequests: 0, maxSteps: 24, maxCaptureSample: 80 }),
-    allowedTools: uniqueTools(passiveObserveTools)
+    allowedTools: uniqueTools(passiveObserveTools),
+    capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxRiskTier: "navigate", maxUses: 1, maxRequests: 1 }
   },
   {
     id: "auth-review",
     label: "Auth Review",
     description: "Inspect scoped browser state, cookies, storage, auth states, and prepared traffic queries.",
     policy: policy({ maxReplay: 0, maxWorkflowRequests: 0, maxSteps: 32, maxCaptureSample: 70 }),
-    allowedTools: uniqueTools(browserReviewTools)
+    allowedTools: uniqueTools(browserReviewTools),
+    capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxDurationMs: 3 * 60_000, maxUses: 8, maxRequests: 16 }
   },
   {
     id: "api-hardening",
     label: "API Hardening",
     description: "Review scoped API captures and prepare Repeater or Workflow drafts for manual approval.",
     policy: policy({ maxReplay: 0, maxWorkflowRequests: 0, maxSteps: 36, maxCaptureSample: 100 }),
-    allowedTools: uniqueTools(prepareReviewTools)
+    allowedTools: uniqueTools(prepareReviewTools),
+    capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxDurationMs: 3 * 60_000, maxUses: 8, maxRequests: 16 }
   },
   {
     id: "header-cookie-review",
@@ -120,14 +132,16 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
       "getAgentContextSummary",
       "getAdvancedTestingSummary",
       "proposeRunMemory"
-    ])
+    ]),
+    capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxRiskTier: "navigate", maxUses: 1, maxRequests: 1 }
   },
   {
     id: "advanced-api-review",
     label: "Advanced API Review",
     description: "Inspect Advanced API/auth summaries and run explicitly budgeted saved workflows when the operator selects an active profile.",
     policy: policy({ maxReplay: 2, maxWorkflowRequests: 2, maxSteps: 36, maxCaptureSample: 90 }),
-    allowedTools: uniqueTools(activeReviewTools)
+    allowedTools: uniqueTools(activeReviewTools),
+    capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING }
   },
   {
     id: "report-from-evidence",
@@ -144,7 +158,8 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
       "getAdvancedTestingSummary",
       "prepareTrafficQuery",
       "proposeRunMemory"
-    ])
+    ]),
+    capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxRiskTier: "navigate", maxUses: 1, maxRequests: 1 }
   }
 ];
 

@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
-import type { AgentDecision, AgentDecisionContext, AgentRun, AgentRunMemoryEntry } from "../../shared/agent-types.js";
+import { createAgentMission } from "../../shared/agentMission.js";
+import type {
+  AgentCapabilityLeaseRequest,
+  AgentDecision,
+  AgentDecisionContext,
+  AgentRun,
+  AgentRunMemoryEntry,
+  AgentRunRequest
+} from "../../shared/agent-types.js";
 import type {
   AutomatePayloadSet,
   AutomateSession,
+  BrowserState,
   CapturedRequest,
   Finding,
   InstalledPlugin,
@@ -14,6 +23,7 @@ import type {
   WorkflowRun
 } from "../../shared/domain.js";
 import { AgentRuntime } from "./runtime.js";
+import type { IdentityProfile } from "../../shared/identityProfiles.js";
 
 function capture(id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest {
   const parsed = new URL(url);
@@ -56,7 +66,12 @@ function makeRuntime(
     savedViews?: SavedView[];
     runMemory?: AgentRunMemoryEntry[];
     plugins?: InstalledPlugin[];
+    identities?: IdentityProfile[];
+    browserState?: BrowserState;
+    openBrowser?: (url: string) => Promise<BrowserState>;
+    navigateBrowser?: (url: string) => Promise<BrowserState>;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
+    leaseRequest?: AgentCapabilityLeaseRequest;
   } = {}
 ) {
   const runs = new Map<string, AgentRun>();
@@ -64,14 +79,22 @@ function makeRuntime(
     runs.set(seed.id, seed);
   }
 
-  const openBrowser = vi.fn(async (url: string) => ({ open: true, url, title: "Chrome", loading: false, engine: "chrome" as const }));
-  const navigateBrowser = vi.fn(async (url: string) => ({
-    open: true,
-    url,
-    title: "Chrome",
-    loading: false,
-    engine: "chrome" as const
-  }));
+  const closedBrowserState = { open: false, url: "", title: "", loading: false, engine: "none" as const };
+  const getBrowserState = vi.fn(() => options.browserState || closedBrowserState);
+  const openBrowser = vi.fn(
+    options.openBrowser ||
+      (async (url: string) => ({ open: true, url, title: "Chrome", loading: false, engine: "chrome" as const }))
+  );
+  const navigateBrowser = vi.fn(
+    options.navigateBrowser ||
+      (async (url: string) => ({
+        open: true,
+        url,
+        title: "Chrome",
+        loading: false,
+        engine: "chrome" as const
+      }))
+  );
   const sendReplay = vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", bytes: 0, durationMs: 1 }));
   const waitForNetworkIdle = vi.fn(async () => ({ idle: true, waitedMs: 10 }));
   const getPageText = vi.fn(async () => ({ url: "https://hairetsu.com", title: "Hairetsu", text: "Welcome" }));
@@ -113,6 +136,35 @@ function makeRuntime(
     right,
     observations: [{ name: "sid", issue: "Cookie value differs between auth states.", severity: "info" as const }]
   }));
+  const listIdentityProfiles = vi.fn(() => options.identities || []);
+  const getIdentityLabContext = vi.fn(async () => ({
+    identities: listIdentityProfiles(),
+    activeIdentityId: undefined,
+    activeActivationId: undefined,
+    attributedCaptureCount: (options.captures || []).filter((item) => item.identityId && item.activationId).length
+  }));
+  const activateIdentityProfile = vi.fn(async ({ identityId }: { identityId: string }) => {
+    const identity = listIdentityProfiles().find((item) => item.id === identityId);
+    if (!identity) throw new Error("Identity was not found.");
+    return {
+      identity,
+      activation: {
+        id: "activation-test",
+        sessionId: "session-test",
+        workspaceId: identity.workspaceId,
+        identityId,
+        startedAt: "2026-05-25T00:00:00.000Z",
+        status: "active" as const,
+        browserInstanceId: "browser-test"
+      },
+      url: identity.origin
+    };
+  });
+  const verifyIdentityProfile = vi.fn(async ({ identityId }: { identityId: string }) => {
+    const identity = listIdentityProfiles().find((item) => item.id === identityId);
+    if (!identity) throw new Error("Identity was not found.");
+    return { identity: { ...identity, health: "healthy" as const }, url: identity.origin };
+  });
   const runWorkflow = vi.fn(async ({ workflowId, inputs, source }: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => ({
     id: "workflow-run-test",
     workflowId,
@@ -129,14 +181,24 @@ function makeRuntime(
     results: []
   }));
   let activeRunId = "";
-  const decideNextAction = vi.fn(
+  const baseDecideNextAction =
     options.decideNextAction ||
-      (async () => ({
-        action: "finish",
-        rationale: "Planner finished.",
-        findings: []
-      }))
-  );
+    (async () => ({
+      action: "finish" as const,
+      rationale: "Planner finished.",
+      findings: []
+    }));
+  const decideNextAction = vi.fn(async (context: AgentDecisionContext) => {
+    const decision = await baseDecideNextAction(context);
+    if (
+      decision.action === "tool" &&
+      options.leaseRequest?.tools.includes(decision.call.tool) &&
+      context.capabilities.leases.length === 0
+    ) {
+      return { ...decision, leaseRequest: options.leaseRequest };
+    }
+    return decision;
+  });
 
   const runtime = new AgentRuntime({
     currentSessionId: () => "session-test",
@@ -146,7 +208,7 @@ function makeRuntime(
     },
     loadRun: (runId) => runs.get(runId) || null,
     listRuns: () => Array.from(runs.values()),
-    getBrowserState: () => ({ open: false, url: "", title: "", loading: false, engine: "none" }),
+    getBrowserState,
     openBrowser,
     navigateBrowser,
     getCaptures: () => (options.captures || []).map((item) => ({ ...item, agentRunId: item.agentRunId || activeRunId })),
@@ -183,6 +245,10 @@ function makeRuntime(
     loadAuthState,
     listAuthStates,
     compareAuthStates,
+    listIdentityProfiles,
+    getIdentityLabContext,
+    activateIdentityProfile,
+    verifyIdentityProfile,
     decideNextAction,
     setActiveRunId: (runId) => {
       activeRunId = runId || "";
@@ -190,10 +256,388 @@ function makeRuntime(
     waitForSettle: vi.fn(async () => undefined)
   });
 
-  return { runtime, runs, openBrowser, navigateBrowser, sendReplay, runWorkflow, decideNextAction, clickElement, fillInput, submitForm, saveAuthState };
+  return {
+    runtime,
+    runs,
+    openBrowser,
+    navigateBrowser,
+    getBrowserState,
+    sendReplay,
+    runWorkflow,
+    decideNextAction,
+    clickElement,
+    fillInput,
+    submitForm,
+    saveAuthState,
+    activateIdentityProfile,
+    verifyIdentityProfile
+  };
+}
+
+async function startRunWithLease(
+  runtime: AgentRuntime,
+  runRequest: AgentRunRequest
+) {
+  const run = runtime.start(runRequest);
+  let paused: AgentRun | undefined;
+  await vi.waitFor(() => {
+    paused = runtime.get(run.id) || undefined;
+    expect(paused?.status).toBe("paused");
+    expect(paused?.capabilities?.leases.some((item) => item.status === "draft")).toBe(true);
+  });
+  const draft = paused?.capabilities?.leases.find((item) => item.status === "draft");
+  if (!draft) {
+    throw new Error("Test capability lease draft was not created.");
+  }
+  await runtime.updateCapabilities(run.id, {
+    action: "grant",
+    expectedRevision: paused?.capabilities?.revision || 0,
+    leaseId: draft.id
+  });
+  runtime.resume(run.id);
+  return run;
+}
+
+function browserLease(
+  tools: AgentCapabilityLeaseRequest["tools"],
+  grants: AgentCapabilityLeaseRequest["grants"],
+  riskTier: AgentCapabilityLeaseRequest["riskTier"] = "active"
+): AgentCapabilityLeaseRequest {
+  return {
+    name: "Test browser authority",
+    riskTier,
+    tools,
+    grants,
+    durationMs: 180_000,
+    maxUses: 8,
+    maxRequests: 16,
+    maxConcurrency: 1,
+    maxPayloadBytes: 64 * 1024,
+    reason: "Exercise the exact capability selected by this runtime test."
+  };
+}
+
+function identityProfile(id = "identity-user-a"): IdentityProfile {
+  return {
+    id,
+    workspaceId: "workspace-test",
+    label: "Tenant A user",
+    kind: "user",
+    roleLabel: "member",
+    tenantLabel: "tenant-a",
+    origin: "https://hairetsu.com",
+    notes: "",
+    isolation: "dedicated-profile",
+    health: "unknown",
+    refreshMode: "manual",
+    jarRevision: 0,
+    containerId: `container-${id}`,
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z"
+  };
 }
 
 describe("AgentRuntime", () => {
+  it("uses a capability-gated stable identity ID for a visible dedicated-profile switch", async () => {
+    const profile = identityProfile();
+    const lease = browserLease(
+      ["activateIdentityProfile"],
+      [{ origin: profile.origin, method: "GET", pathPrefix: "/", identity: profile.id }],
+      "reversible"
+    );
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "activateIdentityProfile", input: { identityId: profile.id } } },
+      { action: "finish", rationale: "Identity activated.", findings: [] }
+    ];
+    const { runtime, runs, activateIdentityProfile } = makeRuntime(undefined, {
+      identities: [profile],
+      allowlist: [profile.origin],
+      leaseRequest: lease,
+      decideNextAction: async () => decisions.shift() || { action: "finish", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Activate the Tenant A identity",
+      startUrl: profile.origin,
+      profileId: "auth-review"
+    });
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    expect(activateIdentityProfile).not.toHaveBeenCalled();
+    const paused = runs.get(run.id);
+    const draft = paused?.capabilities?.leases.find((item) => item.status === "draft");
+    await runtime.updateCapabilities(run.id, {
+      action: "grant",
+      expectedRevision: paused?.capabilities?.revision || 0,
+      leaseId: draft?.id || ""
+    });
+    runtime.resume(run.id);
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(activateIdentityProfile).toHaveBeenCalledTimes(1);
+    expect(activateIdentityProfile).toHaveBeenCalledWith({ identityId: profile.id });
+    expect(runs.get(run.id)?.checkpoint?.activeIdentity).toBe(profile.id);
+    expect(runs.get(run.id)?.capabilities?.receipts).toEqual([
+      expect.objectContaining({ tool: "activateIdentityProfile", decision: "allowed", status: "succeeded" })
+    ]);
+  });
+
+  it("pauses a capability request before dispatch, then grants and executes the pending call exactly once", async () => {
+    const lease = browserLease(
+      ["sendReplay"],
+      [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/account", identity: "current" }]
+    );
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: {
+          tool: "sendReplay",
+          input: { draft: { method: "GET", url: "https://hairetsu.com/account", headers: {}, body: "" } }
+        }
+      },
+      { action: "finish", rationale: "Replay complete.", findings: [] }
+    ];
+    const { runtime, runs, sendReplay } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: lease,
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+    const run = runtime.start({
+      goal: "Compare account response",
+      startUrl: "https://hairetsu.com/account",
+      profileId: "advanced-api-review"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    const paused = runs.get(run.id);
+    expect(sendReplay).not.toHaveBeenCalled();
+    expect(paused?.checkpoint?.pendingCapabilityCall).toMatchObject({ tool: "sendReplay" });
+    const draft = paused?.capabilities?.leases.find((item) => item.status === "draft");
+    expect(draft).toBeTruthy();
+
+    const granted = await runtime.updateCapabilities(run.id, {
+      action: "grant",
+      expectedRevision: paused?.capabilities?.revision || 0,
+      leaseId: draft?.id || ""
+    });
+    expect(granted?.status).toBe("paused");
+    expect(sendReplay).not.toHaveBeenCalled();
+    runtime.resume(run.id);
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(sendReplay).toHaveBeenCalledTimes(1);
+    expect(runs.get(run.id)?.capabilities).toMatchObject({
+      leases: [expect.objectContaining({ status: "revoked", usedUses: 1, usedRequests: 1, revocationReason: "Run completed." })],
+      receipts: [expect.objectContaining({ decision: "allowed", status: "succeeded", tool: "sendReplay" })]
+    });
+  });
+
+  it("revalidates saved scope after grant and revokes before pending dispatch", async () => {
+    const targets = ["https://hairetsu.com"];
+    const lease = browserLease(
+      ["sendReplay"],
+      [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/account", identity: "current" }]
+    );
+    const { runtime, runs, sendReplay } = makeRuntime(undefined, {
+      allowlist: targets,
+      leaseRequest: lease,
+      decideNextAction: async () => ({
+        action: "tool",
+        call: {
+          tool: "sendReplay",
+          input: { draft: { method: "GET", url: "https://hairetsu.com/account", headers: {}, body: "" } }
+        }
+      })
+    });
+    const run = runtime.start({
+      goal: "Compare account response",
+      startUrl: "https://hairetsu.com/account",
+      profileId: "advanced-api-review"
+    });
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    const paused = runs.get(run.id);
+    const draft = paused?.capabilities?.leases.find((item) => item.status === "draft");
+    await runtime.updateCapabilities(run.id, {
+      action: "grant",
+      expectedRevision: paused?.capabilities?.revision || 0,
+      leaseId: draft?.id || ""
+    });
+    targets.push("https://new.target.test");
+    runtime.resume(run.id);
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("paused");
+      expect(runs.get(run.id)?.capabilities?.leases[0]?.status).toBe("revoked");
+    });
+    expect(sendReplay).not.toHaveBeenCalled();
+    expect(runs.get(run.id)?.capabilities?.receipts.at(-1)).toMatchObject({
+      decision: "revoked",
+      status: "decided",
+      reason: expect.stringContaining("scope changed")
+    });
+  });
+
+  it("blocks a gated side effect with a durable receipt when no lease was requested", async () => {
+    const { runtime, runs, sendReplay } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      decideNextAction: async () => ({
+        action: "tool",
+        call: {
+          tool: "sendReplay",
+          input: { draft: { method: "GET", url: "https://hairetsu.com/account", headers: {}, body: "" } }
+        }
+      })
+    });
+    const run = runtime.start({
+      goal: "Compare account response",
+      startUrl: "https://hairetsu.com/account",
+      profileId: "advanced-api-review"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    expect(sendReplay).not.toHaveBeenCalled();
+    expect(runs.get(run.id)?.capabilities?.receipts.at(-1)).toMatchObject({
+      decision: "blocked",
+      status: "decided",
+      tool: "sendReplay"
+    });
+    expect(
+      runs.get(run.id)?.timeline.find((entry) => entry.summary === "Capability lease blocked sendReplay")
+        ?.recoveryActions
+    ).toEqual(["retry-tool", "skip-and-continue", "stop-run"]);
+  });
+
+  it("persists a revision-checked Mission Graph patch before the selected tool runs", async () => {
+    const seenContexts: AgentDecisionContext[] = [];
+    const { runtime, runs } = makeRuntime(undefined, {
+      decideNextAction: async (context) => {
+        seenContexts.push(context);
+        if (context.stepCount === 0) {
+          return {
+            action: "tool",
+            call: { tool: "getBrowserState", input: {} },
+            rationale: "Establish the current browser state.",
+            missionPatch: {
+              baseRevision: context.mission.revision,
+              updates: [
+                {
+                  kind: "hypothesis",
+                  id: "hyp-browser",
+                  objectiveId: "obj-primary",
+                  statement: "The controlled browser may already be attached.",
+                  status: "testing"
+                },
+                {
+                  kind: "experiment",
+                  id: "exp-browser-state",
+                  hypothesisId: "hyp-browser",
+                  title: "Inspect controlled browser state",
+                  expectedObservation: "Open state and current scoped URL",
+                  status: "running"
+                }
+              ]
+            }
+          };
+        }
+        return { action: "finish", rationale: "Browser state recorded.", findings: [] };
+      }
+    });
+
+    const started = runtime.start({ goal: "Inspect https://allowed.test", startUrl: "https://allowed.test" });
+    await vi.waitFor(() => expect(runs.get(started.id)?.status).toBe("completed"));
+
+    expect(seenContexts[0]?.mission).toMatchObject({ revision: 0, status: "active" });
+    expect(seenContexts[1]?.mission).toMatchObject({
+      revision: 1,
+      hypotheses: [expect.objectContaining({ id: "hyp-browser" })],
+      experiments: [expect.objectContaining({ id: "exp-browser-state" })]
+    });
+    const timelineEntries = runs.get(started.id)?.timeline || [];
+    const missionIndex = timelineEntries.findIndex((entry) => entry.note?.includes("Mission graph advanced"));
+    const toolIndex = timelineEntries.findIndex((entry) => entry.phase === "tool-call");
+    expect(missionIndex).toBeGreaterThan(-1);
+    expect(toolIndex).toBeGreaterThan(missionIndex);
+  });
+
+  it("pauses before tool execution when the planner adds an operator question", async () => {
+    const { runtime, runs } = makeRuntime(undefined, {
+      decideNextAction: async (context) => ({
+        action: "tool",
+        call: { tool: "getBrowserState", input: {} },
+        missionPatch: {
+          baseRevision: context.mission.revision,
+          updates: [{ kind: "operator-question", id: "ask-identity", prompt: "Which identity is authorized for active testing?" }]
+        }
+      })
+    });
+
+    const started = runtime.start({ goal: "Inspect https://allowed.test", startUrl: "https://allowed.test" });
+    await vi.waitFor(() => expect(runs.get(started.id)?.status).toBe("paused"));
+
+    const paused = runs.get(started.id);
+    expect(paused?.checkpoint?.stepCount).toBe(0);
+    expect(paused?.mission).toMatchObject({
+      status: "awaiting-operator",
+      operatorQuestions: [expect.objectContaining({ id: "ask-identity", status: "open" })]
+    });
+    expect(paused?.timeline.some((entry) => entry.phase === "tool-call")).toBe(false);
+    expect(() => runtime.resume(started.id)).toThrow("Answer or dismiss the open mission question");
+  });
+
+  it("accepts settled revision-checked steering and rejects live or stale mutations", () => {
+    const mission = createAgentMission("Inspect target", "https://allowed.test", "2026-05-25T00:00:00.000Z");
+    const pausedRun: AgentRun = {
+      id: "agent-steer",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: "Inspect target",
+      profileId: "passive-map",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission,
+      timeline: [],
+      findings: []
+    };
+    const { runtime, runs } = makeRuntime(pausedRun);
+
+    const steered = runtime.steerMission(pausedRun.id, {
+      action: "add-hypothesis",
+      expectedRevision: 0,
+      statement: "Authorization may be inconsistent.",
+      objectiveId: "obj-primary",
+      priority: 2
+    });
+    expect(steered?.mission).toMatchObject({
+      revision: 1,
+      hypotheses: [expect.objectContaining({ statement: "Authorization may be inconsistent." })]
+    });
+    expect(runs.get(pausedRun.id)?.timeline.at(-1)?.note).toContain("Operator added hypothesis");
+
+    expect(() =>
+      runtime.steerMission(pausedRun.id, {
+        action: "add-objective",
+        expectedRevision: 0,
+        title: "Stale mutation"
+      })
+    ).toThrow("expected revision 0");
+
+    runs.set(pausedRun.id, { ...runs.get(pausedRun.id)!, status: "running" });
+    expect(() =>
+      runtime.steerMission(pausedRun.id, {
+        action: "add-objective",
+        expectedRevision: 1,
+        title: "Live mutation"
+      })
+    ).toThrow("Pause the run");
+  });
+
   it("marks active runs stopped", () => {
     const run: AgentRun = {
       id: "agent-1",
@@ -225,6 +669,11 @@ describe("AgentRuntime", () => {
   it("opens a bare domain from the goal instead of the default start url", async () => {
     const { runtime, openBrowser, decideNextAction } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["openBrowser"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+        "navigate"
+      ),
       decideNextAction: async (context) =>
         context.stepCount === 0
           ? {
@@ -235,10 +684,13 @@ describe("AgentRuntime", () => {
           : { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    runtime.start({
-      goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
-      startUrl: "http://localhost:3000"
-    });
+    await startRunWithLease(
+      runtime,
+      {
+        goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
+        startUrl: "http://localhost:3000"
+      }
+    );
 
     await vi.waitFor(() => {
       expect(openBrowser).toHaveBeenCalledWith("https://hairetsu.com");
@@ -350,6 +802,11 @@ describe("AgentRuntime", () => {
     ];
     const { runtime, runs, navigateBrowser } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["openBrowser", "navigateBrowser"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+        "navigate"
+      ),
       captures: [
         capture("home", "https://hairetsu.com/", {
           responseBody: '<html><a href="/login">Sign in</a></html>',
@@ -365,10 +822,13 @@ describe("AgentRuntime", () => {
       decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    const run = runtime.start({
-      goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
-      startUrl: "https://hairetsu.com"
-    });
+    const run = await startRunWithLease(
+      runtime,
+      {
+        goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
+        startUrl: "https://hairetsu.com"
+      }
+    );
 
     await vi.waitFor(() => {
       expect(runs.get(run.id)?.status).toBe("completed");
@@ -377,6 +837,89 @@ describe("AgentRuntime", () => {
     expect(navigateBrowser).toHaveBeenCalledWith("https://hairetsu.com/login");
     expect(navigateBrowser).not.toHaveBeenCalledWith("https://hairetsu.com/api");
     expect(runs.get(run.id)?.findings[0]?.title).toBe("Draft");
+  });
+
+  it("records browser open as successful when the requested page is visible after a readiness failure", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "openBrowser", input: { url: "https://hairetsu.com" } } },
+      { action: "finish", rationale: "Done.", findings: [] }
+    ];
+    const { runtime, runs, openBrowser, getBrowserState } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["openBrowser"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+        "navigate"
+      ),
+      browserState: {
+        open: true,
+        url: "https://hairetsu.com/",
+        title: "Chrome",
+        loading: false,
+        engine: "chrome"
+      },
+      openBrowser: async () => {
+        throw new Error("fetch failed");
+      },
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = await startRunWithLease(
+      runtime,
+      { goal: "Open target for passive observation.", startUrl: "https://hairetsu.com" }
+    );
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const result = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "openBrowser")?.toolResult;
+    expect(openBrowser).toHaveBeenCalledWith("https://hairetsu.com");
+    expect(getBrowserState).toHaveBeenCalled();
+    expect(result?.ok && result.data.url).toBe("https://hairetsu.com/");
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.summary === "openBrowser failed")).toBe(false);
+  });
+
+  it("keeps browser open failures visible when the browser state does not match the requested page", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "openBrowser", input: { url: "https://hairetsu.com" } } },
+      { action: "finish", rationale: "Done.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["openBrowser"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+        "navigate"
+      ),
+      browserState: {
+        open: true,
+        url: "https://other.test/",
+        title: "Chrome",
+        loading: false,
+        engine: "chrome"
+      },
+      openBrowser: async () => {
+        throw new Error("fetch failed");
+      },
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = await startRunWithLease(
+      runtime,
+      { goal: "Open target for passive observation.", startUrl: "https://hairetsu.com" }
+    );
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("paused");
+    });
+
+    const result = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "openBrowser")?.toolResult;
+    expect(result).toEqual({ tool: "openBrowser", ok: false, error: "fetch failed" });
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.summary === "openBrowser failed")).toBe(true);
+    expect(
+      runs.get(run.id)?.timeline.find((entry) => entry.summary === "openBrowser failed")?.recoveryActions
+    ).toEqual(["skip-and-continue", "stop-run", "draft-finding"]);
   });
 
   it("lets AI read intercept queue and prepare edits without forwarding traffic", async () => {
@@ -474,7 +1017,7 @@ describe("AgentRuntime", () => {
     });
 
     await vi.waitFor(() => {
-      expect(runs.get(run.id)?.status).toBe("completed");
+      expect(runs.get(run.id)?.status).toBe("paused");
     });
 
     const failure = runs.get(run.id)?.timeline.find((entry) => entry.phase === "failure");
@@ -492,6 +1035,101 @@ describe("AgentRuntime", () => {
       "stop-run",
       "draft-finding"
     ]);
+  });
+
+  it("retries a safe failed tool from the durable checkpoint", async () => {
+    const queue: InterceptQueueItem[] = [];
+    const queueItem: InterceptQueueItem = {
+      id: "intercept-retry",
+      captureId: "capture-retry",
+      stage: "request",
+      queuedAt: "2026-05-25T00:00:00.000Z",
+      method: "GET",
+      url: "https://hairetsu.com/account",
+      host: "hairetsu.com",
+      path: "/account",
+      headers: {},
+      body: "",
+      allowed: true,
+      source: "proxy",
+      note: "Queued"
+    };
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "prepareInterceptEdit", input: { id: queueItem.id } } },
+      { action: "finish", rationale: "Recovered safely.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      interceptQueue: queue,
+      decideNextAction: async () => decisions.shift() || { action: "finish", findings: [] }
+    });
+
+    const started = runtime.start({ goal: "Inspect the queued request", startUrl: "https://hairetsu.com" });
+    await vi.waitFor(() => expect(runs.get(started.id)?.status).toBe("paused"));
+    const failure = runs.get(started.id)?.timeline.find((entry) => entry.summary === "prepareInterceptEdit failed");
+    expect(failure?.toolCall?.tool).toBe("prepareInterceptEdit");
+
+    queue.push(queueItem);
+    const recovered = runtime.recover(started.id, { action: "retry-tool", entryId: failure?.id });
+    expect(recovered?.status).toBe("queued");
+    await vi.waitFor(() => expect(runs.get(started.id)?.status).toBe("completed"));
+
+    const successfulRetry = runs
+      .get(started.id)
+      ?.timeline.filter((entry) => entry.toolResult?.tool === "prepareInterceptEdit")
+      .find((entry) => entry.toolResult?.ok);
+    expect(successfulRetry?.toolResult?.ok).toBe(true);
+    expect(runs.get(started.id)?.checkpoint?.stepCount).toBe(2);
+  });
+
+  it("resumes with accumulated budgets instead of resetting the run", async () => {
+    const pausedRun: AgentRun = {
+      id: "agent-resume",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:05.000Z",
+      goal: "Resume https://hairetsu.com",
+      profileId: "passive-map",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "https://hairetsu.com",
+        targetOrigin: "https://hairetsu.com",
+        stepCount: 3,
+        replayCount: 1,
+        workflowRequestCount: 1,
+        elapsedMs: 5000,
+        lastResumedAt: "2026-05-25T00:00:05.000Z"
+      },
+      timeline: [],
+      findings: []
+    };
+    const contexts: AgentDecisionContext[] = [];
+    const { runtime, runs } = makeRuntime(pausedRun, {
+      allowlist: ["https://hairetsu.com"],
+      decideNextAction: async (context) => {
+        contexts.push(context);
+        return { action: "finish", rationale: "Checkpoint restored.", findings: [] };
+      }
+    });
+
+    expect(runtime.resume(pausedRun.id)?.status).toBe("queued");
+    await vi.waitFor(() => expect(runs.get(pausedRun.id)?.status).toBe("completed"));
+
+    expect(contexts[0]).toMatchObject({ stepCount: 3, replayCount: 1, workflowRequestCount: 1 });
+    expect(runs.get(pausedRun.id)?.checkpoint).toMatchObject({
+      stepCount: 3,
+      replayCount: 1,
+      workflowRequestCount: 1,
+      startUrl: "https://hairetsu.com"
+    });
   });
 
   it("rejects planner findings without evidence references", async () => {
@@ -528,10 +1166,20 @@ describe("AgentRuntime", () => {
     ];
     const { runtime, runs, clickElement, fillInput, submitForm } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["clickElement", "fillInput", "submitForm"],
+        [
+          { origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" },
+          { origin: "https://hairetsu.com", method: "POST", pathPrefix: "/", identity: "current" }
+        ]
+      ),
       decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    const run = runtime.start({ goal: "Inspect hairetsu.com", startUrl: "https://hairetsu.com" });
+    const run = await startRunWithLease(
+      runtime,
+      { goal: "Inspect hairetsu.com", startUrl: "https://hairetsu.com" }
+    );
 
     await vi.waitFor(() => {
       expect(runs.get(run.id)?.status).toBe("completed");

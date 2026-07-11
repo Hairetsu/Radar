@@ -5,6 +5,18 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
 import type { AgentRun } from "../shared/agent-types.js";
+import { createAgentMission } from "../shared/agentMission.js";
+import {
+  authorizeAgentCapability,
+  createAgentCapabilityState,
+  grantAgentCapabilityLease,
+  proposeAgentCapabilityLease
+} from "../shared/agentCapabilities.js";
+import {
+  MAX_IDENTITY_PROFILES,
+  type IdentityActivationRecord,
+  type IdentityProfile
+} from "../shared/identityProfiles.js";
 import type {
   AutomatePayloadSet,
   AutomateSession,
@@ -77,6 +89,49 @@ describe("localStore", () => {
     } finally {
       db.close();
     }
+  }
+
+  function identityProfile(
+    workspaceId: string,
+    id: string,
+    overrides: Partial<IdentityProfile> = {}
+  ): IdentityProfile {
+    return {
+      id,
+      workspaceId,
+      label: `Identity ${id}`,
+      kind: "user",
+      roleLabel: "member",
+      tenantLabel: "tenant-a",
+      origin: "https://example.test",
+      notes: "Metadata only.",
+      isolation: "dedicated-profile",
+      health: "unknown",
+      refreshMode: "manual",
+      jarRevision: 0,
+      containerId: `container-${id}`,
+      createdAt: "2026-07-10T12:00:00.000Z",
+      updatedAt: "2026-07-10T12:00:00.000Z",
+      ...overrides
+    };
+  }
+
+  function identityActivation(
+    sessionId: string,
+    workspaceId: string,
+    identityId: string,
+    overrides: Partial<IdentityActivationRecord> = {}
+  ): IdentityActivationRecord {
+    return {
+      id: `activation-${identityId}`,
+      sessionId,
+      workspaceId,
+      identityId,
+      startedAt: "2026-07-10T12:05:00.000Z",
+      status: "starting",
+      browserInstanceId: `browser-${identityId}`,
+      ...overrides
+    };
   }
 
   function crashFinding(): Finding {
@@ -405,6 +460,67 @@ describe("localStore", () => {
     });
   });
 
+  it("migrates schema 19 with metadata-only identity and activation tables", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    store.close();
+
+    execRawDatabase(`
+      DROP TABLE session_identity_activations;
+      DROP TABLE workspace_identity_profiles;
+      DELETE FROM schema_migrations;
+      INSERT INTO schema_migrations (version, name, applied_at)
+      VALUES (19, 'capability-leases', '2026-07-10T12:00:00.000Z');
+      UPDATE meta SET value = '19' WHERE key = 'schema_version';
+    `);
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.getActiveContext()).toMatchObject({
+      profile: { id: context.profile.id },
+      workspace: { id: context.workspace.id },
+      session: { id: context.session.id }
+    });
+    reopened.close();
+
+    const db = new DatabaseSync(databasePath());
+    try {
+      const tables = db
+        .prepare(`
+          SELECT name FROM sqlite_master
+          WHERE type = 'table' AND name IN ('workspace_identity_profiles', 'session_identity_activations')
+          ORDER BY name ASC
+        `)
+        .all() as Array<{ name: string }>;
+      expect(tables.map((row) => row.name)).toEqual([
+        "session_identity_activations",
+        "workspace_identity_profiles"
+      ]);
+      const identityColumns = db
+        .prepare("PRAGMA table_info(workspace_identity_profiles)")
+        .all() as Array<{ name: string }>;
+      expect(identityColumns.map((column) => column.name)).toEqual([
+        "workspace_id",
+        "id",
+        "updated_at",
+        "archived_at",
+        "profile_json"
+      ]);
+      expect(identityColumns.map((column) => column.name).join(" ")).not.toMatch(
+        /cookie|storage|profile_dir|file_path/i
+      );
+    } finally {
+      db.close();
+    }
+
+    expect(readMigrationMetadata()).toEqual({
+      metaVersion: String(LOCAL_STORE_SCHEMA_VERSION),
+      migrations: [
+        { version: 19, name: "capability-leases" },
+        { version: LOCAL_STORE_SCHEMA_VERSION, name: "current-workbench-schema" }
+      ]
+    });
+  });
+
   it("does not duplicate migration records when reopening current stores", () => {
     const store = makeStore();
     store.getActiveContext();
@@ -582,6 +698,11 @@ describe("localStore", () => {
       source: "browser",
       agentRunId: "agent-1",
       navigationId: "nav-1",
+      actionId: "action-1",
+      identityId: "identity-user-a",
+      activationId: "activation-user-a-1",
+      sequenceRunId: "sequence-run-1",
+      experimentId: "experiment-1",
       frameUrl: "https://example.com/dashboard",
       initiator: "script",
       tls: {
@@ -986,6 +1107,151 @@ describe("localStore", () => {
     store.close();
   });
 
+  it("round-trips metadata-only identity profiles and append-only activation lifecycles", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const profile = identityProfile(context.workspace.id, "identity-user-a");
+
+    expect(store.upsertIdentityProfile(context.workspace.id, profile)).toEqual(profile);
+    expect(store.getIdentityProfile(context.workspace.id, profile.id)).toEqual(profile);
+    expect(store.listIdentityProfiles(context.workspace.id)).toEqual([profile]);
+
+    const starting = identityActivation(context.session.id, context.workspace.id, profile.id);
+    const active: IdentityActivationRecord = {
+      ...starting,
+      status: "active",
+      authFingerprint: "fingerprint-a"
+    };
+    const ended: IdentityActivationRecord = {
+      ...active,
+      status: "ended",
+      endedAt: "2026-07-10T12:10:00.000Z"
+    };
+    expect(store.upsertIdentityActivation(context.session.id, starting)).toEqual(starting);
+    expect(store.upsertIdentityActivation(context.session.id, active)).toEqual(active);
+    expect(store.upsertIdentityActivation(context.session.id, ended)).toEqual(ended);
+    expect(store.listIdentityActivations(context.session.id)).toEqual([ended]);
+
+    const archived = store.archiveIdentityProfile(
+      context.workspace.id,
+      profile.id,
+      "2026-07-10T12:15:00.000Z"
+    );
+    expect(archived).toMatchObject({
+      id: profile.id,
+      archivedAt: "2026-07-10T12:15:00.000Z",
+      updatedAt: "2026-07-10T12:15:00.000Z"
+    });
+    expect(() =>
+      store.upsertIdentityActivation(
+        context.session.id,
+        identityActivation(context.session.id, context.workspace.id, profile.id, {
+          id: "activation-after-archive"
+        })
+      )
+    ).toThrow(/Archived identity profile cannot be activated/);
+    expect(store.listIdentityProfiles(context.workspace.id)).toEqual([]);
+    expect(store.listIdentityProfiles(context.workspace.id, { includeArchived: true })).toEqual([archived]);
+    store.close();
+
+    const db = new DatabaseSync(databasePath());
+    try {
+      const persisted = db
+        .prepare("SELECT profile_json FROM workspace_identity_profiles WHERE id = ?")
+        .get(profile.id) as { profile_json: string };
+      expect(persisted.profile_json).not.toMatch(/cookies|localStorage|sessionStorage|profileDir|filePath/i);
+    } finally {
+      db.close();
+    }
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.getIdentityProfile(context.workspace.id, profile.id)).toEqual(archived);
+    expect(reopened.listIdentityActivations(context.session.id)).toEqual([ended]);
+    reopened.close();
+  });
+
+  it("fails closed across workspaces, sessions, identities, and immutable activation fields", () => {
+    const store = makeStore();
+    const first = store.getActiveContext();
+    const firstIdentity = identityProfile(first.workspace.id, "identity-shared-id");
+    const alternateIdentity = identityProfile(first.workspace.id, "identity-alternate");
+    store.upsertIdentityProfile(first.workspace.id, firstIdentity);
+    store.upsertIdentityProfile(first.workspace.id, alternateIdentity);
+    const firstActivation = identityActivation(first.session.id, first.workspace.id, firstIdentity.id, {
+      id: "activation-global-id"
+    });
+    store.upsertIdentityActivation(first.session.id, firstActivation);
+
+    const second = store.createProfileContext("Second Identity Project");
+    const secondIdentity = identityProfile(second.workspace.id, "identity-second");
+    store.upsertIdentityProfile(second.workspace.id, secondIdentity);
+
+    expect(() => store.getIdentityProfile(second.workspace.id, firstIdentity.id)).toThrow(
+      /does not belong to workspace/
+    );
+    expect(() =>
+      store.upsertIdentityProfile(
+        second.workspace.id,
+        identityProfile(second.workspace.id, firstIdentity.id)
+      )
+    ).toThrow(/already belongs to another workspace/);
+    expect(() =>
+      store.upsertIdentityActivation(
+        second.session.id,
+        identityActivation(second.session.id, first.workspace.id, firstIdentity.id)
+      )
+    ).toThrow(/does not belong to session/);
+    expect(() =>
+      store.upsertIdentityActivation(
+        second.session.id,
+        identityActivation(second.session.id, second.workspace.id, "identity-missing")
+      )
+    ).toThrow(/does not belong to session workspace/);
+    expect(() =>
+      store.upsertIdentityActivation(
+        second.session.id,
+        identityActivation(second.session.id, second.workspace.id, secondIdentity.id, {
+          id: firstActivation.id
+        })
+      )
+    ).toThrow(/already belongs to another session/);
+    expect(() =>
+      store.upsertIdentityActivation(first.session.id, {
+        ...firstActivation,
+        identityId: alternateIdentity.id
+      })
+    ).toThrow(/immutable fields cannot change/);
+
+    store.close();
+  });
+
+  it("enforces the workspace identity profile cap including archived metadata", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    for (let index = 0; index < MAX_IDENTITY_PROFILES; index += 1) {
+      store.upsertIdentityProfile(
+        context.workspace.id,
+        identityProfile(context.workspace.id, `identity-cap-${index}`)
+      );
+    }
+    store.archiveIdentityProfile(
+      context.workspace.id,
+      "identity-cap-0",
+      "2026-07-10T12:20:00.000Z"
+    );
+
+    expect(store.listIdentityProfiles(context.workspace.id, { includeArchived: true })).toHaveLength(
+      MAX_IDENTITY_PROFILES
+    );
+    expect(() =>
+      store.upsertIdentityProfile(
+        context.workspace.id,
+        identityProfile(context.workspace.id, "identity-over-cap")
+      )
+    ).toThrow(/Identity profile limit reached/);
+    store.close();
+  });
+
   it("lists, saves, and loads sessions without deleting previous session data", () => {
     const store = makeStore();
     const context = store.getActiveContext();
@@ -1139,6 +1405,13 @@ describe("localStore", () => {
       requestHeaders: { Upgrade: "websocket" },
       responseHeaders: { Connection: "Upgrade" },
       initiator: "script",
+      agentRunId: "run-1",
+      navigationId: "nav-1",
+      actionId: "action-1",
+      identityId: "identity-user-a",
+      activationId: "activation-user-a-1",
+      sequenceRunId: "sequence-run-1",
+      experimentId: "experiment-1",
       allowed: true
     };
 
@@ -1154,6 +1427,48 @@ describe("localStore", () => {
   it("persists agent runs with timeline and findings", () => {
     const store = makeStore();
     const context = store.getActiveContext();
+    const proposedCapability = proposeAgentCapabilityLease(
+      createAgentCapabilityState(),
+      {
+        name: "Exact navigation",
+        riskTier: "navigate",
+        tools: ["openBrowser"],
+        grants: [{ origin: "https://example.test", method: "GET", pathPrefix: "/", identity: "current" }],
+        durationMs: 60000,
+        maxUses: 2,
+        maxRequests: 2,
+        maxConcurrency: 1,
+        maxPayloadBytes: 0,
+        reason: "Open the scoped target."
+      },
+      "lease-store",
+      "2026-05-25T00:00:00.000Z"
+    );
+    if (!proposedCapability.ok) throw new Error(proposedCapability.error);
+    const grantedCapability = grantAgentCapabilityLease(proposedCapability.state, "lease-store", {
+      allowlist: ["https://example.test"],
+      allowedTools: ["openBrowser"],
+      authFingerprint: "auth-store",
+      now: "2026-05-25T00:00:00.000Z"
+    });
+    if (!grantedCapability.ok) throw new Error(grantedCapability.error);
+    const authorizedCapability = authorizeAgentCapability(
+      grantedCapability.state,
+      {
+        tool: "openBrowser",
+        url: "https://example.test/",
+        method: "GET",
+        identity: "current",
+        requestCost: 1,
+        concurrency: 1,
+        payloadBytes: 0,
+        allowlist: ["https://example.test"],
+        authFingerprint: "auth-store"
+      },
+      "receipt-store",
+      "2026-05-25T00:00:01.000Z"
+    );
+    if (!authorizedCapability.required) throw new Error("Expected a capability receipt.");
     const run: AgentRun = {
       id: "agent-1",
       sessionId: context.session.id,
@@ -1170,6 +1485,17 @@ describe("localStore", () => {
         maxCaptureSample: 20,
         allowRawContext: false
       },
+      checkpoint: {
+        startUrl: "https://example.test",
+        targetOrigin: "https://example.test",
+        stepCount: 4,
+        replayCount: 1,
+        workflowRequestCount: 0,
+        elapsedMs: 3200,
+        lastResumedAt: "2026-05-25T00:00:01.000Z"
+      },
+      mission: createAgentMission("Inspect target", "https://example.test", "2026-05-25T00:00:00.000Z"),
+      capabilities: authorizedCapability.state,
       timeline: [{ id: "step-1", createdAt: "2026-05-25T00:00:00.000Z", note: "Run started." }],
       findings: [
         {
@@ -1195,6 +1521,70 @@ describe("localStore", () => {
     expect(reopened.getAgentRun(context.session.id, run.id)).toEqual(run);
     expect(reopened.listAgentRuns(context.session.id)).toEqual([run]);
     reopened.close();
+  });
+
+  it("migrates Mission Graph agent runs to deterministic capability-ledger storage", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const run: AgentRun = {
+      id: "agent-legacy-mission",
+      sessionId: context.session.id,
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Inspect https://legacy.example",
+      profileId: "passive-map",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "https://legacy.example",
+        targetOrigin: "https://legacy.example",
+        stepCount: 2,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 1000,
+        lastResumedAt: "2026-05-25T00:00:01.000Z"
+      },
+      timeline: [],
+      findings: []
+    };
+    store.upsertAgentRun(context.session.id, run);
+    store.close();
+
+    execRawDatabase(`
+      ALTER TABLE agent_runs DROP COLUMN capabilities_json;
+      DELETE FROM schema_migrations;
+      INSERT INTO schema_migrations (version, name, applied_at)
+      VALUES (${LOCAL_STORE_SCHEMA_VERSION - 1}, 'agent-run-mission-graph', '2026-05-25T00:00:01.000Z');
+      UPDATE meta SET value = '${LOCAL_STORE_SCHEMA_VERSION - 1}' WHERE key = 'schema_version';
+    `);
+
+    const reopened = openLocalStore(tmpDir);
+    const migrated = reopened.getAgentRun(context.session.id, run.id);
+    expect(migrated?.mission).toMatchObject({
+      version: 1,
+      revision: 0,
+      goal: run.goal,
+      createdAt: run.createdAt,
+      objectives: [expect.objectContaining({ id: "obj-primary", status: "active" })],
+      coverage: [expect.objectContaining({ dimension: "host", label: "https://legacy.example" })]
+    });
+    expect(migrated?.capabilities).toEqual(createAgentCapabilityState());
+    reopened.close();
+
+    expect(readMigrationMetadata()).toEqual({
+      metaVersion: String(LOCAL_STORE_SCHEMA_VERSION),
+      migrations: [
+        { version: LOCAL_STORE_SCHEMA_VERSION - 1, name: "agent-run-mission-graph" },
+        { version: LOCAL_STORE_SCHEMA_VERSION, name: "current-workbench-schema" }
+      ]
+    });
   });
 
   it("creates a fresh active session without deleting previous session data", () => {

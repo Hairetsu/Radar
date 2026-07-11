@@ -66,6 +66,11 @@ export type CapturedRequest = {
   source: "browser" | "repeater" | "proxy";
   agentRunId?: string;
   navigationId?: string;
+  actionId?: string;
+  identityId?: string;
+  activationId?: string;
+  sequenceRunId?: string;
+  experimentId?: string;
   frameUrl?: string;
   initiator?: string;
   tls?: TlsDetails | null;
@@ -101,6 +106,13 @@ export type WebSocketEvent = {
   requestHeaders?: Record<string, string>;
   responseHeaders?: Record<string, string>;
   initiator?: string;
+  agentRunId?: string;
+  navigationId?: string;
+  actionId?: string;
+  identityId?: string;
+  activationId?: string;
+  sequenceRunId?: string;
+  experimentId?: string;
   allowed: boolean;
 };
 

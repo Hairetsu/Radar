@@ -4,6 +4,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import type { AgentRun, CapturedRequest, WebSocketEvent } from "./types";
+import { applyAgentMissionPatch, applyAgentMissionSteering, createAgentMission } from "../shared/agentMission.js";
+import {
+  createAgentCapabilityState,
+  grantAgentCapabilityLease,
+  proposeAgentCapabilityLease
+} from "../shared/agentCapabilities.js";
 
 const capture = (id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest => {
   const parsed = new URL(url);
@@ -205,6 +211,14 @@ afterEach(() => {
   vi.mocked(window.radar!.listAutomateSessions).mockResolvedValue([]);
   vi.mocked(window.radar!.startAutomateSession).mockClear();
   vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([]);
+  vi.mocked(window.radar!.pauseAgentRun).mockClear();
+  vi.mocked(window.radar!.resumeAgentRun).mockClear();
+  vi.mocked(window.radar!.recoverAgentRun).mockClear();
+  vi.mocked(window.radar!.recoverAgentRun).mockResolvedValue(null);
+  vi.mocked(window.radar!.steerAgentMission).mockClear();
+  vi.mocked(window.radar!.steerAgentMission).mockResolvedValue(null);
+  vi.mocked(window.radar!.updateAgentCapabilities).mockClear();
+  vi.mocked(window.radar!.updateAgentCapabilities).mockResolvedValue(null);
   vi.mocked(window.radar!.getFindings).mockResolvedValue([]);
   vi.mocked(window.radar!.saveFinding).mockClear();
   vi.mocked(window.radar!.saveFinding).mockImplementation(async (finding) => finding);
@@ -309,6 +323,7 @@ describe("App", () => {
   });
 
   it("shows full AI-First observation history and recovery actions", async () => {
+    const recoverAgentRun = vi.mocked(window.radar!.recoverAgentRun);
     const failedRun: AgentRun = {
       id: "agent-observe",
       sessionId: "session-test",
@@ -368,9 +383,312 @@ describe("App", () => {
 
     fireEvent.click(screen.getByTestId("agentRecovery-retry-tool"));
     await waitFor(() => {
-      expect((screen.getByTestId("agentGoalInput") as HTMLTextAreaElement).value).toContain(
-        "Retry analyzeSecurityHeaders after reviewing visible evidence."
-      );
+      expect(recoverAgentRun).toHaveBeenCalledWith("agent-observe", {
+        action: "retry-tool",
+        entryId: "step-failed-tool"
+      });
+      expect(screen.getByText("Recovery queued with preserved budgets and fresh visible state.")).toBeInTheDocument();
+    });
+  });
+
+  it("selects a saved AI-First run and resumes its durable checkpoint", async () => {
+    const resumeAgentRun = vi.mocked(window.radar!.resumeAgentRun);
+    const baseRun: AgentRun = {
+      id: "agent-complete",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:02.000Z",
+      goal: "Completed review",
+      profileId: "passive-map",
+      status: "completed",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 0,
+        maxWorkflowRequests: 0,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      timeline: [],
+      findings: []
+    };
+    const pausedRun: AgentRun = {
+      ...baseRun,
+      id: "agent-paused",
+      goal: "Paused auth review",
+      status: "paused",
+      checkpoint: {
+        startUrl: "https://hairetsu.com",
+        targetOrigin: "https://hairetsu.com",
+        stepCount: 3,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 4000,
+        lastResumedAt: "2026-05-25T00:00:02.000Z"
+      }
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([baseRun, pausedRun]);
+    resumeAgentRun.mockResolvedValue({ ...pausedRun, status: "queued" });
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    fireEvent.change(await screen.findByTestId("agentRunSelect"), { target: { value: pausedRun.id } });
+    fireEvent.click(screen.getByTestId("resumeAgentRun"));
+
+    await waitFor(() => {
+      expect(resumeAgentRun).toHaveBeenCalledWith(pausedRun.id);
+      expect(screen.getByText("AI-First run queued from its durable checkpoint.")).toBeInTheDocument();
+    });
+  });
+
+  it("renders and revision-checks operator steering in the Mission Graph", async () => {
+    const baseMission = createAgentMission("Review tenant isolation", "https://target.test", "2026-05-25T00:00:00.000Z");
+    const patched = applyAgentMissionPatch(
+      baseMission,
+      {
+        baseRevision: 0,
+        updates: [
+          {
+            kind: "hypothesis",
+            id: "hyp-tenant",
+            objectiveId: "obj-primary",
+            statement: "Tenant B may read Tenant A invoices.",
+            status: "open"
+          }
+        ]
+      },
+      "2026-05-25T00:00:01.000Z"
+    );
+    if (!patched.ok) throw new Error(patched.error);
+    const run: AgentRun = {
+      id: "agent-mission",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Review tenant isolation",
+      profileId: "auth-review",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission: patched.mission,
+      timeline: [],
+      findings: []
+    };
+    const steerAgentMission = vi.mocked(window.radar!.steerAgentMission);
+    steerAgentMission.mockImplementation(async (_id, request) => {
+      const result = applyAgentMissionSteering(run.mission!, request, "2026-05-25T00:00:02.000Z");
+      if (!result.ok) throw new Error(result.error);
+      return { ...run, mission: result.mission, updatedAt: "2026-05-25T00:00:02.000Z" };
+    });
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+
+    expect(await screen.findByTestId("agentMissionGraph")).toHaveTextContent("Tenant B may read Tenant A invoices.");
+    fireEvent.click(screen.getByTestId("missionNode-hypothesis:hyp-tenant"));
+    fireEvent.click(screen.getByTestId("missionPinHypothesis"));
+
+    await waitFor(() => {
+      expect(steerAgentMission).toHaveBeenCalledWith("agent-mission", {
+        action: "update-item",
+        expectedRevision: 1,
+        entity: "hypothesis",
+        id: "hyp-tenant",
+        pinned: true
+      });
+      expect(screen.getByText("Mission Graph updated to revision 2.")).toBeInTheDocument();
+    });
+  });
+
+  it("requires an operator answer before a mission can resume", async () => {
+    const mission = createAgentMission("Review tenant isolation", "https://target.test", "2026-05-25T00:00:00.000Z");
+    const asked = applyAgentMissionSteering(
+      mission,
+      {
+        action: "ask-operator",
+        expectedRevision: 0,
+        prompt: "Which tenant should be the control?"
+      },
+      "2026-05-25T00:00:01.000Z"
+    );
+    if (!asked.ok) throw new Error(asked.error);
+    const run: AgentRun = {
+      id: "agent-question",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Review tenant isolation",
+      profileId: "auth-review",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission: asked.mission,
+      timeline: [],
+      findings: []
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
+    const steerAgentMission = vi.mocked(window.radar!.steerAgentMission);
+    steerAgentMission.mockResolvedValue(run);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    const questionId = asked.mission.operatorQuestions[0]?.id || "";
+    fireEvent.change(await screen.findByTestId(`missionAnswer-${questionId}`), {
+      target: { value: "Use Tenant A as the control." }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+
+    await waitFor(() => {
+      expect(steerAgentMission).toHaveBeenCalledWith("agent-question", {
+        action: "answer-operator",
+        expectedRevision: 1,
+        questionId,
+        answer: "Use Tenant A as the control."
+      });
+    });
+  });
+
+  it("renders exact capability bounds and grants without automatically resuming", async () => {
+    const proposed = proposeAgentCapabilityLease(
+      createAgentCapabilityState(),
+      {
+        name: "Invoice comparison",
+        riskTier: "active",
+        tools: ["sendReplay"],
+        grants: [
+          {
+            origin: "https://api.target.test",
+            method: "GET",
+            pathPrefix: "/v1/invoices/",
+            identity: "user-b"
+          }
+        ],
+        durationMs: 120000,
+        maxUses: 1,
+        maxRequests: 1,
+        maxConcurrency: 1,
+        maxPayloadBytes: 1024,
+        reason: "Compare one invoice under the challenger identity."
+      },
+      "lease-review",
+      "2026-05-25T00:00:00.000Z"
+    );
+    if (!proposed.ok) throw new Error(proposed.error);
+    const run: AgentRun = {
+      id: "agent-capability",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Review tenant isolation",
+      profileId: "advanced-api-review",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 2,
+        maxWorkflowRequests: 2,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission: createAgentMission("Review tenant isolation", "https://api.target.test", "2026-05-25T00:00:00.000Z"),
+      capabilities: proposed.state,
+      timeline: [],
+      findings: []
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
+    vi.mocked(window.radar!.updateAgentCapabilities).mockResolvedValue(run);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+
+    const lease = await screen.findByTestId("capabilityLease-lease-review");
+    expect(lease).toHaveTextContent("GET https://api.target.test/v1/invoices/");
+    expect(lease).toHaveTextContent("identity user-b");
+    fireEvent.click(screen.getByTestId("capabilityGrant-lease-review"));
+
+    await waitFor(() => {
+      expect(window.radar!.updateAgentCapabilities).toHaveBeenCalledWith("agent-capability", {
+        action: "grant",
+        expectedRevision: 1,
+        leaseId: "lease-review"
+      });
+      expect(window.radar!.resumeAgentRun).not.toHaveBeenCalled();
+    });
+  });
+
+  it("revokes a granted capability from the selected run only", async () => {
+    const proposed = proposeAgentCapabilityLease(
+      createAgentCapabilityState(),
+      {
+        name: "Scoped navigation",
+        riskTier: "navigate",
+        tools: ["openBrowser"],
+        grants: [{ origin: "https://target.test", method: "GET", pathPrefix: "/", identity: "current" }],
+        durationMs: 60000,
+        maxUses: 1,
+        maxRequests: 1,
+        maxConcurrency: 1,
+        maxPayloadBytes: 0,
+        reason: "Open one exact target."
+      },
+      "lease-active",
+      "2026-05-25T00:00:00.000Z"
+    );
+    if (!proposed.ok) throw new Error(proposed.error);
+    const granted = grantAgentCapabilityLease(proposed.state, "lease-active", {
+      allowlist: ["https://target.test"],
+      allowedTools: ["openBrowser"],
+      authFingerprint: "auth-fp",
+      now: "2026-05-25T00:00:01.000Z"
+    });
+    if (!granted.ok) throw new Error(granted.error);
+    const run: AgentRun = {
+      id: "agent-capability-revoke",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:01.000Z",
+      goal: "Open target",
+      profileId: "auth-review",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 0,
+        maxWorkflowRequests: 0,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      capabilities: granted.state,
+      timeline: [],
+      findings: []
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
+    vi.mocked(window.radar!.updateAgentCapabilities).mockResolvedValue(run);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    fireEvent.click(await screen.findByTestId("capabilityRevoke-lease-active"));
+
+    await waitFor(() => {
+      expect(window.radar!.updateAgentCapabilities).toHaveBeenCalledWith("agent-capability-revoke", {
+        action: "revoke",
+        expectedRevision: 2,
+        leaseId: "lease-active",
+        reason: "Revoked by operator."
+      });
     });
   });
 
@@ -721,6 +1039,15 @@ describe("App", () => {
     fireEvent.click(await screen.findByTestId("loadAdvancedImportDraft"));
     expect(await screen.findByRole("heading", { name: "Repeater" })).toBeInTheDocument();
     expect((screen.getByTestId("repeaterUrl") as HTMLInputElement).value).toBe("https://allowed.test/users");
+  });
+
+  it("opens the visible Identity Lab from Advanced without sending traffic", async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("view-advanced"));
+    fireEvent.click(screen.getByTestId("toggleIdentityLab"));
+
+    expect(await screen.findByTestId("identityLab")).toHaveTextContent("RECORDED EVIDENCE ONLY");
+    expect(screen.getByTestId("identityLab")).toHaveTextContent("No identities saved for this workspace");
   });
 
   it("marks automate payload positions and loads a materialized preview into repeater", async () => {
@@ -1076,13 +1403,17 @@ describe("App", () => {
     }
   });
 
-  it("switches to AI-First and starts an agent run from a goal", async () => {
+  it("requires explicit scope consent before starting AI-First on a new origin", async () => {
     const startAgentRun = vi.mocked(window.radar!.startAgentRun);
     const setTargets = vi.mocked(window.radar!.setTargets);
+    let savedTargets = ["http://localhost:*"];
     startAgentRun.mockClear();
     setTargets.mockClear();
-    setTargets.mockImplementation(async (nextTargets) => nextTargets);
-    vi.mocked(window.radar!.getTargets).mockResolvedValue(["http://localhost:*"]);
+    setTargets.mockImplementation(async (nextTargets) => {
+      savedTargets = nextTargets;
+      return nextTargets;
+    });
+    vi.mocked(window.radar!.getTargets).mockImplementation(async () => savedTargets);
 
     render(<App />);
 
@@ -1093,7 +1424,22 @@ describe("App", () => {
     fireEvent.click(screen.getByTestId("startAgentRun"));
 
     await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Scope" })).toBeInTheDocument();
+      expect(screen.getByTestId("scopeTargetList")).toHaveValue("http://localhost:*\nhttps://hairetsu.com");
+      expect(screen.getByText(/Scope consent required: review https:\/\/hairetsu\.com/)).toBeInTheDocument();
+      expect(setTargets).not.toHaveBeenCalled();
+      expect(startAgentRun).not.toHaveBeenCalled();
+    });
+    expect(screen.getByTestId("agentGoalInput")).toHaveValue("Inspect hairetsu.com for auth hardening");
+
+    fireEvent.click(screen.getByTestId("commitTargets"));
+    await waitFor(() => {
       expect(setTargets).toHaveBeenCalledWith(["http://localhost:*", "https://hairetsu.com"]);
+    });
+    expect(startAgentRun).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+    await waitFor(() => {
       expect(startAgentRun).toHaveBeenCalledWith({
         goal: "Inspect hairetsu.com for auth hardening",
         startUrl: "https://hairetsu.com",

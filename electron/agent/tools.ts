@@ -115,6 +115,24 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     schema: { left: "state name", right: "state name" }
   },
   {
+    name: "getIdentityLabContext",
+    description: "Read public, workspace-scoped Identity Lab metadata and attributed-evidence counts without session secrets.",
+    safety: "observe",
+    schema: {}
+  },
+  {
+    name: "activateIdentityProfile",
+    description: "Switch the visible controlled browser to one dedicated, workspace-scoped identity profile.",
+    safety: "navigate",
+    schema: { identityId: "stable Identity Lab profile ID" }
+  },
+  {
+    name: "verifyIdentityProfile",
+    description: "Run an explicit scoped health observation for a dedicated Identity Lab profile.",
+    safety: "navigate",
+    schema: { identityId: "stable Identity Lab profile ID" }
+  },
+  {
     name: "getCaptures",
     description: "Read run-scoped in-scope HTTP captures across target redirects; targetOrigin optionally narrows results.",
     safety: "observe",
@@ -361,6 +379,7 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
     case "getCookies":
     case "getStorageState":
     case "listAuthStates":
+    case "getIdentityLabContext":
     case "getAutomateContext":
     case "getWorkflowCatalog":
     case "getAgentContextSummary":
@@ -447,6 +466,12 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
           left: String(input.left || "").trim().slice(0, 80),
           right: String(input.right || "").trim().slice(0, 80)
         }
+      };
+    case "activateIdentityProfile":
+    case "verifyIdentityProfile":
+      return {
+        tool: call.tool,
+        input: { identityId: String(input.identityId || "").trim().slice(0, 128) }
       };
     case "sendReplay":
       return {

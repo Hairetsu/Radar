@@ -27,6 +27,7 @@ This guide covers the app as it exists now: the main console, global search, pro
 - [Workflows](#workflows)
 - [Plugins](#plugins)
 - [Advanced Testing](#advanced-testing)
+- [Identity Lab](#identity-lab)
 - [SSL And Proxy](#ssl-and-proxy)
 - [AI Command Palette](#ai-command-palette)
 - [Appearance](#appearance)
@@ -56,7 +57,7 @@ Use Radar when you need a controlled local workbench for authorized web security
 - Create durable findings with evidence references, retest notes, and Markdown/HTML report export.
 - Save and rerun declarative workflows for passive checks and selected scoped active replay checks.
 - Install local plugins from disk with explicit permission approval and SDK/API boundaries.
-- Review GraphQL, imported API definitions, auth-state behavior, parameter inventory, local secret signals, cache/header behavior, and proxy guidance from scoped evidence.
+- Review GraphQL, imported API definitions, auth-state behavior, isolated identity evidence, parameter inventory, local secret signals, cache/header behavior, and proxy guidance from scoped evidence.
 - Review proxy, certificate, and TLS signals.
 - Ask AI for summaries, report notes, checklist ideas, safe repeater drafts, browser exploration suggestions, TLS review, WebSocket frame analysis, or a bounded AI-First run.
 
@@ -78,6 +79,8 @@ Radar is designed for defensive, authorized work.
 - Workflow execution always uses saved workflow definitions, scope policy, and caps. AI-First can choose existing workflows by id; it cannot invent hidden workflow behavior.
 - Plugin install, approval, disable/block/remove, and live execution are Manual-First operator actions. AI-First can read approved plugin inventory but cannot approve plugins, widen permissions, or run hidden plugin actions.
 - Advanced testing import previews are Manual-First and text-only. AI-First can read a local Advanced summary, but it cannot import files, create replay traffic, or run imported requests invisibly.
+- Identity Lab roster/context is metadata-only. Raw cookie and storage values remain in the Electron main process and dedicated browser profile; including raw values in AI context still requires the existing explicit raw-context opt-in.
+- Identity health, status codes, matrices, and recorded differentials are observations, not proof that an action was authorized.
 - Finding export is Manual-First only. Evidence appendices are redacted by default, and raw evidence requires an explicit export toggle.
 
 Use Radar only on systems, domains, and environments where you have permission to test.
@@ -167,7 +170,7 @@ Views:
 | **06 Findings** | Evidence-backed findings inbox, templates, retest tracking, and Markdown/HTML report export. |
 | **07 Workflows** | Built-in and saved declarative checks, scoped run history, and result promotion to Findings. |
 | **08 Plugins** | Local plugin manifest preview, permission approval, registry controls, SDK/API boundary, and panel inventory. |
-| **09 Advanced** | GraphQL review, API import preview, auth matrix, parameter discovery, local secret detection, header behavior, and proxy guidance. |
+| **09 Advanced** | GraphQL review, API import preview, auth matrix, Identity Lab, parameter discovery, local secret detection, header behavior, and proxy guidance. |
 | **10 Sitemap** | Host/path/endpoint map, endpoint inventory, session diff, and jump-to-traffic queries. |
 | **11 Scope** | Engagement boundary and target allowlist. |
 | **12 SSL** | Proxy controls, generated CA details, TLS event log, and TLS metadata. |
@@ -873,7 +876,7 @@ Open **06 Findings**. Choose a template, then use one of the creation controls:
 
 Templates cover common web classes: authentication, session management, CORS, cache, missing headers, IDOR, injection signals, access control, and information disclosure.
 
-Every saved finding needs at least one evidence reference. Radar stores references such as `capture:id`, `websocket:id`, `replay:id`, `automate:sessionId:resultId`, `workflow:runId:resultId`, and `ai:runId` locally with the active session.
+Every saved finding needs at least one evidence reference. Radar stores references such as `capture:id`, `websocket:id`, `replay:id`, `automate:sessionId:resultId`, `workflow:runId:resultId`, and `ai:runId` locally with the active session. AI-First has a stricter persistence gate: every cited reference must resolve to the current local evidence catalog, and referenced captures, WebSocket events, replay history, and Automate results must still be inside saved Scope. Unresolved or out-of-scope evidence rejects the AI draft instead of creating a durable finding.
 
 ### Review And Retest
 
@@ -1138,6 +1141,7 @@ Open **09 Advanced** to review:
 - GraphQL operation groups and variable templates for review.
 - OpenAPI or Postman JSON pasted into an import preview that can save reviewed drafts to Repeater collections or load one draft into Repeater without sending traffic.
 - Auth matrix rows grouped by method, host, path, anonymous status, authenticated status, and auth-state comparison signals.
+- Identity Lab profiles, health observations, role × tenant evidence, causal lineage, and recorded-only one-identity comparisons.
 - Parameters discovered across query strings, JSON bodies, forms, multipart fields, cookies, headers, GraphQL variables, and WebSocket JSON payloads.
 - Secret-shaped response or frame data detected locally with masked previews and rule-pack severity.
 - Cache, CORS, host-header, redirect, and cache-poisoning behavior signals that can prepare visible workflow drafts.
@@ -1230,6 +1234,85 @@ Use it alongside **12 SSL** proxy details and profile notes. Radar still require
 
 AI-First can switch to **09 Advanced** and call `getAdvancedTestingSummary`. The tool reads scoped local evidence and returns GraphQL groups/templates, import-preview, auth matrix/comparison, parameter, local secret-rule, header behavior, and proxy guidance summaries. It cannot paste import JSON, import files, save collections, send imported requests, save workflows, or run active probes.
 
+## Identity Lab
+
+Identity Lab is the workspace-scoped identity and recorded-evidence surface inside **09 Advanced**. Open Advanced, then click **Identity Lab** in the panel header. Click **Advanced Signals** to return to the other Advanced panels.
+
+Identity Lab separates an operator-defined identity from a browser session, records which activation produced managed-Chrome traffic, and compares evidence already present in Radar. It does not decide whether a response was authorized, run an active authorization test, or send traffic from its matrix and differential panels.
+
+### Identity Profile Lifecycle
+
+An Identity Lab profile has a stable ID within the current workspace plus a label, kind, operator-authored role, operator-authored tenant, target origin, notes, isolation mode, health, and activation metadata. Use the explicit controls in the roster:
+
+1. **Create identity** requires a label, role, tenant, and saved-scope HTTP(S) origin. New identities use **Dedicated profile** isolation and start with `unknown` health.
+2. **Activate** switches the visible managed browser to that identity. Each dedicated identity owns a persistent Chrome user-data directory under `profiles/<project-profile-id>/identities/<identity-id>/browser-profile`. Switches are serialized: Radar stops the previous managed Chrome instance before launching the selected directory, so two identity profiles are not active concurrently.
+3. Establish or refresh the intended signed-in or anonymous state in that visible browser. Cookie and storage contents stay in the dedicated directory and Electron main process.
+4. **Verify** explicitly activates the identity, reloads its scoped origin, waits for network activity to settle, and records one health observation against captured evidence.
+5. **Archive** ends an active activation when needed and marks the profile unavailable for further activation. Archival is explicit; Radar does not silently recycle a profile into another identity.
+
+Identity roster/context data exposed to the renderer or AI contains metadata, health, activation IDs, fingerprints/counts, and evidence references—not raw cookie or storage values. Raw browser-state inspection remains behind the existing `getCookies` / `getStorageState` path and the run profile's raw-context policy. Choosing raw AI context is still an explicit opt-in.
+
+Legacy global auth-state snapshot files are not workspace-safe isolation and their save/load/list/compare tools are disabled. Radar does not auto-import or promote them into the Identity Lab roster. Existing files remain on disk for a future explicit, validated import flow; they are not used as evidence or active browser authority.
+
+### Health Semantics
+
+Health is a bounded reachability/session observation, not an authorization verdict:
+
+| Health | Meaning |
+| --- | --- |
+| `unknown` | No completed verification observation exists. |
+| `checking` | An explicit verification is in progress. |
+| `healthy` | Verification recorded a 2xx or 3xx Document/scoped response. This does not prove the identity was authorized for the requested action. |
+| `stale` | Verification recorded another HTTP status; review the linked capture and refresh the browser state manually. |
+| `expired` | Verification recorded 401 or 403. This is a denial response observation, not a complete diagnosis of the session. |
+| `error` | Verification failed or produced no usable scoped capture. |
+
+The roster records the most recent check time and evidence reference when available. A later application-side role change can invalidate the meaning of old evidence even when the browser session still appears healthy.
+
+### Browser/Network Attribution
+
+While managed Chrome is running, Radar keeps a CDP Network observer attached and stamps a new request with the context known at request time: run, navigation, action, identity, and activation IDs when available. Sequence and experiment fields are reserved for later producers and remain empty unless an explicit producer supplies them. Response headers, completion, failure, and body updates modify the same capture later without replacing that original lineage. This prevents a late response from being reassigned after the operator or agent switches identities or actions.
+
+Traffic observed only through the MITM proxy intentionally does not inherit the current managed-Chrome identity/action context. It stays visible as proxy evidence but remains unattributed for this feature and is excluded from the Identity Lab matrix unless it already has explicit valid identity and activation lineage.
+
+Radar's causal-link model uses explicit confidence classes and reasons:
+
+| Class | Meaning |
+| --- | --- |
+| `exact` | The capture carries a valid explicit action ID and matches the action's strict run/identity/activation/sequence/experiment boundary and time window. |
+| `correlated` | No explicit action ID exists, but a valid navigation ID matches within the same strict boundary and time window. |
+| `inferred` | No action or navigation ID exists; the link is inferred only from the same strict context and a bounded time window. |
+| `unmatched` | Context is missing, invalid, outside the time window, or conflicts with the candidate action/navigation boundary. |
+
+The current Identity Lab action-context ledger groups captures with explicit action IDs and keeps no-action captures in an unmatched section instead of dropping them. It describes requests as observed under an action context, not proven to have been caused by that action. C10 defines the fuller confidence model, but it does not yet persist before/after DOM snapshots or present an active DOM evidence chain.
+
+### Role × Tenant × Resource Matrix
+
+The matrix uses the role and tenant labels entered by the operator. It includes only scoped captures whose identity ID resolves to the current workspace and whose activation ID is present. Unattributed and proxy-only traffic is counted as excluded rather than guessed into a cell. Resource rows group method, host, and a normalized path so obvious numeric, UUID, and long hexadecimal identifiers can collapse to `:id`.
+
+Interpret every cell as recorded response behavior:
+
+- `2xx` means a successful-class response was observed; it is not authorization proof.
+- `401` or `403` means a denial response was observed.
+- Mixed success and denial means behavior differed, but authorization remains unproven.
+- Any other status remains unclassified until the operator reviews the underlying capture and application behavior.
+
+### Recorded One-Dimension Comparison
+
+The differential panel reads existing attributed captures only and sends no requests. After the first capture is selected, Radar offers a second capture only when it belongs to a different identity and matches the method, exact origin/path, exact query entries, source, selected semantic request headers, and request body. Identity is therefore the sole allowed changing request dimension.
+
+Radar compares the two recorded responses by HTTP status, recorded length, MIME type, and coarse response shape. A difference is a review lead, not a finding or authorization conclusion. If no matching second recording exists, the comparison stays blocked; Identity Lab does not manufacture one or actively replay the request.
+
+### AI-First Identity Tools
+
+AI-First reuses the same visible, scoped lifecycle:
+
+- `getIdentityLabContext` switches to Advanced and reads metadata-only workspace identity context plus attributed-evidence counts.
+- `activateIdentityProfile` switches the visible managed browser to one dedicated profile.
+- `verifyIdentityProfile` performs the same explicit scoped health observation as the Manual-First **Verify** control.
+
+Activation and verification are navigation-tier actions. They require the selected run profile, saved Scope, exact identity-bound capability lease, and remaining budgets to permit the call. Creating, editing, and archiving profiles remain visible Manual-First controls. The AI tools do not receive raw session values from Identity Lab context and do not run matrix differentials or active authorization probes.
+
 ## SSL And Proxy
 
 SSL shows proxy controls, generated CA details, certificate events, and TLS metadata.
@@ -1307,11 +1390,13 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, advanced testing review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, Advanced import/replay actions, finding review, or exports.
 
-Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt, profile picker, visible budget chips, observation console, draft findings inbox, and local run-memory panel above the normal views. Enter a scoped goal such as:
+Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt, profile picker, visible budget chips, Mission Graph, Capability Leases ledger, observation console, draft findings inbox, and local run-memory panel above the normal views. Enter a scoped goal such as:
 
 ```text
 Inspect https://staging.example.com for auth, session, and API hardening issues.
 ```
+
+The goal's origin must already be in saved Scope. If it is not, the first **Start Run** does not save scope or start an agent. Radar appends the proposed origin to the unsaved **11 Scope** editor, switches to that view, and shows a consent notice. Review the entire editor, click **Commit**, then click **Start Run** again. The goal remains in the prompt between those steps.
 
 Before starting, choose a run profile:
 
@@ -1324,7 +1409,91 @@ Before starting, choose a run profile:
 | **Advanced API Review** | Inspect Advanced API/auth summaries and run explicitly budgeted saved workflows. |
 | **Report From Evidence** | Summarize local evidence into quality-gated draft findings and run memory. |
 
-When a run starts, Radar records a full observation transcript. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. Radar does not fall back to a preset autonomous script if the configured AI planner fails. The saved transcript is not truncated: it keeps status entries, rationale summaries, tool calls, tool results, visible targets, policy blocks, failed steps, and recovery actions.
+### Mission Graph And Operator Steering
+
+Every AI-First run owns a versioned Mission Graph that is saved locally with the run. It records:
+
+- Objectives and their priority.
+- Falsifiable hypotheses, including operator pins and evidence references.
+- Bounded experiments and their expected observations.
+- Claims, confidence, and supporting or contradicting evidence.
+- Coverage cells across host, endpoint, identity, state, and control dimensions.
+- Operator questions and their open, answered, or dismissed state.
+
+Each graph mutation increments its revision. The planner receives the current graph and may return a bounded patch against that exact base revision; it cannot replace the whole graph. Operator steering also sends the expected revision. A stale revision, missing objective or hypothesis link, unknown entity, illegal status, or priority/pin applied to an unsupported entity is rejected without partially applying the change.
+
+Evidence is enforced at the graph boundary. Every graph evidence reference must resolve in the current local evidence catalog. A hypothesis cannot become **supported**, a claim cannot become **supported** or **verified**, and a coverage cell cannot become **covered** without locally resolvable evidence.
+
+The graph is visible while a run is active, but steering is locked until the run is settled. To steer it:
+
+1. Click **Pause** and wait for the current tool to settle. A run already paused for recovery or an operator question is ready to steer.
+2. Add an operator-owned objective or hypothesis branch if the plan needs a new direction.
+3. Select a graph item and choose one of the status options valid for that entity. Set P1-P5 priority only on objectives or hypotheses, and pin or unpin hypotheses when they should remain prominent.
+4. Use **Ask** to record a new operator question. Answer or dismiss every open question that should no longer block the mission.
+5. Click **Resume**. The same checkpoint and cumulative budgets continue.
+
+If the planner adds an operator question with its next decision, Radar persists that patch and pauses before the proposed tool executes. The operator can answer or dismiss the question, revise the paused graph, and then resume. Completed and stopped runs keep their graphs read-only. Choosing another item in **Run History** swaps the Mission Graph and observation surfaces to that saved run.
+
+### Capability Leases
+
+Capability leases are Radar's just-in-time authority boundary for AI-First side effects. A lease never replaces existing policy. Effective authority is:
+
+```text
+profile ceiling ∩ saved Scope ∩ exact granted tuple ∩ remaining run budgets
+```
+
+The profile must allow the tool and its risk tier. The origin must remain in saved Scope. A single grant must match the normalized origin, HTTP method, path prefix, and identity together. The run must still have step, replay, workflow-request, and elapsed-time budget. Failure at any layer blocks dispatch.
+
+Each run owns a locally persisted, revision-checked capability ledger containing draft, granted, revoked, expired, or exhausted leases plus durable action receipts. Choosing another run in **Run History** swaps to that run's ledger. Completed and stopped ledgers are read-only.
+
+Minimum risk tiers are fixed by Radar rather than chosen by the model; a planner draft cannot downgrade them:
+
+| Tier | Examples | Lease behavior |
+| --- | --- | --- |
+| No lease | Passive reads and prepare-only tools | Continue through existing profile, Scope, and budget checks without a capability lease. |
+| **Navigate** | Open or navigate the controlled browser | Requires a matching bounded lease. |
+| **Reversible** | Fill an input or save/load an auth state | Requires a matching bounded lease. |
+| **Active** | Click, submit a form, send replay, or run an active workflow | Requires a matching bounded lease and the corresponding replay/workflow budget where applicable. |
+| **Destructive** | Destructive actions and `DELETE` requests | Never grantable. |
+
+Every lease contains one or more exact grants. Each grant is an indivisible tuple:
+
+```text
+origin + method + path prefix + identity
+```
+
+Radar does not build separate origin, method, path, and identity allowlists and then mix them. If one grant allows anonymous `GET /public/` and another allows admin `POST /admin/`, that does not authorize admin `GET /admin/`. Duration, action/use count, known explicit-request count, concurrency, and payload bytes are also capped by both the lease and its profile ceiling.
+
+#### Planner Proposal And Grant Flow
+
+When the planner selects a gated tool without matching authority:
+
+1. The planner may attach one normalized, bounded lease draft for the selected tool. It cannot grant the draft or request destructive/`DELETE` authority.
+2. Radar persists the draft, saves the exact pending tool call in the run checkpoint, and pauses before dispatch.
+3. Review the risk tier, tools, exact tuple, duration, actions, known requests, concurrency, payload cap, and reason in **Capability Leases**.
+4. Click **Grant** or **Deny**. Grant only changes the lease ledger; it never resumes or dispatches the pending call automatically.
+5. Click **Resume** separately. Radar revalidates every authority layer, then attempts the saved pending call exactly once. On success it clears the pending call before normal planning continues; a block or failure pauses again for review instead of silently retrying.
+
+To create or change authority yourself, click **Pause** and wait for the active tool to settle. You can then use a visible lease template to propose an exact grant, grant or deny a draft, or revoke an existing lease. Ledger mutations are revision-checked. Click **Resume** only after the intended authority is visible.
+
+#### Receipts, Exhaustion, And Revocation
+
+For every gated attempt, Radar writes a durable receipt. An allowed receipt reserves one action and its known explicit-request cost before the tool dispatches, so a crash or failed tool cannot silently restore authority. After the result returns, Radar finalizes the receipt as succeeded, failed, or unknown with an outcome reason. Blocked and revoked decisions also remain in the ledger.
+
+A lease expires when its duration ends and becomes exhausted when its action or request allowance is consumed. Granted leases are revoked when:
+
+- Saved Scope changes after grant.
+- The current auth fingerprint changes.
+- The action produces a URL outside the granted tuple.
+- Auth state changes unexpectedly during an action other than the explicitly leased auth-state load.
+- The action outcome is failed or unknown.
+- The operator revokes it.
+- The run stops or completes.
+- The agent runtime or active session changes.
+
+Receipts count normalized leased actions and known explicit request costs. Replays count their explicit request; active workflows reserve their declared bounded request cost; browser actions use a conservative normalized action cost. Separately, the managed-Chrome CDP observer now preserves request-time action, identity, and activation lineage for observed subresource captures. Those attributed subresources do not become extra lease receipt costs, and proxy-only traffic remains unattributed.
+
+When a run starts, Radar records a full observation transcript. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. Radar does not fall back to a preset autonomous script if the configured AI planner fails. The saved transcript is not truncated: it keeps status entries, Mission Graph revisions, capability decisions/receipts, rationale summaries, tool calls, tool results, visible targets, policy blocks, failed steps, and recovery actions. Use **Run History** to select any saved run in the active session and inspect its graph, lease ledger, transcript, findings, status, budgets, and available controls.
 
 Available AI-First tools:
 
@@ -1336,7 +1505,10 @@ Available AI-First tools:
 - `getDomSummary` reads compact page text, links, buttons, and forms.
 - `getClickableElements`, `clickElement`, `fillInput`, and `submitForm` inspect and operate page controls.
 - `getCookies` and `getStorageState` inspect browser session state.
-- `saveAuthState`, `loadAuthState`, `listAuthStates`, and `compareAuthStates` manage named auth/session states for comparison workflows.
+- Legacy `saveAuthState`, `loadAuthState`, `listAuthStates`, and `compareAuthStates` calls fail closed. Use workspace-scoped Identity Lab profiles and recorded-evidence comparisons.
+- `getIdentityLabContext` reads metadata-only workspace identity context and attributed-evidence counts without returning session secrets.
+- `activateIdentityProfile` switches the visible controlled browser to one dedicated workspace identity profile.
+- `verifyIdentityProfile` performs an explicit scoped health observation for one dedicated identity profile.
 - `getCaptures` reads run-scoped in-scope HTTP/S evidence across target redirects, with optional origin narrowing.
 - `getSitemapCoverage` summarizes host, path, and endpoint coverage from run-scoped HTTP/S captures.
 - `prepareTrafficQuery` loads a visible traffic query into the HTTP(S) filter bar without changing scope.
@@ -1355,14 +1527,23 @@ Available AI-First tools:
 - `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
 - `proposeRunMemory` creates a transcript proposal for local run memory. It does not persist until you confirm it.
 
-The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. Click **Stop** in the AI-First console to interrupt an active run. Switching back to Manual-First also stops an active autonomous run so it cannot continue invisibly.
+The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. Click **Pause** to preserve the selected run's durable checkpoint, **Resume** to continue it, or **Stop** to end it. If a tool is already executing, Pause takes effect after that tool settles. Switching back to Manual-First stops an active autonomous run so it cannot continue invisibly.
 
 AI-First runs are intentionally bounded:
 
 - Every browser or replay URL must be in Scope.
-- Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy.
+- An out-of-scope origin from a goal remains an unsaved Scope proposal until the operator clicks **Commit**; the operator must then click **Start Run** again.
+- Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy. Checkpoints preserve cumulative tool-step, replay-send, workflow-request, and elapsed-time usage across pause/resume and recovery; resuming never replenishes a budget.
+- The planner can advance the Mission Graph only through a bounded patch based on the current revision. Stale revisions, invalid entity links, and invalid operator mutations fail closed instead of replacing or partially updating the graph.
+- Supported hypotheses, supported or verified claims, and covered cells require references that resolve to current local evidence.
+- A planner-created open operator question pauses the run before its selected tool executes. Resolve or dismiss the question before resuming.
+- Passive observation and prepare-only tools do not require a capability lease. Browser navigation, browser/auth mutation, replay, and active workflow tools require a matching granted lease.
+- Capability authority is the intersection of the profile ceiling, current saved Scope, one exact origin/method/path-prefix/identity tuple, and remaining run budgets. A lease cannot widen any other layer.
+- Destructive authority and `DELETE` requests are never grantable. Lease duration, actions, known requests, concurrency, and payload bytes are capped.
+- A planner lease request creates a draft and pauses with the exact pending call before dispatch. **Grant** never resumes automatically; after a separate **Resume**, that pending call is attempted exactly once.
+- Durable receipts reserve normalized action and known explicit-request cost before dispatch, then record the outcome. Expiry, exhaustion, drift, unexpected effects, stop/completion, and runtime/session changes revoke or invalidate authority.
 - The selected profile controls which tools the agent can call. Disallowed tools create policy-block transcript entries instead of running.
-- Captures created during an AI-First run are tagged with the run id, navigation id, frame URL, and initiator when available.
+- Managed-Chrome captures created during an AI-First run retain run, navigation, action, identity, and activation lineage when available, plus frame URL and initiator metadata. Sequence and experiment lineage is retained only when an explicit producer supplies it. Late response/body updates preserve the request-time lineage.
 - AI-First feeds the current run's in-scope HTTP/S captures into each planner decision, so redirects and canonical hostnames remain visible without repeated capture reads.
 - AI-First capture reads only return evidence for the active run unless an origin filter narrows that run evidence further.
 - AI-First intercept tools are prepare-only. They can inspect queued items and load draft edits, but **Forward**, **Drop**, and **Resume All** remain operator actions.
@@ -1372,14 +1553,15 @@ AI-First runs are intentionally bounded:
 - Automate execution is not available to AI-First. AI can prepare visible Automate controls and analyze existing results, but payload runs remain Manual-First operator actions.
 - AI-First Workflow drafts load into the visible editor and require the existing Manual-First **Save** or **Run** controls. AI-First workflow runs must choose an existing workflow id from an active profile. Active workflow requests consume the visible workflow-request budget and appear in **07 Workflows** run history.
 - AI-First plugin visibility is read-only. It can inspect **08 Plugins** inventory, but plugin install, approval, permission changes, and SDK/API execution remain Manual-First.
-- AI-First Advanced visibility is read-only. It can inspect **09 Advanced** summaries, but import preview edits, imported replay use, and active probes remain Manual-First.
-- AI-First findings are quality-gated before entering **06 Findings**. Draft findings must include evidence references, affected assets, reproduction notes, severity rationale, remediation, and uncertainty notes. Rejected drafts remain visible as transcript cards and do not enter the durable findings inbox.
-- Failed tool/provider steps remain highlighted with the failed input/result summary, visible target, error text, and recovery actions: retry, retry with refreshed evidence, skip and continue, stop, or create a draft finding prompt.
+- AI-First Advanced signal visibility is read-only. It can inspect **09 Advanced** summaries, but import preview edits, imported replay use, and active probes remain Manual-First. Identity Lab adds separately gated metadata context, activation, and verification tools; profile creation/edit/archive and recorded differential selection remain Manual-First.
+- AI-First findings are quality-gated before entering **06 Findings**. Draft findings must include evidence references, affected assets, reproduction notes, severity rationale, remediation, and uncertainty notes. Every reference must also resolve to current local evidence; network-bearing evidence must remain in saved Scope. Rejected drafts remain visible as transcript cards and do not enter the durable findings inbox.
+- A failed or policy-blocked tool pauses the run with its input/result summary, visible target, error text, and the recovery actions valid for that step. Depending on safety, those actions can include retry, retry with refreshed evidence, skip and continue, stop, or prepare a draft-finding prompt.
+- After the operator chooses a retry, Radar's recovery loop only re-executes safe, idempotent failed tools. Mutating browser and authentication-state actions, replay preparation/sends, and workflow runs are never automatically retried; choose skip, stop, or another offered operator action instead.
 - Run memory is local to the active project. Confirm or dismiss AI-proposed memory in the transcript, or create manual memory entries for tested hypotheses, dismissed leads, and retest notes in the Run Memory panel.
 - Burst replay is not part of the first autonomous slice.
 - Invalid planner output fails the run instead of switching to heuristics.
 - Findings are draft findings until manually reviewed.
-- Tool calls, policy blocks, results, and findings are saved locally with the active session.
+- Tool calls, policy blocks, results, checkpoints, Mission Graph revisions, capability ledgers/receipts, and findings are saved locally with the active session and remain selectable through **Run History**.
 
 ## AI Command Palette
 
@@ -1542,10 +1724,11 @@ Important local files and folders:
 
 | Item | Purpose |
 | --- | --- |
-| `radar-local.sqlite` | Projects stored as local profiles, workspaces, sessions, targets, saved filters, project notes, saved views, project-scoped AI run memory, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures, WebSocket frames, findings, saved workflows, workflow runs, installed plugin records, SSL events, cached model lists, AI-First agent run history, and the local schema migration ledger. |
+| `radar-local.sqlite` | Projects stored as local profiles, workspaces, sessions, stable identity metadata and activation records, targets, saved filters, project notes, saved views, project-scoped AI run memory, evidence tags and comments, intercept rules, match/replace rules, proxy profile notes, HTTP/S captures and lineage, WebSocket frames, findings, saved workflows, workflow runs, installed plugin records, SSL events, cached model lists, AI-First agent run history, and the local schema migration ledger. |
 | `proxy-ca/radar-ca.pem` | Local proxy CA certificate. |
 | `proxy-ca/radar-ca-key.pem` | Local proxy CA private key. |
 | `profiles/<profile-id>/proxy-browser-profile` | Dedicated launched-browser profile. |
+| `profiles/<profile-id>/identities/<identity-id>/browser-profile` | Persistent Chrome user-data directory for one dedicated Identity Lab profile. Raw cookie and storage values remain here and in the Electron main process, not in renderer identity context. |
 | `ai-settings.json` | AI provider, model, base URL, and saved API key when applicable. |
 | `ai-skills.json` | Custom AI skills. |
 
@@ -1554,7 +1737,9 @@ Radar applies local SQLite migrations when the app opens so existing projects, s
 Privacy notes:
 
 - Captures and WebSocket frames stay local unless you explicitly include them in AI context.
-- AI-First run history, tool timelines, and draft findings stay local in the active session.
+- Identity profile metadata and activation records stay local to the workspace. Dedicated identity browser directories hold raw session state locally and are switched one at a time.
+- Identity Lab renderer and AI context is metadata-only. Raw cookies/storage still require the existing explicit raw-context opt-in, and legacy global auth-state snapshot tools are disabled rather than auto-imported as isolated identities.
+- AI-First run history, Mission Graphs, capability lease ledgers and receipts, durable checkpoints, cumulative budget usage, tool timelines, and draft findings stay local in the active session.
 - AI-First run memory stays local under the active project and is included only in redacted future-run summaries.
 - Workflow definitions and run results stay local unless you promote results, copy evidence, or export reports.
 - Findings and report previews stay local unless you copy or download an export.
@@ -1644,10 +1829,14 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 1. Switch the top shell toggle from **Manual-First** to **AI-First**.
 2. Choose a run profile and confirm the visible budget chips.
 3. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
-4. Click **Start Run**. Radar saves the goal's target origin into **11 Scope** before the agent chooses tools.
-5. Watch the observation console update until the agent returns `finish`, blocks a tool, or shows a failure card.
-6. Use recovery buttons for failed steps, confirm/dismiss proposed run memory, and review any prepared Repeater or Workflow drafts before execution.
-7. Review quality-gated draft findings in **06 Findings** before using them.
+4. Click **Start Run**. If the origin is outside saved Scope, Radar only proposes it in **11 Scope** and does not start the run.
+5. For a proposed origin, review the Scope editor, click **Commit**, then click **Start Run** again.
+6. Watch the Mission Graph, Capability Leases, and observation console until the agent returns `finish` or pauses on a failed step, policy block, operator question, or lease proposal.
+7. For a lease proposal, review the exact tuple and caps. Click **Grant** or **Deny**. Grant does not resume the run; click **Resume** separately to attempt the saved pending call once.
+8. To steer the plan or authority yourself, click **Pause**, wait for the current tool to settle, then edit the Mission Graph or propose/grant/revoke bounded capability leases. Click **Resume** when both are ready; the same cumulative budgets continue from the saved checkpoint.
+9. Use the offered recovery buttons for a paused failed step. Retry is available only when Radar can safely re-execute the tool without repeating a mutating browser, authentication-state, replay, or workflow action.
+10. Use **Run History** to return to saved graphs, lease ledgers, receipts, and transcripts; confirm/dismiss proposed run memory; and review prepared Repeater or Workflow drafts before execution.
+11. Review quality-gated draft findings in **06 Findings** before using them. AI drafts with unresolved or out-of-scope evidence references are rejected.
 
 ### Create A Finding And Report
 
@@ -1718,6 +1907,19 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 9. Confirm local secret or header/cache behavior signals against the original capture or frame.
 10. Prepare visible workflow drafts from interesting Advanced signals, then review/save/run them in **07 Workflows** manually.
 11. Move confirmed hypotheses into Repeater, Workflows, or Findings manually.
+
+### Compare Recorded Identity Evidence
+
+1. Save the target origin in **11 Scope**.
+2. Open **09 Advanced**, then click **Identity Lab**.
+3. Create each identity with stable operator labels for role and tenant.
+4. Click **Activate** for the first identity, establish its intended browser state in the visible managed Chrome window, and exercise the target workflow manually or through a separately authorized AI-First run.
+5. Click **Verify** when you need a scoped session/reachability observation. Treat the resulting health as an observation, not authorization proof.
+6. Repeat activation and browsing for each identity. Radar switches dedicated profile directories sequentially and attributes managed-Chrome requests to the active identity/activation.
+7. Review the role × tenant × resource matrix. Unattributed and proxy-only traffic is excluded; a 2xx row is not proof of access control correctness.
+8. In **One-dimension comparison**, select two already-recorded captures. Radar offers a pair only when identity is the sole request difference and does not send traffic.
+9. Review explicit action groups and the unmatched capture section. Do not infer a causal link from proximity alone when lineage is missing.
+10. Promote only manually verified conclusions into Findings or a later regression workflow.
 
 ## Troubleshooting
 
@@ -1828,6 +2030,18 @@ Check:
 - Secret and header behavior panels only show local rule matches, not proof of impact.
 - Import preview only reads pasted OpenAPI or Postman JSON.
 
+### Identity Lab Matrix Or Differential Is Empty
+
+Check:
+
+- The identities belong to the active workspace and their target origins are in saved **11 Scope**.
+- You clicked **Activate** before browsing so managed-Chrome captures received both identity and activation IDs.
+- The traffic came from Radar's managed Chrome observer. Proxy-only captures intentionally remain unattributed for Identity Lab.
+- The matrix excludes captures with an unknown identity or missing activation instead of guessing.
+- A differential needs two already-recorded captures from different identities with the same method, exact target/query entries, source, selected semantic headers, and request body.
+- Legacy named auth-state snapshots are not auto-imported dedicated identities.
+- Identity Lab never sends a missing comparison request for you.
+
 ### API Import Preview Fails
 
 Check:
@@ -1854,8 +2068,11 @@ Check:
 
 - AI settings are connected.
 - The goal includes a URL, domain, or the address bar contains the target you want to inspect.
-- If relying on the address bar instead of a goal target, the target origin is saved in **11 Scope**.
-- The run timeline does not show invalid planner output, a policy block, or an AI provider error.
+- If the goal proposed a new origin, you reviewed it in **11 Scope**, clicked **Commit**, and then clicked **Start Run** again. Radar never saves a goal origin automatically.
+- If relying on the address bar instead of a goal target, the target origin is already saved in **11 Scope**.
+- The selected **Run History** item is the run you intend to inspect.
+- The run timeline does not show invalid planner output, a policy block, an AI provider error, or a failed tool waiting for an operator recovery choice.
+- A paused or failed run still has cumulative elapsed-time and tool-step budget available before you click **Resume**.
 - The run has not been stopped by switching back to Manual-First.
 
 ### Codex Connect Cannot Find Codex
