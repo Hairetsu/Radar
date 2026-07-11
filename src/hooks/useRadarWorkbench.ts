@@ -85,7 +85,12 @@ import type {
   InterceptRule,
   InterceptState,
   AgentRunMemoryEntry,
+  AgentMissionSteeringAction,
+  AgentMissionSteeringRequest,
+  AgentCapabilityAction,
+  AgentCapabilityActionRequest,
   AgentRunProfileId,
+  AgentRunRecoveryAction,
   AgentRun,
   AppMode,
   LocalContext,
@@ -130,7 +135,10 @@ import type {
   ProjectBundleExportPreview,
   ProjectBundleImportPreview,
   ProjectBundleRedactionProfile,
-  HandoffPackagePreview
+  HandoffPackagePreview,
+  IdentityActivationRecord,
+  IdentityProfile,
+  IdentityProfileDraft
 } from "../types";
 import { useAsyncAction } from "./useAsyncAction";
 import { useAiConnection } from "./useAiConnection";
@@ -506,6 +514,9 @@ export function useRadarWorkbench() {
   const [workflowDryRun, setWorkflowDryRun] = useState<WorkflowDryRun>(() => validateWorkflowDraft(""));
   const [workflowRevisions, setWorkflowRevisions] = useState<WorkflowRevision[]>([]);
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
+  const [identityProfiles, setIdentityProfiles] = useState<IdentityProfile[]>([]);
+  const [identityActivations, setIdentityActivations] = useState<IdentityActivationRecord[]>([]);
+  const [identityBusy, setIdentityBusy] = useState(false);
   const [pluginInstallPath, setPluginInstallPath] = useState("");
   const [pluginInstallPreview, setPluginInstallPreview] = useState<PluginInstallPreview | null>(null);
   const [pluginAudit, setPluginAudit] = useState<PluginAuditEntry[]>([]);
@@ -584,6 +595,7 @@ export function useRadarWorkbench() {
   const [agentGoal, setAgentGoal] = useState("");
   const [agentProfileId, setAgentProfileId] = useState<AgentRunProfileId>("passive-map");
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
+  const [selectedAgentRunId, setSelectedAgentRunId] = useState("");
   const [agentRunMemory, setAgentRunMemory] = useState<AgentRunMemoryEntry[]>([]);
   const [agentRunMemorySearch, setAgentRunMemorySearch] = useState("");
   const [aiPreparedWorkflowDraft, setAiPreparedWorkflowDraft] = useState<WorkflowDefinition | null>(null);
@@ -2075,7 +2087,20 @@ export function useRadarWorkbench() {
     setNotice("Proxy profile notes saved");
   }, [proxyProfileNotes, selectedProxyProfileId]);
 
-  const activeAgentRun = agentRuns[0] || null;
+  const activeAgentRun = useMemo(
+    () => agentRuns.find((run) => run.id === selectedAgentRunId) || agentRuns[0] || null,
+    [agentRuns, selectedAgentRunId]
+  );
+  const executingAgentRun = useMemo(() => agentRuns.find((run) => isActiveAgentRun(run)) || null, [agentRuns]);
+  useEffect(() => {
+    if (agentRuns.length === 0) {
+      setSelectedAgentRunId("");
+      return;
+    }
+    if (!agentRuns.some((run) => run.id === selectedAgentRunId)) {
+      setSelectedAgentRunId(agentRuns[0]?.id || "");
+    }
+  }, [agentRuns, selectedAgentRunId]);
   const selectedAgentRunProfile = useMemo(() => getAgentRunProfile(agentProfileId), [agentProfileId]);
   const activeAgentBudgetLabels = useMemo(
     () => agentBudgetLabels(activeAgentRun?.policy || selectedAgentRunProfile.policy),
@@ -2098,20 +2123,25 @@ export function useRadarWorkbench() {
     (mode: AppMode) => {
       setAppModeState(mode);
       window.localStorage.setItem("radar.appMode", mode);
-      if (mode === "manual-first" && isActiveAgentRun(activeAgentRun)) {
-        void window.radar?.stopAgentRun(activeAgentRun.id).then((run) => {
+      if (mode === "manual-first" && executingAgentRun) {
+        void window.radar?.stopAgentRun(executingAgentRun.id).then((run) => {
           if (run) {
             setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
           }
         });
       }
     },
-    [activeAgentRun]
+    [executingAgentRun]
   );
 
   const startAgentRun = useCallback(async () => {
     if (!window.radar) {
       setNotice("Run in Electron to start an agent run.");
+      return;
+    }
+    if (executingAgentRun) {
+      setSelectedAgentRunId(executingAgentRun.id);
+      setNotice("An AI-First run is already active. Pause or stop it before starting another run.");
       return;
     }
     const goal = agentGoal.trim();
@@ -2126,10 +2156,17 @@ export function useRadarWorkbench() {
     if (goalUrl && scopeOrigin) {
       const latestTargets = await window.radar.getTargets();
       if (!isAllowedTarget(goalUrl, latestTargets)) {
-        const nextTargets = [...latestTargets, scopeOrigin];
-        const saved = (await window.radar.setTargets(nextTargets)) || nextTargets;
-        setTargets(saved);
-        setTargetText(saved.join("\n"));
+        const draftTargets = targetText
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const proposedTargets = [...new Set([...latestTargets, ...draftTargets, scopeOrigin])];
+        setTargetText(proposedTargets.join("\n"));
+        setActiveView("scope");
+        setNotice(
+          `Scope consent required: review ${scopeOrigin} in the Scope editor and Commit it before starting AI-First. Then start the run again.`
+        );
+        return;
       }
     }
 
@@ -2140,9 +2177,10 @@ export function useRadarWorkbench() {
     });
     setAddress(startUrl);
     setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+    setSelectedAgentRunId(run.id);
     setAgentGoal("");
     setNotice(scopeOrigin ? `AI-First run started on ${scopeOrigin}` : "AI-First run started");
-  }, [address, agentGoal, agentProfileId]);
+  }, [address, agentGoal, agentProfileId, executingAgentRun, targetText]);
 
   const stopAgentRun = useCallback(async () => {
     if (!window.radar || !activeAgentRun) {
@@ -2154,30 +2192,130 @@ export function useRadarWorkbench() {
     }
   }, [activeAgentRun]);
 
+  const pauseAgentRun = useCallback(async () => {
+    if (!window.radar || !activeAgentRun) {
+      return;
+    }
+    try {
+      const run = await window.radar.pauseAgentRun(activeAgentRun.id);
+      if (run) {
+        setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+        setNotice("AI-First run paused with budgets and checkpoint preserved.");
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Agent run could not be paused.");
+    }
+  }, [activeAgentRun]);
+
+  const resumeAgentRun = useCallback(async () => {
+    if (!window.radar || !activeAgentRun) {
+      return;
+    }
+    try {
+      const run = await window.radar.resumeAgentRun(activeAgentRun.id);
+      if (run) {
+        setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+        setNotice("AI-First run queued from its durable checkpoint.");
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Agent run could not be resumed.");
+    }
+  }, [activeAgentRun]);
+
   const recoverAgentRun = useCallback(
-    (entryId: string, action: "retry-tool" | "retry-with-evidence" | "skip-and-continue" | "stop-run" | "draft-finding") => {
+    async (entryId: string, action: AgentRunRecoveryAction) => {
       const run = activeAgentRun;
       const entry = run?.timeline.find((item) => item.id === entryId);
-      if (!run || !entry) {
+      if (!window.radar || !run || !entry) {
         return;
       }
       if (action === "stop-run") {
-        void stopAgentRun();
+        await stopAgentRun();
         return;
       }
-      const tool = entry.toolCall?.tool || entry.toolResult?.tool || "last failed step";
-      const prefix =
-        action === "retry-tool"
-          ? `Retry ${tool} after reviewing visible evidence.`
-          : action === "retry-with-evidence"
-            ? `Retry after refreshing visible evidence for ${tool}.`
-            : action === "skip-and-continue"
-              ? `Continue the run while skipping ${tool}.`
-              : `Create a draft finding from the failed ${tool} step.`;
-      setAgentGoal(`${prefix}\n\nOriginal goal: ${run.goal}`);
-      setNotice("Recovery prompt loaded into AI-First goal box for operator review.");
+      try {
+        const recovered = await window.radar.recoverAgentRun(run.id, { action, entryId });
+        if (recovered) {
+          setAgentRuns((items) => [recovered, ...items.filter((item) => item.id !== recovered.id)]);
+        }
+        if (action === "draft-finding") {
+          const tool = entry.toolCall?.tool || entry.toolResult?.tool || "failed step";
+          setAgentGoal(`Create an evidence-backed draft finding from ${tool}.\n\nOriginal goal: ${run.goal}`);
+          setNotice("Draft-finding prompt prepared from the selected failed step.");
+          return;
+        }
+        setNotice(
+          action === "skip-and-continue"
+            ? "Failed step skipped; the run is continuing from its checkpoint."
+            : "Recovery queued with preserved budgets and fresh visible state."
+        );
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : "Agent recovery could not be started.");
+      }
     },
     [activeAgentRun, stopAgentRun]
+  );
+
+  const steerAgentMission = useCallback(
+    async (action: AgentMissionSteeringAction) => {
+      const run = activeAgentRun;
+      if (!window.radar || !run?.mission) {
+        setNotice("Select a saved AI-First run with a Mission Graph before steering it.");
+        return;
+      }
+      if (run.status !== "paused" && run.status !== "failed") {
+        setNotice("Pause the run and wait for the active step to settle before steering its Mission Graph.");
+        return;
+      }
+      const request = { ...action, expectedRevision: run.mission.revision } as AgentMissionSteeringRequest;
+      try {
+        const steered = await window.radar.steerAgentMission(run.id, request);
+        if (steered) {
+          setAgentRuns((items) => [steered, ...items.filter((item) => item.id !== steered.id)]);
+          setSelectedAgentRunId(steered.id);
+          setNotice(`Mission Graph updated to revision ${steered.mission?.revision ?? run.mission.revision}.`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Mission steering could not be applied.";
+        if (message.includes("revision")) {
+          const refreshed = await window.radar.listAgentRuns();
+          setAgentRuns(refreshed);
+        }
+        setNotice(message);
+      }
+    },
+    [activeAgentRun]
+  );
+
+  const updateAgentCapabilities = useCallback(
+    async (action: AgentCapabilityAction) => {
+      const run = activeAgentRun;
+      if (!window.radar || !run) {
+        setNotice("Select a saved AI-First run before changing capability leases.");
+        return;
+      }
+      if (run.status !== "paused" && run.status !== "failed") {
+        setNotice("Pause the run and wait for the active step to settle before changing capability leases.");
+        return;
+      }
+      const expectedRevision = run.capabilities?.revision || 0;
+      const request = { ...action, expectedRevision } as AgentCapabilityActionRequest;
+      try {
+        const updated = await window.radar.updateAgentCapabilities(run.id, request);
+        if (updated) {
+          setAgentRuns((items) => [updated, ...items.filter((item) => item.id !== updated.id)]);
+          setSelectedAgentRunId(updated.id);
+          setNotice(`Capability ledger updated to revision ${updated.capabilities?.revision ?? expectedRevision}.`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Capability lease action failed.";
+        if (message.includes("revision")) {
+          setAgentRuns(await window.radar.listAgentRuns());
+        }
+        setNotice(message);
+      }
+    },
+    [activeAgentRun]
   );
 
   const saveAgentRunMemory = useCallback(async (entry: AgentRunMemoryEntry) => {
@@ -3239,6 +3377,107 @@ export function useRadarWorkbench() {
 
   const activeProfileId = localContext?.profile.id || "";
 
+  const refreshIdentityLab = useCallback(async () => {
+    if (!window.radar?.listIdentityProfiles || !localContext) return;
+    const [nextProfiles, nextActivations] = await Promise.all([
+      window.radar.listIdentityProfiles(),
+      window.radar.listIdentityActivations?.() ?? []
+    ]);
+    setIdentityProfiles(nextProfiles);
+    setIdentityActivations(nextActivations);
+  }, [localContext]);
+
+  useEffect(() => {
+    void refreshIdentityLab();
+  }, [refreshIdentityLab]);
+
+  const createIdentityLabProfile = useCallback(
+    async (draft: IdentityProfileDraft) => {
+      if (!window.radar?.createIdentityProfile) return;
+      setIdentityBusy(true);
+      try {
+        const profile = await window.radar.createIdentityProfile(draft);
+        setIdentityProfiles((items) => [profile, ...items.filter((item) => item.id !== profile.id)]);
+        setNotice(`Identity created: ${profile.label}`);
+      } finally {
+        setIdentityBusy(false);
+      }
+    },
+    []
+  );
+
+  const updateIdentityLabProfile = useCallback(async (profile: IdentityProfile) => {
+    if (!window.radar?.updateIdentityProfile) return;
+    setIdentityBusy(true);
+    try {
+      const next = await window.radar.updateIdentityProfile({
+        id: profile.id,
+        draft: {
+          label: profile.label,
+          kind: profile.kind,
+          roleLabel: profile.roleLabel,
+          tenantLabel: profile.tenantLabel,
+          origin: profile.origin,
+          notes: profile.notes,
+          refreshMode: profile.refreshMode,
+          refreshWorkflowId: profile.refreshWorkflowId,
+          maxHealthAgeMs: profile.maxHealthAgeMs
+        }
+      });
+      setIdentityProfiles((items) => [next, ...items.filter((item) => item.id !== next.id)]);
+      setNotice(`Identity updated: ${next.label}`);
+    } finally {
+      setIdentityBusy(false);
+    }
+  }, []);
+
+  const activateIdentityLabProfile = useCallback(async (identityId: string) => {
+    if (!window.radar?.activateIdentityProfile) return;
+    setIdentityBusy(true);
+    try {
+      const result = await window.radar.activateIdentityProfile({ identityId });
+      setIdentityProfiles((items) => [result.identity, ...items.filter((item) => item.id !== result.identity.id)]);
+      await refreshIdentityLab();
+      setBrowserState(await window.radar.getBrowserState());
+      setCaptures(await window.radar.getCaptures());
+      setNotice(`Identity active: ${result.identity.label}`);
+    } finally {
+      setIdentityBusy(false);
+    }
+  }, [refreshIdentityLab]);
+
+  const verifyIdentityLabProfile = useCallback(async (identityId: string) => {
+    if (!window.radar?.verifyIdentityProfile) return;
+    setIdentityBusy(true);
+    try {
+      const profile = await window.radar.verifyIdentityProfile(identityId);
+      setIdentityProfiles((items) => [profile, ...items.filter((item) => item.id !== profile.id)]);
+      await refreshIdentityLab();
+      setCaptures(await window.radar.getCaptures());
+      setNotice(`Identity health: ${profile.label} / ${profile.health}`);
+    } finally {
+      setIdentityBusy(false);
+    }
+  }, [refreshIdentityLab]);
+
+  const archiveIdentityLabProfile = useCallback(async (identityId: string) => {
+    if (!window.radar?.archiveIdentityProfile) return;
+    setIdentityBusy(true);
+    try {
+      const result = await window.radar.archiveIdentityProfile(identityId);
+      setIdentityProfiles(result.identities);
+      await refreshIdentityLab();
+      setNotice("Identity archived; browser profile data remains on disk.");
+    } finally {
+      setIdentityBusy(false);
+    }
+  }, [refreshIdentityLab]);
+
+  const activeIdentityActivation = useMemo(
+    () => identityActivations.find((activation) => activation.status === "active"),
+    [identityActivations]
+  );
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -3653,6 +3892,15 @@ export function useRadarWorkbench() {
     renderPluginPanel,
     pluginDeveloperValidation,
     validatePluginDeveloperSource,
+    identityProfiles,
+    identityActivations,
+    activeIdentityActivation,
+    identityBusy,
+    createIdentityLabProfile,
+    updateIdentityLabProfile,
+    activateIdentityLabProfile,
+    verifyIdentityLabProfile,
+    archiveIdentityLabProfile,
     advancedImportText,
     setAdvancedImportText,
     advancedSummary,
@@ -3784,10 +4032,16 @@ export function useRadarWorkbench() {
     selectedAgentRunProfile,
     activeAgentBudgetLabels,
     agentRuns,
+    selectedAgentRunId,
+    setSelectedAgentRunId,
     activeAgentRun,
     startAgentRun,
+    pauseAgentRun,
+    resumeAgentRun,
     stopAgentRun,
     recoverAgentRun,
+    steerAgentMission,
+    updateAgentCapabilities,
     agentRunMemory,
     filteredAgentRunMemory,
     agentRunMemorySearch,

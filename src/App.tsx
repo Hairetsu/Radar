@@ -20,11 +20,13 @@ import {
   FileLock2,
   FilePlus2,
   FileText,
+  Fingerprint,
   FlaskConical,
   LockKeyhole,
   Palette,
   Plug,
   Map,
+  Pause,
   Play,
   Radar as RadarIcon,
   Replace,
@@ -48,6 +50,9 @@ import {
 import { AiSettingsPanel } from "./ai/AiSettingsPanel";
 import { CommandPalette } from "./ai/CommandPalette";
 import { AppearanceSettingsPanel } from "./components/AppearanceSettingsPanel";
+import { AgentMissionGraph } from "./components/AgentMissionGraph";
+import { AgentCapabilityLedger } from "./components/AgentCapabilityLedger";
+import { IdentityLab } from "./components/IdentityLab";
 import { NewSessionDialog } from "./components/NewSessionDialog";
 import { ProfileSessionPanel } from "./components/ProfileSessionPanel";
 import { EmptyState, FieldLabel, StatusBadge, StatusDot, StatusPill, ToneText } from "./components/radar/primitives";
@@ -561,6 +566,7 @@ export function App() {
   const [webSocketDirectionFilter, setWebSocketDirectionFilter] = useState<WebSocketDirection | "all">("all");
   const [selectedWebSocketId, setSelectedWebSocketId] = useState("");
   const [selectedWebSocketIds, setSelectedWebSocketIds] = useState<string[]>([]);
+  const [identityLabOpen, setIdentityLabOpen] = useState(false);
   const webSocketSelectionAnchorRef = useRef("");
   const trafficFiltersActive = Boolean(
     workbench.trafficSearch.trim() ||
@@ -742,7 +748,14 @@ export function App() {
     ? workbench.sessions.some((session) => session.id === activeSession.id)
     : false;
   const activeAgentRun = workbench.activeAgentRun;
-  const activeAgentRunning = activeAgentRun?.status === "queued" || activeAgentRun?.status === "running";
+  const activeAgentRunning = workbench.agentRuns.some(
+    (run) => run.status === "queued" || run.status === "running"
+  );
+  const activeAgentPausable = activeAgentRun?.status === "queued" || activeAgentRun?.status === "running";
+  const activeAgentResumable = activeAgentRun?.status === "paused" || activeAgentRun?.status === "failed";
+  const activeAgentStoppable = Boolean(
+    activeAgentRun && activeAgentRun.status !== "completed" && activeAgentRun.status !== "stopped"
+  );
   const findingOwnerOptions = useMemo(
     () =>
       Array.from(
@@ -826,7 +839,7 @@ export function App() {
         : `${filteredFindings.length}/${workbench.findings.length} findings`,
     workflows: `${workbench.workflowRuns.length} runs`,
     plugins: `${workbench.approvedPlugins.length}/${workbench.plugins.length} approved`,
-    advanced: `${workbench.advancedSummary.parameters.length} params`,
+    advanced: `${workbench.identityProfiles.length} ids · ${workbench.advancedSummary.parameters.length} params`,
     sitemap: `${workbench.sitemap.roots.length} hosts`,
     scope: `${workbench.targets.length} targets`,
     ssl: workbench.proxyState.running ? "proxy engaged" : `${workbench.sslEvents.length} tls events`
@@ -2125,16 +2138,29 @@ export function App() {
                 </>
               )}
               {workbench.activeView === "advanced" && (
-                <Button
-                  variant="outline"
-                  type="button"
-                  onClick={() => workbench.setAdvancedImportText("")}
-                  disabled={!workbench.advancedImportText.trim()}
-                  data-testid="clearAdvancedImport"
-                >
-                  <Eraser size={14} strokeWidth={1.7} />
-                  Clear Import
-                </Button>
+                <>
+                  <Button
+                    variant={identityLabOpen ? "solid" : "outline"}
+                    type="button"
+                    onClick={() => setIdentityLabOpen((open) => !open)}
+                    data-testid="toggleIdentityLab"
+                  >
+                    <Fingerprint size={14} strokeWidth={1.7} />
+                    {identityLabOpen ? "Advanced Signals" : "Identity Lab"}
+                  </Button>
+                  {!identityLabOpen && (
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => workbench.setAdvancedImportText("")}
+                      disabled={!workbench.advancedImportText.trim()}
+                      data-testid="clearAdvancedImport"
+                    >
+                      <Eraser size={14} strokeWidth={1.7} />
+                      Clear Import
+                    </Button>
+                  )}
+                </>
               )}
               {workbench.activeView === "scope" && (
                 <Button
@@ -2192,6 +2218,23 @@ export function App() {
                   </Select>
                   <span className="text-[11px] leading-5 text-muted">{workbench.selectedAgentRunProfile.description}</span>
                 </label>
+                {workbench.agentRuns.length > 0 && (
+                  <label className="grid gap-1">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Run History</span>
+                    <Select
+                      value={workbench.activeAgentRun?.id || ""}
+                      onChange={(event) => workbench.setSelectedAgentRunId(event.target.value)}
+                      data-testid="agentRunSelect"
+                      data-component="agentRunSelect"
+                    >
+                      {workbench.agentRuns.map((run) => (
+                        <option key={run.id} value={run.id}>
+                          {run.status.toUpperCase()} · {run.goal.slice(0, 54)}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="submit"
@@ -2206,7 +2249,29 @@ export function App() {
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={!activeAgentRunning}
+                    disabled={!activeAgentPausable}
+                    onClick={workbench.pauseAgentRun}
+                    data-testid="pauseAgentRun"
+                    data-component="pauseAgentRun"
+                  >
+                    <Pause size={13} strokeWidth={1.8} />
+                    Pause
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!activeAgentResumable}
+                    onClick={workbench.resumeAgentRun}
+                    data-testid="resumeAgentRun"
+                    data-component="resumeAgentRun"
+                  >
+                    <Play size={13} strokeWidth={1.8} />
+                    Resume
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!activeAgentStoppable}
                     onClick={workbench.stopAgentRun}
                     data-testid="stopAgentRun"
                     data-component="stopAgentRun"
@@ -2230,6 +2295,8 @@ export function App() {
               </form>
 
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                <AgentMissionGraph run={activeAgentRun} onSteer={workbench.steerAgentMission} />
+                <AgentCapabilityLedger run={activeAgentRun} onUpdate={workbench.updateAgentCapabilities} />
                 <div className="min-h-[220px] border border-rule bg-surface/55">
                   <div className="flex items-center justify-between border-b border-rule px-3 py-2">
                     <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Observation Console</span>
@@ -5482,7 +5549,23 @@ export function App() {
             </div>
           )}
 
-          {workbench.activeView === "advanced" && (
+          {workbench.activeView === "advanced" && (identityLabOpen ? (
+            <div className="min-h-0 overflow-auto p-4">
+              <IdentityLab
+                workspaceId={workbench.localContext?.workspace.id || ""}
+                identities={workbench.identityProfiles}
+                captures={workbench.scopedTrafficCaptures}
+                activeIdentityId={workbench.activeIdentityActivation?.identityId}
+                activeActivationId={workbench.activeIdentityActivation?.id}
+                busy={workbench.identityBusy}
+                onCreate={workbench.createIdentityLabProfile}
+                onUpdate={workbench.updateIdentityLabProfile}
+                onActivate={workbench.activateIdentityLabProfile}
+                onVerify={workbench.verifyIdentityLabProfile}
+                onArchive={workbench.archiveIdentityLabProfile}
+              />
+            </div>
+          ) : (
             <div className="grid min-h-0 [grid-template-columns:minmax(340px,0.46fr)_minmax(520px,1fr)] max-[1180px]:grid-cols-1">
               <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
                 <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(3,minmax(0,1fr))]">
@@ -5855,7 +5938,7 @@ export function App() {
                 </section>
               </div>
             </div>
-          )}
+          ))}
 
           {workbench.activeView === "sitemap" && (
             <div className="grid min-h-0 [grid-template-columns:minmax(280px,0.55fr)_minmax(360px,1fr)] max-[1180px]:grid-cols-1">

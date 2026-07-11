@@ -130,12 +130,40 @@ export type {
   SecretDetection,
   SensitiveDataRule
 } from "../shared/advancedTesting";
+export type {
+  IdentityActivationRecord,
+  IdentityHealthState,
+  IdentityIsolationMode,
+  IdentityProfile,
+  IdentityProfileDraft
+} from "../shared/identityProfiles";
 
 export type {
   AgentFinding,
+  AgentMission,
+  AgentMissionEntityKind,
+  AgentMissionPriority,
+  AgentMissionSteeringAction,
+  AgentMissionSteeringRequest,
+  AgentObjectiveStatus,
+  AgentHypothesisStatus,
+  AgentExperimentStatus,
+  AgentClaimStatus,
+  AgentCoverageStatus,
+  AgentCapabilityAction,
+  AgentCapabilityActionRequest,
+  AgentCapabilityLease,
+  AgentCapabilityLeaseRequest,
+  AgentCapabilityReceipt,
+  AgentCapabilityState,
+  AgentCapabilityGrant,
+  AgentRiskTier,
+  AgentToolName,
   AgentPolicy,
   AgentRunMemoryEntry,
   AgentRunProfileId,
+  AgentRunRecoveryAction,
+  AgentRunRecoveryRequest,
   AgentRun,
   AgentRunRequest,
   AgentRunStatus,

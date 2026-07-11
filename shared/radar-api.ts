@@ -58,7 +58,14 @@ import type {
   PluginPanelRender,
   PluginDeveloperValidation
 } from "./domain.js";
-import type { AgentRun, AgentRunMemoryEntry, AgentRunRequest } from "./agent-types.js";
+import type {
+  AgentRun,
+  AgentRunMemoryEntry,
+  AgentRunRecoveryRequest,
+  AgentRunRequest,
+  AgentMissionSteeringRequest,
+  AgentCapabilityActionRequest
+} from "./agent-types.js";
 import type { GlobalSearchRequest, GlobalSearchResponse } from "./globalSearch.js";
 import type {
   ProjectBundleApplyResult,
@@ -67,6 +74,11 @@ import type {
   ProjectBundleOptions
 } from "./projectBundle.js";
 import type { HandoffPackageOptions, HandoffPackagePreview } from "./handoffPackage.js";
+import type {
+  IdentityActivationRecord,
+  IdentityProfile,
+  IdentityProfileDraft
+} from "./identityProfiles.js";
 
 export type RadarApi = {
   getLocalContext: () => Promise<LocalContext>;
@@ -168,6 +180,17 @@ export type RadarApi = {
   runPluginApiAction: (request: PluginApiRequest) => Promise<PluginApiResult>;
   getTargets: () => Promise<string[]>;
   setTargets: (targets: string[]) => Promise<string[]>;
+  listIdentityProfiles: () => Promise<IdentityProfile[]>;
+  createIdentityProfile: (draft: IdentityProfileDraft) => Promise<IdentityProfile>;
+  updateIdentityProfile: (payload: { id: string; draft: Partial<IdentityProfileDraft> }) => Promise<IdentityProfile>;
+  activateIdentityProfile: (payload: { identityId: string; url?: string }) => Promise<{
+    identity: IdentityProfile;
+    activation: IdentityActivationRecord;
+    url: string;
+  }>;
+  verifyIdentityProfile: (id: string) => Promise<IdentityProfile>;
+  archiveIdentityProfile: (id: string) => Promise<{ ok: boolean; identities: IdentityProfile[] }>;
+  listIdentityActivations: () => Promise<IdentityActivationRecord[]>;
   sendReplay: (payload: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
   sendWebSocketReplay: (draft: WebSocketReplayDraft) => Promise<WebSocketReplayResult>;
   runBurst: (payload: {
@@ -191,6 +214,11 @@ export type RadarApi = {
   getAiModels: (provider: AiSettings["provider"]) => Promise<AiModelOption[]>;
   refreshAiModels: (settings: AiSettings) => Promise<AiModelOption[]>;
   startAgentRun: (payload: AgentRunRequest) => Promise<AgentRun>;
+  pauseAgentRun: (id: string) => Promise<AgentRun | null>;
+  resumeAgentRun: (id: string) => Promise<AgentRun | null>;
+  recoverAgentRun: (id: string, request: AgentRunRecoveryRequest) => Promise<AgentRun | null>;
+  steerAgentMission: (id: string, request: AgentMissionSteeringRequest) => Promise<AgentRun | null>;
+  updateAgentCapabilities: (id: string, request: AgentCapabilityActionRequest) => Promise<AgentRun | null>;
   stopAgentRun: (id: string) => Promise<AgentRun | null>;
   getAgentRun: (id: string) => Promise<AgentRun | null>;
   listAgentRuns: () => Promise<AgentRun[]>;

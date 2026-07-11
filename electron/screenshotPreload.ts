@@ -1,5 +1,7 @@
 import { contextBridge } from "electron";
 import type { AgentRun, AgentRunMemoryEntry } from "../shared/agent-types.js";
+import { applyAgentMissionSteering, createAgentMission } from "../shared/agentMission.js";
+import { createAgentCapabilityState } from "../shared/agentCapabilities.js";
 import type { AiSettings } from "../shared/ai-types.js";
 import type { RadarApi } from "../shared/radar-api.js";
 import type {
@@ -802,6 +804,21 @@ const radar: RadarApi = {
     targets = nextTargets;
     return targets;
   },
+  listIdentityProfiles: async () => [],
+  createIdentityProfile: async () => {
+    throw new Error("Identity profile creation is unavailable in screenshot fixtures.");
+  },
+  updateIdentityProfile: async () => {
+    throw new Error("Identity profile updates are unavailable in screenshot fixtures.");
+  },
+  activateIdentityProfile: async () => {
+    throw new Error("Identity activation is unavailable in screenshot fixtures.");
+  },
+  verifyIdentityProfile: async () => {
+    throw new Error("Identity verification is unavailable in screenshot fixtures.");
+  },
+  archiveIdentityProfile: async () => ({ ok: true, identities: [] }),
+  listIdentityActivations: async () => [],
   sendReplay: async () => ({
     ok: true,
     status: 200,
@@ -852,12 +869,39 @@ const radar: RadarApi = {
         maxCaptureSample: 20,
         allowRawContext: false
       },
+      mission: createAgentMission(payload.goal, payload.startUrl || "", "2026-05-25T00:00:00.000Z"),
+      capabilities: createAgentCapabilityState(),
       timeline: [{ id: "step-screenshot", createdAt: "2026-05-25T00:00:00.000Z", note: "Run queued." }],
       findings: []
     };
     agentRuns.unshift(run);
     return run;
   },
+  pauseAgentRun: async (id) => {
+    const run = agentRuns.find((item) => item.id === id);
+    if (!run) return null;
+    run.status = "paused";
+    run.updatedAt = "2026-05-25T00:00:30.000Z";
+    return run;
+  },
+  resumeAgentRun: async (id) => {
+    const run = agentRuns.find((item) => item.id === id);
+    if (!run) return null;
+    run.status = "queued";
+    run.updatedAt = "2026-05-25T00:00:45.000Z";
+    return run;
+  },
+  recoverAgentRun: async (id) => agentRuns.find((item) => item.id === id) || null,
+  steerAgentMission: async (id, request) => {
+    const run = agentRuns.find((item) => item.id === id);
+    if (!run?.mission) return null;
+    const result = applyAgentMissionSteering(run.mission, request, "2026-05-25T00:00:50.000Z");
+    if (!result.ok) throw new Error(result.error);
+    run.mission = result.mission;
+    run.updatedAt = "2026-05-25T00:00:50.000Z";
+    return run;
+  },
+  updateAgentCapabilities: async (id) => agentRuns.find((item) => item.id === id) || null,
   stopAgentRun: async (id) => {
     const run = agentRuns.find((item) => item.id === id);
     if (!run) return null;
