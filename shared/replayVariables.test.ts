@@ -43,6 +43,25 @@ describe("replayVariables", () => {
     );
   });
 
+  it("rejects unresolved variables when an environment is selected", () => {
+    const environments: ReplayEnvironment[] = [
+      {
+        id: "env-1",
+        name: "Incomplete",
+        variables: { known: "value" },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ];
+    expect(() =>
+      prepareReplayDraft(
+        { method: "POST", url: "https://example.test/{{missing}}", headers: {}, body: "{{known}}" },
+        environments,
+        "env-1"
+      )
+    ).toThrow("Missing environment variable: missing");
+  });
+
   it("normalizes environments and rejects invalid names", () => {
     expect(normalizeReplayEnvironment({ name: "" }, "env-1", "2026-01-01T00:00:00.000Z")).toBeNull();
     expect(normalizeReplayEnvironments(null)).toEqual([]);

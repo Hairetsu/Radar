@@ -15,6 +15,7 @@ import type {
   WorkflowRun
 } from "./domain.js";
 import { truncateText } from "./text.js";
+import { redactSensitiveHeaders, redactSensitiveText } from "./redaction.js";
 
 export type GlobalSearchKind =
   | "capture"
@@ -329,7 +330,7 @@ function filterMatches(candidate: Candidate, filters: ParsedQuery["filters"]) {
 }
 
 function headersText(headers: Record<string, string> | undefined) {
-  return Object.entries(headers || {})
+  return Object.entries(redactSensitiveHeaders(headers || {}))
     .map(([key, value]) => `${key}: ${value}`)
     .join("\n");
 }
@@ -378,7 +379,7 @@ function captureCandidates(
           field("url", "URL", capture.url, 6),
           field("host", "Host", capture.host, 5),
           field("headers", "Headers", `${headersText(capture.requestHeaders)}\n${headersText(capture.responseHeaders)}`, 3),
-          field("body", "Body", `${capture.requestBody}\n${capture.responseBody}`, 2),
+          field("body", "Body", redactSensitiveText(`${capture.requestBody}\n${capture.responseBody}`), 2),
           field("annotation", "Annotation", annotationText(capture.id, "capture", annotations), 4)
         ]
       })
@@ -410,7 +411,7 @@ function webSocketCandidates(
         fields: [
           field("title", "Title", `${event.direction} ${event.url}`, 7),
           field("url", "URL", event.url, 6),
-          field("payload", "Payload", event.payloadData, 4),
+          field("payload", "Payload", redactSensitiveText(event.payloadData), 4),
           field("headers", "Headers", `${headersText(event.requestHeaders)}\n${headersText(event.responseHeaders)}`, 2),
           field("annotation", "Annotation", annotationText(event.id, "websocket", annotations), 4),
           field("error", "Error", event.error || "", 5)

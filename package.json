@@ -18,6 +18,9 @@
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "test:unit": "vitest run --coverage",
+    "test:regression": "playwright test",
+    "test:regression:build": "pnpm build && playwright test",
+    "test:regression:report": "playwright show-report artifacts/regression/html",
     "test:watch": "vitest",
     "test": "pnpm lint && pnpm test:unit && pnpm build",
     "screenshots": "pnpm build && electron dist-electron/electron/screenshot.js",
@@ -36,6 +39,7 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -43,6 +47,7 @@
     "@types/node": "^25.9.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
     "@vitejs/plugin-react": "^5.2.0",
@@ -53,12 +58,15 @@
     "electron-builder": "^26.0.12",
     "eslint": "^9.15.0",
     "eslint-plugin-react-hooks": "^5.0.0",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.1",
     "vitest": "^4.1.7",
-    "wait-on": "^8.0.1"
+    "wait-on": "^8.0.1",
+    "ws": "^8.21.1"
   },
   "build": {
     "appId": "com.radar.workbench",

@@ -5,6 +5,8 @@ import {
   wildcardToRegExp,
   ruleAllows,
   isAllowedTarget,
+  normalizeTargetRule,
+  normalizeTargetRules,
   shouldTrustLocalCertificate
 } from "./allowlist";
 
@@ -71,6 +73,16 @@ describe("allowlist", () => {
     const url = new URL("http://localhost:3000");
     expect(ruleAllows(url, "")).toBe(false);
     expect(ruleAllows(url, "   ")).toBe(false);
+  });
+
+  it("normalizes, deduplicates, and bounds saved target rules", () => {
+    expect(normalizeTargetRules([" HTTP://LOCALHOST:3000/ ", "http://localhost:3000", "LOCAL", "bad path"])).toEqual([
+      "http://localhost:3000",
+      "local"
+    ]);
+    expect(normalizeTargetRule("HTTPS://*.EXAMPLE.TEST/")).toBe("https://*.example.test");
+    expect(normalizeTargetRule("ftp://example.test")).toBeNull();
+    expect(normalizeTargetRule("https://* evil.test")).toBeNull();
   });
 
   it("returns false for invalid certificate urls", () => {

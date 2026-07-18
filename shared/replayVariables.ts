@@ -99,5 +99,12 @@ export function prepareReplayDraft(
   if (!environmentId) {
     return normalized;
   }
-  return applyEnvironmentToDraft(normalized, environments, environmentId);
+  const prepared = applyEnvironmentToDraft(normalized, environments, environmentId);
+  const unresolved = [prepared.url, ...Object.values(prepared.headers), prepared.body]
+    .flatMap((value) => [...value.matchAll(VARIABLE_PATTERN)].map((match) => match[1]))
+    .filter(Boolean);
+  if (unresolved.length > 0) {
+    throw new Error(`Missing environment variable: ${[...new Set(unresolved)].join(", ")}`);
+  }
+  return prepared;
 }

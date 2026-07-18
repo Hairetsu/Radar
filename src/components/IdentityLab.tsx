@@ -390,8 +390,12 @@ export function IdentityLab({
         await onCreate(draft);
       }
       resetForm();
-    } catch {
-      setFormError(`Identity ${editingProfile ? "update" : "creation"} failed. Review the profile and try again.`);
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : `Identity ${editingProfile ? "update" : "creation"} failed. Review the profile and try again.`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -542,7 +546,7 @@ export function IdentityLab({
               </label>
               <label htmlFor={`${formId}-notes`} className="grid gap-1">
                 <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Operator notes</span>
-                <Textarea id={`${formId}-notes`} variant="bare" className="h-[68px]" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} disabled={locked} maxLength={2000} />
+                  <Textarea id={`${formId}-notes`} variant="bare" className="h-[68px]" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} disabled={locked} maxLength={2000} data-testid="identityNotes" />
               </label>
               <div className="flex items-center justify-between gap-2 border border-rule bg-surface/40 px-2 py-1.5 font-mono text-[8px] uppercase tracking-[0.12em] text-muted">
                 <span>Isolation</span>

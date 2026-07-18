@@ -2,6 +2,7 @@ node_modules
 dist
 dist-electron
 coverage
+artifacts/regression
 release
 .DS_Store
 *.log

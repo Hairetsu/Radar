@@ -541,6 +541,8 @@ export function App() {
   const [bulkTagValue, setBulkTagValue] = useState("");
   const [annotationTags, setAnnotationTags] = useState("");
   const [annotationComment, setAnnotationComment] = useState("");
+  const [webSocketAnnotationTags, setWebSocketAnnotationTags] = useState("");
+  const [webSocketAnnotationComment, setWebSocketAnnotationComment] = useState("");
   const [findingTemplateId, setFindingTemplateId] = useState<FindingTemplateId>("headers");
   const [findingDraft, setFindingDraft] = useState<Finding | null>(null);
   const [findingReportFormat, setFindingReportFormat] = useState<"markdown" | "html">("markdown");
@@ -852,6 +854,16 @@ export function App() {
   const selectedWebSocketEvent =
     filteredWebSocketEvents.find((event) => event.id === selectedWebSocketId) || filteredWebSocketEvents[0] || null;
   const selectedWebSocketDetail = websocketDetailText(selectedWebSocketEvent);
+  useEffect(() => {
+    if (!selectedWebSocketEvent) {
+      setWebSocketAnnotationTags("");
+      setWebSocketAnnotationComment("");
+      return;
+    }
+    const annotation = getEvidenceAnnotation(selectedWebSocketEvent.id, "websocket");
+    setWebSocketAnnotationTags(annotation.tags.join(", "));
+    setWebSocketAnnotationComment(annotation.comment);
+  }, [evidenceAnnotations, getEvidenceAnnotation, selectedWebSocketEvent]);
   const selectWebSocketEvent = (eventId: string, event?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => {
     const meta = Boolean(event?.metaKey || event?.ctrlKey);
     const shift = Boolean(event?.shiftKey);
@@ -2173,6 +2185,15 @@ export function App() {
                   Commit
                 </Button>
               )}
+              {workbench.activeView === "repeater" && workbench.notice && (
+                <span
+                  className="max-w-[340px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] tracking-[0.04em] text-danger"
+                  role="status"
+                  data-testid="replayNotice"
+                >
+                  {workbench.notice}
+                </span>
+              )}
               {workbench.activeView === "ssl" && (
                 <span className="max-w-[340px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] tracking-[0.04em] text-muted">
                   {workbench.notice}
@@ -2949,7 +2970,7 @@ export function App() {
                 </div>
               </div>
 
-              <div className="grid min-h-0 radar-detail-pane [grid-template-rows:auto_auto_minmax(0,1fr)]">
+              <div className="grid min-h-0 radar-detail-pane [grid-template-rows:auto_auto_auto_minmax(0,1fr)]">
                 <div className="flex items-stretch gap-0 border-b border-rule">
                   <span className="inline-flex h-[38px] items-center gap-2 border-0 border-r border-rule bg-signal/10 px-3 font-mono text-[9.5px] font-medium uppercase tracking-[0.16em] text-signal">
                     <Square size={9} strokeWidth={2} />
@@ -3005,6 +3026,44 @@ export function App() {
                     </div>
                   ))}
                 </div>
+
+                {selectedWebSocketEvent && (
+                  <div className="grid gap-2 border-b border-rule px-4 py-3 [grid-template-columns:minmax(0,1fr)_minmax(0,1.2fr)_auto] max-[900px]:grid-cols-1">
+                    <Input
+                      variant="compact"
+                      value={webSocketAnnotationTags}
+                      onChange={(event) => setWebSocketAnnotationTags(event.target.value)}
+                      placeholder="tags: review, websocket"
+                      data-testid="webSocketTags"
+                    />
+                    <Input
+                      variant="compact"
+                      value={webSocketAnnotationComment}
+                      onChange={(event) => setWebSocketAnnotationComment(event.target.value)}
+                      placeholder="comment"
+                      data-testid="webSocketComment"
+                    />
+                    <Button
+                      variant="outline"
+                      size="compact"
+                      onClick={() => {
+                        void workbench.saveEvidenceAnnotation({
+                          evidenceId: selectedWebSocketEvent.id,
+                          kind: "websocket",
+                          tags: webSocketAnnotationTags
+                            .split(",")
+                            .map((tag) => tag.trim().toLowerCase())
+                            .filter(Boolean),
+                          comment: webSocketAnnotationComment,
+                          updatedAt: new Date().toISOString()
+                        });
+                      }}
+                      data-testid="saveWebSocketAnnotation"
+                    >
+                      Save note
+                    </Button>
+                  </div>
+                )}
 
                 <pre
                   className="min-h-0 select-text cursor-text radar-pre-gradient px-5 py-4"
@@ -3661,9 +3720,10 @@ export function App() {
                         )
                       }
                       spellCheck={false}
+                      data-testid="webSocketReplayPayload"
                     />
                     <div className="mt-2 flex gap-2">
-                      <Button variant="solid" onClick={() => void workbench.sendWebSocketReplay()}>
+                      <Button variant="solid" onClick={() => void workbench.sendWebSocketReplay()} data-testid="sendWebSocketReplay">
                         Send frame
                       </Button>
                       {workbench.webSocketReplayResult && (
@@ -3903,17 +3963,17 @@ export function App() {
                         <Play size={13} strokeWidth={1.7} />
                         Start
                       </Button>
-                      <Button variant="outline" className="h-8 px-2" type="button" onClick={() => void workbench.pauseAutomateSession()}>
+                      <Button variant="outline" className="h-8 px-2" type="button" onClick={() => void workbench.pauseAutomateSession()} data-testid="pauseAutomateSession">
                         Pause
                       </Button>
-                      <Button variant="outline" className="h-8 px-2" type="button" onClick={() => void workbench.resumeAutomateSession()}>
+                      <Button variant="outline" className="h-8 px-2" type="button" onClick={() => void workbench.resumeAutomateSession()} data-testid="resumeAutomateSession">
                         Resume
                       </Button>
-                      <Button variant="ghost" className="h-8 px-2" type="button" onClick={() => void workbench.stopAutomateSession()}>
+                      <Button variant="ghost" className="h-8 px-2" type="button" onClick={() => void workbench.stopAutomateSession()} data-testid="stopAutomateSession">
                         <Square size={12} strokeWidth={1.7} />
                         Stop
                       </Button>
-                      <Button variant="ghost" className="h-8 px-2" type="button" onClick={() => void workbench.retryAutomateSession()}>
+                      <Button variant="ghost" className="h-8 px-2" type="button" onClick={() => void workbench.retryAutomateSession()} data-testid="retryAutomateSession">
                         <Repeat2 size={12} strokeWidth={1.7} />
                         Retry
                       </Button>

@@ -1,35 +1,5 @@
 import type { CapturedRequest, WebSocketEvent } from "../../shared/domain.js";
-
-const SENSITIVE_HEADERS = new Set([
-  "authorization",
-  "cookie",
-  "set-cookie",
-  "x-api-key",
-  "x-auth-token",
-  "proxy-authorization"
-]);
-
-const TOKEN_PATTERN =
-  /(bearer\s+[a-z0-9._-]+|api[_-]?key["\s:=]+[a-z0-9._-]+|token["\s:=]+[a-z0-9._-]+)/gi;
-
-function redactHeaders(headers: Record<string, string>) {
-  const next: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers || {})) {
-    if (SENSITIVE_HEADERS.has(key.toLowerCase())) {
-      next[key] = "[REDACTED]";
-    } else {
-      next[key] = value;
-    }
-  }
-  return next;
-}
-
-function redactBody(text: string) {
-  if (!text) {
-    return "";
-  }
-  return String(text).replace(TOKEN_PATTERN, "[REDACTED]");
-}
+import { redactSensitiveHeaders as redactHeaders, redactSensitiveText as redactBody } from "../../shared/redaction.js";
 
 function formatCapture(capture: CapturedRequest, includeRaw: boolean) {
   const reqHeaders = includeRaw ? capture.requestHeaders : redactHeaders(capture.requestHeaders);
