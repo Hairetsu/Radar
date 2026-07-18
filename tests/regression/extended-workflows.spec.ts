@@ -173,6 +173,9 @@ test("[REG-FIND-005] @core records retest notes and reviewed-to-resolved transit
   await page.getByTestId("findingRow-demo-finding-cache").click();
   await page.getByTestId("findingRetest").fill("Regression retest confirms the cache policy is corrected.");
   await page.getByTestId("findingStatus").selectOption("retest-passed");
+  await page.waitForTimeout(1_750);
+  await expect(page.getByTestId("findingRetest")).toHaveValue("Regression retest confirms the cache policy is corrected.");
+  await expect(page.getByTestId("findingStatus")).toHaveValue("retest-passed");
   await page.getByTestId("saveFinding").click();
   await expect(page.getByTestId("findingRow-demo-finding-cache")).toContainText("retest-passed");
   await expect(page.getByTestId("findingRetest")).toHaveValue(/Regression retest/);

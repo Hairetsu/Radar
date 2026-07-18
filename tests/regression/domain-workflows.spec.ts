@@ -118,6 +118,10 @@ test("[REG-FIND-004] @core @persistence saves edited finding fields", async ({ r
   await page.getByTestId("findingTitle").fill("Regression-updated secret disclosure");
   await page.getByTestId("findingOwner").fill("regression-owner");
   await page.getByTestId("findingStatus").selectOption("reviewed");
+  await page.waitForTimeout(1_750);
+  await expect(page.getByTestId("findingTitle")).toHaveValue("Regression-updated secret disclosure");
+  await expect(page.getByTestId("findingOwner")).toHaveValue("regression-owner");
+  await expect(page.getByTestId("findingStatus")).toHaveValue("reviewed");
   await page.getByTestId("saveFinding").click();
   await expect(page.getByTestId("findingRow-demo-finding-secret")).toContainText("Regression-updated secret disclosure");
   await expect(page.getByTestId("findingOwner")).toHaveValue("regression-owner");

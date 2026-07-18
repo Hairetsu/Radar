@@ -569,6 +569,7 @@ export function App() {
   const [selectedWebSocketId, setSelectedWebSocketId] = useState("");
   const [selectedWebSocketIds, setSelectedWebSocketIds] = useState<string[]>([]);
   const [identityLabOpen, setIdentityLabOpen] = useState(false);
+  const findingSelectionIdRef = useRef("");
   const webSocketSelectionAnchorRef = useRef("");
   const trafficFiltersActive = Boolean(
     workbench.trafficSearch.trim() ||
@@ -701,20 +702,25 @@ export function App() {
     }
   }, [requestMenu, requestMenuCapture]);
   const selectedCapture = workbench.selected;
+  const selectedCaptureId = selectedCapture?.id || "";
   const getEvidenceAnnotation = workbench.getEvidenceAnnotation;
-  const evidenceAnnotations = workbench.evidenceAnnotations;
 
   useEffect(() => {
-    if (!selectedCapture) {
+    if (!selectedCaptureId) {
       setAnnotationTags("");
       setAnnotationComment("");
       return;
     }
-    const annotation = getEvidenceAnnotation(selectedCapture.id, "capture");
+    const annotation = getEvidenceAnnotation(selectedCaptureId, "capture");
     setAnnotationTags(annotation.tags.join(", "));
     setAnnotationComment(annotation.comment);
-  }, [selectedCapture, getEvidenceAnnotation, evidenceAnnotations]);
+  }, [selectedCaptureId, getEvidenceAnnotation]);
   useEffect(() => {
+    const selectedFindingId = workbench.selectedFinding?.id || "";
+    if (findingSelectionIdRef.current === selectedFindingId) {
+      return;
+    }
+    findingSelectionIdRef.current = selectedFindingId;
     setFindingDraft(workbench.selectedFinding);
     setFindingTemplateId(workbench.selectedFinding?.templateId || "headers");
   }, [workbench.selectedFinding]);
@@ -853,17 +859,18 @@ export function App() {
   }, [webSocketDirectionFilter, workbench.filteredWebSocketEvents]);
   const selectedWebSocketEvent =
     filteredWebSocketEvents.find((event) => event.id === selectedWebSocketId) || filteredWebSocketEvents[0] || null;
+  const selectedWebSocketEventId = selectedWebSocketEvent?.id || "";
   const selectedWebSocketDetail = websocketDetailText(selectedWebSocketEvent);
   useEffect(() => {
-    if (!selectedWebSocketEvent) {
+    if (!selectedWebSocketEventId) {
       setWebSocketAnnotationTags("");
       setWebSocketAnnotationComment("");
       return;
     }
-    const annotation = getEvidenceAnnotation(selectedWebSocketEvent.id, "websocket");
+    const annotation = getEvidenceAnnotation(selectedWebSocketEventId, "websocket");
     setWebSocketAnnotationTags(annotation.tags.join(", "));
     setWebSocketAnnotationComment(annotation.comment);
-  }, [evidenceAnnotations, getEvidenceAnnotation, selectedWebSocketEvent]);
+  }, [getEvidenceAnnotation, selectedWebSocketEventId]);
   const selectWebSocketEvent = (eventId: string, event?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => {
     const meta = Boolean(event?.metaKey || event?.ctrlKey);
     const shift = Boolean(event?.shiftKey);

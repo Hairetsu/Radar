@@ -148,6 +148,9 @@ test("[REG-HTTP-005] @core @persistence annotates evidence and exposes it to sea
   await page.getByTestId("trafficRow-demo-cap-dashboard").click();
   await page.getByTestId("captureTags").fill("regression, dashboard");
   await page.getByTestId("captureComment").fill("Regression evidence comment");
+  await page.waitForTimeout(1_250);
+  await expect(page.getByTestId("captureTags")).toHaveValue("regression, dashboard");
+  await expect(page.getByTestId("captureComment")).toHaveValue("Regression evidence comment");
   await page.getByTestId("saveCaptureAnnotation").click();
   await expect(page.getByText("Annotation saved", { exact: true })).toBeVisible();
   await page.getByTestId("openGlobalSearch").click();
