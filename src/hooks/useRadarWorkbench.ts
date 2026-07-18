@@ -34,7 +34,9 @@ import {
 } from "../../shared/replayTabs.js";
 import { createCollectionItem, normalizeReplayCollections } from "../../shared/replayCollections.js";
 import { createReplayEnvironment } from "../../shared/replayVariables.js";
+import { redactSensitiveHeaders, redactSensitiveText } from "../../shared/redaction.js";
 import { webSocketFrameToDraft } from "../../shared/websocketReplay.js";
+import { normalizeBurstLimits } from "../../shared/burst.js";
 import {
   assignmentsForPayload,
   createAutomatePayloadSet,
@@ -1573,11 +1575,13 @@ export function useRadarWorkbench() {
     try {
       setNotice("");
       const request = { ...draft, headers: parseHeaders(headersText) };
+      const limits = normalizeBurstLimits({ count, concurrency, delayMs });
+      setCount(limits.count);
+      setConcurrency(limits.concurrency);
+      setDelayMs(limits.delayMs);
       const response = await window.radar.runBurst({
         request,
-        count,
-        concurrency,
-        delayMs,
+        ...limits,
         environmentId: activeReplayTab?.environmentId || ""
       });
       setLastBurst(response);
@@ -3234,7 +3238,18 @@ export function useRadarWorkbench() {
       if (selected.length === 0) {
         return;
       }
-      const text = selected.map((capture) => formatCapturedRequest(capture, format)).join("\n\n");
+      const text = selected
+        .map((capture) =>
+          formatCapturedRequest(
+            {
+              ...capture,
+              requestHeaders: redactSensitiveHeaders(capture.requestHeaders),
+              requestBody: redactSensitiveText(capture.requestBody)
+            },
+            format
+          )
+        )
+        .join("\n\n");
       try {
         await window.navigator.clipboard.writeText(text);
         setNotice(`Exported ${selected.length} capture${selected.length === 1 ? "" : "s"}`);
@@ -3501,6 +3516,13 @@ export function useRadarWorkbench() {
         nextWorkflowRuns,
         nextPlugins,
         nextPluginAudit,
+        nextSavedFilters,
+        nextProjectNotes,
+        nextSavedViews,
+        nextEvidenceAnnotations,
+        nextReplayTabState,
+        nextReplayEnvironments,
+        nextReplayCollections,
         nextAutomatePayloadSets,
         nextAutomateSessions
       ] = await Promise.all([
@@ -3519,6 +3541,13 @@ export function useRadarWorkbench() {
         window.radar.getWorkflowRuns?.() ?? [],
         window.radar.getPlugins?.() ?? [],
         window.radar.getPluginAudit?.() ?? [],
+        window.radar.getSavedFilters?.() ?? [],
+        window.radar.getProjectNotes?.() ?? [],
+        window.radar.getSavedViews?.() ?? [],
+        window.radar.getEvidenceAnnotations?.() ?? [],
+        window.radar.getReplayTabState?.() ?? defaultReplayTabState(),
+        window.radar.getReplayEnvironments?.() ?? [],
+        window.radar.getReplayCollections?.() ?? [],
         window.radar.getAutomatePayloadSets?.() ?? [],
         window.radar.listAutomateSessions?.() ?? []
       ]);
@@ -3551,6 +3580,19 @@ export function useRadarWorkbench() {
       setWorkflowRevisions([]);
       setPlugins(nextPlugins);
       setPluginAudit(nextPluginAudit);
+      setSavedFilters(nextSavedFilters);
+      setProjectNotes(nextProjectNotes);
+      setSelectedProjectNoteId(nextProjectNotes[0]?.id || "");
+      setProjectNoteTitle(nextProjectNotes[0]?.title || "");
+      setProjectNoteBody(nextProjectNotes[0]?.body || "");
+      setSavedViews(nextSavedViews);
+      setEvidenceAnnotations(nextEvidenceAnnotations);
+      const normalizedTabs = normalizeReplayTabState(nextReplayTabState);
+      setReplayTabState(normalizedTabs);
+      setReplayEnvironments(nextReplayEnvironments);
+      setReplayCollections(nextReplayCollections);
+      const activeTab = normalizedTabs.tabs.find((tab) => tab.id === normalizedTabs.activeTabId) || normalizedTabs.tabs[0];
+      setHeadersText(formatHeaders(activeTab?.draft.headers || emptyDraft.headers));
       setPluginApiRequestText(
         nextPlugins[0]
           ? JSON.stringify({ pluginId: nextPlugins[0].id, action: "captures:list", input: { query: "" } }, null, 2)
@@ -3704,6 +3746,10 @@ export function useRadarWorkbench() {
         return;
       }
       if (event.key === "Escape") {
+        if (globalSearchOpen) {
+          setGlobalSearchOpen(false);
+          return;
+        }
         if (trafficSearch.trim() || webSocketSearch.trim() || trafficMethodFilter !== "all" || trafficTypeFilter !== "all") {
           setTrafficSearch("");
           setWebSocketSearch("");
@@ -3714,7 +3760,7 @@ export function useRadarWorkbench() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeView, openGlobalSearch, trafficMethodFilter, trafficSearch, trafficTypeFilter, webSocketSearch]);
+  }, [activeView, globalSearchOpen, openGlobalSearch, trafficMethodFilter, trafficSearch, trafficTypeFilter, webSocketSearch]);
 
   const meta = viewMeta[activeView];
   const utc = clock.toISOString().replace("T", " ").slice(0, 19) + "Z";

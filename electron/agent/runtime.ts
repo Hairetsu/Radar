@@ -1111,7 +1111,24 @@ export class AgentRuntime {
     }
 
     if (requestedAction === "draft-finding") {
+      const toolName = entry.toolCall?.tool || entry.toolResult?.tool || "agent step";
+      const error = entry.toolResult && !entry.toolResult.ok ? entry.toolResult.error : entry.note || "The agent step failed.";
+      const evidenceRefs = entry.target?.evidenceId ? [entry.target.evidenceId] : [];
+      const draft: AgentFinding = {
+        id: createId("agent-finding"),
+        createdAt: nowIso(),
+        title: `Review failed ${toolName} step`,
+        confidence: "low",
+        evidenceRefs,
+        notes: `Operator-created draft from recovery: ${error}`,
+        affectedAssets: entry.target?.browserUrl ? [entry.target.browserUrl] : [],
+        reproductionNotes: `Review timeline entry ${entry.id} and retry the bounded ${toolName} operation if appropriate.`,
+        severityRationale: "A failed tool step is operational evidence only and does not establish a security impact.",
+        remediation: "Resolve the tool or target precondition, then repeat the scoped observation.",
+        uncertainties: ["The failed step did not produce complete security evidence."]
+      };
       return withUpdate(run, this.deps.saveRun, {
+        findings: [...run.findings, draft],
         timeline: [
           ...run.timeline,
           timeline("Operator requested a draft finding from the failed step.", {
@@ -2053,6 +2070,9 @@ export class AgentRuntime {
 
         if (this.isStopped(runId)) {
           return;
+        }
+        if (Date.now() - counters.startedAt > run.policy.maxRuntimeMs) {
+          throw new Error("Agent exceeded its runtime budget while waiting for the next planner decision.");
         }
 
         if (!decision || (decision.action !== "tool" && decision.action !== "finish")) {

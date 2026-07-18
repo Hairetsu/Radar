@@ -1712,4 +1712,25 @@ describe("localStore", () => {
     });
     reopened.close();
   });
+
+  it("round-trips evidence annotation tag arrays", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+
+    store.saveEvidenceAnnotation(context.session.id, {
+      evidenceId: "ws-annotation-1",
+      kind: "websocket",
+      tags: ["websocket", "review"],
+      comment: "Retain structured tags.",
+      updatedAt: "2026-05-25T12:00:00.000Z"
+    });
+
+    expect(store.listEvidenceAnnotations(context.session.id)).toContainEqual(
+      expect.objectContaining({
+        evidenceId: "ws-annotation-1",
+        tags: ["websocket", "review"]
+      })
+    );
+    store.close();
+  });
 });

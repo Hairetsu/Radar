@@ -30,6 +30,7 @@ async function callOpenAi({
   const root = (baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
   const response = await fetch(`${root}/chat/completions`, {
     method: "POST",
+    signal: AbortSignal.timeout(4_000),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`
@@ -73,6 +74,7 @@ async function callAnthropic({
 }) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
+    signal: AbortSignal.timeout(4_000),
     headers: {
       "Content-Type": "application/json",
       "x-api-key": apiKey,

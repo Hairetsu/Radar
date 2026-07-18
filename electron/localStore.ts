@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { DEFAULT_ALLOWLIST } from "../shared/allowlist.js";
+import { DEFAULT_ALLOWLIST, normalizeTargetRules } from "../shared/allowlist.js";
 import type {
   AgentFinding,
   AgentPolicy,
@@ -691,6 +691,20 @@ function schemaMigrationRows(db: DatabaseSync) {
     .all() as SchemaMigrationRow[];
 }
 
+function assertSupportedLocalStoreVersion(db: DatabaseSync) {
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'")
+    .get() as { name?: string } | undefined;
+  if (!table?.name) return;
+  const row = db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version?: number } | undefined;
+  const latestApplied = Number(row?.version || 0);
+  if (latestApplied > LOCAL_STORE_SCHEMA_VERSION) {
+    throw new Error(
+      `Local store schema version ${latestApplied} is newer than this Radar build supports (${LOCAL_STORE_SCHEMA_VERSION}).`
+    );
+  }
+}
+
 function runLocalStoreMigrations(db: DatabaseSync, migrations: LocalStoreMigration[]) {
   const rows = schemaMigrationRows(db);
   const applied = new Set(rows.map((row) => Number(row.version)));
@@ -728,6 +742,12 @@ export type LocalStore = ReturnType<typeof openLocalStore>;
 export function openLocalStore(userDataPath: string) {
   fs.mkdirSync(userDataPath, { recursive: true });
   const db = new DatabaseSync(path.join(userDataPath, "radar-local.sqlite"));
+  try {
+    assertSupportedLocalStoreVersion(db);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
   configureLocalStoreDatabase(db);
 
   const applyCurrentSchema = () => {
@@ -1175,8 +1195,7 @@ export function openLocalStore(userDataPath: string) {
   };
 
   const setTargets = (workspaceId: string, targets: string[]) => {
-    const next = targets.map((target) => target.trim()).filter(Boolean).slice(0, 40);
-    const saved = next.length > 0 ? next : [...DEFAULT_ALLOWLIST];
+    const saved = normalizeTargetRules(targets);
 
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -2241,7 +2260,7 @@ export function openLocalStore(userDataPath: string) {
       rows.map((row) => ({
         evidenceId: row.evidence_id,
         kind: row.kind,
-        tags: parseJsonObject<string[]>(row.tags_json, []),
+        tags: parseJsonArray<string>(row.tags_json),
         comment: row.comment,
         updatedAt: row.updated_at
       }))

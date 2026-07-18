@@ -4,6 +4,35 @@ export const DEFAULT_ALLOWLIST = [
   "http://[::1]:*"
 ];
 
+const HOSTNAME_RULE = /^(?:\[::1\]|[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)$/i;
+const WILDCARD_ORIGIN_RULE = /^(https?|wss?):\/\/[^\s/]*\*[^\s/]*(?::(?:\d+|\*))?\/?$/i;
+
+export function normalizeTargetRule(value: unknown) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return null;
+  if (trimmed.toLowerCase() === "local") return "local";
+  if (trimmed.includes("*")) {
+    return WILDCARD_ORIGIN_RULE.test(trimmed) ? trimmed.toLowerCase().replace(/\/$/, "") : null;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:", "ws:", "wss:"].includes(parsed.protocol) ? parsed.origin : null;
+  } catch {
+    return HOSTNAME_RULE.test(trimmed) ? trimmed.toLowerCase() : null;
+  }
+}
+
+export function normalizeTargetRules(values: unknown, fallback = DEFAULT_ALLOWLIST) {
+  if (!Array.isArray(values)) return [...fallback];
+  const unique = new Set<string>();
+  for (const value of values.slice(0, 80)) {
+    const normalized = normalizeTargetRule(value);
+    if (normalized) unique.add(normalized);
+    if (unique.size >= 40) break;
+  }
+  return unique.size > 0 ? [...unique] : [...fallback];
+}
+
 export function isLocalHost(hostname: string) {
   return hostname === "localhost" || hostname === "::1" || /^127\./.test(hostname);
 }
