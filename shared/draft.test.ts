@@ -9,6 +9,13 @@ describe("draft", () => {
       headers: {
         Host: "localhost",
         "Content-Length": "10",
+        Connection: "keep-alive",
+        "Keep-Alive": "timeout=5",
+        "Proxy-Authorization": "Basic fixture-secret",
+        TE: "trailers",
+        Trailer: "Expires",
+        "Transfer-Encoding": "chunked",
+        Upgrade: "websocket",
         Accept: "application/json"
       },
       body: '{"a":1}'

@@ -81,7 +81,7 @@ For a full user-facing guide to the app, see [docs/USER_GUIDE.md](docs/USER_GUID
 
 ![Radar HTTP/S view](docs/screens/radar-01-traffic.png)
 
-HTTP and HTTPS capture log filtered to the current scope. WebSocket frames are intentionally separated into the WebSocket tab. The toolbar narrows requests by HTTP method, resource type, sort field, sort direction, or a scoped query such as `method:POST path:/api status:401,403 mime:json`. Plain text without field syntax still falls back to substring search across URL, headers, and bodies. Saved filters can be stored per workspace and reapplied from filter chips. Tags and comments persist on individual captures; multi-select supports bulk tag, export, and delete. `⌘F` / `Ctrl+F` focuses the query bar; `Escape` clears it when focused. Each row shows method, status, host, path, resource type, and round-trip duration. Click selects one request; Cmd/Ctrl-click toggles individual rows; Shift-click selects ranges for AI context. Selecting a row reveals selectable request/response detail with TLS info on the right; tag and comment fields sit above the detail pane. **Copy** puts the active detail pane on the clipboard, and **Repeater** clones the selected request into Repeater. Right-click a row or the detail pane to copy the request as cURL, Bash, Python, Fetch, or raw HTTP, copy its URL, add the origin to scope, send it to Repeater, or delete the capture. Empty state reads _"No in-scope HTTP/S requests intercepted"_ until matching traffic flows in.
+HTTP and HTTPS capture log filtered to the current scope. WebSocket frames are intentionally separated into the WebSocket tab. The toolbar narrows requests by HTTP method, resource type, sort field, sort direction, or a scoped query such as `method:POST path:/api status:401,403 mime:json`. Plain text without field syntax falls back to a redacted search index across URL, headers, and bodies so bearer tokens, cookies, and API keys do not become default search results. Saved filters can be stored per workspace and reapplied from filter chips. Tags and comments persist on individual captures; multi-select supports bulk tag, redacted export, and delete. `⌘F` / `Ctrl+F` focuses the query bar; `Escape` clears it when focused. Each row shows method, status, host, path, resource type, and round-trip duration. Click selects one request; Cmd/Ctrl-click toggles individual rows; Shift-click selects ranges for AI context. Selecting a row reveals selectable request/response detail with TLS info on the right; tag and comment fields sit above the detail pane. **Copy** puts the active detail pane on the clipboard, and **Repeater** clones the selected request into Repeater. Right-click a row or the detail pane to copy the request as cURL, Bash, Python, Fetch, or raw HTTP, copy its URL, add the origin to scope, send it to Repeater, or delete the capture. Empty state reads _"No in-scope HTTP/S requests intercepted"_ until matching traffic flows in.
 
 ![Radar request context menu](docs/screens/radar-06-request-menu.png)
 
@@ -97,7 +97,7 @@ Scoped proxy request and response queue. Turn **Requests On** to pause in-scope 
 
 ![Radar Repeater view](docs/screens/radar-02-repeater.png)
 
-Manual replay surface with multiple tabs, per-tab history, response diffing, environment variables, collections, request transforms, and optional WebSocket frame replay. Left: method selector, URL line, JSON-edited headers, free-form body, transform shortcuts, and **Transmit** for a single round trip. Right: the Saturate burst panel (count / parallel / delay), response well, replay history, diff panel, and collection/environment shortcuts. **Trust Origin** in the panel header pushes the current URL's origin into the scope allowlist in one click.
+Manual replay surface with multiple tabs, per-tab history, response diffing, environment variables, collections, request transforms, and optional WebSocket frame replay. Left: method selector, URL line, JSON-edited headers, free-form body, transform shortcuts, and **Transmit** for a single round trip. Right: the Saturate burst panel (count / parallel / delay), response well, replay history, diff panel, and collection/environment shortcuts. **Trust Origin** in the panel header pushes the current URL's origin into the scope allowlist in one click. Any unresolved `{{variable}}` fails before transmission, and hop-by-hop/proxy credential headers are stripped from materialized requests.
 
 ### 05 — Automate
 
@@ -107,7 +107,7 @@ Manual payload-position testing for the active Repeater draft. Use explicit `{{p
 
 ### 06 — Findings
 
-Durable findings inbox shared by Manual-First and AI-First. Create draft findings from selected HTTP/S captures, WebSocket frames, or Automate results; choose templates for common web classes; filter by text, status, severity, owner/assignee, and component; track severity, confidence, status, component, affected assets, reproduction, impact, remediation, owner, assignee, notes, and retest result; review operator-controlled duplicate merge suggestions; attach new evidence during retest; and build Markdown or HTML reports with local presets, narrative sections, validation warnings, retest matrix rows, and redacted evidence appendices by default. Raw evidence export is an explicit toggle.
+Durable findings inbox shared by Manual-First and AI-First. Create draft findings from selected HTTP/S captures, WebSocket frames, or Automate results; choose templates for common web classes; filter by text, status, severity, owner/assignee, and component; track severity, confidence, status, component, affected assets, reproduction, impact, remediation, owner, assignee, notes, and retest result; review operator-controlled duplicate merge suggestions; attach new evidence during retest; and build Markdown or HTML reports with local presets, narrative sections, validation warnings, retest matrix rows, and redacted evidence appendices by default. Raw evidence export is an explicit toggle and remains limited to evidence referenced by the included findings.
 
 ### 07 — Workflows
 
@@ -246,6 +246,8 @@ The interface is a themed "operator console" aesthetic:
 See [docs/CODE_CONVENTIONS.md](docs/CODE_CONVENTIONS.md) for the repo-specific code style guide used for future development.
 See [docs/BRANCHING.md](docs/BRANCHING.md) for the protected branch and promotion workflow.
 See [docs/MANUAL_QA_CHECKLIST.md](docs/MANUAL_QA_CHECKLIST.md) for the twelve-view release and demo QA checklist.
+See [docs/REGRESSION_TESTING.md](docs/REGRESSION_TESTING.md) for the 164-case multi-instance Playwright Electron regression suite, loopback fixture labs, platform/soak gates, and release report artifacts.
+See [docs/REGRESSION_SUITE_SPEC.md](docs/REGRESSION_SUITE_SPEC.md) for the full real-use workflow catalog and execution roadmap.
 
 ## Project Layout
 

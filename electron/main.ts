@@ -17,6 +17,7 @@ import {
 import {
   DEFAULT_ALLOWLIST,
   isAllowedTarget,
+  normalizeTargetRules,
   shouldTrustLocalCertificate
 } from "../shared/allowlist.js";
 import { toCaptureEntry, proxyRequestToCapture } from "../shared/capture.js";
@@ -72,6 +73,7 @@ import type {
   AgentStorageState
 } from "../shared/agent-types.js";
 import { normalizeDraft, MAX_REPLAY_BODY } from "../shared/draft.js";
+import { normalizeBurstLimits } from "../shared/burst.js";
 import { safeJsonHeaders } from "../shared/headers.js";
 import { matchingInterceptRules, normalizeInterceptRules } from "../shared/interceptRules.js";
 import { applyMatchReplaceRules, normalizeMatchReplaceRules } from "../shared/matchReplace.js";
@@ -158,10 +160,25 @@ import { findCdpEndpointForUrl, type CdpListEntry } from "./chromeDebugging.js";
 import { findSystemBrowser } from "./systemBrowser.js";
 import { ensureRadarKeychainInSearchList, trustProxyCa } from "./trustCa.js";
 
+const regressionUserDataPath = process.env.RADAR_REGRESSION_USER_DATA_DIR?.trim();
+if (regressionUserDataPath) {
+  app.setPath("userData", path.resolve(regressionUserDataPath));
+}
+
+const regressionArtifactPath = process.env.RADAR_REGRESSION_ARTIFACT_DIR?.trim();
+
+const regressionProxyPort = Number.parseInt(process.env.RADAR_REGRESSION_PROXY_PORT || "", 10);
+const defaultProxyPort = Number.isInteger(regressionProxyPort) && regressionProxyPort > 0 && regressionProxyPort <= 65_535
+  ? regressionProxyPort
+  : 8088;
+
+const regressionDebugPort = Number.parseInt(process.env.RADAR_REGRESSION_DEBUG_PORT || "", 10);
+const defaultDebugPort = Number.isInteger(regressionDebugPort) && regressionDebugPort > 0 && regressionDebugPort <= 65_535
+  ? regressionDebugPort
+  : 9223;
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const MAX_BURST_COUNT = 50;
-const MAX_BURST_CONCURRENCY = 5;
 const HOT_CAPTURE_LIMIT = 500;
 const HOT_WEBSOCKET_LIMIT = 1000;
 const MAX_INTERCEPT_QUEUE = 80;
@@ -227,8 +244,8 @@ let browserState: BrowserState = {
 };
 let proxyState: ProxyState = {
   running: false,
-  port: 8088,
-  proxyUrl: "http://127.0.0.1:8088",
+  port: defaultProxyPort,
+  proxyUrl: `http://127.0.0.1:${defaultProxyPort}`,
   caCertPath: "",
   caKeyPath: "",
   caFingerprint: ""
@@ -2167,8 +2184,37 @@ function createWindow() {
   }
 }
 
+function createStartupErrorWindow(error: unknown) {
+  const message = error instanceof Error ? error.message : "Radar could not open its local project database.";
+  const safeMessage = message.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[character] || character);
+  mainWindow = new BrowserWindow({
+    width: 920,
+    height: 600,
+    minWidth: 720,
+    minHeight: 480,
+    title: "Radar — Local Store Blocked",
+    backgroundColor: "#07110f",
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+  });
+  mainWindow.removeMenu();
+  const html = `<!doctype html><meta charset="utf-8"><title>Radar — Local Store Blocked</title><style>
+    :root{color-scheme:dark;background:#07110f;color:#e8dfc8;font-family:Georgia,serif}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 80% 10%,#17352c 0,transparent 38%),repeating-linear-gradient(0deg,transparent 0 23px,#789b8a12 24px)}main{width:min(680px,calc(100vw - 64px));border:1px solid #577466;background:#0b1714e8;box-shadow:0 24px 90px #000b;padding:38px}small{font:700 11px ui-monospace,monospace;letter-spacing:.3em;color:#e2a84b;text-transform:uppercase}h1{font-size:36px;font-weight:500;letter-spacing:.03em;margin:16px 0}p{font:14px/1.7 ui-monospace,monospace;color:#b9c6bd}code{display:block;margin-top:22px;padding:16px;border-left:3px solid #bd5f45;background:#050b09;color:#f2c5b8;white-space:pre-wrap}strong{color:#f0d18b}</style><main data-testid="startupError"><small>Fail-closed local state boundary</small><h1>Radar did not modify this database.</h1><p>The selected local store is incompatible with this build. Keep the file intact, open it with a compatible Radar version, or copy it before performing a supported migration.</p><code>${safeMessage}</code><p><strong>Database:</strong> ${app.getPath("userData")}/radar-local.sqlite</p></main>`;
+  void mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+}
+
 app.whenReady().then(() => {
-  initializeLocalState();
+  try {
+    initializeLocalState();
+  } catch (error) {
+    createStartupErrorWindow(error);
+    return;
+  }
   applyAppIcon();
   createWindow();
 
@@ -2303,7 +2349,7 @@ async function openRealChrome(urlString: string) {
   const nextUrl = normalizeBrowserUrl(urlString);
   const browser = findSystemBrowser();
   const proxy = await startMitmProxy(proxyState.port);
-  const remoteDebuggingPort = await findOpenPort(9223);
+  const remoteDebuggingPort = await findOpenPort(defaultDebugPort);
   const profileDir = chromeProfileDir();
 
   stopChromeProcess();
@@ -2422,7 +2468,9 @@ async function ensureProxyCa() {
 
   const cert = fs.readFileSync(caCertPath, "utf8");
   const caFingerprint = await generateSPKIFingerprint(cert);
-  trustProxyCa(caCertPath, caDir);
+  if (!regressionUserDataPath) {
+    trustProxyCa(caCertPath, caDir);
+  }
   proxyState = {
     ...proxyState,
     caCertPath,
@@ -2432,7 +2480,7 @@ async function ensureProxyCa() {
   return proxyState;
 }
 
-async function startMitmProxy(port = 8088) {
+async function startMitmProxy(port = defaultProxyPort) {
   if (proxyServer) {
     return proxyState;
   }
@@ -2450,12 +2498,12 @@ async function startMitmProxy(port = 8088) {
     maxBodySize: MAX_CAPTURED_BODY
   });
 
-  await proxyServer.start(Number(port) || 8088);
+  await proxyServer.start(Number(port) || defaultProxyPort);
 
   await proxyServer.on("request", async (req) => {
     const requestSessionId = localContext?.session.id || "";
     bindCaptureToCurrentSession(req.id);
-    const text = await req.body.getText().catch(() => "");
+    const text = await req.body.getText().catch(() => `[truncated: request body exceeded ${MAX_CAPTURED_BODY} bytes]`);
     const capture = proxyRequestToCapture({ req, bodyText: truncateText(text), rules: allowlist });
     bindCaptureEntryToSession(capture, requestSessionId);
     rememberCapture(capture);
@@ -2466,11 +2514,16 @@ async function startMitmProxy(port = 8088) {
     if (!entry) {
       return;
     }
-    const text = await res.body.getText().catch(() => "");
+    const text = await res.body.getText().catch(() => `[truncated: response body exceeded ${MAX_CAPTURED_BODY} bytes]`);
+    const contentLengthHeader = res.headers?.["content-length"];
+    const contentLength = Number(Array.isArray(contentLengthHeader) ? contentLengthHeader[0] : contentLengthHeader || 0);
     entry.status = res.statusCode;
     entry.statusText = res.statusMessage || "";
     entry.responseHeaders = safeJsonHeaders(res.headers || {});
-    entry.responseBody = truncateText(text || "");
+    entry.responseBody =
+      !text && Number.isFinite(contentLength) && contentLength > MAX_CAPTURED_BODY
+        ? `[truncated: response body exceeded ${MAX_CAPTURED_BODY} bytes]`
+        : truncateText(text || "");
     entry.durationMs =
       typeof res.timingEvents?.responseSentTimestamp === "number" &&
       typeof res.timingEvents?.startTimestamp === "number"
@@ -2498,7 +2551,8 @@ async function startMitmProxy(port = 8088) {
   await proxyServer.forAnyWebSocket().thenPassThrough();
   await proxyServer.forAnyRequest().waitForRequestBody().thenPassThrough({
     beforeRequest: queueInterceptRequest,
-    beforeResponse: queueInterceptResponse
+    beforeResponse: queueInterceptResponse,
+    ...(regressionUserDataPath ? { additionalTrustedCAs: [{ certPath: ca.caCertPath }] } : {})
   });
 
   proxyState = {
@@ -2730,7 +2784,8 @@ async function sendRequest(
   } else {
     options.signal?.addEventListener("abort", forwardAbort, { once: true });
   }
-  const timeout = setTimeout(() => abort.abort(), Math.min(Math.max(Number(options.timeoutMs || 30_000), 1000), 30_000));
+  const defaultTimeoutMs = regressionUserDataPath ? 3_000 : 30_000;
+  const timeout = setTimeout(() => abort.abort(), Math.min(Math.max(Number(options.timeoutMs || defaultTimeoutMs), 1000), 30_000));
 
   try {
     const response = await fetch(draft.url, {
@@ -3063,7 +3118,42 @@ function saveFinding(input: unknown) {
 
 function findingReport(options: unknown) {
   const value = options && typeof options === "object" && !Array.isArray(options) ? (options as Partial<FindingReportOptions>) : {};
-  const findings = activeLocalStore().listFindings(activeLocalContext().session.id);
+  const store = activeLocalStore();
+  const sessionId = activeLocalContext().session.id;
+  const findings = store.listFindings(sessionId);
+  if (value.includeRawEvidence) {
+    const captures = new Map(store.listCaptures(sessionId, 2000).map((capture) => [capture.id, capture]));
+    const webSocketEvents = new Map(store.listWebSocketEvents(sessionId, 5000).map((event) => [event.id, event]));
+    for (const finding of findings) {
+      finding.evidence = finding.evidence.map((reference) => {
+        const capture = reference.kind === "capture" ? captures.get(reference.id) : undefined;
+        if (capture) {
+          return {
+            ...reference,
+            metadata: {
+              ...reference.metadata,
+              requestHeaders: JSON.stringify(capture.requestHeaders),
+              requestBody: capture.requestBody,
+              responseHeaders: JSON.stringify(capture.responseHeaders),
+              responseBody: capture.responseBody
+            }
+          };
+        }
+        const event = reference.kind === "websocket" ? webSocketEvents.get(reference.id) : undefined;
+        return event
+          ? {
+              ...reference,
+              metadata: {
+                ...reference.metadata,
+                requestHeaders: JSON.stringify(event.requestHeaders),
+                responseHeaders: JSON.stringify(event.responseHeaders),
+                payload: event.payloadData
+              }
+            }
+          : reference;
+      });
+    }
+  }
   return buildFindingReport(findings, value, `${activeLocalContext().workspace.name} Findings`);
 }
 
@@ -3666,6 +3756,12 @@ async function writeBundle(input: unknown) {
     return { ok: false, preview, error: preview.error || "Project bundle could not be built." };
   }
   const defaultPath = `${activeLocalContext().profile.name.replace(/[^a-zA-Z0-9_.-]/g, "-")}.radar-bundle.json`;
+  if (regressionArtifactPath) {
+    const outputPath = path.join(path.resolve(regressionArtifactPath), defaultPath);
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, serializeProjectBundle(preview.bundle), "utf8");
+    return { ok: true, path: outputPath, preview };
+  }
   const result = await dialog.showSaveDialog({
     title: "Export Radar Project Bundle",
     defaultPath,
@@ -3909,6 +4005,12 @@ async function writeHandoff(input: unknown) {
     return { ok: false, preview, error: preview.error || "Handoff package could not be built." };
   }
   const defaultPath = `${preview.package.title.replace(/[^a-zA-Z0-9_.-]/g, "-")}.radar-handoff.json`;
+  if (regressionArtifactPath) {
+    const outputPath = path.join(path.resolve(regressionArtifactPath), defaultPath);
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, serializeHandoffPackage(preview.package), "utf8");
+    return { ok: true, path: outputPath, preview };
+  }
   const result = await dialog.showSaveDialog({
     title: "Export Radar Handoff Package",
     defaultPath,
@@ -4342,10 +4444,7 @@ ipcMain.handle("plugins:api", (_event, request) => {
 ipcMain.handle("targets:get", () => allowlist);
 
 ipcMain.handle("targets:set", (_event, targets) => {
-  const next = Array.isArray(targets)
-    ? targets.map((target) => String(target).trim()).filter(Boolean).slice(0, 40)
-    : defaultAllowlist;
-  allowlist = next.length > 0 ? next : [...defaultAllowlist];
+  allowlist = normalizeTargetRules(targets, defaultAllowlist);
   if (localStore && localContext) {
     allowlist = localStore.setTargets(localContext.workspace.id, allowlist);
   }
@@ -4497,9 +4596,7 @@ ipcMain.handle("repeater:burst", async (_event, input) => {
     draft: input.request || input,
     environmentId: String(input.environmentId || "")
   };
-  const count = Math.min(Math.max(Number(input.count || 1), 1), MAX_BURST_COUNT);
-  const concurrency = Math.min(Math.max(Number(input.concurrency || 1), 1), MAX_BURST_CONCURRENCY);
-  const delayMs = Math.min(Math.max(Number(input.delayMs || 0), 0), 10_000);
+  const { count, concurrency, delayMs } = normalizeBurstLimits(input);
   const results: Array<{
     index: number;
     ok: boolean;

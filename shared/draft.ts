@@ -2,6 +2,20 @@ import { safeJsonHeaders } from "./headers.js";
 
 export const MAX_REPLAY_BODY = 500_000;
 
+const strippedReplayHeaders = new Set([
+  "connection",
+  "content-length",
+  "host",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade"
+]);
+
 type DraftInput = {
   method?: string;
   url?: string;
@@ -15,7 +29,7 @@ export function normalizeDraft(input: DraftInput = {}) {
   const body = typeof input.body === "string" ? input.body : "";
 
   for (const key of Object.keys(headers)) {
-    if (["host", "content-length", "connection", "upgrade", "proxy-connection"].includes(key.toLowerCase())) {
+    if (strippedReplayHeaders.has(key.toLowerCase())) {
       delete headers[key];
     }
   }

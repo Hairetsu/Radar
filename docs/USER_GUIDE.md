@@ -139,11 +139,14 @@ Useful source commands:
 | `pnpm dev` | Start Vite and open the Electron app. |
 | `pnpm build` | Build the renderer and Electron main process. |
 | `pnpm test` | Run lint, unit tests, and production build. |
+| `pnpm test:regression:build` | Build Radar and run isolated Playwright Electron workflows in parallel. |
+| `pnpm test:regression:report` | Open the latest interactive regression report. |
 | `pnpm screenshots` | Rebuild and refresh screenshot assets. |
 | `pnpm pack` | Build an unpacked desktop app with electron-builder. |
 | `pnpm dist` | Build release distributables. |
 
 Use [docs/MANUAL_QA_CHECKLIST.md](MANUAL_QA_CHECKLIST.md) for the twelve-view release, screenshot, demo, and onboarding QA pass.
+Use [docs/REGRESSION_TESTING.md](REGRESSION_TESTING.md) for multi-instance regression execution, artifacts, and the automation expansion matrix.
 
 ## Main Console Tour
 
@@ -207,6 +210,8 @@ kind:saved-view traffic
 ```
 
 Supported filters are `kind`, `host`, `path`, `status`, `severity`, and `source`. Text terms are matched across the searchable fields for each result. Capture and WebSocket results remain scope-filtered; out-of-scope traffic is not returned. Opening a result switches to the source view and selects or loads the closest visible object when that view supports direct selection.
+
+HTTP header values, bodies, and WebSocket payloads are indexed through Radar's default sensitive-value redaction. Search can locate surrounding evidence without making bearer tokens, cookies, API keys, or token-shaped payload values directly searchable.
 
 Opening a project note result opens the Notes panel and selects that note. Opening a saved-view result applies the saved view state.
 
@@ -491,7 +496,7 @@ Select a capture to open tag and comment fields above the detail pane. Tags and 
 
 ### Bulk Actions
 
-Multi-select captures with Cmd/Ctrl-click and Shift-click. When more than one row is selected, the bulk action bar supports bulk tag, export, and delete.
+Multi-select captures with Cmd/Ctrl-click and Shift-click. When more than one row is selected, the bulk action bar supports bulk tag, export, and delete. Bulk export redacts sensitive request headers and token-shaped body values by default; use an explicitly raw, single-request action only when exact secret-bearing evidence is intentionally required.
 
 ### Select Captures For AI
 
@@ -707,7 +712,7 @@ Each tab keeps a capped replay history. After **Transmit**, the request/response
 
 ### Environments And Collections
 
-Workspace environments hold reusable variables such as hosts, tokens, and IDs. Bind an environment from the Repeater tab bar, then use `{{variable}}` placeholders in the editor. Collections store reusable request drafts; save the active tab into a collection or load saved items back into Repeater.
+Workspace environments hold reusable variables such as hosts, tokens, and IDs. Bind an environment from the Repeater tab bar, then use `{{variable}}` placeholders in the editor. A draft with any unresolved placeholder is rejected before a request is sent. Collections store reusable request drafts; save the active tab into a collection or load saved items back into Repeater.
 
 ### WebSocket Replay
 
@@ -770,9 +775,15 @@ Before sending, Radar normalizes the draft:
 - Hop-by-hop or unsafe headers are stripped:
   - `Host`
   - `Content-Length`
-  - `Connection`
-  - `Upgrade`
-  - `Proxy-Connection`
+- `Connection`
+- `Keep-Alive`
+- `Upgrade`
+- `Proxy-Connection`
+- `Proxy-Authorization`
+- `Proxy-Authenticate`
+- `TE`
+- `Trailer`
+- `Transfer-Encoding`
 
 Always verify the URL and headers before transmitting.
 
@@ -906,7 +917,7 @@ The report builder generates Markdown or HTML from the local findings inbox. Cho
 | **internal-notes** | Draft-inclusive internal working notes with appendix and retest matrix. |
 | **raw-technical-appendix** | Draft-inclusive technical appendix with raw evidence metadata after explicit opt-in. |
 
-Add a report title, executive summary, methodology, scope, limitations, and change log when needed. Reviewed findings are included by default. Draft findings are opt-in. The evidence appendix is included by default with sensitive-looking metadata redacted; enable **Raw evidence** only when you intentionally want unredacted appendix metadata in the export preview. Client-report builds show validation warnings for missing evidence, reproduction, impact, or remediation.
+Add a report title, executive summary, methodology, scope, limitations, and change log when needed. Reviewed findings are included by default. Draft findings are opt-in. The evidence appendix is included by default with sensitive-looking metadata redacted; enable **Raw evidence** only when you intentionally want unredacted appendix metadata in the export preview. Raw mode still includes only evidence referenced by the findings selected for that report. Client-report builds show validation warnings for missing evidence, reproduction, impact, or remediation.
 
 Use **Copy** to place the generated report on the clipboard or **Download** to save a `.md` or `.html` file.
 
@@ -1732,7 +1743,7 @@ Important local files and folders:
 | `ai-settings.json` | AI provider, model, base URL, and saved API key when applicable. |
 | `ai-skills.json` | Custom AI skills. |
 
-Radar applies local SQLite migrations when the app opens so existing projects, sessions, captures, and findings can move forward with new releases. If a database was created by a newer unsupported Radar build, the app refuses to mutate it instead of attempting a downgrade. Back up `radar-local.sqlite` before testing older builds against active engagement data.
+Radar applies local SQLite migrations when the app opens so existing projects, sessions, captures, and findings can move forward with new releases. If a database was created by a newer unsupported Radar build, the app opens a safe startup-error window and refuses to mutate the file instead of attempting a downgrade. Back up `radar-local.sqlite` before testing older builds against active engagement data.
 
 Privacy notes:
 
