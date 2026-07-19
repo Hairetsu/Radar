@@ -33,11 +33,12 @@ RADAR_REGRESSION_SOAK=1 pnpm test:regression:build
 Both gates can be enabled together. Standard Playwright flags remain available:
 
 ```bash
-pnpm test:regression -- --grep "@security"
-pnpm test:regression -- --grep "REG-REP"
-pnpm test:regression -- --workers=4
-pnpm test:regression -- --repeat-each=5
-pnpm test:regression -- --trace=on
+pnpm test:regression --grep "@security"
+pnpm test:regression --grep "REG-REP"
+pnpm test:regression --workers=4
+pnpm test:regression:build --workers=4
+pnpm test:regression --repeat-each=5
+pnpm test:regression --trace=on
 ```
 
 Open the latest interactive report with:
