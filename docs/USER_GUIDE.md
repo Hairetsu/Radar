@@ -156,7 +156,7 @@ Persistent areas:
 
 - **Left sidebar**: Radar lockup, project/session controls, view navigation, and live per-view counts.
 - **Top banner**: active project workspace/session and UTC clock.
-- **Header**: Radar identity, active project, Open Browser button, global Search, project Notes, live status pills, Projects, Appearance, and AI settings.
+- **Header**: Radar identity, active project, managed-browser address/history controls, Playwright status, global Search, project Notes, live status pills, Projects, Appearance, and AI settings.
 - **Session selector**: quick session switching under the active project.
 - **Workspace panel**: the active tool surface.
 - **Footer ticker**: current view, HTTP/S capture count, WebSocket frame count, TLS event count, and proxy status.
@@ -409,7 +409,7 @@ In Repeater, click **Trust Origin** to add the current request URL's origin to s
 
 ## Opening The Radar Browser
 
-Click **Open Browser** in the header.
+Enter a target in the header address bar and click **Open Browser**. After launch, the same toolbar provides **Back**, **Forward**, **Reload**, and **Navigate** without restarting Chrome.
 
 Radar looks for a supported local browser:
 
@@ -425,10 +425,13 @@ When Radar launches the browser it:
 - Starts the local Radar proxy if needed.
 - Routes browser traffic through Radar's proxy.
 - Opens remote debugging on `127.0.0.1:9223`.
+- Connects Playwright Core to that loopback endpoint and keeps it attached to the visible managed page.
 - Uses a launch-scoped certificate exception for Radar's generated proxy CA fingerprint.
 - Uses a mock keychain flag on macOS where supported to avoid prompting for your login keychain.
 
-The SSL view shows the selected browser channel, binary path, profile path, proxy URL, and Chrome remote debugging endpoint.
+The header shows a `pw ready` status when AI page control is available. The SSL view shows the selected browser channel, binary path, profile path, proxy URL, Chrome remote debugging endpoint, Playwright status, page count, and any connection error.
+
+Manual-First uses the same browser and proxy path as AI-First. You can operate the Chrome window directly or use Radar's address/history controls; captured traffic appears in the normal evidence views either way.
 
 ### Address Behavior
 
@@ -1413,6 +1416,7 @@ Before starting, choose a run profile:
 
 | Profile | Use |
 | --- | --- |
+| **Browser Assessment** | Default live-site path. Explore the visible page through Playwright, capture resulting traffic, and use tightly budgeted replay or saved workflow verification after capability approval. |
 | **Passive Map** | Read scoped evidence, sitemap, local context, and passive observations without replay or workflow execution. |
 | **Auth Review** | Inspect browser state, cookies, storage, and saved auth/session states. |
 | **API Hardening** | Review API captures and prepare Repeater, Automate, or Workflow drafts for manual approval. |
@@ -1509,12 +1513,12 @@ When a run starts, Radar records a full observation transcript. The agent choose
 Available AI-First tools:
 
 - `showView` moves the visible workbench between HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL.
-- `getBrowserState` reads the launched browser state.
-- `openBrowser` and `navigateBrowser` drive in-scope browser navigation.
-- `waitForNetworkIdle` waits for captured HTTP/S traffic to settle after navigation.
+- `getBrowserState` reads the launched browser and Playwright connection state.
+- `openBrowser` launches managed Chrome; `navigateBrowser` changes the existing visible Playwright page without relaunching the profile.
+- `waitForNetworkIdle` uses Playwright's page lifecycle to settle after navigation or interaction.
 - `getPageText` reads visible text from the active page.
-- `getDomSummary` reads compact page text, links, buttons, and forms.
-- `getClickableElements`, `clickElement`, `fillInput`, and `submitForm` inspect and operate page controls.
+- `getDomSummary` reads compact page text, links, buttons, forms, and a bounded accessibility snapshot.
+- `getClickableElements` returns visible controls with stable page-specific Playwright selectors. `clickElement`, `fillInput`, and `submitForm` use Playwright actionability checks; re-run element inspection after every page change.
 - `getCookies` and `getStorageState` inspect browser session state.
 - Legacy `saveAuthState`, `loadAuthState`, `listAuthStates`, and `compareAuthStates` calls fail closed. Use workspace-scoped Identity Lab profiles and recorded-evidence comparisons.
 - `getIdentityLabContext` reads metadata-only workspace identity context and attributed-evidence counts without returning session secrets.
@@ -1543,6 +1547,8 @@ The existing views remain visible evidence panes, so you can watch the agent use
 AI-First runs are intentionally bounded:
 
 - Every browser or replay URL must be in Scope.
+- During an AI click, fill, or form action, Playwright temporarily aborts any HTTP/S request outside saved Scope. Links and form actions with an out-of-scope destination are rejected before dispatch.
+- Submit buttons cannot be sent through the generic click tool; the agent must use the separately leased form-submission tool so POST authority stays explicit.
 - An out-of-scope origin from a goal remains an unsaved Scope proposal until the operator clicks **Commit**; the operator must then click **Start Run** again.
 - Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy. Checkpoints preserve cumulative tool-step, replay-send, workflow-request, and elapsed-time usage across pause/resume and recovery; resuming never replenishes a budget.
 - The planner can advance the Mission Graph only through a bounded patch based on the current revision. Stale revisions, invalid entity links, and invalid operator mutations fail closed instead of replacing or partially updating the graph.
@@ -1837,12 +1843,12 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 
 ### Run AI-First Autonomy
 
-1. Switch the top shell toggle from **Manual-First** to **AI-First**.
-2. Choose a run profile and confirm the visible budget chips.
+1. Save every authorized origin in **11 Scope**, then switch the top shell toggle from **Manual-First** to **AI-First**.
+2. Choose **Browser Assessment** for live exploration and bounded verification, then confirm the visible budget chips.
 3. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
 4. Click **Start Run**. If the origin is outside saved Scope, Radar only proposes it in **11 Scope** and does not start the run.
 5. For a proposed origin, review the Scope editor, click **Commit**, then click **Start Run** again.
-6. Watch the Mission Graph, Capability Leases, and observation console until the agent returns `finish` or pauses on a failed step, policy block, operator question, or lease proposal.
+6. Watch the managed Chrome window, HTTP(S) captures, Mission Graph, Capability Leases, and observation console until the agent returns `finish` or pauses on a failed step, policy block, operator question, or lease proposal.
 7. For a lease proposal, review the exact tuple and caps. Click **Grant** or **Deny**. Grant does not resume the run; click **Resume** separately to attempt the saved pending call once.
 8. To steer the plan or authority yourself, click **Pause**, wait for the current tool to settle, then edit the Mission Graph or propose/grant/revoke bounded capability leases. Click **Resume** when both are ready; the same cumulative budgets continue from the saved checkpoint.
 9. Use the offered recovery buttons for a paused failed step. Retry is available only when Radar can safely re-execute the tool without repeating a mutating browser, authentication-state, replay, or workflow action.

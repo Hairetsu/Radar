@@ -156,6 +156,9 @@ export type BrowserState = {
   title: string;
   loading: boolean;
   engine: "none" | "electron" | "chrome";
+  automation?: "disconnected" | "connecting" | "ready" | "error";
+  automationPageCount?: number;
+  automationError?: string;
   remoteDebuggingUrl?: string;
   profileDir?: string;
   executablePath?: string;

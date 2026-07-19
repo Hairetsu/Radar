@@ -595,7 +595,7 @@ export function useRadarWorkbench() {
   const [aiPaletteOpen, setAiPaletteOpen] = useState(false);
   const [appMode, setAppModeState] = useState<AppMode>(storedAppMode);
   const [agentGoal, setAgentGoal] = useState("");
-  const [agentProfileId, setAgentProfileId] = useState<AgentRunProfileId>("passive-map");
+  const [agentProfileId, setAgentProfileId] = useState<AgentRunProfileId>("browser-assessment");
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState("");
   const [agentRunMemory, setAgentRunMemory] = useState<AgentRunMemoryEntry[]>([]);
@@ -1476,9 +1476,64 @@ export function useRadarWorkbench() {
     try {
       const state = await window.radar.openBrowser(next);
       setBrowserState(state);
-      setNotice(`${state.channel} launched through Radar proxy`);
+      setAddress(state.url || next);
+      setNotice(`${state.channel} launched through Radar proxy · Playwright ${state.automation || "connecting"}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Chrome launch failed");
+    }
+  }, [address]);
+
+  const navigateBrowser = useCallback(async (event?: FormEvent) => {
+    event?.preventDefault();
+    const next = normalizeUrl(address);
+    setAddress(next);
+    if (!window.radar) {
+      setNotice("Run in Electron to control Chrome.");
+      return;
+    }
+    try {
+      const state = browserState.open
+        ? await window.radar.navigateBrowser(next)
+        : await window.radar.openBrowser(next);
+      setBrowserState(state);
+      setAddress(state.url || next);
+      setNotice(`${state.open ? "Browser at" : "Browser could not reach"} ${state.url || next}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Browser navigation failed");
+    }
+  }, [address, browserState.open]);
+
+  const browserBack = useCallback(async () => {
+    if (!window.radar) return;
+    try {
+      const state = await window.radar.browserBack();
+      setBrowserState(state);
+      setAddress(state.url || address);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Browser back failed");
+    }
+  }, [address]);
+
+  const browserForward = useCallback(async () => {
+    if (!window.radar) return;
+    try {
+      const state = await window.radar.browserForward();
+      setBrowserState(state);
+      setAddress(state.url || address);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Browser forward failed");
+    }
+  }, [address]);
+
+  const browserReload = useCallback(async () => {
+    if (!window.radar) return;
+    try {
+      const state = await window.radar.browserReload();
+      setBrowserState(state);
+      setAddress(state.url || address);
+      setNotice(`Reloaded ${state.url || address}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Browser reload failed");
     }
   }, [address]);
 
@@ -4118,6 +4173,10 @@ export function useRadarWorkbench() {
     meta,
     utc,
     openBrowser,
+    navigateBrowser,
+    browserBack,
+    browserForward,
+    browserReload,
     saveTargets,
     addTarget,
     applyAiDraft,

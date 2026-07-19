@@ -45,6 +45,7 @@ export type AgentRunRecoveryAction =
   | "draft-finding";
 
 export type AgentRunProfileId =
+  | "browser-assessment"
   | "passive-map"
   | "auth-review"
   | "api-hardening"
@@ -102,6 +103,9 @@ export type AgentClickableElement = {
   tag: string;
   role: string;
   href?: string;
+  name?: string;
+  placeholder?: string;
+  disabled?: boolean;
 };
 
 export type AgentCookie = {
@@ -260,6 +264,7 @@ export type AgentToolResult =
         url: string;
         title: string;
         text: string;
+        ariaSnapshot: string;
         links: Array<{ text: string; href: string }>;
         buttons: string[];
         forms: Array<{ action: string; method: string; inputs: string[] }>;
