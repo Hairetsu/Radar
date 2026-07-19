@@ -168,6 +168,10 @@ export type {
   AgentRunRequest,
   AgentRunStatus,
   AgentTimelineEntry,
+  AgentTutorialCveReadiness,
+  AgentTutorialDisposition,
+  AgentTutorialGuidance,
+  AgentTutorialStage,
   AppMode
 } from "../shared/agent-types";
 export type { AgentRunProfile } from "../shared/agentProfiles";

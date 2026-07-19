@@ -862,18 +862,44 @@ const radar: RadarApi = {
       updatedAt: "2026-05-25T00:00:00.000Z",
       goal: payload.goal,
       profileId: payload.profileId || "browser-assessment",
-      status: "queued",
+      status: payload.tutorialMode ? "paused" : "queued",
       policy: {
         maxRuntimeMs: 120000,
         maxSteps: 8,
         maxReplay: 1,
         maxWorkflowRequests: 1,
         maxCaptureSample: 20,
-        allowRawContext: false
+        allowRawContext: false,
+        ...(payload.tutorialMode ? { tutorialMode: true } : {})
       },
       mission: createAgentMission(payload.goal, payload.startUrl || "", "2026-05-25T00:00:00.000Z"),
       capabilities: createAgentCapabilityState(),
-      timeline: [{ id: "step-screenshot", createdAt: "2026-05-25T00:00:00.000Z", note: "Run queued." }],
+      timeline: [
+        {
+          id: "step-screenshot",
+          createdAt: "2026-05-25T00:00:00.000Z",
+          phase: "decision",
+          summary: payload.tutorialMode ? "Inspect the visible authorization boundary" : "Run queued",
+          note: payload.tutorialMode ? "Tutorial checkpoint reached. Review the clue before continuing." : "Run queued.",
+          ...(payload.tutorialMode
+            ? {
+                tutorial: {
+                  stage: "hypothesize" as const,
+                  title: "Follow the object boundary",
+                  clue: "The account response exposes a resource identifier that may be checked differently across identities.",
+                  whyItMatters: "Identifiers are useful crumbs only when the server's authorization decision changes under a controlled comparison.",
+                  lookFor: ["The same endpoint under two authorized test identities", "A stable object ID with a changed session context"],
+                  strongerEvidence: ["Matched captures showing protected content returned to the wrong identity"],
+                  falsifiers: ["The resource is documented as public", "The response contains only the current user's object"],
+                  safeNextStep: "Inspect the cited capture, then continue with one identity-controlled comparison.",
+                  disposition: "learning-clue" as const,
+                  dispositionRationale: "An exposed identifier is not an authorization bypass without a repeatable access-control difference.",
+                  evidenceRefs: ["capture:cap-auth"]
+                }
+              }
+            : {})
+        }
+      ],
       findings: []
     };
     agentRuns.unshift(run);

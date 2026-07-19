@@ -338,6 +338,48 @@ function identityProfile(id = "identity-user-a"): IdentityProfile {
 }
 
 describe("AgentRuntime", () => {
+  it("paces Tutorial Mode at evidence checkpoints and preserves lesson guidance", async () => {
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: { tool: "getBrowserState", input: {} },
+        rationale: "Establish the visible browser baseline.",
+        tutorial: {
+          stage: "observe",
+          title: "Establish a baseline",
+          clue: "The current URL and browser state anchor later comparisons.",
+          whyItMatters: "A trustworthy test records what changed and what stayed constant.",
+          lookFor: ["The exact scoped origin"],
+          strongerEvidence: ["A capture tied to the same navigation"],
+          falsifiers: ["The browser is on a different or out-of-scope origin"],
+          safeNextStep: "Review the browser state, then continue the lesson.",
+          disposition: "learning-clue",
+          dispositionRationale: "This is orientation evidence, not a vulnerability.",
+          evidenceRefs: []
+        }
+      },
+      { action: "finish", rationale: "Baseline lesson complete.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      decideNextAction: async () => decisions.shift() || { action: "finish", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Teach a bounded browser baseline",
+      startUrl: "https://allowed.test",
+      tutorialMode: true
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    expect(runs.get(run.id)?.policy.tutorialMode).toBe(true);
+    expect(runs.get(run.id)?.timeline.find((entry) => entry.tutorial?.title === "Establish a baseline")).toBeTruthy();
+    expect(runs.get(run.id)?.timeline.at(-1)?.summary).toBe("Lesson checkpoint — waiting for operator");
+
+    runtime.resume(run.id);
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(runs.get(run.id)?.timeline.at(-1)?.tutorial?.disposition).toBe("learning-clue");
+  });
+
   it("uses a capability-gated stable identity ID for a visible dedicated-profile switch", async () => {
     const profile = identityProfile();
     const lease = browserLease(

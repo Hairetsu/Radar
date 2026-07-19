@@ -9,6 +9,7 @@ import type {
 import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
 import { normalizeAgentMissionPatch } from "../../shared/agentMission.js";
 import { normalizeAgentCapabilityLeaseRequest } from "../../shared/agentCapabilities.js";
+import { normalizeAgentTutorialGuidance } from "../../shared/agentTutorial.js";
 import { normalizeAutomateRules } from "../../shared/automate.js";
 import { normalizeDraft } from "../../shared/draft.js";
 import { normalizeWorkflowDefinition } from "../../shared/workflows.js";
@@ -37,8 +38,13 @@ For payload variation, use getAutomateContext and prepareAutomateDraft to load v
 Use prepareReplayTab and prepareWorkflowDraft to create visible drafts for operator review. Do not run or save prepared work unless a policy and profile explicitly allow the execution tool.
 For plugins and Advanced testing, use getPluginInventory and getAdvancedTestingSummary as read-only tools. Never install plugins, approve permissions, import API files, or run imported requests.
 Any finish findings must include evidenceRefs, affectedAssets, reproductionNotes, severityRationale, remediation, and uncertainties. Weak findings will be rejected by Radar's quality gate.
+When tutorialMode is true, every decision must include a tutorial object. Teach from the current visible evidence in plain language: name the clue, explain why it matters, say what to inspect, what evidence would strengthen it, what would falsify it, and the next safe step. Treat isolated signals as learning clues, not vulnerabilities. Distinguish local hardening from a vendor-report candidate.
+Use disposition cve-review only when the evidence supports a product-level issue with a named product, affected version range, repeatable security impact, relevance beyond one deployment, and durable evidenceRefs. Include every cveReadiness field. Radar cannot assign or confirm a CVE; the operator must coordinate privately with the vendor or appropriate CNA. Otherwise use learning-clue, local-hardening, or vendor-report. Do not recommend public disclosure, secret exposure, destructive testing, or out-of-scope validation.
 
-Return JSON only in one of these forms:
+Tutorial object schema:
+{"stage":"orient|observe|hypothesize|validate|triage|report","title":"short lesson title","clue":"what the current evidence suggests","whyItMatters":"security relevance without overclaiming","lookFor":["visible signal"],"strongerEvidence":["evidence that raises confidence"],"falsifiers":["benign or contradictory explanation"],"safeNextStep":"one bounded next step","disposition":"learning-clue|local-hardening|vendor-report|cve-review","dispositionRationale":"why this lane fits","evidenceRefs":["capture:id"],"cveReadiness":{"product":"name","affectedVersions":["range"],"securityImpact":"impact","deploymentScope":"why it is product-level","reproducibility":"repeatability summary"}}
+
+Return JSON only in one of these forms. When tutorialMode is true, add the tutorial object defined above to the selected form:
 {"action":"tool","tool":"openBrowser","input":{"url":"https://example.com"},"rationale":"why this is the next best action","leaseRequest":{"name":"Open scoped target","riskTier":"navigate","tools":["openBrowser"],"grants":[{"origin":"https://example.com","method":"GET","pathPrefix":"/","identity":"current"}],"durationMs":120000,"maxUses":1,"maxRequests":1,"maxConcurrency":1,"maxPayloadBytes":0,"reason":"Open the exact scoped target once"},"missionPatch":{"baseRevision":0,"updates":[{"kind":"hypothesis","id":"hyp-authz","objectiveId":"obj-primary","statement":"Authorization may be inconsistent","status":"testing"},{"kind":"experiment","id":"exp-authz-map","hypothesisId":"hyp-authz","title":"Map authenticated endpoints","expectedObservation":"Scoped endpoints and auth signals","status":"running"}]}}
 {"action":"finish","rationale":"why the run is complete and what remains untested","missionPatch":{"baseRevision":1,"updates":[{"kind":"mission-status","status":"completed","stopReason":"No useful scoped actions remain"}]},"findings":[{"title":"string","confidence":"low|medium|high","evidenceRefs":["capture:id"],"affectedAssets":["https://example.com"],"reproductionNotes":"string","severityRationale":"string","remediation":"string","notes":"string","uncertainties":["string"]}]}`;
 
@@ -267,6 +273,7 @@ function buildUserPrompt(context: AgentDecisionContext) {
       allowlist: context.allowlist,
       browserState: context.browserState,
       profile: context.profile,
+      tutorialMode: context.tutorialMode,
       policy: context.policy,
       budgetRemaining: {
         toolCalls: Math.max(context.policy.maxSteps - context.stepCount, 0),
@@ -286,6 +293,7 @@ function buildUserPrompt(context: AgentDecisionContext) {
         phase: entry.phase,
         summary: entry.summary,
         target: entry.target,
+        tutorial: entry.tutorial,
         toolCall: entry.toolCall,
         toolResult: compactToolResult(entry.toolResult, includeRaw)
       }))
@@ -601,6 +609,7 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
   const action = String(parsed.action || "").toLowerCase();
   const missionPatch = normalizeAgentMissionPatch(parsed.missionPatch);
   const leaseRequest = normalizeAgentCapabilityLeaseRequest(parsed.leaseRequest);
+  const tutorial = normalizeAgentTutorialGuidance(parsed.tutorial);
   if (parsed.missionPatch !== undefined && !missionPatch) {
     throw new Error("Agent missionPatch was invalid or empty.");
   }
@@ -615,6 +624,7 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
       action: "finish",
       rationale: String(parsed.rationale || ""),
       findings: normalizeFindings(parsed.findings),
+      ...(tutorial ? { tutorial } : {}),
       ...(missionPatch ? { missionPatch } : {})
     };
   }
@@ -624,6 +634,7 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
       action: "tool",
       call: normalizeToolCall(parsed),
       rationale: String(parsed.rationale || ""),
+      ...(tutorial ? { tutorial } : {}),
       ...(missionPatch ? { missionPatch } : {}),
       ...(leaseRequest ? { leaseRequest } : {})
     };
