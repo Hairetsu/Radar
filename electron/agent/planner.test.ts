@@ -148,6 +148,33 @@ describe("agent planner", () => {
     });
   });
 
+  it("normalizes tutorial guidance and downgrades incomplete CVE claims", () => {
+    expect(
+      normalizeAgentDecision({
+        action: "tool",
+        tool: "getDomSummary",
+        input: {},
+        rationale: "Map the visible surface.",
+        tutorial: {
+          stage: "observe",
+          title: "Map trust boundaries",
+          clue: "The account page exposes an object identifier.",
+          whyItMatters: "Identifiers can reveal where authorization needs to be tested.",
+          lookFor: ["IDs that change between accounts"],
+          strongerEvidence: ["A response comparison under two identities"],
+          falsifiers: ["The identifier is only a public display value"],
+          safeNextStep: "Capture the page under the current identity.",
+          disposition: "cve-review",
+          dispositionRationale: "Needs product-level validation.",
+          evidenceRefs: []
+        }
+      })
+    ).toMatchObject({
+      action: "tool",
+      tutorial: { title: "Map trust boundaries", disposition: "vendor-report" }
+    });
+  });
+
   it("normalizes revision-checked mission patches with decisions", () => {
     expect(
       normalizeAgentDecision({

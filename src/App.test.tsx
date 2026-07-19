@@ -748,6 +748,30 @@ describe("App", () => {
     });
   });
 
+  it("starts a visible, paced Tutorial Mode run", async () => {
+    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://hairetsu.com"]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    fireEvent.click(screen.getByTestId("agentTutorialToggle"));
+    expect(screen.getByTestId("agentTutorialToggle")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("agentTutorialGuide")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("agentGoalInput"), {
+      target: { value: "Teach me how to inspect https://hairetsu.com safely" }
+    });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => {
+      expect(startAgentRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profileId: "browser-assessment",
+          tutorialMode: true
+        })
+      );
+    });
+  });
+
   it("confirms proposed run memory and supports manual memory creation", async () => {
     const saveAgentRunMemory = vi.mocked(window.radar!.saveAgentRunMemory);
     const run: AgentRun = {

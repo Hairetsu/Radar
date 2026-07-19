@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   Activity,
+  BookOpenCheck,
   Plus,
   Pin,
   X,
@@ -55,6 +56,7 @@ import { CommandPalette } from "./ai/CommandPalette";
 import { AppearanceSettingsPanel } from "./components/AppearanceSettingsPanel";
 import { AgentMissionGraph } from "./components/AgentMissionGraph";
 import { AgentCapabilityLedger } from "./components/AgentCapabilityLedger";
+import { AgentTutorialGuide } from "./components/AgentTutorialGuide";
 import { IdentityLab } from "./components/IdentityLab";
 import { NewSessionDialog } from "./components/NewSessionDialog";
 import { ProfileSessionPanel } from "./components/ProfileSessionPanel";
@@ -2296,6 +2298,37 @@ export function App() {
                   </Select>
                   <span className="text-[11px] leading-5 text-muted">{workbench.selectedAgentRunProfile.description}</span>
                 </label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={workbench.agentTutorialMode}
+                  disabled={activeAgentRunning}
+                  onClick={() => workbench.setAgentTutorialMode(!workbench.agentTutorialMode)}
+                  className={cn(
+                    "group grid grid-cols-[auto_1fr_auto] items-center gap-3 border p-3 text-left transition",
+                    workbench.agentTutorialMode
+                      ? "border-signal/45 bg-signal/[0.08] text-bone"
+                      : "border-rule bg-surface/45 text-copy hover:border-signal/30 hover:bg-signal/[0.04]",
+                    activeAgentRunning && "cursor-not-allowed opacity-55"
+                  )}
+                  data-testid="agentTutorialToggle"
+                  data-component="agentTutorialToggle"
+                >
+                  <BookOpenCheck size={17} strokeWidth={1.6} className="text-signal" />
+                  <span className="min-w-0">
+                    <span className="block font-display text-[12px] uppercase tracking-[0.08em]">Tutorial Mode</span>
+                    <span className="mt-1 block text-[10.5px] leading-4 text-muted">
+                      AI teaches each clue, pauses, and waits for you to continue.
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "relative h-5 w-9 border border-rule bg-ink/60 transition before:absolute before:left-0.5 before:top-0.5 before:h-3.5 before:w-3.5 before:bg-muted before:transition before:content-['']",
+                      workbench.agentTutorialMode && "border-signal/50 bg-signal/10 before:translate-x-4 before:bg-signal"
+                    )}
+                    aria-hidden="true"
+                  />
+                </button>
                 {workbench.agentRuns.length > 0 && (
                   <label className="grid gap-1">
                     <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted">Run History</span>
@@ -2322,7 +2355,7 @@ export function App() {
                     data-component="startAgentRun"
                   >
                     <Play size={14} strokeWidth={1.7} />
-                    Start Run
+                    {workbench.agentTutorialMode ? "Start Tutorial" : "Start Run"}
                   </Button>
                   <Button
                     type="button"
@@ -2344,7 +2377,7 @@ export function App() {
                     data-component="resumeAgentRun"
                   >
                     <Play size={13} strokeWidth={1.8} />
-                    Resume
+                    {activeAgentRun?.policy.tutorialMode ? "Continue Lesson" : "Resume"}
                   </Button>
                   <Button
                     type="button"
@@ -2373,6 +2406,9 @@ export function App() {
               </form>
 
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                {(workbench.agentTutorialMode || activeAgentRun?.policy.tutorialMode) && (
+                  <AgentTutorialGuide run={activeAgentRun?.policy.tutorialMode ? activeAgentRun : null} />
+                )}
                 <AgentMissionGraph run={activeAgentRun} onSteer={workbench.steerAgentMission} />
                 <AgentCapabilityLedger run={activeAgentRun} onUpdate={workbench.updateAgentCapabilities} />
                 <div className="min-h-[220px] border border-rule bg-surface/55">

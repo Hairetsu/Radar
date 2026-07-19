@@ -680,7 +680,8 @@ const radarApi = {
       maxReplay: 1,
       maxWorkflowRequests: 1,
       maxCaptureSample: 20,
-      allowRawContext: false
+      allowRawContext: false,
+      ...(payload.tutorialMode ? { tutorialMode: true } : {})
     },
     timeline: [
       {

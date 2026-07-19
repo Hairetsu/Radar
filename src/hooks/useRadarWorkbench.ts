@@ -596,6 +596,7 @@ export function useRadarWorkbench() {
   const [appMode, setAppModeState] = useState<AppMode>(storedAppMode);
   const [agentGoal, setAgentGoal] = useState("");
   const [agentProfileId, setAgentProfileId] = useState<AgentRunProfileId>("browser-assessment");
+  const [agentTutorialMode, setAgentTutorialMode] = useState(false);
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState("");
   const [agentRunMemory, setAgentRunMemory] = useState<AgentRunMemoryEntry[]>([]);
@@ -2232,14 +2233,21 @@ export function useRadarWorkbench() {
     const run = await window.radar.startAgentRun({
       goal,
       startUrl,
-      profileId: agentProfileId
+      profileId: agentProfileId,
+      ...(agentTutorialMode ? { tutorialMode: true } : {})
     });
     setAddress(startUrl);
     setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
     setSelectedAgentRunId(run.id);
     setAgentGoal("");
-    setNotice(scopeOrigin ? `AI-First run started on ${scopeOrigin}` : "AI-First run started");
-  }, [address, agentGoal, agentProfileId, executingAgentRun, targetText]);
+    setNotice(
+      agentTutorialMode
+        ? "Tutorial Mode started. Review each evidence lesson, then continue at your pace."
+        : scopeOrigin
+          ? `AI-First run started on ${scopeOrigin}`
+          : "AI-First run started"
+    );
+  }, [address, agentGoal, agentProfileId, agentTutorialMode, executingAgentRun, targetText]);
 
   const stopAgentRun = useCallback(async () => {
     if (!window.radar || !activeAgentRun) {
@@ -4142,6 +4150,8 @@ export function useRadarWorkbench() {
     agentProfiles: AGENT_RUN_PROFILES,
     agentProfileId,
     setAgentProfileId,
+    agentTutorialMode,
+    setAgentTutorialMode,
     selectedAgentRunProfile,
     activeAgentBudgetLabels,
     agentRuns,

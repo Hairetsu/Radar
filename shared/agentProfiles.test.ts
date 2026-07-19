@@ -19,6 +19,7 @@ describe("agentProfiles", () => {
       maxCaptureSample: 80,
       allowRawContext: false
     });
+    expect(normalizeAgentPolicy({ tutorialMode: "true" as never }, "passive-map").tutorialMode).toBeUndefined();
   });
 
   it("enforces profile-specific tool access", () => {
@@ -36,8 +37,9 @@ describe("agentProfiles", () => {
   });
 
   it("formats visible budget labels", () => {
-    const labels = agentBudgetLabels(getAgentRunProfile("advanced-api-review").policy);
+    const labels = agentBudgetLabels({ ...getAgentRunProfile("advanced-api-review").policy, tutorialMode: true });
     expect(labels).toContain("workflow 2");
     expect(labels).toContain("raw context off");
+    expect(labels).toContain("tutorial paced");
   });
 });

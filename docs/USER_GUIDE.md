@@ -1404,7 +1404,7 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, advanced testing review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, Advanced import/replay actions, finding review, or exports.
 
-Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt, profile picker, visible budget chips, Mission Graph, Capability Leases ledger, observation console, draft findings inbox, and local run-memory panel above the normal views. Enter a scoped goal such as:
+Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt, profile picker, optional Tutorial Mode, visible budget chips, Mission Graph, Capability Leases ledger, observation console, draft findings inbox, and local run-memory panel above the normal views. Enter a scoped goal such as:
 
 ```text
 Inspect https://staging.example.com for auth, session, and API hardening issues.
@@ -1423,6 +1423,35 @@ Before starting, choose a run profile:
 | **Header/Cookie Review** | Focus on security headers, cookie flags, CORS, and evidence-backed affected assets. |
 | **Advanced API Review** | Inspect Advanced API/auth summaries and run explicitly budgeted saved workflows. |
 | **Report From Evidence** | Summarize local evidence into quality-gated draft findings and run memory. |
+
+### Tutorial Mode And CVE Triage
+
+Turn on **Tutorial Mode** when you want the AI to teach the assessment rather than move through it continuously. Tutorial Mode works with every run profile and reuses the same visible browser, workbench tabs, saved Scope, redaction policy, budgets, capability leases, receipts, Mission Graph, evidence catalog, and finding-quality gate.
+
+![Radar AI-First Tutorial Mode](screens/radar-10-tutorial.png)
+
+To run a guided lesson:
+
+1. Save the authorized target origin in **11 Scope**.
+2. Switch to **AI-First**, choose the profile that matches the lesson, and turn on **Tutorial Mode**.
+3. Enter a learning goal such as `Teach me how to inspect https://staging.example.com for authorization clues without overclaiming a finding.`
+4. Click **Start Tutorial**.
+5. At each lesson checkpoint, inspect both the **Guided Field Lesson** card and the browser or Radar evidence pane named by the timeline.
+6. Review the clue, why it matters, what to look for, stronger evidence, benign or contradictory explanations, and the next safe step.
+7. Click **Continue Lesson** when you are ready. Navigation, form actions, replay, and workflows still stop for any required capability approval separately.
+
+Every meaningful inspection pauses the run. The checkpoint preserves cumulative elapsed time, tool calls, replay sends, workflow requests, mission state, and capability state. Switching modes, stopping, or denying a capability uses the normal AI-First behavior; Tutorial Mode never creates hidden automation or a separate security boundary.
+
+The lesson card assigns one triage lane:
+
+| Lane | Meaning |
+| --- | --- |
+| **Learning clue** | An interesting signal that still needs comparison or reproduction. |
+| **Local hardening** | A deployment-specific configuration or defense-in-depth improvement that should usually be fixed locally. |
+| **Vendor report** | Evidence may justify a private report to the product owner, but product/version or impact validation is incomplete. |
+| **CVE review** | A handoff candidate with durable evidence references, named product, affected versions, repeatable security impact, and relevance beyond one deployment. |
+
+Radar treats model output as untrusted. If a `CVE review` lesson omits any required readiness field or cites no durable evidence, normalization downgrades it to **Vendor report**. A CVE-review label is not a vulnerability confirmation and Radar does not assign CVE IDs. Confirm testing authorization, preserve a minimal reproduction without secrets, check whether the behavior is a product flaw rather than one site's configuration, and coordinate privately with the vendor or an appropriate [CVE Numbering Authority](https://www.cve.org/ProgramOrganization/CNAs). For disclosure workflow guidance, use the official [CISA coordinated vulnerability disclosure process](https://www.cisa.gov/coordinated-vulnerability-disclosure-process).
 
 ### Mission Graph And Operator Steering
 
@@ -1551,6 +1580,8 @@ AI-First runs are intentionally bounded:
 - Submit buttons cannot be sent through the generic click tool; the agent must use the separately leased form-submission tool so POST authority stays explicit.
 - An out-of-scope origin from a goal remains an unsaved Scope proposal until the operator clicks **Commit**; the operator must then click **Start Run** again.
 - Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy. Checkpoints preserve cumulative tool-step, replay-send, workflow-request, and elapsed-time usage across pause/resume and recovery; resuming never replenishes a budget.
+- Tutorial Mode adds a lesson object to visible transcript decisions and pauses after meaningful successful inspections. If the planner omits a lesson, Radar supplies a conservative learning-clue fallback instead of inventing a vulnerability classification.
+- CVE-review tutorial guidance is normalized at the planner boundary and requires product, affected-version, impact, deployment-scope, reproducibility, and durable-evidence fields. Missing support downgrades the lesson to private vendor review.
 - The planner can advance the Mission Graph only through a bounded patch based on the current revision. Stale revisions, invalid entity links, and invalid operator mutations fail closed instead of replacing or partially updating the graph.
 - Supported hypotheses, supported or verified claims, and covered cells require references that resolve to current local evidence.
 - A planner-created open operator question pauses the run before its selected tool executes. Resolve or dismiss the question before resuming.
