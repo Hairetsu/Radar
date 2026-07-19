@@ -19,6 +19,7 @@ import type {
   AgentRunRequest,
   AgentStorageState,
   AgentTimelineEntry,
+  AgentTutorialGuidance,
   AgentToolCall,
   AgentToolResult
 } from "../../shared/agent-types.js";
@@ -76,6 +77,7 @@ import { createReplayTab, normalizeReplayTabState } from "../../shared/replayTab
 import { parseTrafficQuery } from "../../shared/trafficQuery.js";
 import { normalizeAgentFindingWithGate } from "../../shared/agentQuality.js";
 import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
+import { fallbackAgentTutorialGuidance } from "../../shared/agentTutorial.js";
 import { agentProfileAllowsTool, getAgentRunProfile, normalizeAgentRunProfileId } from "../../shared/agentProfiles.js";
 import { normalizeWorkflowDefinition } from "../../shared/workflows.js";
 import { DEFAULT_AGENT_POLICY, blockedToolReason, normalizeAgentPolicy } from "./policy.js";
@@ -219,6 +221,26 @@ function toolMayEmitNetwork(call: AgentToolCall) {
     "sendReplay",
     "runWorkflow"
   ].includes(call.tool);
+}
+
+function tutorialPausesAfter(call: AgentToolCall) {
+  return call.tool !== "showView" && call.tool !== "waitForNetworkIdle";
+}
+
+function tutorialOrientation(): AgentTutorialGuidance {
+  return {
+    stage: "orient",
+    title: "Begin with a clue, not a conclusion",
+    clue: "Radar will inspect one bounded piece of visible evidence at a time.",
+    whyItMatters: "Security signals become useful only when they are compared, reproduced, and tied to a concrete impact.",
+    lookFor: ["Unexpected trust boundaries", "Differences between identities or states", "Server behavior that contradicts the intended control"],
+    strongerEvidence: ["A repeatable result with durable capture or workflow evidence references"],
+    falsifiers: ["Documented behavior, public data, local configuration, or a result that cannot be repeated"],
+    safeNextStep: "Review each lesson card, inspect the visible evidence pane, then choose Continue lesson.",
+    disposition: "learning-clue",
+    dispositionRationale: "The run has not collected enough evidence to classify a security issue.",
+    evidenceRefs: []
+  };
 }
 
 function visibleTargetForTool(call: AgentToolCall): AgentTimelineEntry["target"] {
@@ -858,6 +880,7 @@ function decisionContext({
     runMemory: deps.listRunMemory().slice(0, 16),
     mission: missionFromRun(run),
     capabilities: capabilityStateFromRun(run),
+    tutorialMode: Boolean(run.policy.tutorialMode),
     timeline: run.timeline.slice(-16)
   };
 }
@@ -1002,6 +1025,10 @@ export class AgentRuntime {
     const createdAt = nowIso();
     const profileId = normalizeAgentRunProfileId(request.profileId);
     const startUrl = firstUrlFromText(goal) || request.startUrl || "";
+    const policy = normalizeAgentPolicy(
+      { ...request.policy, tutorialMode: request.tutorialMode === true || request.policy?.tutorialMode === true },
+      profileId
+    );
     const run: AgentRun = {
       id: createId("agent"),
       sessionId: this.deps.currentSessionId(),
@@ -1010,7 +1037,7 @@ export class AgentRuntime {
       goal,
       profileId,
       status: "queued",
-      policy: normalizeAgentPolicy(request.policy, profileId),
+      policy,
       checkpoint: {
         startUrl,
         targetOrigin: startUrl ? originFromUrl(startUrl) : "",
@@ -1026,7 +1053,8 @@ export class AgentRuntime {
       timeline: [
         timeline("Run queued from AI-First goal prompt.", {
           phase: "status",
-          summary: `Queued with ${profileId} profile`
+          summary: `Queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`,
+          ...(policy.tutorialMode ? { tutorial: tutorialOrientation() } : {})
         })
       ],
       findings: []
@@ -2079,6 +2107,9 @@ export class AgentRuntime {
         if (!decision || (decision.action !== "tool" && decision.action !== "finish")) {
           throw new Error("Agent decision must choose either tool or finish.");
         }
+        const tutorial = run.policy.tutorialMode
+          ? decision.tutorial || fallbackAgentTutorialGuidance(decision)
+          : undefined;
 
         if (decision.missionPatch) {
           const missionResult = applyAgentMissionPatch(missionFromRun(run), decision.missionPatch, nowIso());
@@ -2147,7 +2178,8 @@ export class AgentRuntime {
               timeline(`Capability lease review required: ${proposed.lease.name}`, {
                 phase: "policy-block",
                 summary: `${proposed.lease.riskTier} lease proposed for ${decision.call.tool}`,
-                target: visibleTargetForTool(decision.call)
+                target: visibleTargetForTool(decision.call),
+                ...(tutorial ? { tutorial } : {})
               })
             ]
           });
@@ -2198,7 +2230,7 @@ export class AgentRuntime {
               timeline(
                 decision.rationale ||
                   `Agent returned finish with ${nextFindings.length} draft finding${nextFindings.length === 1 ? "" : "s"}.`,
-                { phase: "status" }
+                { phase: "status", ...(tutorial ? { tutorial } : {}) }
               )
             ]
           });
@@ -2209,14 +2241,15 @@ export class AgentRuntime {
           throw new Error("Agent tool decision did not include a tool call.");
         }
 
-        if (decision.rationale) {
+        if (decision.rationale || tutorial) {
           run = withUpdate(run, this.deps.saveRun, {
             timeline: [
               ...run.timeline,
-              timeline(`Agent selected ${decision.call.tool}: ${decision.rationale}`, {
+              timeline(`Agent selected ${decision.call.tool}: ${decision.rationale || tutorial?.safeNextStep || "Next tutorial step."}`, {
                 phase: "decision",
-                summary: decision.rationale,
-                target: visibleTargetForTool(decision.call)
+                summary: decision.rationale || tutorial?.title,
+                target: visibleTargetForTool(decision.call),
+                ...(tutorial ? { tutorial } : {})
               })
             ]
           });
@@ -2273,6 +2306,22 @@ export class AgentRuntime {
               timeline("Run paused after a failed or policy-blocked step. Choose a recovery action to continue.", {
                 phase: "status",
                 target: lastToolEntry.target
+              })
+            ]
+          });
+          return;
+        }
+
+        if (run.policy.tutorialMode && tutorialPausesAfter(decision.call)) {
+          withUpdate(run, this.deps.saveRun, {
+            status: "paused",
+            checkpoint: checkpointFromCounters(counters),
+            timeline: [
+              ...run.timeline,
+              timeline("Tutorial checkpoint reached. Inspect the visible result and continue when ready.", {
+                phase: "status",
+                summary: "Lesson checkpoint — waiting for operator",
+                target: visibleTargetForTool(decision.call)
               })
             ]
           });

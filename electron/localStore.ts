@@ -57,6 +57,7 @@ import { normalizeEvidenceAnnotation, normalizeEvidenceAnnotations } from "../sh
 import { MAX_AGENT_RUN_MEMORY, normalizeAgentRunMemory, normalizeAgentRunMemoryList } from "../shared/agentMemory.js";
 import { normalizeAgentMission } from "../shared/agentMission.js";
 import { normalizeAgentCapabilityState } from "../shared/agentCapabilities.js";
+import { normalizeAgentTutorialGuidance } from "../shared/agentTutorial.js";
 import {
   MAX_IDENTITY_PROFILES,
   normalizeIdentityActivation,
@@ -629,6 +630,11 @@ function toAgentRun(row: AgentRunRow): AgentRun {
     parseJsonObject(row.capabilities_json, null),
     row.created_at
   );
+  const timeline = parseJsonArray<AgentTimelineEntry>(row.timeline_json).map((entry) => {
+    const { tutorial: rawTutorial, ...rest } = entry;
+    const tutorial = normalizeAgentTutorialGuidance(rawTutorial);
+    return tutorial ? { ...rest, tutorial } : rest;
+  });
   return {
     id: row.id,
     sessionId: row.session_id,
@@ -645,7 +651,7 @@ function toAgentRun(row: AgentRunRow): AgentRun {
       maxCaptureSample: 0,
       allowRawContext: false
     }),
-    timeline: parseJsonArray<AgentTimelineEntry>(row.timeline_json),
+    timeline,
     findings: parseJsonArray<AgentFinding>(row.findings_json),
     mission,
     capabilities,

@@ -199,6 +199,13 @@ async function run() {
     await clickTestId(win, "openAiPalette");
     await sleep(300);
     await capture(win, "radar-05-ai-palette.png");
+    await pressEscape(win);
+    await clickTestId(win, "aiFirstMode");
+    await clickTestId(win, "agentTutorialToggle");
+    await fillTestId(win, "agentGoalInput", "Teach me how to inspect http://localhost:3000 for authorization clues.");
+    await clickTestId(win, "startAgentRun");
+    await waitForTestId(win, "agentTutorialGuide");
+    await capture(win, "radar-10-tutorial.png");
   } finally {
     previewProcess.kill("SIGTERM");
     app.quit();

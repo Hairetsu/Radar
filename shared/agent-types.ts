@@ -37,6 +37,37 @@ export type AgentWorkbenchView =
 
 export type AgentRunStatus = "queued" | "running" | "paused" | "stopped" | "completed" | "failed";
 
+export type AgentTutorialStage = "orient" | "observe" | "hypothesize" | "validate" | "triage" | "report";
+
+export type AgentTutorialDisposition =
+  | "learning-clue"
+  | "local-hardening"
+  | "vendor-report"
+  | "cve-review";
+
+export type AgentTutorialCveReadiness = {
+  product: string;
+  affectedVersions: string[];
+  securityImpact: string;
+  deploymentScope: string;
+  reproducibility: string;
+};
+
+export type AgentTutorialGuidance = {
+  stage: AgentTutorialStage;
+  title: string;
+  clue: string;
+  whyItMatters: string;
+  lookFor: string[];
+  strongerEvidence: string[];
+  falsifiers: string[];
+  safeNextStep: string;
+  disposition: AgentTutorialDisposition;
+  dispositionRationale: string;
+  evidenceRefs: string[];
+  cveReadiness?: AgentTutorialCveReadiness;
+};
+
 export type AgentRunRecoveryAction =
   | "retry-tool"
   | "retry-with-evidence"
@@ -580,10 +611,17 @@ export type AgentDecision =
       action: "tool";
       call: AgentToolCall;
       rationale?: string;
+      tutorial?: AgentTutorialGuidance;
       missionPatch?: AgentMissionPatch;
       leaseRequest?: AgentCapabilityLeaseRequest;
     }
-  | { action: "finish"; rationale?: string; findings?: AgentDecisionFinding[]; missionPatch?: AgentMissionPatch };
+  | {
+      action: "finish";
+      rationale?: string;
+      findings?: AgentDecisionFinding[];
+      tutorial?: AgentTutorialGuidance;
+      missionPatch?: AgentMissionPatch;
+    };
 
 export type AgentDecisionContext = {
   goal: string;
@@ -602,6 +640,7 @@ export type AgentDecisionContext = {
   runMemory: AgentRunMemoryEntry[];
   mission: AgentMission;
   capabilities: AgentCapabilityState;
+  tutorialMode: boolean;
   timeline: AgentTimelineEntry[];
 };
 
@@ -621,6 +660,7 @@ export type AgentTimelineEntry = {
   capabilityReceiptId?: string;
   actionId?: string;
   identityId?: string;
+  tutorial?: AgentTutorialGuidance;
   toolCall?: AgentToolCall;
   toolResult?: AgentToolResult;
 };
@@ -665,6 +705,7 @@ export type AgentPolicy = {
   maxWorkflowRequests: number;
   maxCaptureSample: number;
   allowRawContext: boolean;
+  tutorialMode?: boolean;
 };
 
 export type AgentRiskTier = "navigate" | "reversible" | "active" | "destructive";
@@ -751,6 +792,7 @@ export type AgentRunRequest = {
   goal: string;
   startUrl?: string;
   profileId?: AgentRunProfileId;
+  tutorialMode?: boolean;
   policy?: Partial<AgentPolicy>;
 };
 
