@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   Activity,
   BookOpenCheck,
@@ -720,7 +720,7 @@ export function App() {
     setAnnotationTags(annotation.tags.join(", "));
     setAnnotationComment(annotation.comment);
   }, [selectedCaptureId, getEvidenceAnnotation]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const selectedFindingId = workbench.selectedFinding?.id || "";
     if (findingSelectionIdRef.current === selectedFindingId) {
       return;

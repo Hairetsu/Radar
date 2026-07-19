@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-18T23:03:06.074Z",
+  "generatedAt": "2026-07-19T17:12:55.185Z",
   "status": "passed",
-  "wallTimeMs": 159097.45899999997,
+  "wallTimeMs": 158323.762,
   "workers": 6,
   "counts": {
     "passed": 157,
@@ -14,9 +14,9 @@
       "id": "REG-AUTO-006",
       "title": "[REG-AUTO-006] @network pauses and resumes a real slow Automate session without duplicate sends",
       "outcome": "passed",
-      "durationMs": 9723,
+      "durationMs": 7706,
       "attempts": 1,
-      "startupMs": 4967,
+      "startupMs": 4486,
       "tags": [
         "@network"
       ],
@@ -26,9 +26,9 @@
       "id": "REG-AUTO-007",
       "title": "[REG-AUTO-007] @network stops only the selected Automate session while another completes",
       "outcome": "passed",
-      "durationMs": 8081,
+      "durationMs": 7898,
       "attempts": 1,
-      "startupMs": 5029,
+      "startupMs": 5000,
       "tags": [
         "@network"
       ],
@@ -38,9 +38,9 @@
       "id": "REG-AUTO-008",
       "title": "[REG-AUTO-008] @network retries only a failed Automate attempt after fixture recovery",
       "outcome": "passed",
-      "durationMs": 9598,
+      "durationMs": 8295,
       "attempts": 1,
-      "startupMs": 5096,
+      "startupMs": 5011,
       "tags": [
         "@network"
       ],
@@ -50,9 +50,9 @@
       "id": "REG-WF-006",
       "title": "[REG-WF-006] @network @security runs one selected in-scope active workflow request through the normal contract",
       "outcome": "passed",
-      "durationMs": 8613,
+      "durationMs": 6715,
       "attempts": 1,
-      "startupMs": 5064,
+      "startupMs": 5032,
       "tags": [
         "@network",
         "@security"
@@ -63,9 +63,9 @@
       "id": "REG-WF-007",
       "title": "[REG-WF-007] @network @security blocks an active workflow with no selected capture",
       "outcome": "passed",
-      "durationMs": 36419,
+      "durationMs": 35991,
       "attempts": 1,
-      "startupMs": 5019,
+      "startupMs": 5155,
       "tags": [
         "@network",
         "@security"
@@ -76,9 +76,9 @@
       "id": "REG-RES-001",
       "title": "[REG-RES-001] @network surfaces a bounded replay failure when the target lab disappears and remains usable",
       "outcome": "passed",
-      "durationMs": 6551,
+      "durationMs": 6132,
       "attempts": 1,
-      "startupMs": 4966,
+      "startupMs": 5034,
       "tags": [
         "@network"
       ],
@@ -88,9 +88,9 @@
       "id": "REG-SSL-003",
       "title": "[REG-SSL-003] @network captures real HTTPS fixture traffic through Radar's isolated MITM proxy",
       "outcome": "passed",
-      "durationMs": 4749,
+      "durationMs": 4886,
       "attempts": 1,
-      "startupMs": 1628,
+      "startupMs": 1709,
       "tags": [
         "@network"
       ],
@@ -100,9 +100,9 @@
       "id": "REG-AIF-003",
       "title": "[REG-AIF-003] @ai @security enforces visible tool, replay, workflow, capture-sample, and runtime budgets",
       "outcome": "passed",
-      "durationMs": 12078,
+      "durationMs": 12114,
       "attempts": 1,
-      "startupMs": 1566,
+      "startupMs": 1688,
       "tags": [
         "@ai",
         "@security"
@@ -113,9 +113,9 @@
       "id": "REG-AIF-004",
       "title": "[REG-AIF-004] @ai pauses a delayed planner and resumes the same durable run",
       "outcome": "passed",
-      "durationMs": 7846,
+      "durationMs": 8447,
       "attempts": 1,
-      "startupMs": 1598,
+      "startupMs": 2200,
       "tags": [
         "@ai"
       ],
@@ -125,9 +125,9 @@
       "id": "REG-AIF-005",
       "title": "[REG-AIF-005] @ai @security keeps a stopped delayed run terminal after its provider response arrives",
       "outcome": "passed",
-      "durationMs": 5660,
+      "durationMs": 6217,
       "attempts": 1,
-      "startupMs": 2134,
+      "startupMs": 2683,
       "tags": [
         "@ai",
         "@security"
@@ -138,9 +138,9 @@
       "id": "REG-AIF-006",
       "title": "[REG-AIF-006] @ai records retry, retry-with-evidence, skip, and stop recovery choices",
       "outcome": "passed",
-      "durationMs": 14145,
+      "durationMs": 12960,
       "attempts": 1,
-      "startupMs": 2123,
+      "startupMs": 2190,
       "tags": [
         "@ai"
       ],
@@ -150,9 +150,9 @@
       "id": "REG-AIF-007",
       "title": "[REG-AIF-007] @ai creates a low-confidence reviewable finding draft from a failed recovery",
       "outcome": "passed",
-      "durationMs": 4966,
+      "durationMs": 5067,
       "attempts": 1,
-      "startupMs": 1577,
+      "startupMs": 1696,
       "tags": [
         "@ai"
       ],
@@ -162,7 +162,7 @@
       "id": "REG-AIF-009",
       "title": "[REG-AIF-009] @ai @persistence confirms, dismisses, searches, and restores project run memory",
       "outcome": "passed",
-      "durationMs": 7813,
+      "durationMs": 7944,
       "attempts": 1,
       "tags": [
         "@ai",
@@ -174,9 +174,9 @@
       "id": "REG-AIF-010",
       "title": "[REG-AIF-010] @ai @security rejects an invisible plugin mutation and creates no side effect",
       "outcome": "passed",
-      "durationMs": 5200,
+      "durationMs": 3926,
       "attempts": 1,
-      "startupMs": 2084,
+      "startupMs": 2196,
       "tags": [
         "@ai",
         "@security"
@@ -187,9 +187,9 @@
       "id": "REG-AIF-011",
       "title": "[REG-AIF-011] @ai steers a paused mission and grants then revokes an exact capability lease",
       "outcome": "passed",
-      "durationMs": 5841,
+      "durationMs": 5929,
       "attempts": 1,
-      "startupMs": 2118,
+      "startupMs": 2170,
       "tags": [
         "@ai"
       ],
@@ -199,7 +199,7 @@
       "id": "REG-AIF-012",
       "title": "[REG-AIF-012] @ai @persistence restores completed, stopped, and failed AI runs after restart",
       "outcome": "passed",
-      "durationMs": 7931,
+      "durationMs": 8129,
       "attempts": 1,
       "tags": [
         "@ai",
@@ -211,9 +211,9 @@
       "id": "REG-FIND-009",
       "title": "[REG-FIND-009] @ai @security rejects malformed AI finding evidence before it enters the inbox",
       "outcome": "passed",
-      "durationMs": 5213,
+      "durationMs": 4713,
       "attempts": 1,
-      "startupMs": 1638,
+      "startupMs": 1683,
       "tags": [
         "@ai",
         "@security"
@@ -224,9 +224,9 @@
       "id": "REG-INT-008",
       "title": "[REG-INT-008] @ai @network @security prepares a visible intercept edit while leaving the request paused",
       "outcome": "passed",
-      "durationMs": 6343,
+      "durationMs": 6367,
       "attempts": 1,
-      "startupMs": 1699,
+      "startupMs": 1728,
       "tags": [
         "@ai",
         "@network",
@@ -238,9 +238,9 @@
       "id": "REG-PLUG-010",
       "title": "[REG-PLUG-010] @ai @security reads plugin inventory but rejects a requested install mutation",
       "outcome": "passed",
-      "durationMs": 4663,
+      "durationMs": 4003,
       "attempts": 1,
-      "startupMs": 1626,
+      "startupMs": 2268,
       "tags": [
         "@ai",
         "@security"
@@ -251,9 +251,9 @@
       "id": "REG-WF-010",
       "title": "[REG-WF-010] @ai @security prepares a visible workflow draft without saving or running it",
       "outcome": "passed",
-      "durationMs": 4999,
+      "durationMs": 4009,
       "attempts": 1,
-      "startupMs": 1608,
+      "startupMs": 2270,
       "tags": [
         "@ai",
         "@security"
@@ -264,9 +264,9 @@
       "id": "REG-WF-011",
       "title": "[REG-WF-011] @ai @network @security reuses the normal workflow contract after an exact capability grant",
       "outcome": "passed",
-      "durationMs": 9533,
+      "durationMs": 7877,
       "attempts": 1,
-      "startupMs": 1567,
+      "startupMs": 1733,
       "tags": [
         "@ai",
         "@network",
@@ -278,9 +278,9 @@
       "id": "REG-ID-007",
       "title": "[REG-ID-007] @ai @security keeps identity-adjacent raw capture secrets opt-in",
       "outcome": "passed",
-      "durationMs": 3442,
+      "durationMs": 4553,
       "attempts": 1,
-      "startupMs": 1596,
+      "startupMs": 2729,
       "tags": [
         "@ai",
         "@security"
@@ -291,9 +291,9 @@
       "id": "REG-AIM-001",
       "title": "[REG-AIM-001] @ai configures, probes, and persists the deterministic local provider",
       "outcome": "passed",
-      "durationMs": 2958,
+      "durationMs": 4055,
       "attempts": 1,
-      "startupMs": 1578,
+      "startupMs": 2683,
       "tags": [
         "@ai"
       ],
@@ -303,9 +303,9 @@
       "id": "REG-AIM-002",
       "title": "[REG-AIM-002] @ai @security sends redacted scoped context by default",
       "outcome": "passed",
-      "durationMs": 3402,
+      "durationMs": 3864,
       "attempts": 1,
-      "startupMs": 1650,
+      "startupMs": 2198,
       "tags": [
         "@ai",
         "@security"
@@ -316,9 +316,9 @@
       "id": "REG-AIM-003",
       "title": "[REG-AIM-003] @ai @security sends raw evidence only after explicit opt-in",
       "outcome": "passed",
-      "durationMs": 3426,
+      "durationMs": 3383,
       "attempts": 1,
-      "startupMs": 1623,
+      "startupMs": 1717,
       "tags": [
         "@ai",
         "@security"
@@ -329,9 +329,9 @@
       "id": "REG-AIM-004",
       "title": "[REG-AIM-004] @ai runs summary, notes, checklist, TLS, and WebSocket analysis tasks",
       "outcome": "passed",
-      "durationMs": 4644,
+      "durationMs": 4294,
       "attempts": 1,
-      "startupMs": 2113,
+      "startupMs": 1736,
       "tags": [
         "@ai"
       ],
@@ -341,9 +341,9 @@
       "id": "REG-AIM-005",
       "title": "[REG-AIM-005] @ai @security applies a prepared Repeater draft without transmitting it",
       "outcome": "passed",
-      "durationMs": 3935,
+      "durationMs": 4440,
       "attempts": 1,
-      "startupMs": 2184,
+      "startupMs": 2713,
       "tags": [
         "@ai",
         "@security"
@@ -354,9 +354,9 @@
       "id": "REG-AIM-006",
       "title": "[REG-AIM-006] @ai saves, runs, and deletes a local custom skill",
       "outcome": "passed",
-      "durationMs": 4589,
+      "durationMs": 4494,
       "attempts": 1,
-      "startupMs": 2634,
+      "startupMs": 2699,
       "tags": [
         "@ai"
       ],
@@ -366,9 +366,9 @@
       "id": "REG-AIM-007",
       "title": "[REG-AIM-007] @ai recovers from malformed, HTTP-error, and timeout provider responses",
       "outcome": "passed",
-      "durationMs": 4206,
+      "durationMs": 4670,
       "attempts": 1,
-      "startupMs": 2118,
+      "startupMs": 2716,
       "tags": [
         "@ai"
       ],
@@ -378,9 +378,9 @@
       "id": "REG-AIM-008",
       "title": "[REG-AIM-008] @ai @security does not reuse a hidden session's packet selection",
       "outcome": "passed",
-      "durationMs": 3365,
+      "durationMs": 3540,
       "attempts": 1,
-      "startupMs": 1651,
+      "startupMs": 1713,
       "tags": [
         "@ai",
         "@security"
@@ -391,9 +391,9 @@
       "id": "REG-AIF-001",
       "title": "[REG-AIF-001] @ai @smoke completes a passive AI-First goal with a visible timeline",
       "outcome": "passed",
-      "durationMs": 5183,
+      "durationMs": 5138,
       "attempts": 1,
-      "startupMs": 1700,
+      "startupMs": 1706,
       "tags": [
         "@ai",
         "@smoke"
@@ -404,9 +404,9 @@
       "id": "REG-AIF-002",
       "title": "[REG-AIF-002] @ai @security policy-blocks an out-of-scope planner action",
       "outcome": "passed",
-      "durationMs": 5657,
+      "durationMs": 4146,
       "attempts": 1,
-      "startupMs": 2696,
+      "startupMs": 2796,
       "tags": [
         "@ai",
         "@security"
@@ -417,9 +417,9 @@
       "id": "REG-AIF-008",
       "title": "[REG-AIF-008] @ai @security rejects incomplete findings and accepts complete evidence contracts",
       "outcome": "passed",
-      "durationMs": 7838,
+      "durationMs": 7744,
       "attempts": 1,
-      "startupMs": 3271,
+      "startupMs": 3261,
       "tags": [
         "@ai",
         "@security"
@@ -430,9 +430,9 @@
       "id": "REG-APP-001",
       "title": "[REG-APP-001] @smoke launches the production Electron shell with preload state",
       "outcome": "passed",
-      "durationMs": 3573,
+      "durationMs": 3534,
       "attempts": 1,
-      "startupMs": 3269,
+      "startupMs": 3225,
       "tags": [
         "@smoke"
       ],
@@ -442,9 +442,9 @@
       "id": "REG-APP-003",
       "title": "[REG-APP-003] @smoke loads the complete seeded walkthrough",
       "outcome": "passed",
-      "durationMs": 4713,
+      "durationMs": 4786,
       "attempts": 1,
-      "startupMs": 3231,
+      "startupMs": 3282,
       "tags": [
         "@smoke"
       ],
@@ -454,9 +454,9 @@
       "id": "REG-APP-005",
       "title": "[REG-APP-005] @core switches and persists every appearance theme",
       "outcome": "passed",
-      "durationMs": 3321,
+      "durationMs": 4409,
       "attempts": 1,
-      "startupMs": 1631,
+      "startupMs": 2746,
       "tags": [
         "@core"
       ],
@@ -466,9 +466,9 @@
       "id": "REG-APP-006",
       "title": "[REG-APP-006] @core opens and dismisses every primary overlay",
       "outcome": "passed",
-      "durationMs": 3201,
+      "durationMs": 4834,
       "attempts": 1,
-      "startupMs": 1620,
+      "startupMs": 3291,
       "tags": [
         "@core"
       ],
@@ -478,9 +478,9 @@
       "id": "REG-APP-007",
       "title": "[REG-APP-007] @core toggles operating mode without creating an agent run",
       "outcome": "passed",
-      "durationMs": 2927,
+      "durationMs": 4559,
       "attempts": 1,
-      "startupMs": 1657,
+      "startupMs": 3265,
       "tags": [
         "@core"
       ],
@@ -490,9 +490,9 @@
       "id": "REG-APP-008",
       "title": "[REG-APP-008] @core creates and switches sessions through visible controls",
       "outcome": "passed",
-      "durationMs": 3179,
+      "durationMs": 4684,
       "attempts": 1,
-      "startupMs": 1688,
+      "startupMs": 3239,
       "tags": [
         "@core"
       ],
@@ -502,9 +502,9 @@
       "id": "REG-APP-009",
       "title": "[REG-APP-009] @core opens global search with the platform shortcut and Escape",
       "outcome": "passed",
-      "durationMs": 2519,
+      "durationMs": 3016,
       "attempts": 1,
-      "startupMs": 2171,
+      "startupMs": 2716,
       "tags": [
         "@core"
       ],
@@ -514,9 +514,9 @@
       "id": "REG-PROJ-002",
       "title": "[REG-PROJ-002] @core @persistence renames a session and keeps it selectable",
       "outcome": "passed",
-      "durationMs": 3614,
+      "durationMs": 4098,
       "attempts": 1,
-      "startupMs": 2172,
+      "startupMs": 2707,
       "tags": [
         "@core",
         "@persistence"
@@ -527,9 +527,9 @@
       "id": "REG-PROJ-004",
       "title": "[REG-PROJ-004] @core @persistence saves and restores a filtered Traffic view",
       "outcome": "passed",
-      "durationMs": 3345,
+      "durationMs": 3355,
       "attempts": 1,
-      "startupMs": 1684,
+      "startupMs": 1717,
       "tags": [
         "@core",
         "@persistence"
@@ -540,9 +540,9 @@
       "id": "REG-PROJ-008",
       "title": "[REG-PROJ-008] @core @persistence refreshes stable demo records without duplicates",
       "outcome": "passed",
-      "durationMs": 3229,
+      "durationMs": 4279,
       "attempts": 1,
-      "startupMs": 1718,
+      "startupMs": 2768,
       "tags": [
         "@core",
         "@persistence"
@@ -553,9 +553,9 @@
       "id": "REG-HTTP-003",
       "title": "[REG-HTTP-003] @core combines method, type, sort, and query filters",
       "outcome": "passed",
-      "durationMs": 4646,
+      "durationMs": 4712,
       "attempts": 1,
-      "startupMs": 3215,
+      "startupMs": 3306,
       "tags": [
         "@core"
       ],
@@ -565,9 +565,9 @@
       "id": "REG-HTTP-004",
       "title": "[REG-HTTP-004] @core saves and reapplies a Traffic filter",
       "outcome": "passed",
-      "durationMs": 4876,
+      "durationMs": 4786,
       "attempts": 1,
-      "startupMs": 3299,
+      "startupMs": 3244,
       "tags": [
         "@core"
       ],
@@ -577,9 +577,9 @@
       "id": "REG-HTTP-005",
       "title": "[REG-HTTP-005] @core @persistence annotates evidence and exposes it to search",
       "outcome": "passed",
-      "durationMs": 6104,
+      "durationMs": 6101,
       "attempts": 1,
-      "startupMs": 3244,
+      "startupMs": 3274,
       "tags": [
         "@core",
         "@persistence"
@@ -590,9 +590,9 @@
       "id": "REG-HTTP-008",
       "title": "[REG-HTTP-008] @core inspects request, response, and TLS evidence",
       "outcome": "passed",
-      "durationMs": 4683,
+      "durationMs": 4267,
       "attempts": 1,
-      "startupMs": 3210,
+      "startupMs": 2785,
       "tags": [
         "@core"
       ],
@@ -602,9 +602,9 @@
       "id": "REG-HTTP-010",
       "title": "[REG-HTTP-010] @core @security clears HTTP evidence without clearing WebSocket frames",
       "outcome": "passed",
-      "durationMs": 4143,
+      "durationMs": 3211,
       "attempts": 1,
-      "startupMs": 2644,
+      "startupMs": 1720,
       "tags": [
         "@core",
         "@security"
@@ -615,9 +615,9 @@
       "id": "REG-WS-002",
       "title": "[REG-WS-002] @core filters WebSocket evidence by direction and payload",
       "outcome": "passed",
-      "durationMs": 3683,
+      "durationMs": 3139,
       "attempts": 1,
-      "startupMs": 2224,
+      "startupMs": 1709,
       "tags": [
         "@core"
       ],
@@ -627,9 +627,9 @@
       "id": "REG-WS-004",
       "title": "[REG-WS-004] @core renders complete selected frame detail",
       "outcome": "passed",
-      "durationMs": 3262,
+      "durationMs": 3205,
       "attempts": 1,
-      "startupMs": 2280,
+      "startupMs": 1732,
       "tags": [
         "@core"
       ],
@@ -639,9 +639,9 @@
       "id": "REG-WS-007",
       "title": "[REG-WS-007] @core clears WebSocket frames without clearing HTTP evidence",
       "outcome": "passed",
-      "durationMs": 3298,
+      "durationMs": 3241,
       "attempts": 1,
-      "startupMs": 1690,
+      "startupMs": 1721,
       "tags": [
         "@core"
       ],
@@ -651,7 +651,7 @@
       "id": "REG-DATA-004",
       "title": "[REG-DATA-004] @persistence @security fails closed against a newer database without modifying it",
       "outcome": "passed",
-      "durationMs": 1126,
+      "durationMs": 971,
       "attempts": 1,
       "tags": [
         "@persistence",
@@ -663,7 +663,7 @@
       "id": "REG-DATA-005",
       "title": "[REG-DATA-005] @persistence migrates a supported older database once and remains idempotent",
       "outcome": "passed",
-      "durationMs": 4687,
+      "durationMs": 3322,
       "attempts": 1,
       "tags": [
         "@persistence"
@@ -674,9 +674,9 @@
       "id": "REG-SCOPE-001",
       "title": "[REG-SCOPE-001] @security starts with local-development-only scope",
       "outcome": "passed",
-      "durationMs": 5045,
+      "durationMs": 2969,
       "attempts": 1,
-      "startupMs": 4329,
+      "startupMs": 1707,
       "tags": [
         "@security"
       ],
@@ -686,9 +686,9 @@
       "id": "REG-SCOPE-002",
       "title": "[REG-SCOPE-002] @security saves exact origins, hostnames, wildcards, and local",
       "outcome": "passed",
-      "durationMs": 5117,
+      "durationMs": 3099,
       "attempts": 1,
-      "startupMs": 4234,
+      "startupMs": 1806,
       "tags": [
         "@security"
       ],
@@ -698,9 +698,9 @@
       "id": "REG-SCOPE-003",
       "title": "[REG-SCOPE-003] @security ignores blank scope lines and normalizes duplicates",
       "outcome": "passed",
-      "durationMs": 5169,
+      "durationMs": 3086,
       "attempts": 1,
-      "startupMs": 4254,
+      "startupMs": 1767,
       "tags": [
         "@security"
       ],
@@ -710,9 +710,9 @@
       "id": "REG-SCOPE-006",
       "title": "[REG-SCOPE-006] @security trusts only the current Repeater draft origin without sending",
       "outcome": "passed",
-      "durationMs": 5160,
+      "durationMs": 3092,
       "attempts": 1,
-      "startupMs": 3731,
+      "startupMs": 1748,
       "tags": [
         "@security"
       ],
@@ -722,9 +722,9 @@
       "id": "REG-REP-002",
       "title": "[REG-REP-002] @core @persistence creates, selects, pins, and closes Repeater tabs",
       "outcome": "passed",
-      "durationMs": 4619,
+      "durationMs": 3056,
       "attempts": 1,
-      "startupMs": 3177,
+      "startupMs": 1724,
       "tags": [
         "@core",
         "@persistence"
@@ -735,9 +735,9 @@
       "id": "REG-REP-003",
       "title": "[REG-REP-003] @core selects an environment while preserving variable-authored drafts",
       "outcome": "passed",
-      "durationMs": 3197,
+      "durationMs": 4141,
       "attempts": 1,
-      "startupMs": 1772,
+      "startupMs": 2749,
       "tags": [
         "@core"
       ],
@@ -747,9 +747,9 @@
       "id": "REG-REP-006",
       "title": "[REG-REP-006] @core @persistence reloads a saved collection draft",
       "outcome": "passed",
-      "durationMs": 4211,
+      "durationMs": 4729,
       "attempts": 1,
-      "startupMs": 2743,
+      "startupMs": 3262,
       "tags": [
         "@core",
         "@persistence"
@@ -760,9 +760,9 @@
       "id": "REG-AUTO-001",
       "title": "[REG-AUTO-001] @core inserts a named URL payload marker into the visible draft",
       "outcome": "passed",
-      "durationMs": 4731,
+      "durationMs": 4630,
       "attempts": 1,
-      "startupMs": 3282,
+      "startupMs": 3226,
       "tags": [
         "@core"
       ],
@@ -772,9 +772,9 @@
       "id": "REG-AUTO-005",
       "title": "[REG-AUTO-005] @core renders seeded results, matches, and clusters",
       "outcome": "passed",
-      "durationMs": 4705,
+      "durationMs": 4727,
       "attempts": 1,
-      "startupMs": 3233,
+      "startupMs": 3269,
       "tags": [
         "@core"
       ],
@@ -784,9 +784,9 @@
       "id": "REG-AUTO-009",
       "title": "[REG-AUTO-009] @core promotes an Automate result into Repeater",
       "outcome": "passed",
-      "durationMs": 4736,
+      "durationMs": 4273,
       "attempts": 1,
-      "startupMs": 3201,
+      "startupMs": 2738,
       "tags": [
         "@core"
       ],
@@ -796,9 +796,9 @@
       "id": "REG-FIND-001",
       "title": "[REG-FIND-001] @core combines finding queue filters",
       "outcome": "passed",
-      "durationMs": 4716,
+      "durationMs": 4178,
       "attempts": 1,
-      "startupMs": 3249,
+      "startupMs": 2715,
       "tags": [
         "@core"
       ],
@@ -808,9 +808,9 @@
       "id": "REG-FIND-002",
       "title": "[REG-FIND-002] @core creates evidence-backed findings from HTTP and WebSocket",
       "outcome": "passed",
-      "durationMs": 3792,
+      "durationMs": 3356,
       "attempts": 1,
-      "startupMs": 2140,
+      "startupMs": 1720,
       "tags": [
         "@core"
       ],
@@ -820,9 +820,9 @@
       "id": "REG-FIND-004",
       "title": "[REG-FIND-004] @core @persistence saves edited finding fields",
       "outcome": "passed",
-      "durationMs": 5147,
+      "durationMs": 5009,
       "attempts": 1,
-      "startupMs": 1695,
+      "startupMs": 1735,
       "tags": [
         "@core",
         "@persistence"
@@ -833,9 +833,9 @@
       "id": "REG-FIND-008",
       "title": "[REG-FIND-008] @core deletes only the selected finding",
       "outcome": "passed",
-      "durationMs": 3255,
+      "durationMs": 3233,
       "attempts": 1,
-      "startupMs": 1747,
+      "startupMs": 1735,
       "tags": [
         "@core"
       ],
@@ -845,9 +845,9 @@
       "id": "REG-FILE-008",
       "title": "[REG-FILE-008] @files @security builds a redacted Markdown finding report",
       "outcome": "passed",
-      "durationMs": 3205,
+      "durationMs": 3806,
       "attempts": 1,
-      "startupMs": 1694,
+      "startupMs": 2288,
       "tags": [
         "@files",
         "@security"
@@ -858,9 +858,9 @@
       "id": "REG-WF-001",
       "title": "[REG-WF-001] @core protects built-in workflows and exposes saved workflows",
       "outcome": "passed",
-      "durationMs": 3808,
+      "durationMs": 4258,
       "attempts": 1,
-      "startupMs": 2226,
+      "startupMs": 2751,
       "tags": [
         "@core"
       ],
@@ -870,9 +870,9 @@
       "id": "REG-WF-003",
       "title": "[REG-WF-003] @core @security rejects malformed workflow definitions",
       "outcome": "passed",
-      "durationMs": 4363,
+      "durationMs": 4246,
       "attempts": 1,
-      "startupMs": 2780,
+      "startupMs": 2727,
       "tags": [
         "@core",
         "@security"
@@ -883,9 +883,9 @@
       "id": "REG-WF-005",
       "title": "[REG-WF-005] @core runs a passive workflow without changing captures",
       "outcome": "passed",
-      "durationMs": 3905,
+      "durationMs": 3275,
       "attempts": 1,
-      "startupMs": 2252,
+      "startupMs": 1720,
       "tags": [
         "@core"
       ],
@@ -895,9 +895,9 @@
       "id": "REG-WF-008",
       "title": "[REG-WF-008] @core promotes a warning workflow result to a draft finding",
       "outcome": "passed",
-      "durationMs": 3288,
+      "durationMs": 3259,
       "attempts": 1,
-      "startupMs": 1696,
+      "startupMs": 1722,
       "tags": [
         "@core"
       ],
@@ -907,9 +907,9 @@
       "id": "REG-PLUG-001",
       "title": "[REG-PLUG-001] @core displays seeded approved plugin permissions",
       "outcome": "passed",
-      "durationMs": 3162,
+      "durationMs": 4132,
       "attempts": 1,
-      "startupMs": 1696,
+      "startupMs": 2731,
       "tags": [
         "@core"
       ],
@@ -919,9 +919,9 @@
       "id": "REG-PLUG-007",
       "title": "[REG-PLUG-007] @core @security renders the approved demo panel",
       "outcome": "passed",
-      "durationMs": 3204,
+      "durationMs": 4709,
       "attempts": 1,
-      "startupMs": 1718,
+      "startupMs": 3205,
       "tags": [
         "@core",
         "@security"
@@ -932,9 +932,9 @@
       "id": "REG-ADV-001",
       "title": "[REG-ADV-001] @core renders seeded GraphQL operation analysis",
       "outcome": "passed",
-      "durationMs": 3152,
+      "durationMs": 5206,
       "attempts": 1,
-      "startupMs": 1707,
+      "startupMs": 3789,
       "tags": [
         "@core"
       ],
@@ -944,9 +944,9 @@
       "id": "REG-ADV-005",
       "title": "[REG-ADV-005] @core inventories query, JSON, GraphQL, and WebSocket parameters",
       "outcome": "passed",
-      "durationMs": 3624,
+      "durationMs": 5187,
       "attempts": 1,
-      "startupMs": 2205,
+      "startupMs": 3795,
       "tags": [
         "@core"
       ],
@@ -956,9 +956,9 @@
       "id": "REG-ADV-006",
       "title": "[REG-ADV-006] @security masks local secret signals",
       "outcome": "passed",
-      "durationMs": 4195,
+      "durationMs": 4721,
       "attempts": 1,
-      "startupMs": 2758,
+      "startupMs": 3260,
       "tags": [
         "@security"
       ],
@@ -968,9 +968,9 @@
       "id": "REG-ADV-008",
       "title": "[REG-ADV-008] @core @security prepares an Advanced workflow visibly without running it",
       "outcome": "passed",
-      "durationMs": 4189,
+      "durationMs": 4223,
       "attempts": 1,
-      "startupMs": 2693,
+      "startupMs": 2729,
       "tags": [
         "@core",
         "@security"
@@ -981,9 +981,9 @@
       "id": "REG-MAP-001",
       "title": "[REG-MAP-001] @core builds a sitemap and endpoint inventory from captures",
       "outcome": "passed",
-      "durationMs": 4142,
+      "durationMs": 3225,
       "attempts": 1,
-      "startupMs": 2695,
+      "startupMs": 1711,
       "tags": [
         "@core"
       ],
@@ -993,9 +993,9 @@
       "id": "REG-MAP-002",
       "title": "[REG-MAP-002] @core routes a sitemap endpoint into filtered Traffic",
       "outcome": "passed",
-      "durationMs": 4219,
+      "durationMs": 3191,
       "attempts": 1,
-      "startupMs": 2713,
+      "startupMs": 1792,
       "tags": [
         "@core"
       ],
@@ -1005,9 +1005,9 @@
       "id": "REG-SSL-004",
       "title": "[REG-SSL-004] @core @persistence saves workspace-local proxy profile notes",
       "outcome": "passed",
-      "durationMs": 4187,
+      "durationMs": 4199,
       "attempts": 1,
-      "startupMs": 2711,
+      "startupMs": 2793,
       "tags": [
         "@core",
         "@persistence"
@@ -1018,9 +1018,9 @@
       "id": "REG-APP-010",
       "title": "[REG-APP-010] @core keeps sidebar and footer telemetry aligned with visible evidence",
       "outcome": "passed",
-      "durationMs": 3111,
+      "durationMs": 5201,
       "attempts": 1,
-      "startupMs": 1682,
+      "startupMs": 3797,
       "tags": [
         "@core"
       ],
@@ -1030,9 +1030,9 @@
       "id": "REG-PROJ-005",
       "title": "[REG-PROJ-005] @core routes every populated global-search result kind",
       "outcome": "passed",
-      "durationMs": 4473,
+      "durationMs": 6325,
       "attempts": 1,
-      "startupMs": 1685,
+      "startupMs": 3743,
       "tags": [
         "@core"
       ],
@@ -1042,9 +1042,9 @@
       "id": "REG-PROJ-007",
       "title": "[REG-PROJ-007] @core rejects unsupported global-search filters without changing state",
       "outcome": "passed",
-      "durationMs": 3223,
+      "durationMs": 5208,
       "attempts": 1,
-      "startupMs": 1673,
+      "startupMs": 3753,
       "tags": [
         "@core"
       ],
@@ -1054,9 +1054,9 @@
       "id": "REG-SCOPE-004",
       "title": "[REG-SCOPE-004] @security removing an origin hides its evidence everywhere without deleting it",
       "outcome": "passed",
-      "durationMs": 3235,
+      "durationMs": 4871,
       "attempts": 1,
-      "startupMs": 1626,
+      "startupMs": 3216,
       "tags": [
         "@security"
       ],
@@ -1066,9 +1066,9 @@
       "id": "REG-SCOPE-005",
       "title": "[REG-SCOPE-005] @security re-adding an origin reveals stored evidence without duplication",
       "outcome": "passed",
-      "durationMs": 3624,
+      "durationMs": 3930,
       "attempts": 1,
-      "startupMs": 1715,
+      "startupMs": 2230,
       "tags": [
         "@security"
       ],
@@ -1078,9 +1078,9 @@
       "id": "REG-HTTP-007",
       "title": "[REG-HTTP-007] @files @security bulk-exports only selected scoped captures",
       "outcome": "passed",
-      "durationMs": 4271,
+      "durationMs": 3213,
       "attempts": 1,
-      "startupMs": 2694,
+      "startupMs": 1702,
       "tags": [
         "@files",
         "@security"
@@ -1091,9 +1091,9 @@
       "id": "REG-INT-006",
       "title": "[REG-INT-006] @security rejects invalid intercept rules and preserves the last valid set",
       "outcome": "passed",
-      "durationMs": 4175,
+      "durationMs": 3156,
       "attempts": 1,
-      "startupMs": 2678,
+      "startupMs": 1746,
       "tags": [
         "@security"
       ],
@@ -1103,9 +1103,9 @@
       "id": "REG-REP-004",
       "title": "[REG-REP-004] @security blocks a missing environment variable before transmission",
       "outcome": "passed",
-      "durationMs": 4050,
+      "durationMs": 3325,
       "attempts": 1,
-      "startupMs": 2321,
+      "startupMs": 1736,
       "tags": [
         "@security"
       ],
@@ -1115,9 +1115,9 @@
       "id": "REG-REP-005",
       "title": "[REG-REP-005] @network compares two real replay-history variants",
       "outcome": "passed",
-      "durationMs": 4658,
+      "durationMs": 4101,
       "attempts": 1,
-      "startupMs": 2813,
+      "startupMs": 2301,
       "tags": [
         "@network"
       ],
@@ -1127,9 +1127,9 @@
       "id": "REG-REP-009",
       "title": "[REG-REP-009] @network represents status, redirect, slow, and connection-error outcomes",
       "outcome": "passed",
-      "durationMs": 5036,
+      "durationMs": 4894,
       "attempts": 1,
-      "startupMs": 2813,
+      "startupMs": 2823,
       "tags": [
         "@network"
       ],
@@ -1139,9 +1139,9 @@
       "id": "REG-AUTO-002",
       "title": "[REG-AUTO-002] @core @persistence creates, updates, and reloads an inline payload set",
       "outcome": "passed",
-      "durationMs": 3934,
+      "durationMs": 4174,
       "attempts": 1,
-      "startupMs": 2217,
+      "startupMs": 2753,
       "tags": [
         "@core",
         "@persistence"
@@ -1152,9 +1152,9 @@
       "id": "REG-AUTO-003",
       "title": "[REG-AUTO-003] @files @security stores a bounded wordlist reference without renderer file access",
       "outcome": "passed",
-      "durationMs": 4334,
+      "durationMs": 3662,
       "attempts": 1,
-      "startupMs": 2847,
+      "startupMs": 2289,
       "tags": [
         "@files",
         "@security"
@@ -1165,9 +1165,9 @@
       "id": "REG-AUTO-004",
       "title": "[REG-AUTO-004] @security clamps excessive Automate execution limits",
       "outcome": "passed",
-      "durationMs": 4258,
+      "durationMs": 3089,
       "attempts": 1,
-      "startupMs": 2820,
+      "startupMs": 1731,
       "tags": [
         "@security"
       ],
@@ -1177,9 +1177,9 @@
       "id": "REG-FIND-005",
       "title": "[REG-FIND-005] @core records retest notes and reviewed-to-resolved transitions",
       "outcome": "passed",
-      "durationMs": 5002,
+      "durationMs": 5042,
       "attempts": 1,
-      "startupMs": 1735,
+      "startupMs": 1726,
       "tags": [
         "@core"
       ],
@@ -1189,9 +1189,9 @@
       "id": "REG-FIND-006",
       "title": "[REG-FIND-006] @core merges an explicitly selected duplicate suggestion",
       "outcome": "passed",
-      "durationMs": 3401,
+      "durationMs": 3496,
       "attempts": 1,
-      "startupMs": 1676,
+      "startupMs": 1750,
       "tags": [
         "@core"
       ],
@@ -1201,9 +1201,9 @@
       "id": "REG-FIND-007",
       "title": "[REG-FIND-007] @security leaves findings unchanged when a duplicate suggestion is ignored",
       "outcome": "passed",
-      "durationMs": 4540,
+      "durationMs": 3274,
       "attempts": 1,
-      "startupMs": 2820,
+      "startupMs": 1692,
       "tags": [
         "@security"
       ],
@@ -1213,9 +1213,9 @@
       "id": "REG-WF-004",
       "title": "[REG-WF-004] @core @persistence records workflow revisions across edits",
       "outcome": "passed",
-      "durationMs": 4456,
+      "durationMs": 4444,
       "attempts": 1,
-      "startupMs": 2742,
+      "startupMs": 2782,
       "tags": [
         "@core",
         "@persistence"
@@ -1226,9 +1226,9 @@
       "id": "REG-WF-009",
       "title": "[REG-WF-009] @core deletes a saved workflow while protecting a built-in",
       "outcome": "passed",
-      "durationMs": 4354,
+      "durationMs": 4307,
       "attempts": 1,
-      "startupMs": 2737,
+      "startupMs": 2766,
       "tags": [
         "@core"
       ],
@@ -1238,9 +1238,9 @@
       "id": "REG-SSL-002",
       "title": "[REG-SSL-002] @security generates an isolated CA with restricted file permissions",
       "outcome": "passed",
-      "durationMs": 4164,
+      "durationMs": 2812,
       "attempts": 1,
-      "startupMs": 2731,
+      "startupMs": 2311,
       "tags": [
         "@security"
       ],
@@ -1250,9 +1250,9 @@
       "id": "REG-RES-002",
       "title": "[REG-RES-002] @core survives rapid view and session switching without stale selections",
       "outcome": "passed",
-      "durationMs": 3619,
+      "durationMs": 4519,
       "attempts": 1,
-      "startupMs": 1734,
+      "startupMs": 2736,
       "tags": [
         "@core"
       ],
@@ -1262,9 +1262,9 @@
       "id": "REG-FILE-001",
       "title": "[REG-FILE-001] @files @security previews every project bundle redaction profile",
       "outcome": "passed",
-      "durationMs": 3405,
+      "durationMs": 5367,
       "attempts": 1,
-      "startupMs": 1711,
+      "startupMs": 3756,
       "tags": [
         "@files",
         "@security"
@@ -1275,9 +1275,9 @@
       "id": "REG-FILE-002",
       "title": "[REG-FILE-002] @files @security exports a parseable redacted project bundle",
       "outcome": "passed",
-      "durationMs": 4721,
+      "durationMs": 5163,
       "attempts": 1,
-      "startupMs": 3259,
+      "startupMs": 3752,
       "tags": [
         "@files",
         "@security"
@@ -1288,9 +1288,9 @@
       "id": "REG-FILE-003",
       "title": "[REG-FILE-003] @files @security previews conflicts and proposed scope without applying",
       "outcome": "passed",
-      "durationMs": 4719,
+      "durationMs": 5214,
       "attempts": 1,
-      "startupMs": 3196,
+      "startupMs": 3770,
       "tags": [
         "@files",
         "@security"
@@ -1301,9 +1301,9 @@
       "id": "REG-FILE-004",
       "title": "[REG-FILE-004] @files @persistence applies a valid import into an independent project",
       "outcome": "passed",
-      "durationMs": 5199,
+      "durationMs": 4715,
       "attempts": 1,
-      "startupMs": 3247,
+      "startupMs": 2822,
       "tags": [
         "@files",
         "@persistence"
@@ -1314,9 +1314,9 @@
       "id": "REG-FILE-005",
       "title": "[REG-FILE-005] @files @security rejects corrupt and unsupported-newer bundles",
       "outcome": "passed",
-      "durationMs": 4807,
+      "durationMs": 4293,
       "attempts": 1,
-      "startupMs": 3249,
+      "startupMs": 2772,
       "tags": [
         "@files",
         "@security"
@@ -1327,9 +1327,9 @@
       "id": "REG-FILE-006",
       "title": "[REG-FILE-006] @files @security previews a default reviewed-finding handoff",
       "outcome": "passed",
-      "durationMs": 4704,
+      "durationMs": 3190,
       "attempts": 1,
-      "startupMs": 3265,
+      "startupMs": 1787,
       "tags": [
         "@files",
         "@security"
@@ -1340,9 +1340,9 @@
       "id": "REG-FILE-007",
       "title": "[REG-FILE-007] @files opts draft findings into the handoff preview",
       "outcome": "passed",
-      "durationMs": 4192,
+      "durationMs": 4736,
       "attempts": 1,
-      "startupMs": 2717,
+      "startupMs": 3293,
       "tags": [
         "@files"
       ],
@@ -1352,9 +1352,9 @@
       "id": "REG-PROJ-003",
       "title": "[REG-PROJ-003] @core creates, edits, searches, opens, and selectively deletes a project note",
       "outcome": "passed",
-      "durationMs": 3650,
+      "durationMs": 4995,
       "attempts": 1,
-      "startupMs": 2229,
+      "startupMs": 3785,
       "tags": [
         "@core"
       ],
@@ -1364,9 +1364,9 @@
       "id": "REG-HTTP-006",
       "title": "[REG-HTTP-006] @core bulk-tags and deletes only selected captures",
       "outcome": "passed",
-      "durationMs": 4524,
+      "durationMs": 5881,
       "attempts": 1,
-      "startupMs": 2289,
+      "startupMs": 3742,
       "tags": [
         "@core"
       ],
@@ -1376,9 +1376,9 @@
       "id": "REG-WS-003",
       "title": "[REG-WS-003] @core @persistence preserves seeded WebSocket annotations",
       "outcome": "passed",
-      "durationMs": 4274,
+      "durationMs": 5181,
       "attempts": 1,
-      "startupMs": 2816,
+      "startupMs": 3760,
       "tags": [
         "@core",
         "@persistence"
@@ -1389,9 +1389,9 @@
       "id": "REG-FIND-003",
       "title": "[REG-FIND-003] @core creates a draft from a selected finding template",
       "outcome": "passed",
-      "durationMs": 4266,
+      "durationMs": 5266,
       "attempts": 1,
-      "startupMs": 2775,
+      "startupMs": 3778,
       "tags": [
         "@core"
       ],
@@ -1401,9 +1401,9 @@
       "id": "REG-FILE-009",
       "title": "[REG-FILE-009] @files @security includes raw report evidence only after explicit opt-in",
       "outcome": "passed",
-      "durationMs": 4927,
+      "durationMs": 4294,
       "attempts": 1,
-      "startupMs": 3289,
+      "startupMs": 2712,
       "tags": [
         "@files",
         "@security"
@@ -1414,9 +1414,9 @@
       "id": "REG-WF-002",
       "title": "[REG-WF-002] @core inserts a supported workflow step into the visible graph",
       "outcome": "passed",
-      "durationMs": 4437,
+      "durationMs": 3243,
       "attempts": 1,
-      "startupMs": 3407,
+      "startupMs": 1714,
       "tags": [
         "@core"
       ],
@@ -1426,9 +1426,9 @@
       "id": "REG-PLUG-002",
       "title": "[REG-PLUG-002] @files @security previews a local plugin without installing it",
       "outcome": "passed",
-      "durationMs": 3036,
+      "durationMs": 3076,
       "attempts": 1,
-      "startupMs": 1653,
+      "startupMs": 1757,
       "tags": [
         "@files",
         "@security"
@@ -1439,9 +1439,9 @@
       "id": "REG-PLUG-003",
       "title": "[REG-PLUG-003] @files @security reports invalid plugin sources without installing",
       "outcome": "passed",
-      "durationMs": 3096,
+      "durationMs": 3079,
       "attempts": 1,
-      "startupMs": 1661,
+      "startupMs": 1769,
       "tags": [
         "@files",
         "@security"
@@ -1452,9 +1452,9 @@
       "id": "REG-PLUG-004",
       "title": "[REG-PLUG-004] @files installs a valid local plugin as pending",
       "outcome": "passed",
-      "durationMs": 3530,
+      "durationMs": 4600,
       "attempts": 1,
-      "startupMs": 2168,
+      "startupMs": 3266,
       "tags": [
         "@files"
       ],
@@ -1464,9 +1464,9 @@
       "id": "REG-PLUG-005",
       "title": "[REG-PLUG-005] @files @security grants only requested plugin permissions",
       "outcome": "passed",
-      "durationMs": 4565,
+      "durationMs": 4656,
       "attempts": 1,
-      "startupMs": 3148,
+      "startupMs": 3270,
       "tags": [
         "@files",
         "@security"
@@ -1477,9 +1477,9 @@
       "id": "REG-PLUG-006",
       "title": "[REG-PLUG-006] @core @persistence disables and blocks only the selected plugin",
       "outcome": "passed",
-      "durationMs": 4862,
+      "durationMs": 4821,
       "attempts": 1,
-      "startupMs": 3275,
+      "startupMs": 3291,
       "tags": [
         "@core",
         "@persistence"
@@ -1490,9 +1490,9 @@
       "id": "REG-PLUG-008",
       "title": "[REG-PLUG-008] @security audits allowed and denied bounded SDK actions",
       "outcome": "passed",
-      "durationMs": 5571,
+      "durationMs": 4518,
       "attempts": 1,
-      "startupMs": 3758,
+      "startupMs": 2736,
       "tags": [
         "@security"
       ],
@@ -1502,9 +1502,9 @@
       "id": "REG-PLUG-009",
       "title": "[REG-PLUG-009] @core removes only the selected plugin",
       "outcome": "passed",
-      "durationMs": 5281,
+      "durationMs": 4284,
       "attempts": 1,
-      "startupMs": 3718,
+      "startupMs": 2728,
       "tags": [
         "@core"
       ],
@@ -1514,9 +1514,9 @@
       "id": "REG-ADV-004",
       "title": "[REG-ADV-004] @core summarizes observed auth-state behavior",
       "outcome": "passed",
-      "durationMs": 4568,
+      "durationMs": 3689,
       "attempts": 1,
-      "startupMs": 3157,
+      "startupMs": 2252,
       "tags": [
         "@core"
       ],
@@ -1526,9 +1526,9 @@
       "id": "REG-ADV-007",
       "title": "[REG-ADV-007] @core links cache, CORS, host, and redirect signals to workflows",
       "outcome": "passed",
-      "durationMs": 3560,
+      "durationMs": 4122,
       "attempts": 1,
-      "startupMs": 2120,
+      "startupMs": 2733,
       "tags": [
         "@core"
       ],
@@ -1538,9 +1538,9 @@
       "id": "REG-APP-002",
       "title": "[REG-APP-002] @core @security each worker receives isolated Radar data and service ports",
       "outcome": "passed",
-      "durationMs": 1935,
+      "durationMs": 3543,
       "attempts": 1,
-      "startupMs": 1622,
+      "startupMs": 3247,
       "tags": [
         "@core",
         "@security"
@@ -1551,9 +1551,9 @@
       "id": "REG-HTTP-001",
       "title": "[REG-HTTP-001] @network @smoke captures real GET and POST traffic through Radar's proxy",
       "outcome": "passed",
-      "durationMs": 5177,
+      "durationMs": 4956,
       "attempts": 1,
-      "startupMs": 1694,
+      "startupMs": 3251,
       "tags": [
         "@network",
         "@smoke"
@@ -1564,9 +1564,9 @@
       "id": "REG-HTTP-002",
       "title": "[REG-HTTP-002] @network @security hides real out-of-scope traffic",
       "outcome": "passed",
-      "durationMs": 6866,
+      "durationMs": 6800,
       "attempts": 1,
-      "startupMs": 3350,
+      "startupMs": 3298,
       "tags": [
         "@network",
         "@security"
@@ -1577,9 +1577,9 @@
       "id": "REG-REP-001",
       "title": "[REG-REP-001] @network @smoke sends an edited real request and renders its response",
       "outcome": "passed",
-      "durationMs": 5348,
+      "durationMs": 4680,
       "attempts": 1,
-      "startupMs": 3901,
+      "startupMs": 3296,
       "tags": [
         "@network",
         "@smoke"
@@ -1590,9 +1590,9 @@
       "id": "REG-REP-007",
       "title": "[REG-REP-007] @network obeys real burst count and bounded concurrency controls",
       "outcome": "passed",
-      "durationMs": 5461,
+      "durationMs": 4794,
       "attempts": 1,
-      "startupMs": 3917,
+      "startupMs": 3288,
       "tags": [
         "@network"
       ],
@@ -1602,9 +1602,9 @@
       "id": "REG-REP-008",
       "title": "[REG-REP-008] @network @security clamps burst values before transmission",
       "outcome": "passed",
-      "durationMs": 5340,
+      "durationMs": 3188,
       "attempts": 1,
-      "startupMs": 3840,
+      "startupMs": 1743,
       "tags": [
         "@network",
         "@security"
@@ -1615,9 +1615,9 @@
       "id": "REG-INT-001",
       "title": "[REG-INT-001] @network pauses a real scoped request before upstream",
       "outcome": "passed",
-      "durationMs": 6908,
+      "durationMs": 4923,
       "attempts": 1,
-      "startupMs": 3281,
+      "startupMs": 1817,
       "tags": [
         "@network"
       ],
@@ -1627,9 +1627,9 @@
       "id": "REG-INT-002",
       "title": "[REG-INT-002] @network edits and forwards a real paused request",
       "outcome": "passed",
-      "durationMs": 4851,
+      "durationMs": 5264,
       "attempts": 1,
-      "startupMs": 1717,
+      "startupMs": 1738,
       "tags": [
         "@network"
       ],
@@ -1639,9 +1639,9 @@
       "id": "REG-INT-003",
       "title": "[REG-INT-003] @network drops a real queued request without upstream delivery",
       "outcome": "passed",
-      "durationMs": 6319,
+      "durationMs": 5790,
       "attempts": 1,
-      "startupMs": 3138,
+      "startupMs": 2268,
       "tags": [
         "@network"
       ],
@@ -1651,9 +1651,9 @@
       "id": "REG-INT-005",
       "title": "[REG-INT-005] @core @persistence saves normalized intercept rules",
       "outcome": "passed",
-      "durationMs": 4492,
+      "durationMs": 3788,
       "attempts": 1,
-      "startupMs": 3115,
+      "startupMs": 2722,
       "tags": [
         "@core",
         "@persistence"
@@ -1664,9 +1664,9 @@
       "id": "REG-INT-007",
       "title": "[REG-INT-007] @network applies real scoped match/replace transformations",
       "outcome": "passed",
-      "durationMs": 4897,
+      "durationMs": 4041,
       "attempts": 1,
-      "startupMs": 3175,
+      "startupMs": 2237,
       "tags": [
         "@network"
       ],
@@ -1676,9 +1676,9 @@
       "id": "REG-SSL-001",
       "title": "[REG-SSL-001] @network starts and stops the isolated proxy and releases its port",
       "outcome": "passed",
-      "durationMs": 4207,
+      "durationMs": 3263,
       "attempts": 1,
-      "startupMs": 2654,
+      "startupMs": 1711,
       "tags": [
         "@network"
       ],
@@ -1688,9 +1688,9 @@
       "id": "REG-HTTP-009",
       "title": "[REG-HTTP-009] @smoke @core loads demo evidence, filters traffic, and clones a request to Repeater",
       "outcome": "passed",
-      "durationMs": 3761,
+      "durationMs": 3191,
       "attempts": 1,
-      "startupMs": 2254,
+      "startupMs": 1722,
       "tags": [
         "@smoke",
         "@core"
@@ -1701,9 +1701,9 @@
       "id": "REG-APP-004",
       "title": "[REG-APP-004] @smoke @core renders every primary workbench view with demo state",
       "outcome": "passed",
-      "durationMs": 3592,
+      "durationMs": 3664,
       "attempts": 1,
-      "startupMs": 1601,
+      "startupMs": 1714,
       "tags": [
         "@smoke",
         "@core"
@@ -1714,7 +1714,7 @@
       "id": "REG-PROJ-001",
       "title": "[REG-PROJ-001] @core @persistence creates, renames, and restores an independent project",
       "outcome": "passed",
-      "durationMs": 4485,
+      "durationMs": 4002,
       "attempts": 1,
       "tags": [
         "@core",
@@ -1726,7 +1726,7 @@
       "id": "REG-DATA-001",
       "title": "[REG-DATA-001] @persistence restores representative project state after a real app restart",
       "outcome": "passed",
-      "durationMs": 5668,
+      "durationMs": 5822,
       "attempts": 1,
       "tags": [
         "@persistence"
@@ -1737,9 +1737,9 @@
       "id": "REG-DATA-003",
       "title": "[REG-DATA-003] @persistence keeps session evidence isolated and recoverable",
       "outcome": "passed",
-      "durationMs": 3673,
+      "durationMs": 4784,
       "attempts": 1,
-      "startupMs": 2154,
+      "startupMs": 3287,
       "tags": [
         "@persistence"
       ],
@@ -1749,9 +1749,9 @@
       "id": "REG-DATA-002",
       "title": "[REG-DATA-002] @persistence @security keeps notes and evidence isolated between projects",
       "outcome": "passed",
-      "durationMs": 4685,
+      "durationMs": 5037,
       "attempts": 1,
-      "startupMs": 2720,
+      "startupMs": 3252,
       "tags": [
         "@persistence",
         "@security"
@@ -1762,9 +1762,9 @@
       "id": "REG-ID-001",
       "title": "[REG-ID-001] @core @persistence creates, edits, and archives a local identity",
       "outcome": "passed",
-      "durationMs": 3960,
+      "durationMs": 4506,
       "attempts": 1,
-      "startupMs": 2224,
+      "startupMs": 2788,
       "tags": [
         "@core",
         "@persistence"
@@ -1775,9 +1775,9 @@
       "id": "REG-ID-002",
       "title": "[REG-ID-002] @security blocks activation of an identity outside saved scope",
       "outcome": "passed",
-      "durationMs": 3171,
+      "durationMs": 3215,
       "attempts": 1,
-      "startupMs": 1690,
+      "startupMs": 1784,
       "tags": [
         "@security"
       ],
@@ -1787,9 +1787,9 @@
       "id": "REG-ID-005",
       "title": "[REG-ID-005] @core renders the Identity Lab matrix safety interpretation",
       "outcome": "passed",
-      "durationMs": 3255,
+      "durationMs": 3233,
       "attempts": 1,
-      "startupMs": 1685,
+      "startupMs": 1740,
       "tags": [
         "@core"
       ],
@@ -1799,9 +1799,9 @@
       "id": "REG-ID-006",
       "title": "[REG-ID-006] @core permits a one-dimension comparison only for eligible attributed recordings",
       "outcome": "passed",
-      "durationMs": 3659,
+      "durationMs": 4729,
       "attempts": 1,
-      "startupMs": 2189,
+      "startupMs": 3247,
       "tags": [
         "@core"
       ],
@@ -1811,9 +1811,9 @@
       "id": "REG-SSL-005",
       "title": "[REG-SSL-005] @platform launches the supported isolated browser through Radar to the local lab",
       "outcome": "skipped",
-      "durationMs": 3609,
+      "durationMs": 4092,
       "attempts": 1,
-      "startupMs": 3317,
+      "startupMs": 3810,
       "tags": [
         "@platform"
       ],
@@ -1823,9 +1823,9 @@
       "id": "REG-SSL-006",
       "title": "[REG-SSL-006] @platform @security detaches an active browser identity when the project changes",
       "outcome": "skipped",
-      "durationMs": 4100,
+      "durationMs": 4039,
       "attempts": 1,
-      "startupMs": 3777,
+      "startupMs": 3770,
       "tags": [
         "@platform",
         "@security"
@@ -1836,9 +1836,9 @@
       "id": "REG-SSL-007",
       "title": "[REG-SSL-007] @platform handles an occupied preferred debugging port and remains usable",
       "outcome": "skipped",
-      "durationMs": 4101,
+      "durationMs": 4063,
       "attempts": 1,
-      "startupMs": 3784,
+      "startupMs": 3776,
       "tags": [
         "@platform"
       ],
@@ -1848,9 +1848,9 @@
       "id": "REG-ID-003",
       "title": "[REG-ID-003] @platform @network activates a scoped dedicated identity and attributes its real captures",
       "outcome": "skipped",
-      "durationMs": 4068,
+      "durationMs": 4157,
       "attempts": 1,
-      "startupMs": 3756,
+      "startupMs": 3858,
       "tags": [
         "@platform",
         "@network"
@@ -1861,9 +1861,9 @@
       "id": "REG-ID-004",
       "title": "[REG-ID-004] @platform @network records healthy and failed dedicated identity verification semantics",
       "outcome": "skipped",
-      "durationMs": 3415,
+      "durationMs": 3607,
       "attempts": 1,
-      "startupMs": 3121,
+      "startupMs": 3269,
       "tags": [
         "@platform",
         "@network"
@@ -1874,9 +1874,9 @@
       "id": "REG-RES-003",
       "title": "[REG-RES-003] @soak repeats demo load, navigation, filtering, and project state checks fifty times",
       "outcome": "skipped",
-      "durationMs": 3503,
+      "durationMs": 4687,
       "attempts": 1,
-      "startupMs": 3235,
+      "startupMs": 4389,
       "tags": [
         "@soak"
       ],
@@ -1886,9 +1886,9 @@
       "id": "REG-RES-004",
       "title": "[REG-RES-004] @soak @network sustains a bounded high-volume capture and replay set",
       "outcome": "skipped",
-      "durationMs": 3496,
+      "durationMs": 4676,
       "attempts": 1,
-      "startupMs": 3218,
+      "startupMs": 4373,
       "tags": [
         "@soak",
         "@network"
@@ -1899,9 +1899,9 @@
       "id": "REG-PROJ-006",
       "title": "[REG-PROJ-006] @network @security excludes a known out-of-scope capture from global search",
       "outcome": "passed",
-      "durationMs": 5332,
+      "durationMs": 6086,
       "attempts": 1,
-      "startupMs": 3752,
+      "startupMs": 4350,
       "tags": [
         "@network",
         "@security"
@@ -1912,9 +1912,9 @@
       "id": "REG-HTTP-011",
       "title": "[REG-HTTP-011] @network safely captures redirects, query strings, JSON, form, empty, and truncated bodies",
       "outcome": "passed",
-      "durationMs": 7923,
+      "durationMs": 7966,
       "attempts": 1,
-      "startupMs": 4352,
+      "startupMs": 4358,
       "tags": [
         "@network"
       ],
@@ -1924,9 +1924,9 @@
       "id": "REG-HTTP-012",
       "title": "[REG-HTTP-012] @network @security keeps authorization and cookie fixture values out of search and default export",
       "outcome": "passed",
-      "durationMs": 7557,
+      "durationMs": 8026,
       "attempts": 1,
-      "startupMs": 4240,
+      "startupMs": 4360,
       "tags": [
         "@network",
         "@security"
@@ -1937,9 +1937,9 @@
       "id": "REG-WS-001",
       "title": "[REG-WS-001] @network records a real proxied WebSocket handshake, text exchange, and close in order",
       "outcome": "passed",
-      "durationMs": 7262,
+      "durationMs": 5693,
       "attempts": 1,
-      "startupMs": 3657,
+      "startupMs": 3808,
       "tags": [
         "@network"
       ],
@@ -1949,9 +1949,9 @@
       "id": "REG-WS-005",
       "title": "[REG-WS-005] @network replays a captured WebSocket frame to the real loopback lab",
       "outcome": "passed",
-      "durationMs": 5029,
+      "durationMs": 4156,
       "attempts": 1,
-      "startupMs": 3181,
+      "startupMs": 2280,
       "tags": [
         "@network"
       ],
@@ -1961,9 +1961,9 @@
       "id": "REG-WS-006",
       "title": "[REG-WS-006] @security shows a bounded WebSocket replay error without disturbing HTTP evidence",
       "outcome": "passed",
-      "durationMs": 33958,
+      "durationMs": 33604,
       "attempts": 1,
-      "startupMs": 2687,
+      "startupMs": 2271,
       "tags": [
         "@security"
       ],
@@ -1973,9 +1973,9 @@
       "id": "REG-SCOPE-007",
       "title": "[REG-SCOPE-007] @ai @network @security policy-blocks out-of-scope AI navigation without a target send",
       "outcome": "passed",
-      "durationMs": 4590,
+      "durationMs": 5661,
       "attempts": 1,
-      "startupMs": 1647,
+      "startupMs": 2238,
       "tags": [
         "@ai",
         "@network",
@@ -1987,9 +1987,9 @@
       "id": "REG-INT-004",
       "title": "[REG-INT-004] @network resumes several intercepted requests exactly once",
       "outcome": "passed",
-      "durationMs": 4681,
+      "durationMs": 5788,
       "attempts": 1,
-      "startupMs": 1598,
+      "startupMs": 2237,
       "tags": [
         "@network"
       ],
@@ -1999,9 +1999,9 @@
       "id": "REG-REP-010",
       "title": "[REG-REP-010] @network @security strips hop-by-hop and proxy credentials before real replay",
       "outcome": "passed",
-      "durationMs": 3557,
+      "durationMs": 3122,
       "attempts": 1,
-      "startupMs": 2127,
+      "startupMs": 2240,
       "tags": [
         "@network",
         "@security"
@@ -2012,9 +2012,9 @@
       "id": "REG-ADV-002",
       "title": "[REG-ADV-002] @files @security previews OpenAPI and Postman drafts without transmitting",
       "outcome": "passed",
-      "durationMs": 3917,
+      "durationMs": 3462,
       "attempts": 1,
-      "startupMs": 2607,
+      "startupMs": 2717,
       "tags": [
         "@files",
         "@security"
@@ -2025,9 +2025,9 @@
       "id": "REG-ADV-003",
       "title": "[REG-ADV-003] @files saves an imported draft and loads it visibly without transmission",
       "outcome": "passed",
-      "durationMs": 3593,
+      "durationMs": 3641,
       "attempts": 1,
-      "startupMs": 2148,
+      "startupMs": 2196,
       "tags": [
         "@files"
       ],
@@ -2037,9 +2037,9 @@
       "id": "REG-MAP-003",
       "title": "[REG-MAP-003] @core @persistence compares baseline and active sessions visibly",
       "outcome": "passed",
-      "durationMs": 3203,
+      "durationMs": 3237,
       "attempts": 1,
-      "startupMs": 1600,
+      "startupMs": 1698,
       "tags": [
         "@core",
         "@persistence"
