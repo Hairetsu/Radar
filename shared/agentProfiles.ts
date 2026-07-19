@@ -90,6 +90,14 @@ function policy(patch: Partial<AgentPolicy>): AgentPolicy {
 
 export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
   {
+    id: "browser-assessment",
+    label: "Browser Assessment",
+    description: "Explore the visible scoped site through Playwright, capture traffic, inspect evidence, and run tightly budgeted verification tools.",
+    policy: policy({ maxReplay: 3, maxWorkflowRequests: 3, maxSteps: 40, maxCaptureSample: 100 }),
+    allowedTools: uniqueTools(activeReviewTools),
+    capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxUses: 12, maxRequests: 20 }
+  },
+  {
     id: "passive-map",
     label: "Passive Map",
     description: "Read scoped traffic, sitemap coverage, local context, and passive evidence without replay or workflow execution.",

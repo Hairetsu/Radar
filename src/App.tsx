@@ -33,7 +33,10 @@ import {
   Repeat2,
   Search,
   ArrowDownWideNarrow,
+  ArrowLeft,
+  ArrowRight,
   ArrowUpWideNarrow,
+  RotateCw,
   Send,
   Settings2,
   ShieldCheck,
@@ -1222,29 +1225,76 @@ export function App() {
             </div>
           </div>
 
-          <div
-            className="flex justify-self-end max-[1180px]:justify-self-start"
+          <form
+            className="grid w-[min(720px,55vw)] grid-cols-[auto_auto_auto_minmax(180px,1fr)_auto] justify-self-end max-[1180px]:w-full max-[1180px]:justify-self-start max-[640px]:grid-cols-[auto_auto_auto_minmax(100px,1fr)]"
+            onSubmit={workbench.navigateBrowser}
             data-testid="browserLauncher"
             data-component="browserLauncher"
           >
             <Button
               type="button"
+              variant="icon"
+              className="h-[38px] w-[38px] rounded-none border-r-0"
+              disabled={!workbench.browserState.open}
+              onClick={() => void workbench.browserBack()}
+              aria-label="Browser back"
+              data-testid="browserBack"
+            >
+              <ArrowLeft size={14} strokeWidth={2} />
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              className="h-[38px] w-[38px] rounded-none border-r-0"
+              disabled={!workbench.browserState.open}
+              onClick={() => void workbench.browserForward()}
+              aria-label="Browser forward"
+              data-testid="browserForward"
+            >
+              <ArrowRight size={14} strokeWidth={2} />
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              className="h-[38px] w-[38px] rounded-none border-r-0"
+              disabled={!workbench.browserState.open}
+              onClick={() => void workbench.browserReload()}
+              aria-label="Reload browser"
+              data-testid="browserReload"
+            >
+              <RotateCw size={13} strokeWidth={2} />
+            </Button>
+            <Input
+              variant="compact"
+              className="h-[38px] min-w-0 rounded-none border-r-0 font-mono text-[10px] max-[640px]:border-r"
+              value={workbench.address}
+              onChange={(event) => workbench.setAddress(event.target.value)}
+              aria-label="Browser address"
+              data-testid="browserAddress"
+            />
+            <Button
+              type="submit"
               variant="solid"
-              className="h-[38px] px-4"
-              onClick={() => workbench.openBrowser()}
+              className="h-[38px] px-4 max-[640px]:col-span-4 max-[640px]:mt-1"
               data-testid="openBrowser"
               data-component="openBrowser"
             >
               <ExternalLink size={14} strokeWidth={2} />
-              Open Browser
+              {workbench.browserState.open ? "Navigate" : "Open Browser"}
             </Button>
-          </div>
+          </form>
 
           <div className="col-span-2 flex flex-wrap items-stretch justify-end gap-1.5 max-[1180px]:col-span-1 max-[1180px]:justify-start">
             <StatusPill live={workbench.browserState.open}>
               <CircleDot size={11} strokeWidth={1.8} />
               <strong className="font-semibold tracking-[0.05em] text-bone">
                 {workbench.browserState.open ? workbench.browserState.engine : "idle"}
+              </strong>
+            </StatusPill>
+            <StatusPill live={workbench.browserState.automation === "ready"}>
+              <Bot size={11} strokeWidth={1.8} />
+              <strong className="font-semibold tracking-[0.05em] text-bone">
+                pw {workbench.browserState.automation || "offline"}
               </strong>
             </StatusPill>
             <StatusPill cool>
@@ -6233,6 +6283,10 @@ export function App() {
                   </span>
                   <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap before:mr-1 before:text-signal before:content-['›']">
                     Chrome CDP: {workbench.browserState.remoteDebuggingUrl || "launch browser from Open Browser"}
+                  </span>
+                  <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap before:mr-1 before:text-signal before:content-['›']">
+                    Playwright: {workbench.browserState.automation || "disconnected"} · {workbench.browserState.automationPageCount || 0} page(s)
+                    {workbench.browserState.automationError ? ` · ${workbench.browserState.automationError}` : ""}
                   </span>
                   <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap before:mr-1 before:text-signal before:content-['›']">
                     Browser: {workbench.browserState.channel || "not launched"}

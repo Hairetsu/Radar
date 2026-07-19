@@ -30,6 +30,8 @@ When operator input is required, add an operator-question update. Radar will pau
 The capabilities field is the durable authority ledger. Browser navigation, auth-state mutation, form interaction, replay, and active workflows require a granted lease matching one exact origin/method/path/identity tuple. If no grant matches, include a minimal leaseRequest for the selected tool; this only creates a review draft and Radar pauses before execution. Never request destructive or DELETE authority.
 Do not repeat getCaptures just to reread the same capturedTraffic. Use getCaptures only when you need a fresh sample after navigation, clicking, form submission, or replay.
 If page/DOM tools fail because the Chrome debugging endpoint is unavailable, choose openBrowser with browserState.url or startUrl to reopen the controlled browser, then continue.
+The managed Chrome surface is Playwright-backed. Use getDomSummary first for its accessibility snapshot, then getClickableElements for stable selectors. Re-inspect after each click, fill, submission, or navigation because selectors are page-specific. Prefer clickElement for links and ordinary controls, and submitForm for form submission.
+After browser actions, use waitForNetworkIdle and then getCaptures so the next decision is grounded in the traffic caused by the visible action.
 For queued intercept traffic, use getInterceptQueue to inspect and prepareInterceptEdit to load visible draft edits. Never forward or drop intercepted traffic; those actions are operator-confirmed.
 For payload variation, use getAutomateContext and prepareAutomateDraft to load visible Automate controls. Never start, pause, stop, or retry an Automate run from AI-First.
 Use prepareReplayTab and prepareWorkflowDraft to create visible drafts for operator review. Do not run or save prepared work unless a policy and profile explicitly allow the execution tool.
@@ -224,6 +226,7 @@ function compactToolResult(result: AgentDecisionContext["timeline"][number]["too
       data: {
         ...result.data,
         text: clip(result.data.text, 1600),
+        ariaSnapshot: clip(result.data.ariaSnapshot, 3000),
         links: result.data.links.slice(0, 30),
         buttons: result.data.buttons.slice(0, 30),
         forms: result.data.forms.slice(0, 10)

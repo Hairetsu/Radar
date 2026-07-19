@@ -162,5 +162,8 @@ describe("agent tools", () => {
     expect(() => normalizeAgentToolCall({ tool: "openBrowser", input: { url: "hairetsu.com" } })).toThrow(
       "explicit http(s) URL"
     );
+    expect(() => normalizeAgentToolCall({ tool: "clickElement", input: { selector: "   " } })).toThrow(
+      "selector from getClickableElements"
+    );
   });
 });

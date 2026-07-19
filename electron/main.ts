@@ -157,6 +157,7 @@ import {
 import { AgentRuntime } from "./agent/runtime.js";
 import { createAiAgentPlanner } from "./agent/planner.js";
 import { findCdpEndpointForUrl, type CdpListEntry } from "./chromeDebugging.js";
+import { createPlaywrightBrowserController } from "./playwrightBrowser.js";
 import { findSystemBrowser } from "./systemBrowser.js";
 import { ensureRadarKeychainInSearchList, trustProxyCa } from "./trustCa.js";
 
@@ -242,6 +243,20 @@ let browserState: BrowserState = {
   loading: false,
   engine: "none"
 };
+const playwrightBrowser = createPlaywrightBrowserController({
+  allowlist: () => allowlist.slice(),
+  onStateChange: (automation) => {
+    browserState = {
+      ...browserState,
+      url: automation.url || browserState.url,
+      title: automation.title || browserState.title,
+      loading: automation.loading,
+      automation: automation.status,
+      automationPageCount: automation.pageCount,
+      automationError: automation.error
+    };
+  }
+});
 let proxyState: ProxyState = {
   running: false,
   port: defaultProxyPort,
@@ -1038,6 +1053,10 @@ function webSocketEventMap() {
 }
 
 async function waitForNetworkIdle({ idleMs = 700, timeoutMs = 8000 }: { idleMs?: number; timeoutMs?: number }) {
+  if (browserState.engine === "chrome" && browserState.remoteDebuggingUrl) {
+    const automation = await ensurePlaywrightBrowser();
+    return automation.waitForNetworkIdle({ idleMs, timeoutMs });
+  }
   const started = Date.now();
   let observedChangeAt = lastCaptureChangeAt;
   while (Date.now() - started < timeoutMs) {
@@ -1462,7 +1481,19 @@ async function evaluateChromePage<T>(expression: string) {
   return result.result?.value;
 }
 
+async function ensurePlaywrightBrowser() {
+  const endpoint = browserState.remoteDebuggingUrl;
+  if (!endpoint) {
+    throw new Error("No Chrome debugging endpoint is available for Playwright automation.");
+  }
+  await playwrightBrowser.connect(endpoint);
+  return playwrightBrowser;
+}
+
 async function getPageText() {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).getPageText();
+  }
   const expression = `(() => ({
     url: location.href,
     title: document.title,
@@ -1477,6 +1508,9 @@ async function getPageText() {
 }
 
 async function getDomSummary() {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).getDomSummary();
+  }
   const expression = `(() => ({
     url: location.href,
     title: document.title,
@@ -1508,6 +1542,7 @@ async function getDomSummary() {
     url: result.url || "",
     title: result.title || "",
     text: trimAgentText(result.text, 6000),
+    ariaSnapshot: "",
     links: Array.isArray(result.links) ? result.links : [],
     buttons: Array.isArray(result.buttons) ? result.buttons : [],
     forms: Array.isArray(result.forms) ? result.forms : []
@@ -1515,6 +1550,9 @@ async function getDomSummary() {
 }
 
 async function getClickableElements() {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).getClickableElements();
+  }
   const expression = `(() => {
     const cssPath = (node) => {
       if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
@@ -1554,6 +1592,9 @@ async function getClickableElements() {
 }
 
 async function clickElement({ selector }: { selector: string }) {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).clickElement({ selector });
+  }
   const expression = `(() => {
     const selector = ${JSON.stringify(selector)};
     const node = document.querySelector(selector);
@@ -1572,6 +1613,9 @@ async function clickElement({ selector }: { selector: string }) {
 }
 
 async function fillInput({ selector, value }: { selector: string; value: string }) {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).fillInput({ selector, value });
+  }
   const expression = `(() => {
     const selector = ${JSON.stringify(selector)};
     const value = ${JSON.stringify(value)};
@@ -1600,6 +1644,9 @@ async function fillInput({ selector, value }: { selector: string; value: string 
 }
 
 async function submitForm({ selector }: { selector: string }) {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).submitForm({ selector });
+  }
   const expression = `(() => {
     const selector = ${JSON.stringify(selector)};
     const node = document.querySelector(selector);
@@ -1633,6 +1680,9 @@ function normalizeCookie(cookie: Record<string, unknown>): AgentCookie {
 }
 
 async function getCookies() {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).getCookies();
+  }
   const result = (await withCdpPage((sendCommand) => sendCommand("Network.getAllCookies"))) as {
     cookies?: Array<Record<string, unknown>>;
   };
@@ -1640,6 +1690,9 @@ async function getCookies() {
 }
 
 async function getStorageState(): Promise<AgentStorageState> {
+  if (browserState.engine === "chrome") {
+    return (await ensurePlaywrightBrowser()).getStorageState();
+  }
   const page = await getPageText();
   const expression = `(() => ({
     localStorage: Object.fromEntries(Object.entries(localStorage)),
@@ -2037,7 +2090,7 @@ function createAgentRuntime() {
     },
     navigateBrowser: (url) => {
       activeNavigationId = `nav_${randomUUID()}`;
-      return openRealChrome(url);
+      return navigateRealChrome(url);
     },
     getCaptures: () => listHttpCaptures(400),
     getWebSocketEvents: () => listWebSocketEvents(HOT_WEBSOCKET_LIMIT),
@@ -2261,7 +2314,16 @@ app.on("certificate-error", (event, _contents, url, error, certificate, callback
 
 function currentBrowserState(): BrowserState {
   if (browserState.engine === "chrome" && browserState.open) {
-    return browserState;
+    const automation = playwrightBrowser.state();
+    return {
+      ...browserState,
+      url: automation.url || browserState.url,
+      title: automation.title || browserState.title,
+      loading: automation.loading,
+      automation: automation.status,
+      automationPageCount: automation.pageCount,
+      automationError: automation.error
+    };
   }
 
   if (!targetBrowserWindow || targetBrowserWindow.isDestroyed()) {
@@ -2301,6 +2363,7 @@ function chromeProfileDir() {
 
 function stopChromeProcess() {
   stopChromeObserver();
+  playwrightBrowser.reset();
   if (!chromeProcess || chromeProcess.killed) {
     chromeProcess = null;
     return;
@@ -2407,6 +2470,8 @@ async function openRealChrome(urlString: string) {
     title: browser.channel,
     loading: false,
     engine: "chrome",
+    automation: "connecting",
+    automationPageCount: 0,
     remoteDebuggingUrl,
     profileDir,
     executablePath: browser.executablePath,
@@ -2416,7 +2481,8 @@ async function openRealChrome(urlString: string) {
   try {
     await waitForChromeDebugger(remoteDebuggingUrl, 8000);
     await startChromeObserver(remoteDebuggingUrl);
-    await chromeObserverSendCommand("Page.reload", { ignoreCache: false });
+    await playwrightBrowser.connect(remoteDebuggingUrl);
+    await playwrightBrowser.reload();
   } catch (error) {
     const recoveredDebuggingUrl = await findCdpEndpointForUrl({
       requestedUrl: nextUrl,
@@ -2430,7 +2496,8 @@ async function openRealChrome(urlString: string) {
         remoteDebuggingUrl: recoveredDebuggingUrl
       };
       await startChromeObserver(recoveredDebuggingUrl);
-      await chromeObserverSendCommand("Page.reload", { ignoreCache: false });
+      await playwrightBrowser.connect(recoveredDebuggingUrl);
+      await playwrightBrowser.reload();
       console.warn(
         `[radar] Chrome reused an existing debugging endpoint at ${recoveredDebuggingUrl}: ${
           error instanceof Error ? error.message : "unknown error"
@@ -2446,6 +2513,16 @@ async function openRealChrome(urlString: string) {
     );
   }
   return browserState;
+}
+
+async function navigateRealChrome(urlString: string) {
+  const nextUrl = normalizeBrowserUrl(urlString);
+  if (!browserState.open || browserState.engine !== "chrome" || !browserState.remoteDebuggingUrl) {
+    return openRealChrome(nextUrl);
+  }
+  const automation = await ensurePlaywrightBrowser();
+  await automation.navigate(nextUrl);
+  return syncBrowserState();
 }
 
 async function ensureProxyCa() {
@@ -3624,24 +3701,36 @@ ipcMain.handle("browser:open", (_event, url) => {
 });
 
 ipcMain.handle("browser:navigate", (_event, url) => {
-  return openRealChrome(url);
+  return navigateRealChrome(url);
 });
 
-ipcMain.handle("browser:back", () => {
+ipcMain.handle("browser:back", async () => {
+  if (browserState.engine === "chrome" && browserState.remoteDebuggingUrl) {
+    await (await ensurePlaywrightBrowser()).back();
+    return syncBrowserState();
+  }
   if (targetBrowserWindow && !targetBrowserWindow.isDestroyed() && targetBrowserWindow.webContents.canGoBack()) {
     targetBrowserWindow.webContents.goBack();
   }
   return syncBrowserState();
 });
 
-ipcMain.handle("browser:forward", () => {
+ipcMain.handle("browser:forward", async () => {
+  if (browserState.engine === "chrome" && browserState.remoteDebuggingUrl) {
+    await (await ensurePlaywrightBrowser()).forward();
+    return syncBrowserState();
+  }
   if (targetBrowserWindow && !targetBrowserWindow.isDestroyed() && targetBrowserWindow.webContents.canGoForward()) {
     targetBrowserWindow.webContents.goForward();
   }
   return syncBrowserState();
 });
 
-ipcMain.handle("browser:reload", () => {
+ipcMain.handle("browser:reload", async () => {
+  if (browserState.engine === "chrome" && browserState.remoteDebuggingUrl) {
+    await (await ensurePlaywrightBrowser()).reload();
+    return syncBrowserState();
+  }
   if (targetBrowserWindow && !targetBrowserWindow.isDestroyed()) {
     targetBrowserWindow.webContents.reload();
   }

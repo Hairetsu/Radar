@@ -37,6 +37,17 @@ const capture = (id: string, url: string, overrides: Partial<CapturedRequest> = 
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.mocked(window.radar!.openBrowser).mockClear();
+  vi.mocked(window.radar!.openBrowser).mockImplementation(async (url) => ({
+    open: true,
+    url,
+    title: "Radar target",
+    loading: false,
+    engine: "chrome",
+    automation: "ready",
+    automationPageCount: 1,
+    channel: "Google Chrome"
+  }));
   vi.mocked(window.radar!.getCaptures).mockResolvedValue([]);
   vi.mocked(window.radar!.getInterceptState).mockResolvedValue({
     config: { requestEnabled: false, responseEnabled: false },
@@ -264,6 +275,32 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("opens managed Chrome from the visible address bar and surfaces Playwright readiness", async () => {
+    const openBrowser = vi.mocked(window.radar!.openBrowser);
+    openBrowser.mockClear();
+    openBrowser.mockResolvedValue({
+      open: true,
+      url: "https://allowed.test/dashboard",
+      title: "Dashboard",
+      loading: false,
+      engine: "chrome",
+      automation: "ready",
+      automationPageCount: 1,
+      channel: "Google Chrome"
+    });
+
+    render(<App />);
+    fireEvent.change(screen.getByTestId("browserAddress"), {
+      target: { value: "https://allowed.test/dashboard" }
+    });
+    fireEvent.click(screen.getByTestId("openBrowser"));
+
+    await waitFor(() => {
+      expect(openBrowser).toHaveBeenCalledWith("https://allowed.test/dashboard");
+      expect(screen.getByText("pw ready")).toBeInTheDocument();
+    });
+  });
+
   it("renders the workbench shell", async () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "HTTP / HTTPS Traffic" })).toBeInTheDocument();
@@ -1443,7 +1480,7 @@ describe("App", () => {
       expect(startAgentRun).toHaveBeenCalledWith({
         goal: "Inspect hairetsu.com for auth hardening",
         startUrl: "https://hairetsu.com",
-        profileId: "passive-map"
+        profileId: "browser-assessment"
       });
     });
   });
