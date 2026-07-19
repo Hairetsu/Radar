@@ -50,13 +50,13 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
   },
   {
     name: "getDomSummary",
-    description: "Read compact links, buttons, forms, and text from the active page.",
+    description: "Read a Playwright accessibility snapshot plus compact links, buttons, forms, and text from the active page.",
     safety: "observe",
     schema: {}
   },
   {
     name: "getClickableElements",
-    description: "List clickable page elements with selectors that can be used by clickElement.",
+    description: "List visible page controls with stable page-specific Playwright selectors for clickElement, fillInput, or submitForm.",
     safety: "observe",
     schema: {}
   },
@@ -344,6 +344,14 @@ function assertUrl(value: unknown) {
   return url;
 }
 
+function assertSelector(value: unknown) {
+  const selector = String(value || "").trim().slice(0, 500);
+  if (!selector) {
+    throw new Error("Agent browser tools require a selector from getClickableElements.");
+  }
+  return selector;
+}
+
 export function toolSchemas() {
   return Object.fromEntries(
     AGENT_TOOL_REGISTRY.map((tool) => [
@@ -453,9 +461,9 @@ export function normalizeAgentToolCall(call: AgentToolCall): AgentToolCall {
       };
     case "clickElement":
     case "submitForm":
-      return { tool: call.tool, input: { selector: String(input.selector || "").trim() } };
+      return { tool: call.tool, input: { selector: assertSelector(input.selector) } };
     case "fillInput":
-      return { tool: call.tool, input: { selector: String(input.selector || "").trim(), value: String(input.value || "") } };
+      return { tool: call.tool, input: { selector: assertSelector(input.selector), value: String(input.value || "") } };
     case "saveAuthState":
     case "loadAuthState":
       return { tool: call.tool, input: { name: String(input.name || "").trim().slice(0, 80) } };

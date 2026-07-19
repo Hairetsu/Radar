@@ -114,6 +114,7 @@ type AgentRuntimeDeps = {
     url: string;
     title: string;
     text: string;
+    ariaSnapshot: string;
     links: Array<{ text: string; href: string }>;
     buttons: string[];
     forms: Array<{ action: string; method: string; inputs: string[] }>;

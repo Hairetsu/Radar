@@ -22,6 +22,9 @@ describe("agentProfiles", () => {
   });
 
   it("enforces profile-specific tool access", () => {
+    expect(agentProfileAllowsTool("browser-assessment", "clickElement")).toBe(true);
+    expect(agentProfileAllowsTool("browser-assessment", "runWorkflow")).toBe(true);
+    expect(getAgentRunProfile("browser-assessment").policy.maxReplay).toBe(3);
     expect(agentProfileAllowsTool("header-cookie-review", "analyzeSecurityHeaders")).toBe(true);
     expect(agentProfileAllowsTool("header-cookie-review", "prepareWorkflowDraft")).toBe(false);
     expect(agentProfileAllowsTool("advanced-api-review", "runWorkflow")).toBe(true);

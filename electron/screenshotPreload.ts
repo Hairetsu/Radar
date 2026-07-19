@@ -276,6 +276,8 @@ const browserState: BrowserState = {
   title: "Local Dashboard",
   loading: false,
   engine: "chrome",
+  automation: "ready",
+  automationPageCount: 1,
   remoteDebuggingUrl: "http://127.0.0.1:9223",
   profileDir: "/tmp/radar-profile",
   executablePath: "/Applications/Google Chrome.app",
@@ -859,7 +861,7 @@ const radar: RadarApi = {
       createdAt: "2026-05-25T00:00:00.000Z",
       updatedAt: "2026-05-25T00:00:00.000Z",
       goal: payload.goal,
-      profileId: payload.profileId || "passive-map",
+      profileId: payload.profileId || "browser-assessment",
       status: "queued",
       policy: {
         maxRuntimeMs: 120000,
