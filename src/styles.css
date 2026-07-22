@@ -684,6 +684,12 @@
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 
+@keyframes agent-scan {
+  from { transform: translateX(-100%); opacity: 0; }
+  15%, 85% { opacity: 0.9; }
+  to { transform: translateX(200%); opacity: 0; }
+}
+
 @media (max-width: 1180px) {
   body {
     @apply overflow-auto;

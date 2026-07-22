@@ -2289,6 +2289,50 @@ export function useRadarWorkbench() {
     }
   }, [activeAgentRun]);
 
+  const continueAgentRun = useCallback(async () => {
+    if (!window.radar || !activeAgentRun) {
+      return;
+    }
+    if (executingAgentRun) {
+      setSelectedAgentRunId(executingAgentRun.id);
+      setNotice("An AI-First run is already active. Pause or stop it before starting a continuation.");
+      return;
+    }
+    const startUrl = activeAgentRun.checkpoint?.startUrl || firstUrlFromText(activeAgentRun.goal) || normalizeUrl(address);
+    const scopeOrigin = startUrl ? originFromUrl(startUrl) : "";
+    if (startUrl && scopeOrigin) {
+      const latestTargets = await window.radar.getTargets();
+      if (!isAllowedTarget(startUrl, latestTargets)) {
+        const draftTargets = targetText
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        setTargetText([...new Set([...latestTargets, ...draftTargets, scopeOrigin])].join("\n"));
+        setActiveView("scope");
+        setNotice(
+          `Scope consent required: review ${scopeOrigin} in the Scope editor and Commit it before starting a continuation.`
+        );
+        return;
+      }
+    }
+    try {
+      const sourceRun = activeAgentRun;
+      const run = await window.radar.startAgentRun({
+        goal: sourceRun.goal,
+        startUrl,
+        profileId: sourceRun.profileId,
+        continuationOf: sourceRun.id,
+        ...(sourceRun.policy.tutorialMode ? { tutorialMode: true } : {})
+      });
+      setAddress(startUrl);
+      setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
+      setSelectedAgentRunId(run.id);
+      setNotice(`Continuation ${run.id.slice(0, 8)} started with a fresh bounded budget. ${sourceRun.id.slice(0, 8)} remains preserved.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "A continuation run could not be started.");
+    }
+  }, [activeAgentRun, address, executingAgentRun, targetText]);
+
   const recoverAgentRun = useCallback(
     async (entryId: string, action: AgentRunRecoveryAction) => {
       const run = activeAgentRun;
@@ -2475,11 +2519,12 @@ export function useRadarWorkbench() {
     }
 
     for (const entry of nextEntries) {
-      if (entry.toolCall?.tool === "showView") {
+      const appliesVisibleToolCall = entry.phase === "tool-call" || entry.phase === undefined;
+      if (appliesVisibleToolCall && entry.toolCall?.tool === "showView") {
         setActiveView(entry.toolCall.input.view);
       }
 
-      if (entry.toolCall?.tool === "sendReplay") {
+      if (appliesVisibleToolCall && entry.toolCall?.tool === "sendReplay") {
         setDraft(entry.toolCall.input.draft);
         setHeadersText(formatHeaders(entry.toolCall.input.draft.headers));
         setLastBurst(null);
@@ -4161,6 +4206,7 @@ export function useRadarWorkbench() {
     startAgentRun,
     pauseAgentRun,
     resumeAgentRun,
+    continueAgentRun,
     stopAgentRun,
     recoverAgentRun,
     steerAgentMission,

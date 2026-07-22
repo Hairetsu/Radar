@@ -168,7 +168,7 @@ const selected = useMemo(
 - The allowlist in `shared/allowlist.ts` defines Traffic visibility and AI scope. Repeater replay stays normalized and capped, but is not blocked by scope.
 - The default allowlist is local development only.
 - Raw AI context must remain explicit opt-in. Redacted context is the default.
-- AI output is prepare-only. It may load drafts or prepare navigation, but it must not transmit requests or navigate without user confirmation.
+- Manual-First AI output is prepare-only. In AI-First, **Start Run** or **Start Tutorial** is user confirmation only for bounded, saved-scope, `GET`-only browser opening and navigation; form interaction, identity changes, replay, workflows, and other active requests retain their existing capability confirmation.
 - Radar must not install root certificates automatically.
 - Keep proxy CA files and AI settings in Electron user data, not in the repository.
 - Treat model responses as untrusted. Normalize every AI task output before using it.

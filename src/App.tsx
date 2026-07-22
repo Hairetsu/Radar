@@ -56,6 +56,7 @@ import { CommandPalette } from "./ai/CommandPalette";
 import { AppearanceSettingsPanel } from "./components/AppearanceSettingsPanel";
 import { AgentMissionGraph } from "./components/AgentMissionGraph";
 import { AgentCapabilityLedger } from "./components/AgentCapabilityLedger";
+import { AgentThoughtstream } from "./components/AgentThoughtstream";
 import { AgentTutorialGuide } from "./components/AgentTutorialGuide";
 import { IdentityLab } from "./components/IdentityLab";
 import { NewSessionDialog } from "./components/NewSessionDialog";
@@ -95,6 +96,7 @@ import type {
   WorkflowResultLevel,
   PluginInstallStatus
 } from "./types";
+import { getAgentBudgetExhaustion } from "../shared/agentProfiles.js";
 
 const shellClass =
   "radar-shell relative grid h-full min-h-full cursor-default overflow-hidden [grid-template-columns:248px_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_28px] max-[1180px]:h-auto max-[1180px]:overflow-visible max-[1180px]:[grid-template-columns:1fr] max-[1180px]:[grid-template-rows:auto_auto_28px]";
@@ -765,7 +767,14 @@ export function App() {
     (run) => run.status === "queued" || run.status === "running"
   );
   const activeAgentPausable = activeAgentRun?.status === "queued" || activeAgentRun?.status === "running";
-  const activeAgentResumable = activeAgentRun?.status === "paused" || activeAgentRun?.status === "failed";
+  const activeAgentBudgetExhaustion = getAgentBudgetExhaustion(activeAgentRun);
+  const activeAgentResumable = (activeAgentRun?.status === "paused" || activeAgentRun?.status === "failed") &&
+    !activeAgentBudgetExhaustion;
+  const activeAgentContinuable = Boolean(
+    activeAgentBudgetExhaustion &&
+    (activeAgentRun?.status === "paused" || activeAgentRun?.status === "failed") &&
+    !activeAgentRunning
+  );
   const activeAgentStoppable = Boolean(
     activeAgentRun && activeAgentRun.status !== "completed" && activeAgentRun.status !== "stopped"
   );
@@ -2263,7 +2272,7 @@ export function App() {
 
           {workbench.appMode === "ai-first" && (
             <div
-              className="grid gap-4 border-b border-rule bg-ink/35 p-4 lg:grid-cols-[minmax(260px,0.42fr)_minmax(0,1fr)]"
+              className="grid min-h-0 gap-4 border-b border-rule bg-ink/35 p-4 min-[1181px]:max-h-[min(46vh,640px)] min-[1181px]:overflow-y-auto min-[1181px]:overscroll-contain lg:grid-cols-[minmax(260px,0.42fr)_minmax(0,1fr)]"
               data-testid="aiFirstConsole"
               data-component="aiFirstConsole"
             >
@@ -2379,6 +2388,19 @@ export function App() {
                     <Play size={13} strokeWidth={1.8} />
                     {activeAgentRun?.policy.tutorialMode ? "Continue Lesson" : "Resume"}
                   </Button>
+                  {activeAgentBudgetExhaustion && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!activeAgentContinuable}
+                      onClick={workbench.continueAgentRun}
+                      data-testid="continueAgentRun"
+                      data-component="continueAgentRun"
+                    >
+                      <RotateCw size={13} strokeWidth={1.8} />
+                      Continue as New Run
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
@@ -2399,6 +2421,23 @@ export function App() {
                     <StatusBadge key={label}>{label}</StatusBadge>
                   ))}
                 </div>
+                {activeAgentBudgetExhaustion && (
+                  <div
+                    className="relative overflow-hidden border border-warning/45 bg-warning/[0.07] px-3 py-2.5 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-warning"
+                    role="status"
+                    data-testid="agentBudgetExhausted"
+                  >
+                    <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-warning">
+                      Active budget spent // checkpoint sealed
+                    </div>
+                    <p className="mt-1 font-mono text-[10px] leading-relaxed text-muted">
+                      {activeAgentBudgetExhaustion.kind === "runtime"
+                        ? `${Math.ceil(activeAgentBudgetExhaustion.used / 1000)}s used / ${Math.ceil(activeAgentBudgetExhaustion.limit / 1000)}s allowed.`
+                        : `${activeAgentBudgetExhaustion.used} tool calls used / ${activeAgentBudgetExhaustion.limit} allowed.`}
+                      {" "}Resume cannot reset a safety budget. Continue as New Run starts a fresh bounded run and preserves this transcript.
+                    </p>
+                  </div>
+                )}
                 <p className="font-mono text-[10px] leading-relaxed text-muted">
                   Manual-First controls stay available below as evidence panes. AI-First can only act inside saved scope and
                   uses stricter replay budgets.
@@ -2406,6 +2445,7 @@ export function App() {
               </form>
 
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                <AgentThoughtstream run={activeAgentRun} />
                 {(workbench.agentTutorialMode || activeAgentRun?.policy.tutorialMode) && (
                   <AgentTutorialGuide run={activeAgentRun?.policy.tutorialMode ? activeAgentRun : null} />
                 )}

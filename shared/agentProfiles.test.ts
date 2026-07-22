@@ -3,6 +3,7 @@ import {
   agentBudgetLabels,
   agentProfileAllowsTool,
   getAgentRunProfile,
+  getAgentBudgetExhaustion,
   normalizeAgentPolicy,
   normalizeAgentRunProfileId
 } from "./agentProfiles.js";
@@ -26,6 +27,7 @@ describe("agentProfiles", () => {
     expect(agentProfileAllowsTool("browser-assessment", "clickElement")).toBe(true);
     expect(agentProfileAllowsTool("browser-assessment", "runWorkflow")).toBe(true);
     expect(getAgentRunProfile("browser-assessment").policy.maxReplay).toBe(3);
+    expect(getAgentRunProfile("browser-assessment").policy.maxRuntimeMs).toBe(600000);
     expect(agentProfileAllowsTool("header-cookie-review", "analyzeSecurityHeaders")).toBe(true);
     expect(agentProfileAllowsTool("header-cookie-review", "prepareWorkflowDraft")).toBe(false);
     expect(agentProfileAllowsTool("advanced-api-review", "runWorkflow")).toBe(true);
@@ -34,6 +36,34 @@ describe("agentProfiles", () => {
       maxConcurrency: 1
     });
     expect(getAgentRunProfile("passive-map").capabilityCeiling.maxRiskTier).toBe("navigate");
+  });
+
+  it("identifies sealed runtime and step budgets", () => {
+    expect(getAgentBudgetExhaustion({
+      policy: { ...getAgentRunProfile("browser-assessment").policy, maxRuntimeMs: 300000 },
+      checkpoint: {
+        startUrl: "https://example.test",
+        targetOrigin: "https://example.test",
+        stepCount: 19,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 332763,
+        lastResumedAt: "2026-07-19T00:00:00.000Z"
+      },
+      error: "Agent exceeded its runtime budget."
+    })).toEqual({ kind: "runtime", used: 332763, limit: 300000 });
+    expect(getAgentBudgetExhaustion({
+      policy: { ...getAgentRunProfile("passive-map").policy, maxSteps: 8 },
+      checkpoint: {
+        startUrl: "https://example.test",
+        targetOrigin: "https://example.test",
+        stepCount: 8,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 1000,
+        lastResumedAt: "2026-07-19T00:00:00.000Z"
+      }
+    })).toEqual({ kind: "steps", used: 8, limit: 8 });
   });
 
   it("formats visible budget labels", () => {

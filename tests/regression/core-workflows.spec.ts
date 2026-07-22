@@ -58,6 +58,18 @@ test("[REG-APP-007] @core toggles operating mode without creating an agent run",
   await page.getByTestId("aiFirstMode").click();
   await expect(page.getByTestId("aiFirstConsole")).toBeVisible();
   await expect(page.getByTestId("agentTimeline")).toContainText("Prompt AI-First to start a scoped run.");
+  const layout = await page.getByTestId("aiFirstConsole").evaluate((consolePanel) => {
+    const evidencePane = consolePanel.nextElementSibling;
+    return {
+      consoleClientHeight: consolePanel.clientHeight,
+      consoleScrollHeight: consolePanel.scrollHeight,
+      consoleOverflowY: getComputedStyle(consolePanel).overflowY,
+      evidencePaneHeight: evidencePane?.getBoundingClientRect().height || 0
+    };
+  });
+  expect(layout.consoleOverflowY).toBe("auto");
+  expect(layout.consoleScrollHeight).toBeGreaterThan(layout.consoleClientHeight);
+  expect(layout.evidencePaneHeight).toBeGreaterThan(0);
   await page.getByTestId("manualFirstMode").click();
   await expect(page.getByTestId("aiFirstConsole")).toBeHidden();
 });

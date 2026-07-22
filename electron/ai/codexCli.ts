@@ -20,11 +20,20 @@ type RunProcessOptions = {
 };
 
 function codexCliCandidates() {
+  const home = os.homedir();
+  const macAppCandidates = process.platform === "darwin"
+    ? [
+        "/Applications/Codex.app/Contents/Resources/codex",
+        "/Applications/ChatGPT.app/Contents/Resources/codex",
+        path.join(home, "Applications", "Codex.app", "Contents", "Resources", "codex"),
+        path.join(home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex")
+      ]
+    : [];
   return [
     process.env.CODEX_CLI_PATH,
     process.env.CODEX_PATH,
-    /* v8 ignore next -- platform-specific candidate is covered on the active OS only. */
-    process.platform === "darwin" ? "/Applications/Codex.app/Contents/Resources/codex" : "",
+    ...macAppCandidates,
+    path.join(home, ".local", "bin", "codex"),
     "/opt/homebrew/bin/codex",
     "/usr/local/bin/codex",
     "codex"
@@ -138,7 +147,7 @@ export async function probeCodexCli() {
     const detail = error instanceof Error ? error.message : "unknown error";
     return {
       ok: false,
-      message: `Codex CLI not found. Install Codex.app or set CODEX_CLI_PATH. ${detail}`,
+      message: `Codex CLI not found. Install ChatGPT/Codex desktop or set CODEX_CLI_PATH. ${detail}`,
       executablePath: command
     };
   }
@@ -217,11 +226,19 @@ export async function runCodexCliCompletion({
     }
     args.push("-");
 
-    const result = await runProcess(command, args, {
-      cwd,
-      input: codexPrompt(system, user),
-      timeoutMs
-    });
+    let result: ProcessResult;
+    try {
+      result = await runProcess(command, args, {
+        cwd,
+        input: codexPrompt(system, user),
+        timeoutMs
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "unknown process error";
+      throw new Error(
+        `Codex CLI is unavailable at ${command}. Install ChatGPT/Codex desktop or set CODEX_CLI_PATH, then reconnect AI. ${detail}`
+      );
+    }
 
     const text = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf8").trim() : result.stdout.trim();
     if (result.exitCode !== 0) {
