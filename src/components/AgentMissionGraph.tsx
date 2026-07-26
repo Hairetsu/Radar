@@ -250,7 +250,7 @@ export function AgentMissionGraph({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule bg-signal/[0.035] px-3 py-2">
         <div className="flex items-center gap-2">
           <GitBranch size={13} className="text-signal" strokeWidth={1.8} />
-          <h2 id="mission-graph-heading" className="font-mono text-[9px] uppercase tracking-[0.24em] text-bone">
+          <h2 id="mission-graph-heading" className="rd-eyebrow text-bone">
             Mission Graph
           </h2>
           {mission && <StatusBadge>r{mission.revision}</StatusBadge>}
@@ -271,8 +271,8 @@ export function AgentMissionGraph({
             <div className="grid grid-cols-2 gap-px border-b border-rule bg-rule sm:grid-cols-5">
               {coverageByDimension.map(({ dimension, covered, total }) => (
                 <div key={dimension} className="bg-ink/70 px-2 py-2">
-                  <span className="block font-mono text-[8px] uppercase tracking-[0.2em] text-muted">{dimension}</span>
-                  <span className="mt-1 block font-mono text-[10px] text-copy">
+                  <span className="block rd-label-sm text-muted">{dimension}</span>
+                  <span className="mt-1 block font-mono text-label text-copy">
                     {covered} covered / {total || "unknown"}
                   </span>
                 </div>
@@ -299,15 +299,15 @@ export function AgentMissionGraph({
                     style={{ paddingLeft: `${8 + (node.level - 1) * 18}px` }}
                     data-testid={`missionNode-${node.key}`}
                   >
-                    <span className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.16em] text-signal">
+                    <span className="flex items-center gap-1 rd-label-sm text-signal">
                       {nodeGlyph(node)} {ENTITY_LABELS[node.entity]}
                     </span>
-                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-copy">
+                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-meta text-copy">
                       {node.label}
                     </span>
                     <span className="flex items-center gap-1">
                       {node.pinned && <Pin size={10} className="text-sand" aria-label="Pinned" />}
-                      {node.priority && <span className="font-mono text-[8px] text-muted">P{node.priority}</span>}
+                      {node.priority && <span className="font-mono text-nano text-muted">P{node.priority}</span>}
                       <StatusBadge>{node.status}</StatusBadge>
                     </span>
                   </button>
@@ -320,14 +320,14 @@ export function AgentMissionGraph({
             {selectedNode ? (
               <div data-testid="missionNodeInspector">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-mono text-[8.5px] uppercase tracking-[0.2em] text-signal">
+                  <span className="rd-label text-signal">
                     {ENTITY_LABELS[selectedNode.entity]} / {selectedNode.id}
                   </span>
                   <StatusBadge>{selectedNode.evidenceRefs.length} evidence</StatusBadge>
                 </div>
-                <p className="mt-2 text-[12px] leading-5 text-copy">{selectedNode.label}</p>
+                <p className="mt-2 text-body leading-5 text-copy">{selectedNode.label}</p>
                 {selectedNode.evidenceRefs.length > 0 && (
-                  <p className="mt-2 select-text break-all font-mono text-[9px] leading-4 text-muted">
+                  <p className="mt-2 select-text break-all font-mono text-micro leading-4 text-muted">
                     {selectedNode.evidenceRefs.join(" · ")}
                   </p>
                 )}
@@ -404,8 +404,8 @@ export function AgentMissionGraph({
 
             {mission.operatorQuestions.filter((question) => question.status === "open").map((question) => (
               <div key={question.id} className="border border-sand/35 bg-sand/[0.055] p-2" role="alert" data-testid={`missionQuestion-${question.id}`}>
-                <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-sand">Operator answer required</p>
-                <p className="mt-1 text-[11px] leading-5 text-copy">{question.prompt}</p>
+                <p className="rd-label text-sand">Operator answer required</p>
+                <p className="mt-1 text-meta leading-5 text-copy">{question.prompt}</p>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
                   <Input variant="compact" value={answers[question.id] || ""} onChange={(event) => setAnswers((items) => ({ ...items, [question.id]: event.target.value }))} placeholder="Answer with a bounded instruction" data-testid={`missionAnswer-${question.id}`} />
                   <Button type="button" variant="solid" size="compact" disabled={!answers[question.id]?.trim()} onClick={() => void onSteer({ action: "answer-operator", questionId: question.id, answer: answers[question.id] || "" })}>Answer</Button>
@@ -414,7 +414,7 @@ export function AgentMissionGraph({
               </div>
             ))}
 
-            <p className="font-mono text-[9px] leading-4 text-muted">
+            <p className="font-mono text-micro leading-4 text-muted">
               {canSteer
                 ? "STEERING ARMED · every mutation is revision-checked and appended to the run transcript"
                 : "PAUSE TO STEER · active and terminal runs keep the graph read-only"}

@@ -6,6 +6,26 @@
   --font-sans: var(--theme-font-sans);
   --font-mono: var(--theme-font-mono);
 
+  /* Type scale — dense at the operator end, widening for headings.
+     Steps are deliberately few so views stop hand-picking pixel sizes. */
+  --text-nano: 8px;
+  --text-micro: 9px;
+  --text-label: 10px;
+  --text-meta: 11px;
+  --text-body: 12px;
+  --text-lead: 14px;
+  --text-title: 18px;
+  --text-head: 22px;
+  --text-hero: 28px;
+  --text-mark: 36px;
+
+  /* Tracking scale — one step per role, from mono data to banner rules. */
+  --tracking-data: 0.04em;
+  --tracking-key: 0.1em;
+  --tracking-label: 0.18em;
+  --tracking-eyebrow: 0.24em;
+  --tracking-banner: 0.38em;
+
   --color-ink: var(--theme-ink);
   --color-graphite: var(--theme-graphite);
   --color-surface: var(--theme-surface);
@@ -108,6 +128,8 @@
     linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.08), transparent 42%),
     rgba(255, 255, 255, 0.02);
   --theme-note-border: rgba(var(--theme-accent-rgb), 0.25);
+  --theme-focus: rgba(var(--theme-accent-rgb), 0.85);
+  --theme-focus-glow: rgba(var(--theme-accent-rgb), 0.2);
   --theme-noise:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0 0.75 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -204,6 +226,9 @@
     linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.1), transparent 60%),
     rgba(253, 248, 232, 0.7);
   --theme-note-border: rgba(var(--theme-accent-rgb), 0.3);
+  /* Paper needs an opaque ring; a translucent one washes out against cream. */
+  --theme-focus: rgb(var(--theme-accent-rgb));
+  --theme-focus-glow: rgba(var(--theme-accent-rgb), 0.16);
   --theme-noise:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.32 0 0 0 0 0.24 0 0 0 0 0.18 0 0 0 0.4 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -302,6 +327,8 @@
     linear-gradient(135deg, rgba(var(--theme-secondary-rgb), 0.18), transparent 50%),
     rgba(17, 10, 31, 0.55);
   --theme-note-border: rgba(var(--theme-secondary-rgb), 0.4);
+  --theme-focus: rgb(var(--theme-accent-rgb));
+  --theme-focus-glow: rgba(var(--theme-accent-rgb), 0.26);
   --theme-noise:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.83 0 0 0 0 1 0 0 0 0 0.16 0 0 0 0.4 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -355,6 +382,24 @@
 
   button {
     @apply cursor-pointer;
+  }
+
+  /* One focus idiom for the whole workbench. Components layer their own glow on
+     top, but this outline is what guarantees a keyboard ring survives every
+     theme, surface, and nested-scroll container. The 1px offset is deliberate:
+     full-bleed rows sit inside overflow-hidden panes and a larger offset would
+     be clipped away. */
+  :focus-visible {
+    outline: 2px solid var(--theme-focus);
+    outline-offset: 1px;
+  }
+
+  /* Scroll regions and evidence panes are focusable for keyboard scrolling, so
+     the ring has to sit inside the border rather than over the neighbouring
+     cell. */
+  pre:focus-visible,
+  [data-radar-focus-inset]:focus-visible {
+    outline-offset: -2px;
   }
 
   h1,
@@ -411,6 +456,37 @@
 }
 
 @layer components {
+  /* Label roles. Radar's chrome is built from three recurring label kinds;
+     naming them keeps size and tracking consistent across every view.
+     Colour stays a utility so callers can tone them per context. */
+  .rd-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--tracking-eyebrow);
+    text-transform: uppercase;
+  }
+
+  .rd-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .rd-label-sm {
+    font-family: var(--font-mono);
+    font-size: var(--text-nano);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .rd-banner {
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--tracking-banner);
+    text-transform: uppercase;
+  }
+
   .theme-modal-backdrop {
     background: var(--theme-modal-backdrop);
   }
@@ -460,6 +536,20 @@
 
   .radar-confidential-rule {
     border-color: var(--theme-dash);
+  }
+
+  /* The AI-First operations drawer docks beside the evidence instead of
+     covering it, so panes reserve its width. Below 900px the drawer goes
+     full-screen and the reservation is dropped. */
+  .radar-ai-inset {
+    padding-right: var(--ai-drawer-inset, 0px);
+    transition: padding-right 220ms cubic-bezier(0.2, 0.74, 0.19, 1);
+  }
+
+  @media (max-width: 900px) {
+    .radar-ai-inset {
+      padding-right: 0;
+    }
   }
 
   .radar-nav-texture::before {
@@ -531,6 +621,23 @@
   .radar-card {
     background: var(--theme-card-bg);
     color: var(--theme-copy);
+  }
+
+  /* Traffic rows track the pane, never force it wider. Column minimums are 0
+     so cells ellipsize instead of overflowing, and the resource-type column
+     yields its space to host and path once the pane gets tight. */
+  .radar-traffic-row {
+    grid-template-columns: 62px 58px minmax(0, 0.95fr) minmax(0, 1.55fr) 88px 58px;
+  }
+
+  @media (max-width: 1320px) {
+    .radar-traffic-row {
+      grid-template-columns: 56px 52px minmax(0, 1fr) minmax(0, 1.7fr) 56px;
+    }
+
+    .radar-traffic-row .traffic-type {
+      display: none;
+    }
   }
 
   .radar-traffic-filter {
@@ -693,5 +800,29 @@
 @media (max-width: 1180px) {
   body {
     @apply overflow-auto;
+  }
+}
+
+/* Reduced motion keeps every state change legible but drops the travel. Reveals
+   have to be forced opaque because they start at opacity 0 and rely on a
+   forwards-filled animation to become visible. Ambient loops (drift, scan) are
+   decoration and simply stop. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .radar-reveal {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .radar-drift {
+    animation: none !important;
   }
 }

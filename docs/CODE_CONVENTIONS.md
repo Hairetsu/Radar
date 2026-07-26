@@ -22,12 +22,15 @@ Use the existing folders as ownership boundaries:
 - `electron/ai/`: AI settings, prompts, context building, provider calls, connect presets, and audit logic.
 - `electron/agent/`: AI-First autonomous run loop, policy checks, and tool orchestration. Keep scope/replay limits here and have the runtime call existing browser, capture, and replay functions instead of duplicating them.
 - `src/`: React renderer code.
-- `src/hooks/`: Stateful renderer workflows such as `useRadarWorkbench`.
-- `src/lib/`: Renderer-facing utility re-exports and presentation helpers (including `cn()`).
+- `src/hooks/`: Stateful renderer workflows. `useRadarWorkbench` is the composition root for workbench state.
+- `src/hooks/workbench/`: Domain hooks composed by `useRadarWorkbench` (shell, scope, traffic, repeater, findings, workflows, automate, plugins, intercept, websocket, ssl/proxy, and related ports). Cross-domain writes go through typed ports such as `NavigationPort` and `NoticePort`.
+- `src/lib/`: Renderer-facing utility re-exports and presentation helpers (including `cn()` and `presentation.ts` tone/format helpers).
 - `src/components/ui/`: shadcn-style form and action primitives (`Button`, `Input`, `Select`, `Textarea`).
 - `src/components/radar/`: Radar-specific presentation primitives (labels, status badges, pills, empty states).
+- `src/components/shell/`: App chrome (sidebar, workspace header, panel header, telemetry ticker, AI-First drawer chrome, project artifacts overlay, request context menu, layout class helpers).
+- `src/components/views/`: One view module per workbench tab (`TrafficView`, `RepeaterView`, …), each typed with `Pick<RadarWorkbench, …>` for the workbench keys it uses. Header action strips export as `*ViewActions` alongside the view body.
 - `src/ai/`: AI command palette UI and renderer metadata.
-- `src/test/`: Shared renderer test setup.
+- `src/test/`: Shared renderer test setup and structural guards such as the `data-testid` inventory.
 
 When adding a feature, start with the shared types and pure helpers, then wire Electron IPC, then expose the typed preload API, then update hooks/UI, then tests.
 
@@ -95,11 +98,12 @@ import { buildContextPayload } from "./context.js";
 ## React Renderer Patterns
 
 - Use function components and hooks only.
-- Keep high-level composition in `App.tsx`. Move workflow state into hooks, as `useRadarWorkbench` does.
-- Use local component state for isolated UI surfaces, as `CommandPalette` does.
+- Keep `App.tsx` as a thin composition root: shell chrome, overlays/dialogs, and view switching. Put each workbench tab in `src/components/views/` and shared chrome in `src/components/shell/`.
+- Move workflow state into hooks. `useRadarWorkbench` composes domain hooks from `src/hooks/workbench/` and remains the public workbench API (`RadarWorkbench`).
+- Use local component state for isolated UI surfaces, as `CommandPalette` and view-local filters/editors do.
 - Wrap async workflows in `useCallback` and `useAsyncAction` when the UI needs pending state.
 - Use `useMemo` for derived values that are reused by render.
-- Use `useEffect` for subscriptions, polling, keyboard shortcuts, and startup loads. Always return cleanup functions for timers and listeners.
+- Use `useEffect` sparingly: subscriptions, polling, keyboard shortcuts, and startup loads. Prefer derived state, event handlers, and render-time ref assignment over effects for keeping callbacks in sync. Always return cleanup functions for timers and listeners.
 - Keep form controls controlled: `value`, `onChange`, and explicit state setters.
 - Electron-dependent calls must go through `window.radar`. The renderer should degrade with a notice when `window.radar` is unavailable.
 - Do not import Electron, Node built-ins, filesystem APIs, or process APIs into `src/`.
@@ -129,6 +133,7 @@ const selected = useMemo(
 );
 ```
 
+- Domain hooks under `src/hooks/workbench/` own their state exclusively. `useRadarWorkbench` composes them and must not keep a second copy of the same `useState`. Cross-domain writes use typed ports (`NavigationPort`, `NoticePort`, `RepeaterPort`) instead of importing sibling setters.
 - Polling is acceptable for local Electron state snapshots. Keep intervals modest and clean them up.
 
 ## Electron And IPC
@@ -194,12 +199,25 @@ Radar uses Tailwind CSS v4 with shadcn practices. Follow these rules when adding
 ### Theme and global CSS
 
 - Keep design tokens in `@theme` inside `src/styles.css` (colors, fonts, shadows). Reference them as Tailwind utilities (`bg-surface`, `text-signal`, `font-mono`, etc.).
-- Reserve `src/styles.css` for tokens, base element styles, the bureau shell texture (`.radar-shell`), scrollbars, and shared keyframes. Do not add new page-level or component selector blocks there.
+- Reserve `src/styles.css` for tokens, base element styles, the bureau shell texture (`.radar-shell`), scrollbars, shared keyframes, the global focus and reduced-motion policy, and the shared label roles. Do not add page-level or per-component selector blocks there — those belong in the component's Tailwind utilities.
 - Use `@layer base` and `@layer components` sparingly — only for truly global concerns that cannot live in a component.
+
+### Type and label scale
+
+- Use the shared type scale (`text-nano`, `text-micro`, `text-label`, `text-meta`, `text-body`, `text-lead`, `text-title`, `text-head`, `text-mark`) and tracking scale (`tracking-data`, `tracking-key`, `tracking-label`, `tracking-eyebrow`, `tracking-banner`). Do not introduce new arbitrary `text-[Npx]` or `tracking-[N.Nem]` values — add a scale step if a genuinely new size is needed.
+- Use the label roles `rd-eyebrow`, `rd-label`, `rd-label-sm`, and `rd-banner` for the repeating uppercase mono chrome instead of respelling `font-mono text-X uppercase tracking-Y`. Colour stays a utility so callers can tone them per context.
+- Because the three themes ship different mono faces with different widths, prefer ellipsis and scrollable strips over fixed widths for label-bearing chrome.
+
+### Focus and motion
+
+- There is one focus idiom: a theme-aware `:focus-visible` outline declared in `@layer base`, driven by `--theme-focus`. Do not add `focus-visible:outline-none` to a control without replacing the affordance.
+- Text fields are the documented exception: they opt out of the outline and use a border shift plus a `--theme-focus-glow` ring, which never clips inside dense panes.
+- Full-bleed rows, tabs, and menu items live inside `overflow-hidden` panes, so they use the inset focus offset from `layoutClasses.ts` rather than the default outward offset.
+- Page-load reveals must carry the `radar-reveal` class (via `revealClass`) so `prefers-reduced-motion` can drop the animation without leaving the element stuck at `opacity-0`.
 
 ### shadcn-style components
 
-- Use `cn()` from `src/lib/utils.ts` (`clsx` + `tailwind-merge`) to merge class names.
+- Use `cn()` from `src/lib/utils.ts` (`clsx` + `tailwind-merge`) to merge class names. `cn` is an `extendTailwindMerge` instance that registers the custom font-size and tracking scales as their own conflict groups; without that registration `tailwind-merge` reads `text-meta` as a colour and silently drops it when a real colour is merged in. Add any new scale step to those class groups in `src/lib/utils.ts` and cover it in `src/lib/utils.test.ts`.
 - Use `class-variance-authority` (`cva`) for variant-driven components. Export both the component and its `*Variants` helper when variants may be reused.
 - Put generic, reusable controls in `src/components/ui/` following shadcn patterns: `forwardRef`, `VariantProps`, typed props extending native element props, and `displayName`.
 - Put Radar-specific presentation pieces in `src/components/radar/` (for example `FieldLabel`, `StatusBadge`, `StatusPill`, `EmptyState`).

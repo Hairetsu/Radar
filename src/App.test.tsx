@@ -413,14 +413,13 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(await screen.findByTestId("aiFirstMode"));
 
-    expect(screen.getByTestId("aiFirstConsole")).toHaveClass(
-      "min-[1181px]:max-h-[min(46vh,640px)]",
-      "min-[1181px]:overflow-y-auto"
-    );
+    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
+    expect(screen.getByTestId("aiFirstConsole")).toHaveAttribute("aria-label", "AI operations drawer");
+    expect(screen.getByTestId("aiDrawerBody")).toHaveClass("overflow-y-auto");
     const timeline = await screen.findByTestId("agentTimeline");
     expect(timeline.textContent).toContain("Run queued from AI-First goal prompt.");
-    expect(screen.getByText("analyzeSecurityHeaders failed")).toBeInTheDocument();
-    expect(screen.getByText("No target-origin captures for https://apexads.io")).toBeInTheDocument();
+    expect(timeline).toHaveTextContent("analyzeSecurityHeaders failed");
+    expect(timeline).toHaveTextContent("No target-origin captures for https://apexads.io");
 
     fireEvent.click(screen.getByTestId("agentRecovery-retry-tool"));
     await waitFor(() => {
@@ -430,6 +429,34 @@ describe("App", () => {
       });
       expect(screen.getByText("Recovery queued with preserved budgets and fresh visible state.")).toBeInTheDocument();
     });
+  });
+
+  it("groups navigation and keeps AI operations in a closable, resizable drawer", async () => {
+    render(<App />);
+
+    for (const group of ["Observe", "Test", "Report", "Configure"]) {
+      expect(await screen.findByText(group)).toBeInTheDocument();
+    }
+
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
+    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
+
+    // Run state must not be hidden behind a tab: the timeline, findings inbox,
+    // and run memory all stay reachable in one scrolling column.
+    expect(screen.getByTestId("agentTimeline")).toBeVisible();
+    expect(screen.getByTestId("agentMemoryTitle")).toBeVisible();
+
+    const resizeHandle = screen.getByTestId("resizeAiDrawer");
+    fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" });
+    expect(resizeHandle).toHaveAttribute("aria-valuenow", "652");
+
+    fireEvent.click(screen.getByTestId("closeAiDrawer"));
+    expect(screen.queryByTestId("aiFirstConsole")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("toggleAiDrawer"));
+    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
   });
 
   it("selects a saved AI-First run and resumes its durable checkpoint", async () => {

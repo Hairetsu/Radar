@@ -154,11 +154,12 @@ Radar opens into a twelve-view operator console.
 
 Persistent areas:
 
-- **Left sidebar**: Radar lockup, project/session controls, view navigation, and live per-view counts.
+- **Left sidebar**: Radar lockup and grouped Observe, Test, Report, and Configure navigation. The active view shows its live count in context.
+- **Console block**: app-global controls at the foot of the sidebar — the Manual-First / AI-First mode toggle, AI connection status, Projects, Appearance, and AI settings.
 - **Top banner**: active project workspace/session and UTC clock.
-- **Header**: Radar identity, active project, managed-browser address/history controls, Playwright status, global Search, project Notes, live status pills, Projects, Appearance, and AI settings.
-- **Session selector**: quick session switching under the active project.
-- **Workspace panel**: the active tool surface.
+- **Header**: active project name, managed-browser address/history controls, browser and Playwright status, global Search, project Notes, and view-specific actions. The header tracks the current target; app-global controls live in the sidebar Console block.
+- **Session selector**: quick session switching under the Console block.
+- **Workspace panel**: the active evidence or tool surface. AI-First adds a compact mission dock without replacing the active view.
 - **Footer ticker**: current view, HTTP/S capture count, WebSocket frame count, TLS event count, and proxy status.
 
 Views:
@@ -1404,7 +1405,7 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, advanced testing review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, Advanced import/replay actions, finding review, or exports.
 
-Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt, profile picker, optional Tutorial Mode, visible budget chips, Mission Graph, Capability Leases ledger, observation console, draft findings inbox, and local run-memory panel above the normal views. On desktop-sized windows, this console has its own vertical scroll region so every run control remains reachable while the active evidence pane stays visible below it. Enter a scoped goal such as:
+Switch to **AI-First** from the sidebar Console toggle when you want Radar to run from a prompt. A compact mission dock stays above the active evidence pane with status and immediate Pause, Resume, Stop, and Operations controls. **Operations** opens a right-hand drawer holding goal setup, run profile, Thoughtstream, Mission Graph, capability leases, the observation timeline, draft findings, and project-local run memory in one scrolling column, so recovery prompts, memory proposals, and finding drafts are never hidden behind a tab while a run is in progress. The drawer docks beside the evidence rather than over it: the workspace reserves its width so the active view stays readable. Drag the drawer's left edge—or focus it and use the arrow keys—to resize it, and close it whenever you want the full evidence workspace. Enter a scoped goal such as:
 
 ```text
 Inspect https://staging.example.com for auth, session, and API hardening issues.

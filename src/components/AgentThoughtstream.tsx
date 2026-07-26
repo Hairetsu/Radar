@@ -63,7 +63,7 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
       >
         <div className="flex items-center gap-2 border-b border-rule px-4 py-3">
           <BrainCircuit size={15} strokeWidth={1.7} className="text-signal" />
-          <span className="font-mono text-[9px] uppercase tracking-[0.26em] text-muted">Agent Thoughtstream</span>
+          <span className="rd-eyebrow text-muted">Agent Thoughtstream</span>
         </div>
         <EmptyState className="min-h-[130px]">Start an AI-First run to see its live decision briefs.</EmptyState>
       </section>
@@ -116,8 +116,8 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
             <BrainCircuit size={16} strokeWidth={1.65} />
           </span>
           <div>
-            <span className="block font-mono text-[9px] uppercase tracking-[0.28em] text-signal">Agent Thoughtstream</span>
-            <span className="mt-0.5 block text-[10.5px] text-muted">Auditable decision brief · not hidden chain-of-thought</span>
+            <span className="block rd-eyebrow text-signal">Agent Thoughtstream</span>
+            <span className="mt-0.5 block text-meta text-muted">Auditable decision brief · not hidden chain-of-thought</span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -129,17 +129,17 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
 
       <div
         key={latestEntry?.id || run.updatedAt}
-        className="relative grid gap-px bg-rule/70 opacity-0 animate-[enter_420ms_cubic-bezier(0.2,0.74,0.19,1)_forwards] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]"
+        className="radar-reveal relative grid gap-px bg-rule/70 opacity-0 animate-[enter_420ms_cubic-bezier(0.2,0.74,0.19,1)_forwards] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]"
       >
         <div className="min-w-0 bg-ink/75 p-4">
-          <div className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted">
+          <div className="flex items-center gap-2 rd-eyebrow text-muted">
             <Crosshair size={12} strokeWidth={1.8} className="text-signal" />
             Current focus
           </div>
-          <p className="mt-2 font-display text-[15px] uppercase tracking-[0.055em] text-bone">
+          <p className="mt-2 font-display text-lead uppercase tracking-data text-bone">
             {activeExperiments.at(-1)?.title || run.mission?.objectives.find((objective) => objective.status === "active")?.title || run.goal}
           </p>
-          {testingHypothesis && <p className="mt-2 line-clamp-3 text-[11px] leading-5 text-muted">{testingHypothesis.statement}</p>}
+          {testingHypothesis && <p className="mt-2 line-clamp-3 text-meta leading-5 text-muted">{testingHypothesis.statement}</p>}
           {activeExperiments.length > 1 && (
             <div className="mt-3 flex flex-wrap gap-1">
               {activeExperiments.slice(-3).map((experiment) => (
@@ -152,30 +152,30 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
 
         <div className="min-w-0 bg-surface/90 p-4">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted">
+            <div className="flex items-center gap-2 rd-eyebrow text-muted">
               <ScanLine size={12} strokeWidth={1.8} className="text-signal" />
               Why this step
             </div>
             <StatusBadge tone="move">{currentTool}</StatusBadge>
           </div>
-          <p className="mt-2 text-[12.5px] leading-6 text-copy" data-testid="agentThoughtstreamRationale">
+          <p className="mt-2 text-body leading-6 text-copy" data-testid="agentThoughtstreamRationale">
             {rationale}
           </p>
           <div className="mt-3 border-l-2 border-signal bg-signal/[0.055] px-3 py-2">
-            <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-signal">Visible target</span>
-            <p className="mt-1 break-all font-mono text-[9.5px] leading-4 text-bone">{targetText(decision || call || latestEntry)}</p>
+            <span className="rd-label-sm text-signal">Visible target</span>
+            <p className="mt-1 break-all font-mono text-label leading-4 text-bone">{targetText(decision || call || latestEntry)}</p>
           </div>
         </div>
 
         <div className="min-w-0 bg-ink/75 p-4">
-          <div className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted">
+          <div className="flex items-center gap-2 rd-eyebrow text-muted">
             <Route size={12} strokeWidth={1.8} className="text-signal" />
             Result / next transition
           </div>
-          <p className={cn("mt-2 text-[11.5px] leading-5", result?.toolResult && !result.toolResult.ok ? "text-rust" : "text-copy")}>
+          <p className={cn("mt-2 text-body leading-5", result?.toolResult && !result.toolResult.ok ? "text-rust" : "text-copy")}>
             {resultText(result, waitingForResult, run)}
           </p>
-          <div className="mt-3 flex items-center gap-2 border-t border-rule/70 pt-3 font-mono text-[8.5px] uppercase tracking-[0.18em] text-muted">
+          <div className="mt-3 flex items-center gap-2 border-t border-rule/70 pt-3 rd-label text-muted">
             <FlaskConical size={11} strokeWidth={1.8} />
             {run.policy.tutorialMode
               ? run.status === "paused"

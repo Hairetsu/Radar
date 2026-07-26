@@ -5,7 +5,9 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
-    ignores: ["dist/**", "dist-electron/**", "node_modules/**"]
+    // `artifacts/` holds generated regression output, including Playwright's
+    // bundled trace viewer, which is not ours to lint.
+    ignores: ["dist/**", "dist-electron/**", "node_modules/**", "artifacts/**"]
   },
   js.configs.recommended,
   {

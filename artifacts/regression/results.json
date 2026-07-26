@@ -3,8 +3,7 @@
     "argv": [
       "/Users/thomaswhidden/.nvm/versions/node/v22.22.0/bin/node",
       "/Users/thomaswhidden/Documents/Radar/node_modules/@playwright/test/cli.js",
-      "test",
-      "--workers=6"
+      "test"
     ],
     "configFile": "/Users/thomaswhidden/Documents/Radar/playwright.config.ts",
     "rootDir": "/Users/thomaswhidden/Documents/Radar/tests/regression",
@@ -94,7 +93,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "4486"
+                  "description": "4210"
                 }
               ],
               "expectedStatus": "passed",
@@ -105,16 +104,16 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 7706,
+                  "duration": 9177,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:17.308Z",
+                  "startTime": "2026-07-26T00:47:54.619Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "4486"
+                      "description": "4210"
                     }
                   ],
                   "attachments": []
@@ -140,7 +139,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "5000"
+                  "description": "4124"
                 }
               ],
               "expectedStatus": "passed",
@@ -151,16 +150,16 @@
                   "workerIndex": 1,
                   "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 7898,
+                  "duration": 7291,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:17.316Z",
+                  "startTime": "2026-07-26T00:47:54.654Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "5000"
+                      "description": "4124"
                     }
                   ],
                   "attachments": []
@@ -186,7 +185,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "5011"
+                  "description": "3880"
                 }
               ],
               "expectedStatus": "passed",
@@ -197,16 +196,16 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 8295,
+                  "duration": 8638,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:17.321Z",
+                  "startTime": "2026-07-26T00:47:54.646Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "5011"
+                      "description": "3880"
                     }
                   ],
                   "attachments": []
@@ -233,7 +232,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "5032"
+                  "description": "3948"
                 }
               ],
               "expectedStatus": "passed",
@@ -244,16 +243,16 @@
                   "workerIndex": 3,
                   "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 6715,
+                  "duration": 7660,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:17.296Z",
+                  "startTime": "2026-07-26T00:47:54.639Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "5032"
+                      "description": "3948"
                     }
                   ],
                   "attachments": []
@@ -280,7 +279,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "5155"
+                  "description": "4198"
                 }
               ],
               "expectedStatus": "passed",
@@ -291,16 +290,16 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 35991,
+                  "duration": 35700,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:17.293Z",
+                  "startTime": "2026-07-26T00:47:54.638Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "5155"
+                      "description": "4198"
                     }
                   ],
                   "attachments": []
@@ -326,7 +325,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "5034"
+                  "description": "2644"
                 }
               ],
               "expectedStatus": "passed",
@@ -337,16 +336,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 6132,
+                  "duration": 5819,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:17.315Z",
+                  "startTime": "2026-07-26T00:47:54.654Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "5034"
+                      "description": "2644"
                     }
                   ],
                   "attachments": []
@@ -372,7 +371,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1709"
+                  "description": "1129"
                 }
               ],
               "expectedStatus": "passed",
@@ -383,16 +382,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4886,
+                  "duration": 3403,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:23.474Z",
+                  "startTime": "2026-07-26T00:48:00.499Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1709"
+                      "description": "1129"
                     }
                   ],
                   "attachments": []
@@ -427,7 +426,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1688"
+                  "description": "1287"
                 }
               ],
               "expectedStatus": "passed",
@@ -435,19 +434,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 12114,
+                  "duration": 11917,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:24.044Z",
+                  "startTime": "2026-07-26T00:48:01.975Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1688"
+                      "description": "1287"
                     }
                   ],
                   "attachments": []
@@ -473,7 +472,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2200"
+                  "description": "1232"
                 }
               ],
               "expectedStatus": "passed",
@@ -481,19 +480,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 8447,
+                  "duration": 7613,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:25.043Z",
+                  "startTime": "2026-07-26T00:48:02.458Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2200"
+                      "description": "1232"
                     }
                   ],
                   "attachments": []
@@ -520,7 +519,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2683"
+                  "description": "1134"
                 }
               ],
               "expectedStatus": "passed",
@@ -528,19 +527,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 6217,
+                  "duration": 4740,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:25.241Z",
+                  "startTime": "2026-07-26T00:48:03.322Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2683"
+                      "description": "1134"
                     }
                   ],
                   "attachments": []
@@ -566,7 +565,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2190"
+                  "description": "1236"
                 }
               ],
               "expectedStatus": "passed",
@@ -574,19 +573,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 12960,
+                  "duration": 12219,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:25.646Z",
+                  "startTime": "2026-07-26T00:48:03.825Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2190"
+                      "description": "1236"
                     }
                   ],
                   "attachments": []
@@ -612,7 +611,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1696"
+                  "description": "1183"
                 }
               ],
               "expectedStatus": "passed",
@@ -623,16 +622,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 5067,
+                  "duration": 3120,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:28.373Z",
+                  "startTime": "2026-07-26T00:48:03.921Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1696"
+                      "description": "1183"
                     }
                   ],
                   "attachments": []
@@ -662,15 +661,15 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 7944,
+                  "duration": 6839,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:31.465Z",
+                  "startTime": "2026-07-26T00:48:07.048Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -696,7 +695,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2196"
+                  "description": "1203"
                 }
               ],
               "expectedStatus": "passed",
@@ -704,19 +703,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 3926,
+                  "duration": 2939,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:33.448Z",
+                  "startTime": "2026-07-26T00:48:08.072Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2196"
+                      "description": "1203"
                     }
                   ],
                   "attachments": []
@@ -742,7 +741,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2170"
+                  "description": "1250"
                 }
               ],
               "expectedStatus": "passed",
@@ -750,19 +749,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 5929,
+                  "duration": 5019,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:33.499Z",
+                  "startTime": "2026-07-26T00:48:10.078Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2170"
+                      "description": "1250"
                     }
                   ],
                   "attachments": []
@@ -792,15 +791,15 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 8129,
+                  "duration": 6103,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:36.166Z",
+                  "startTime": "2026-07-26T00:48:11.019Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -826,7 +825,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1683"
+                  "description": "1174"
                 }
               ],
               "expectedStatus": "passed",
@@ -837,16 +836,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4713,
+                  "duration": 3033,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:37.382Z",
+                  "startTime": "2026-07-26T00:48:13.897Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1683"
+                      "description": "1174"
                     }
                   ],
                   "attachments": []
@@ -874,7 +873,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1728"
+                  "description": "1185"
                 }
               ],
               "expectedStatus": "passed",
@@ -882,19 +881,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 6367,
+                  "duration": 6093,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:38.615Z",
+                  "startTime": "2026-07-26T00:48:13.899Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1728"
+                      "description": "1185"
                     }
                   ],
                   "attachments": []
@@ -921,7 +920,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2268"
+                  "description": "1183"
                 }
               ],
               "expectedStatus": "passed",
@@ -929,19 +928,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4003,
+                  "duration": 2969,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:39.417Z",
+                  "startTime": "2026-07-26T00:48:15.109Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2268"
+                      "description": "1183"
                     }
                   ],
                   "attachments": []
@@ -968,7 +967,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2270"
+                  "description": "1104"
                 }
               ],
               "expectedStatus": "passed",
@@ -979,16 +978,16 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4009,
+                  "duration": 2914,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:39.436Z",
+                  "startTime": "2026-07-26T00:48:16.052Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2270"
+                      "description": "1104"
                     }
                   ],
                   "attachments": []
@@ -1016,7 +1015,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1733"
+                  "description": "1163"
                 }
               ],
               "expectedStatus": "passed",
@@ -1027,16 +1026,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 7877,
+                  "duration": 7580,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:42.102Z",
+                  "startTime": "2026-07-26T00:48:16.940Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1733"
+                      "description": "1163"
                     }
                   ],
                   "attachments": []
@@ -1063,7 +1062,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2729"
+                  "description": "1148"
                 }
               ],
               "expectedStatus": "passed",
@@ -1071,19 +1070,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4553,
+                  "duration": 3047,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:43.428Z",
+                  "startTime": "2026-07-26T00:48:17.129Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2729"
+                      "description": "1148"
                     }
                   ],
                   "attachments": []
@@ -1117,7 +1116,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2683"
+                  "description": "1093"
                 }
               ],
               "expectedStatus": "passed",
@@ -1125,19 +1124,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4055,
+                  "duration": 2566,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:43.456Z",
+                  "startTime": "2026-07-26T00:48:18.095Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2683"
+                      "description": "1093"
                     }
                   ],
                   "attachments": []
@@ -1164,7 +1163,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2198"
+                  "description": "1208"
                 }
               ],
               "expectedStatus": "passed",
@@ -1172,19 +1171,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3864,
+                  "duration": 2861,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:44.309Z",
+                  "startTime": "2026-07-26T00:48:18.981Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2198"
+                      "description": "1208"
                     }
                   ],
                   "attachments": []
@@ -1211,7 +1210,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1717"
+                  "description": "1062"
                 }
               ],
               "expectedStatus": "passed",
@@ -1219,19 +1218,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3383,
+                  "duration": 2757,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:44.997Z",
+                  "startTime": "2026-07-26T00:48:20.012Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1717"
+                      "description": "1062"
                     }
                   ],
                   "attachments": []
@@ -1257,7 +1256,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1736"
+                  "description": "1164"
                 }
               ],
               "expectedStatus": "passed",
@@ -1265,19 +1264,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4294,
+                  "duration": 3723,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:47.519Z",
+                  "startTime": "2026-07-26T00:48:20.188Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1736"
+                      "description": "1164"
                     }
                   ],
                   "attachments": []
@@ -1304,7 +1303,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2713"
+                  "description": "1191"
                 }
               ],
               "expectedStatus": "passed",
@@ -1312,19 +1311,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4440,
+                  "duration": 2957,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:47.992Z",
+                  "startTime": "2026-07-26T00:48:20.669Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2713"
+                      "description": "1191"
                     }
                   ],
                   "attachments": []
@@ -1350,7 +1349,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2699"
+                  "description": "1113"
                 }
               ],
               "expectedStatus": "passed",
@@ -1358,19 +1357,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4494,
+                  "duration": 2958,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:48.184Z",
+                  "startTime": "2026-07-26T00:48:21.849Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2699"
+                      "description": "1113"
                     }
                   ],
                   "attachments": []
@@ -1396,7 +1395,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2716"
+                  "description": "1077"
                 }
               ],
               "expectedStatus": "passed",
@@ -1404,19 +1403,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 4670,
+                  "duration": 3143,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:48.394Z",
+                  "startTime": "2026-07-26T00:48:22.779Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2716"
+                      "description": "1077"
                     }
                   ],
                   "attachments": []
@@ -1443,7 +1442,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1713"
+                  "description": "1154"
                 }
               ],
               "expectedStatus": "passed",
@@ -1451,19 +1450,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3540,
+                  "duration": 2924,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:49.993Z",
+                  "startTime": "2026-07-26T00:48:23.633Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1713"
+                      "description": "1154"
                     }
                   ],
                   "attachments": []
@@ -1490,7 +1489,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1706"
+                  "description": "1120"
                 }
               ],
               "expectedStatus": "passed",
@@ -1498,19 +1497,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 5138,
+                  "duration": 2993,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:51.821Z",
+                  "startTime": "2026-07-26T00:48:23.925Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1706"
+                      "description": "1120"
                     }
                   ],
                   "attachments": []
@@ -1537,7 +1536,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2796"
+                  "description": "1165"
                 }
               ],
               "expectedStatus": "passed",
@@ -1545,19 +1544,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4146,
+                  "duration": 2937,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:52.442Z",
+                  "startTime": "2026-07-26T00:48:24.532Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2796"
+                      "description": "1165"
                     }
                   ],
                   "attachments": []
@@ -1584,7 +1583,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3261"
+                  "description": "1190"
                 }
               ],
               "expectedStatus": "passed",
@@ -1592,19 +1591,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 7744,
+                  "duration": 4564,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:52.687Z",
+                  "startTime": "2026-07-26T00:48:24.815Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3261"
+                      "description": "1190"
                     }
                   ],
                   "attachments": []
@@ -1638,7 +1637,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3225"
+                  "description": "1148"
                 }
               ],
               "expectedStatus": "passed",
@@ -1646,19 +1645,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3534,
+                  "duration": 1421,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:53.078Z",
+                  "startTime": "2026-07-26T00:48:25.942Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3225"
+                      "description": "1148"
                     }
                   ],
                   "attachments": []
@@ -1684,7 +1683,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3282"
+                  "description": "1155"
                 }
               ],
               "expectedStatus": "passed",
@@ -1692,19 +1691,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4786,
+                  "duration": 2658,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:53.322Z",
+                  "startTime": "2026-07-26T00:48:26.573Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3282"
+                      "description": "1155"
                     }
                   ],
                   "attachments": []
@@ -1730,7 +1729,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2746"
+                  "description": "1228"
                 }
               ],
               "expectedStatus": "passed",
@@ -1738,19 +1737,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4409,
+                  "duration": 2929,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:53.545Z",
+                  "startTime": "2026-07-26T00:48:26.933Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2746"
+                      "description": "1228"
                     }
                   ],
                   "attachments": []
@@ -1776,7 +1775,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3291"
+                  "description": "1205"
                 }
               ],
               "expectedStatus": "passed",
@@ -1787,16 +1786,16 @@
                   "workerIndex": 1,
                   "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 4834,
+                  "duration": 2739,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:56.600Z",
+                  "startTime": "2026-07-26T00:48:27.373Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3291"
+                      "description": "1205"
                     }
                   ],
                   "attachments": []
@@ -1822,7 +1821,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3265"
+                  "description": "1152"
                 }
               ],
               "expectedStatus": "passed",
@@ -1830,19 +1829,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4559,
+                  "duration": 2575,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:56.621Z",
+                  "startTime": "2026-07-26T00:48:27.479Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3265"
+                      "description": "1152"
                     }
                   ],
                   "attachments": []
@@ -1868,7 +1867,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3239"
+                  "description": "1220"
                 }
               ],
               "expectedStatus": "passed",
@@ -1876,19 +1875,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4684,
+                  "duration": 2726,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:57.022Z",
+                  "startTime": "2026-07-26T00:48:29.241Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3239"
+                      "description": "1220"
                     }
                   ],
                   "attachments": []
@@ -1899,7 +1898,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-9fbc823597aff20c7d4f",
           "file": "core-workflows.spec.ts",
-          "line": 65,
+          "line": 84,
           "column": 1
         },
         {
@@ -1914,7 +1913,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2716"
+                  "description": "1119"
                 }
               ],
               "expectedStatus": "passed",
@@ -1922,19 +1921,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3016,
+                  "duration": 1497,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:57.962Z",
+                  "startTime": "2026-07-26T00:48:29.393Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2716"
+                      "description": "1119"
                     }
                   ],
                   "attachments": []
@@ -1945,7 +1944,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-3eba009c09f7b4415682",
           "file": "core-workflows.spec.ts",
-          "line": 81,
+          "line": 100,
           "column": 1
         },
         {
@@ -1961,7 +1960,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2707"
+                  "description": "1207"
                 }
               ],
               "expectedStatus": "passed",
@@ -1969,19 +1968,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4098,
+                  "duration": 2607,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:10:58.123Z",
+                  "startTime": "2026-07-26T00:48:29.872Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2707"
+                      "description": "1207"
                     }
                   ],
                   "attachments": []
@@ -1992,7 +1991,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-7a1b7eb70b05e7b10890",
           "file": "core-workflows.spec.ts",
-          "line": 88,
+          "line": 107,
           "column": 1
         },
         {
@@ -2008,7 +2007,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1717"
+                  "description": "1299"
                 }
               ],
               "expectedStatus": "passed",
@@ -2016,19 +2015,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 3355,
+                  "duration": 3029,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:00.445Z",
+                  "startTime": "2026-07-26T00:48:30.065Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1717"
+                      "description": "1299"
                     }
                   ],
                   "attachments": []
@@ -2039,7 +2038,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-e911dd16b99463750732",
           "file": "core-workflows.spec.ts",
-          "line": 97,
+          "line": 116,
           "column": 1
         },
         {
@@ -2055,7 +2054,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2768"
+                  "description": "1221"
                 }
               ],
               "expectedStatus": "passed",
@@ -2063,19 +2062,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 4279,
+                  "duration": 2812,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:00.988Z",
+                  "startTime": "2026-07-26T00:48:30.119Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2768"
+                      "description": "1221"
                     }
                   ],
                   "attachments": []
@@ -2086,7 +2085,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-1b1a637135aea052ef3e",
           "file": "core-workflows.spec.ts",
-          "line": 114,
+          "line": 133,
           "column": 1
         },
         {
@@ -2101,7 +2100,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3306"
+                  "description": "1257"
                 }
               ],
               "expectedStatus": "passed",
@@ -2109,19 +2108,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4712,
+                  "duration": 2782,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:01.189Z",
+                  "startTime": "2026-07-26T00:48:30.388Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3306"
+                      "description": "1257"
                     }
                   ],
                   "attachments": []
@@ -2132,7 +2131,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-568c57bacfeb41d01a1e",
           "file": "core-workflows.spec.ts",
-          "line": 123,
+          "line": 142,
           "column": 1
         },
         {
@@ -2147,7 +2146,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3244"
+                  "description": "1282"
                 }
               ],
               "expectedStatus": "passed",
@@ -2155,19 +2154,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4786,
+                  "duration": 2830,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:01.444Z",
+                  "startTime": "2026-07-26T00:48:30.900Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3244"
+                      "description": "1282"
                     }
                   ],
                   "attachments": []
@@ -2178,7 +2177,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-c6d211b01779f46e6cc9",
           "file": "core-workflows.spec.ts",
-          "line": 135,
+          "line": 154,
           "column": 1
         },
         {
@@ -2194,7 +2193,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3274"
+                  "description": "1146"
                 }
               ],
               "expectedStatus": "passed",
@@ -2202,19 +2201,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 6101,
+                  "duration": 4039,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:01.720Z",
+                  "startTime": "2026-07-26T00:48:31.975Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3274"
+                      "description": "1146"
                     }
                   ],
                   "attachments": []
@@ -2225,7 +2224,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-8523a0d3f3a8c8ada133",
           "file": "core-workflows.spec.ts",
-          "line": 146,
+          "line": 165,
           "column": 1
         },
         {
@@ -2240,7 +2239,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2785"
+                  "description": "1160"
                 }
               ],
               "expectedStatus": "passed",
@@ -2248,19 +2247,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4267,
+                  "duration": 2700,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:02.233Z",
+                  "startTime": "2026-07-26T00:48:32.489Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2785"
+                      "description": "1160"
                     }
                   ],
                   "attachments": []
@@ -2271,7 +2270,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-e9c4551e5ea1cd412778",
           "file": "core-workflows.spec.ts",
-          "line": 162,
+          "line": 181,
           "column": 1
         },
         {
@@ -2287,7 +2286,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1720"
+                  "description": "1156"
                 }
               ],
               "expectedStatus": "passed",
@@ -2295,19 +2294,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3211,
+                  "duration": 2651,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:03.807Z",
+                  "startTime": "2026-07-26T00:48:32.944Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1720"
+                      "description": "1156"
                     }
                   ],
                   "attachments": []
@@ -2318,7 +2317,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-f767800a2fcce7f3dd8c",
           "file": "core-workflows.spec.ts",
-          "line": 173,
+          "line": 192,
           "column": 1
         },
         {
@@ -2333,7 +2332,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1709"
+                  "description": "1238"
                 }
               ],
               "expectedStatus": "passed",
@@ -2344,16 +2343,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 3139,
+                  "duration": 2712,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:05.278Z",
+                  "startTime": "2026-07-26T00:48:33.126Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1709"
+                      "description": "1238"
                     }
                   ],
                   "attachments": []
@@ -2364,7 +2363,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-823a5d235d12d01a3baf",
           "file": "core-workflows.spec.ts",
-          "line": 182,
+          "line": 201,
           "column": 1
         },
         {
@@ -2379,7 +2378,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1732"
+                  "description": "1217"
                 }
               ],
               "expectedStatus": "passed",
@@ -2387,19 +2386,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3205,
+                  "duration": 2700,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:05.907Z",
+                  "startTime": "2026-07-26T00:48:33.195Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1732"
+                      "description": "1217"
                     }
                   ],
                   "attachments": []
@@ -2410,7 +2409,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-58106160f7c2db34f8a2",
           "file": "core-workflows.spec.ts",
-          "line": 191,
+          "line": 210,
           "column": 1
         },
         {
@@ -2425,7 +2424,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1721"
+                  "description": "1240"
                 }
               ],
               "expectedStatus": "passed",
@@ -2433,19 +2432,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3241,
+                  "duration": 2809,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:06.238Z",
+                  "startTime": "2026-07-26T00:48:33.737Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1721"
+                      "description": "1240"
                     }
                   ],
                   "attachments": []
@@ -2456,7 +2455,7 @@
           ],
           "id": "8f2a80b4fd8649c3f507-da20c3be9a5fc6037128",
           "file": "core-workflows.spec.ts",
-          "line": 200,
+          "line": 219,
           "column": 1
         }
       ]
@@ -2483,15 +2482,15 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 971,
+                  "duration": 1123,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:06.511Z",
+                  "startTime": "2026-07-26T00:48:35.200Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -2519,15 +2518,15 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3322,
+                  "duration": 2983,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:07.029Z",
+                  "startTime": "2026-07-26T00:48:35.612Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -2560,7 +2559,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1707"
+                  "description": "1303"
                 }
               ],
               "expectedStatus": "passed",
@@ -2568,19 +2567,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 2969,
+                  "duration": 2561,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:07.507Z",
+                  "startTime": "2026-07-26T00:48:35.852Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1707"
+                      "description": "1303"
                     }
                   ],
                   "attachments": []
@@ -2606,7 +2605,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1806"
+                  "description": "1254"
                 }
               ],
               "expectedStatus": "passed",
@@ -2614,19 +2613,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3099,
+                  "duration": 2603,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:07.836Z",
+                  "startTime": "2026-07-26T00:48:35.909Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1806"
+                      "description": "1254"
                     }
                   ],
                   "attachments": []
@@ -2652,7 +2651,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1767"
+                  "description": "1282"
                 }
               ],
               "expectedStatus": "passed",
@@ -2660,19 +2659,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3086,
+                  "duration": 2630,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:08.431Z",
+                  "startTime": "2026-07-26T00:48:36.031Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1767"
+                      "description": "1282"
                     }
                   ],
                   "attachments": []
@@ -2698,7 +2697,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1748"
+                  "description": "1183"
                 }
               ],
               "expectedStatus": "passed",
@@ -2709,16 +2708,16 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 3092,
+                  "duration": 2570,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:09.128Z",
+                  "startTime": "2026-07-26T00:48:36.336Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1748"
+                      "description": "1183"
                     }
                   ],
                   "attachments": []
@@ -2745,7 +2744,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1724"
+                  "description": "1259"
                 }
               ],
               "expectedStatus": "passed",
@@ -2753,19 +2752,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3056,
+                  "duration": 2669,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:09.494Z",
+                  "startTime": "2026-07-26T00:48:36.563Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1724"
+                      "description": "1259"
                     }
                   ],
                   "attachments": []
@@ -2791,7 +2790,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2749"
+                  "description": "1214"
                 }
               ],
               "expectedStatus": "passed",
@@ -2799,19 +2798,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4141,
+                  "duration": 2692,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:10.363Z",
+                  "startTime": "2026-07-26T00:48:38.426Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2749"
+                      "description": "1214"
                     }
                   ],
                   "attachments": []
@@ -2838,7 +2837,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3262"
+                  "description": "1262"
                 }
               ],
               "expectedStatus": "passed",
@@ -2849,16 +2848,16 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4729,
+                  "duration": 2810,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:10.488Z",
+                  "startTime": "2026-07-26T00:48:38.519Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3262"
+                      "description": "1262"
                     }
                   ],
                   "attachments": []
@@ -2884,7 +2883,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3226"
+                  "description": "1243"
                 }
               ],
               "expectedStatus": "passed",
@@ -2892,19 +2891,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 4630,
+                  "duration": 2712,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:10.952Z",
+                  "startTime": "2026-07-26T00:48:38.605Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3226"
+                      "description": "1243"
                     }
                   ],
                   "attachments": []
@@ -2930,7 +2929,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3269"
+                  "description": "1223"
                 }
               ],
               "expectedStatus": "passed",
@@ -2938,19 +2937,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4727,
+                  "duration": 2725,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:11.524Z",
+                  "startTime": "2026-07-26T00:48:38.669Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3269"
+                      "description": "1223"
                     }
                   ],
                   "attachments": []
@@ -2976,7 +2975,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2738"
+                  "description": "1238"
                 }
               ],
               "expectedStatus": "passed",
@@ -2987,16 +2986,16 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4273,
+                  "duration": 2797,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:12.229Z",
+                  "startTime": "2026-07-26T00:48:38.926Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2738"
+                      "description": "1238"
                     }
                   ],
                   "attachments": []
@@ -3022,7 +3021,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2715"
+                  "description": "1413"
                 }
               ],
               "expectedStatus": "passed",
@@ -3030,19 +3029,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4178,
+                  "duration": 3063,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:12.557Z",
+                  "startTime": "2026-07-26T00:48:39.249Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2715"
+                      "description": "1413"
                     }
                   ],
                   "attachments": []
@@ -3068,7 +3067,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1720"
+                  "description": "1250"
                 }
               ],
               "expectedStatus": "passed",
@@ -3076,19 +3075,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 3356,
+                  "duration": 3005,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:14.511Z",
+                  "startTime": "2026-07-26T00:48:41.126Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1720"
+                      "description": "1250"
                     }
                   ],
                   "attachments": []
@@ -3115,7 +3114,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1735"
+                  "description": "1316"
                 }
               ],
               "expectedStatus": "passed",
@@ -3123,19 +3122,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 5009,
+                  "duration": 4689,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:15.224Z",
+                  "startTime": "2026-07-26T00:48:41.328Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1735"
+                      "description": "1316"
                     }
                   ],
                   "attachments": []
@@ -3161,7 +3160,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1735"
+                  "description": "1402"
                 }
               ],
               "expectedStatus": "passed",
@@ -3169,19 +3168,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3233,
+                  "duration": 2934,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:15.588Z",
+                  "startTime": "2026-07-26T00:48:41.337Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1735"
+                      "description": "1402"
                     }
                   ],
                   "attachments": []
@@ -3208,7 +3207,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2288"
+                  "description": "1322"
                 }
               ],
               "expectedStatus": "passed",
@@ -3216,19 +3215,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3806,
+                  "duration": 2846,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:16.259Z",
+                  "startTime": "2026-07-26T00:48:41.401Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2288"
+                      "description": "1322"
                     }
                   ],
                   "attachments": []
@@ -3254,7 +3253,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2751"
+                  "description": "1370"
                 }
               ],
               "expectedStatus": "passed",
@@ -3265,16 +3264,16 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4258,
+                  "duration": 2876,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:16.510Z",
+                  "startTime": "2026-07-26T00:48:41.735Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2751"
+                      "description": "1370"
                     }
                   ],
                   "attachments": []
@@ -3301,7 +3300,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2727"
+                  "description": "1280"
                 }
               ],
               "expectedStatus": "passed",
@@ -3309,19 +3308,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4246,
+                  "duration": 2779,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:16.742Z",
+                  "startTime": "2026-07-26T00:48:42.325Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2727"
+                      "description": "1280"
                     }
                   ],
                   "attachments": []
@@ -3347,7 +3346,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1720"
+                  "description": "1263"
                 }
               ],
               "expectedStatus": "passed",
@@ -3355,19 +3354,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 3275,
+                  "duration": 2833,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:17.874Z",
+                  "startTime": "2026-07-26T00:48:44.137Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1720"
+                      "description": "1263"
                     }
                   ],
                   "attachments": []
@@ -3393,7 +3392,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1722"
+                  "description": "1174"
                 }
               ],
               "expectedStatus": "passed",
@@ -3401,19 +3400,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3259,
+                  "duration": 2756,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:18.828Z",
+                  "startTime": "2026-07-26T00:48:44.253Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1722"
+                      "description": "1174"
                     }
                   ],
                   "attachments": []
@@ -3439,7 +3438,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2731"
+                  "description": "1177"
                 }
               ],
               "expectedStatus": "passed",
@@ -3447,19 +3446,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4132,
+                  "duration": 2617,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:20.073Z",
+                  "startTime": "2026-07-26T00:48:44.279Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2731"
+                      "description": "1177"
                     }
                   ],
                   "attachments": []
@@ -3486,7 +3485,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3205"
+                  "description": "1169"
                 }
               ],
               "expectedStatus": "passed",
@@ -3494,19 +3493,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4709,
+                  "duration": 2673,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:20.243Z",
+                  "startTime": "2026-07-26T00:48:44.621Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3205"
+                      "description": "1169"
                     }
                   ],
                   "attachments": []
@@ -3532,7 +3531,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3789"
+                  "description": "1272"
                 }
               ],
               "expectedStatus": "passed",
@@ -3540,19 +3539,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5206,
+                  "duration": 3012,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:20.783Z",
+                  "startTime": "2026-07-26T00:48:45.118Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3789"
+                      "description": "1272"
                     }
                   ],
                   "attachments": []
@@ -3578,7 +3577,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3795"
+                  "description": "1293"
                 }
               ],
               "expectedStatus": "passed",
@@ -3589,16 +3588,16 @@
                   "workerIndex": 1,
                   "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 5187,
+                  "duration": 2771,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:20.999Z",
+                  "startTime": "2026-07-26T00:48:46.022Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3795"
+                      "description": "1293"
                     }
                   ],
                   "attachments": []
@@ -3624,7 +3623,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3260"
+                  "description": "1306"
                 }
               ],
               "expectedStatus": "passed",
@@ -3632,19 +3631,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4721,
+                  "duration": 2817,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:21.157Z",
+                  "startTime": "2026-07-26T00:48:46.903Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3260"
+                      "description": "1306"
                     }
                   ],
                   "attachments": []
@@ -3671,7 +3670,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2729"
+                  "description": "1313"
                 }
               ],
               "expectedStatus": "passed",
@@ -3679,19 +3678,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4223,
+                  "duration": 2849,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:22.094Z",
+                  "startTime": "2026-07-26T00:48:46.985Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2729"
+                      "description": "1313"
                     }
                   ],
                   "attachments": []
@@ -3717,7 +3716,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1711"
+                  "description": "1285"
                 }
               ],
               "expectedStatus": "passed",
@@ -3725,19 +3724,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3225,
+                  "duration": 2808,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:24.212Z",
+                  "startTime": "2026-07-26T00:48:47.015Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1711"
+                      "description": "1285"
                     }
                   ],
                   "attachments": []
@@ -3763,7 +3762,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1792"
+                  "description": "1295"
                 }
               ],
               "expectedStatus": "passed",
@@ -3771,19 +3770,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 3191,
+                  "duration": 2804,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:24.960Z",
+                  "startTime": "2026-07-26T00:48:47.301Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1792"
+                      "description": "1295"
                     }
                   ],
                   "attachments": []
@@ -3810,7 +3809,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2793"
+                  "description": "1352"
                 }
               ],
               "expectedStatus": "passed",
@@ -3818,19 +3817,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4199,
+                  "duration": 3061,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:25.886Z",
+                  "startTime": "2026-07-26T00:48:48.147Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2793"
+                      "description": "1352"
                     }
                   ],
                   "attachments": []
@@ -3864,7 +3863,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3797"
+                  "description": "1141"
                 }
               ],
               "expectedStatus": "passed",
@@ -3872,19 +3871,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 5201,
+                  "duration": 2649,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:26.003Z",
+                  "startTime": "2026-07-26T00:48:48.806Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3797"
+                      "description": "1141"
                     }
                   ],
                   "attachments": []
@@ -3910,7 +3909,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3743"
+                  "description": "1234"
                 }
               ],
               "expectedStatus": "passed",
@@ -3918,19 +3917,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 6325,
+                  "duration": 4043,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:26.198Z",
+                  "startTime": "2026-07-26T00:48:49.734Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3743"
+                      "description": "1234"
                     }
                   ],
                   "attachments": []
@@ -3956,7 +3955,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3753"
+                  "description": "1302"
                 }
               ],
               "expectedStatus": "passed",
@@ -3964,19 +3963,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 5208,
+                  "duration": 2909,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:26.328Z",
+                  "startTime": "2026-07-26T00:48:49.834Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3753"
+                      "description": "1302"
                     }
                   ],
                   "attachments": []
@@ -4002,7 +4001,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3216"
+                  "description": "1290"
                 }
               ],
               "expectedStatus": "passed",
@@ -4013,16 +4012,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4871,
+                  "duration": 3038,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:27.448Z",
+                  "startTime": "2026-07-26T00:48:49.845Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3216"
+                      "description": "1290"
                     }
                   ],
                   "attachments": []
@@ -4048,7 +4047,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2230"
+                  "description": "1176"
                 }
               ],
               "expectedStatus": "passed",
@@ -4056,19 +4055,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 3930,
+                  "duration": 2966,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:28.163Z",
+                  "startTime": "2026-07-26T00:48:50.117Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2230"
+                      "description": "1176"
                     }
                   ],
                   "attachments": []
@@ -4095,7 +4094,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1702"
+                  "description": "1256"
                 }
               ],
               "expectedStatus": "passed",
@@ -4103,19 +4102,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3213,
+                  "duration": 2810,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:30.098Z",
+                  "startTime": "2026-07-26T00:48:51.220Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1702"
+                      "description": "1256"
                     }
                   ],
                   "attachments": []
@@ -4141,7 +4140,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1746"
+                  "description": "1203"
                 }
               ],
               "expectedStatus": "passed",
@@ -4149,19 +4148,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3156,
+                  "duration": 2827,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:31.216Z",
+                  "startTime": "2026-07-26T00:48:51.465Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1746"
+                      "description": "1203"
                     }
                   ],
                   "attachments": []
@@ -4187,7 +4186,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1736"
+                  "description": "1224"
                 }
               ],
               "expectedStatus": "passed",
@@ -4195,19 +4194,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3325,
+                  "duration": 2982,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:31.545Z",
+                  "startTime": "2026-07-26T00:48:52.753Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1736"
+                      "description": "1224"
                     }
                   ],
                   "attachments": []
@@ -4233,7 +4232,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2301"
+                  "description": "1197"
                 }
               ],
               "expectedStatus": "passed",
@@ -4241,19 +4240,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4101,
+                  "duration": 3057,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:32.102Z",
+                  "startTime": "2026-07-26T00:48:52.893Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2301"
+                      "description": "1197"
                     }
                   ],
                   "attachments": []
@@ -4279,7 +4278,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2823"
+                  "description": "1218"
                 }
               ],
               "expectedStatus": "passed",
@@ -4287,19 +4286,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4894,
+                  "duration": 3524,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:32.327Z",
+                  "startTime": "2026-07-26T00:48:53.089Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2823"
+                      "description": "1218"
                     }
                   ],
                   "attachments": []
@@ -4326,7 +4325,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2753"
+                  "description": "1252"
                 }
               ],
               "expectedStatus": "passed",
@@ -4334,19 +4333,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4174,
+                  "duration": 2781,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:32.530Z",
+                  "startTime": "2026-07-26T00:48:53.803Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2753"
+                      "description": "1252"
                     }
                   ],
                   "attachments": []
@@ -4373,7 +4372,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2289"
+                  "description": "1401"
                 }
               ],
               "expectedStatus": "passed",
@@ -4381,19 +4380,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3662,
+                  "duration": 2899,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:33.320Z",
+                  "startTime": "2026-07-26T00:48:54.038Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2289"
+                      "description": "1401"
                     }
                   ],
                   "attachments": []
@@ -4419,7 +4418,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1731"
+                  "description": "1205"
                 }
               ],
               "expectedStatus": "passed",
@@ -4427,19 +4426,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3089,
+                  "duration": 2640,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:34.380Z",
+                  "startTime": "2026-07-26T00:48:54.299Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1731"
+                      "description": "1205"
                     }
                   ],
                   "attachments": []
@@ -4465,7 +4464,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1726"
+                  "description": "1236"
                 }
               ],
               "expectedStatus": "passed",
@@ -4473,19 +4472,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 5042,
+                  "duration": 4630,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:34.881Z",
+                  "startTime": "2026-07-26T00:48:55.746Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1726"
+                      "description": "1236"
                     }
                   ],
                   "attachments": []
@@ -4511,7 +4510,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1750"
+                  "description": "1209"
                 }
               ],
               "expectedStatus": "passed",
@@ -4519,19 +4518,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 3496,
+                  "duration": 2994,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:36.211Z",
+                  "startTime": "2026-07-26T00:48:55.962Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1750"
+                      "description": "1209"
                     }
                   ],
                   "attachments": []
@@ -4557,7 +4556,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1692"
+                  "description": "1365"
                 }
               ],
               "expectedStatus": "passed",
@@ -4565,19 +4564,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3274,
+                  "duration": 2981,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:36.711Z",
+                  "startTime": "2026-07-26T00:48:56.602Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1692"
+                      "description": "1365"
                     }
                   ],
                   "attachments": []
@@ -4604,7 +4603,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2782"
+                  "description": "1225"
                 }
               ],
               "expectedStatus": "passed",
@@ -4612,19 +4611,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4444,
+                  "duration": 2925,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:36.994Z",
+                  "startTime": "2026-07-26T00:48:56.630Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2782"
+                      "description": "1225"
                     }
                   ],
                   "attachments": []
@@ -4650,7 +4649,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2766"
+                  "description": "1368"
                 }
               ],
               "expectedStatus": "passed",
@@ -4658,19 +4657,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4307,
+                  "duration": 2924,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:37.228Z",
+                  "startTime": "2026-07-26T00:48:56.946Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2766"
+                      "description": "1368"
                     }
                   ],
                   "attachments": []
@@ -4696,7 +4695,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2311"
+                  "description": "1439"
                 }
               ],
               "expectedStatus": "passed",
@@ -4704,19 +4703,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 2812,
+                  "duration": 2865,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:37.477Z",
+                  "startTime": "2026-07-26T00:48:56.952Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2311"
+                      "description": "1439"
                     }
                   ],
                   "attachments": []
@@ -4742,7 +4741,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2736"
+                  "description": "1215"
                 }
               ],
               "expectedStatus": "passed",
@@ -4750,19 +4749,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4519,
+                  "duration": 3192,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:39.717Z",
+                  "startTime": "2026-07-26T00:48:58.978Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2736"
+                      "description": "1215"
                     }
                   ],
                   "attachments": []
@@ -4797,7 +4796,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3756"
+                  "description": "1181"
                 }
               ],
               "expectedStatus": "passed",
@@ -4805,19 +4804,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 5367,
+                  "duration": 2814,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:39.935Z",
+                  "startTime": "2026-07-26T00:48:59.571Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3756"
+                      "description": "1181"
                     }
                   ],
                   "attachments": []
@@ -4844,7 +4843,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3752"
+                  "description": "1184"
                 }
               ],
               "expectedStatus": "passed",
@@ -4852,19 +4851,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 5163,
+                  "duration": 2657,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:39.998Z",
+                  "startTime": "2026-07-26T00:48:59.597Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3752"
+                      "description": "1184"
                     }
                   ],
                   "attachments": []
@@ -4891,7 +4890,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3770"
+                  "description": "1399"
                 }
               ],
               "expectedStatus": "passed",
@@ -4899,19 +4898,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 5214,
+                  "duration": 2890,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:40.305Z",
+                  "startTime": "2026-07-26T00:48:59.838Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3770"
+                      "description": "1399"
                     }
                   ],
                   "attachments": []
@@ -4938,7 +4937,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2822"
+                  "description": "1239"
                 }
               ],
               "expectedStatus": "passed",
@@ -4946,19 +4945,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4715,
+                  "duration": 4134,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:41.452Z",
+                  "startTime": "2026-07-26T00:48:59.886Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2822"
+                      "description": "1239"
                     }
                   ],
                   "attachments": []
@@ -4985,7 +4984,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2772"
+                  "description": "1249"
                 }
               ],
               "expectedStatus": "passed",
@@ -4993,19 +4992,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4293,
+                  "duration": 3011,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:41.548Z",
+                  "startTime": "2026-07-26T00:49:00.390Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2772"
+                      "description": "1249"
                     }
                   ],
                   "attachments": []
@@ -5032,7 +5031,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1787"
+                  "description": "1260"
                 }
               ],
               "expectedStatus": "passed",
@@ -5040,19 +5039,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 3190,
+                  "duration": 2865,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:44.247Z",
+                  "startTime": "2026-07-26T00:49:02.183Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1787"
+                      "description": "1260"
                     }
                   ],
                   "attachments": []
@@ -5078,7 +5077,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3293"
+                  "description": "1375"
                 }
               ],
               "expectedStatus": "passed",
@@ -5086,19 +5085,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4736,
+                  "duration": 2940,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:45.170Z",
+                  "startTime": "2026-07-26T00:49:02.262Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3293"
+                      "description": "1375"
                     }
                   ],
                   "attachments": []
@@ -5124,7 +5123,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3785"
+                  "description": "1322"
                 }
               ],
               "expectedStatus": "passed",
@@ -5132,19 +5131,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4995,
+                  "duration": 2655,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:45.310Z",
+                  "startTime": "2026-07-26T00:49:02.391Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3785"
+                      "description": "1322"
                     }
                   ],
                   "attachments": []
@@ -5170,7 +5169,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3742"
+                  "description": "1266"
                 }
               ],
               "expectedStatus": "passed",
@@ -5178,19 +5177,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 5881,
+                  "duration": 3463,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:45.530Z",
+                  "startTime": "2026-07-26T00:49:02.735Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3742"
+                      "description": "1266"
                     }
                   ],
                   "attachments": []
@@ -5217,7 +5216,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3760"
+                  "description": "1360"
                 }
               ],
               "expectedStatus": "passed",
@@ -5225,19 +5224,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 5181,
+                  "duration": 2899,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:45.855Z",
+                  "startTime": "2026-07-26T00:49:03.413Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3760"
+                      "description": "1360"
                     }
                   ],
                   "attachments": []
@@ -5263,7 +5262,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3778"
+                  "description": "1179"
                 }
               ],
               "expectedStatus": "passed",
@@ -5271,19 +5270,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5266,
+                  "duration": 2756,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:46.175Z",
+                  "startTime": "2026-07-26T00:49:04.036Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3778"
+                      "description": "1179"
                     }
                   ],
                   "attachments": []
@@ -5310,7 +5309,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2712"
+                  "description": "1191"
                 }
               ],
               "expectedStatus": "passed",
@@ -5318,19 +5317,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4294,
+                  "duration": 2942,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:47.446Z",
+                  "startTime": "2026-07-26T00:49:05.056Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2712"
+                      "description": "1191"
                     }
                   ],
                   "attachments": []
@@ -5356,7 +5355,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1714"
+                  "description": "1190"
                 }
               ],
               "expectedStatus": "passed",
@@ -5364,19 +5363,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 3243,
+                  "duration": 2919,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:49.913Z",
+                  "startTime": "2026-07-26T00:49:05.057Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1714"
+                      "description": "1190"
                     }
                   ],
                   "attachments": []
@@ -5403,7 +5402,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1757"
+                  "description": "1183"
                 }
               ],
               "expectedStatus": "passed",
@@ -5411,19 +5410,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3076,
+                  "duration": 1667,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:50.313Z",
+                  "startTime": "2026-07-26T00:49:05.214Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1757"
+                      "description": "1183"
                     }
                   ],
                   "attachments": []
@@ -5450,7 +5449,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1769"
+                  "description": "1298"
                 }
               ],
               "expectedStatus": "passed",
@@ -5458,19 +5457,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3079,
+                  "duration": 2787,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:51.046Z",
+                  "startTime": "2026-07-26T00:49:06.205Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1769"
+                      "description": "1298"
                     }
                   ],
                   "attachments": []
@@ -5496,7 +5495,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3266"
+                  "description": "1225"
                 }
               ],
               "expectedStatus": "passed",
@@ -5504,19 +5503,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4600,
+                  "duration": 2665,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:51.422Z",
+                  "startTime": "2026-07-26T00:49:06.326Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3266"
+                      "description": "1225"
                     }
                   ],
                   "attachments": []
@@ -5543,7 +5542,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3270"
+                  "description": "1238"
                 }
               ],
               "expectedStatus": "passed",
@@ -5551,19 +5550,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4656,
+                  "duration": 2716,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:51.450Z",
+                  "startTime": "2026-07-26T00:49:06.800Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3270"
+                      "description": "1238"
                     }
                   ],
                   "attachments": []
@@ -5590,7 +5589,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3291"
+                  "description": "1188"
                 }
               ],
               "expectedStatus": "passed",
@@ -5601,16 +5600,16 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4821,
+                  "duration": 2742,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:51.748Z",
+                  "startTime": "2026-07-26T00:49:06.891Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3291"
+                      "description": "1188"
                     }
                   ],
                   "attachments": []
@@ -5636,7 +5635,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2736"
+                  "description": "1295"
                 }
               ],
               "expectedStatus": "passed",
@@ -5644,19 +5643,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4518,
+                  "duration": 3197,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:53.165Z",
+                  "startTime": "2026-07-26T00:49:07.987Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2736"
+                      "description": "1295"
                     }
                   ],
                   "attachments": []
@@ -5682,7 +5681,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2728"
+                  "description": "1331"
                 }
               ],
               "expectedStatus": "passed",
@@ -5690,19 +5689,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4284,
+                  "duration": 3006,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:53.397Z",
+                  "startTime": "2026-07-26T00:49:08.006Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2728"
+                      "description": "1331"
                     }
                   ],
                   "attachments": []
@@ -5728,7 +5727,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2252"
+                  "description": "1178"
                 }
               ],
               "expectedStatus": "passed",
@@ -5736,19 +5735,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3689,
+                  "duration": 2721,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:54.132Z",
+                  "startTime": "2026-07-26T00:49:08.998Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2252"
+                      "description": "1178"
                     }
                   ],
                   "attachments": []
@@ -5774,7 +5773,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2733"
+                  "description": "1281"
                 }
               ],
               "expectedStatus": "passed",
@@ -5782,19 +5781,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4122,
+                  "duration": 2700,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:56.033Z",
+                  "startTime": "2026-07-26T00:49:08.998Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2733"
+                      "description": "1281"
                     }
                   ],
                   "attachments": []
@@ -5829,7 +5828,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3247"
+                  "description": "1221"
                 }
               ],
               "expectedStatus": "passed",
@@ -5837,19 +5836,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3543,
+                  "duration": 1555,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:56.114Z",
+                  "startTime": "2026-07-26T00:49:09.525Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3247"
+                      "description": "1221"
                     }
                   ],
                   "attachments": []
@@ -5884,7 +5883,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3251"
+                  "description": "1310"
                 }
               ],
               "expectedStatus": "passed",
@@ -5895,16 +5894,16 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4956,
+                  "duration": 5043,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:56.581Z",
+                  "startTime": "2026-07-26T00:49:09.652Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3251"
+                      "description": "1310"
                     }
                   ],
                   "attachments": []
@@ -5931,7 +5930,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3298"
+                  "description": "1243"
                 }
               ],
               "expectedStatus": "passed",
@@ -5939,19 +5938,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 6800,
+                  "duration": 3125,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:57.694Z",
+                  "startTime": "2026-07-26T00:49:11.021Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3298"
+                      "description": "1243"
                     }
                   ],
                   "attachments": []
@@ -5978,7 +5977,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3296"
+                  "description": "1210"
                 }
               ],
               "expectedStatus": "passed",
@@ -5986,19 +5985,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4680,
+                  "duration": 2625,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:57.695Z",
+                  "startTime": "2026-07-26T00:49:11.091Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3296"
+                      "description": "1210"
                     }
                   ],
                   "attachments": []
@@ -6024,7 +6023,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3288"
+                  "description": "1201"
                 }
               ],
               "expectedStatus": "passed",
@@ -6035,16 +6034,16 @@
                   "workerIndex": 5,
                   "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4794,
+                  "duration": 2723,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:57.831Z",
+                  "startTime": "2026-07-26T00:49:11.199Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3288"
+                      "description": "1201"
                     }
                   ],
                   "attachments": []
@@ -6071,7 +6070,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1743"
+                  "description": "1265"
                 }
               ],
               "expectedStatus": "passed",
@@ -6082,16 +6081,16 @@
                   "workerIndex": 3,
                   "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3188,
+                  "duration": 2746,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:11:59.669Z",
+                  "startTime": "2026-07-26T00:49:11.709Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1743"
+                      "description": "1265"
                     }
                   ],
                   "attachments": []
@@ -6117,7 +6116,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1817"
+                  "description": "1212"
                 }
               ],
               "expectedStatus": "passed",
@@ -6125,19 +6124,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 4923,
+                  "duration": 3078,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:00.166Z",
+                  "startTime": "2026-07-26T00:49:11.733Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1817"
+                      "description": "1212"
                     }
                   ],
                   "attachments": []
@@ -6163,7 +6162,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1738"
+                  "description": "1175"
                 }
               ],
               "expectedStatus": "passed",
@@ -6171,19 +6170,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5264,
+                  "duration": 4924,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:01.545Z",
+                  "startTime": "2026-07-26T00:49:13.725Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1738"
+                      "description": "1175"
                     }
                   ],
                   "attachments": []
@@ -6209,7 +6208,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2268"
+                  "description": "1288"
                 }
               ],
               "expectedStatus": "passed",
@@ -6217,19 +6216,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 5790,
+                  "duration": 5079,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:02.387Z",
+                  "startTime": "2026-07-26T00:49:13.934Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2268"
+                      "description": "1288"
                     }
                   ],
                   "attachments": []
@@ -6256,7 +6255,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2722"
+                  "description": "1212"
                 }
               ],
               "expectedStatus": "passed",
@@ -6264,19 +6263,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 3788,
+                  "duration": 1777,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:02.632Z",
+                  "startTime": "2026-07-26T00:49:14.154Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2722"
+                      "description": "1212"
                     }
                   ],
                   "attachments": []
@@ -6302,7 +6301,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2237"
+                  "description": "1306"
                 }
               ],
               "expectedStatus": "passed",
@@ -6313,16 +6312,16 @@
                   "workerIndex": 3,
                   "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4041,
+                  "duration": 3067,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:02.863Z",
+                  "startTime": "2026-07-26T00:49:14.466Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2237"
+                      "description": "1306"
                     }
                   ],
                   "attachments": []
@@ -6348,7 +6347,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1711"
+                  "description": "1321"
                 }
               ],
               "expectedStatus": "passed",
@@ -6356,19 +6355,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3263,
+                  "duration": 3096,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:04.501Z",
+                  "startTime": "2026-07-26T00:49:14.714Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1711"
+                      "description": "1321"
                     }
                   ],
                   "attachments": []
@@ -6410,7 +6409,7 @@
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1722"
+                      "description": "1286"
                     }
                   ],
                   "expectedStatus": "passed",
@@ -6418,19 +6417,19 @@
                   "projectName": "",
                   "results": [
                     {
-                      "workerIndex": 2,
-                      "parallelIndex": 2,
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
                       "status": "passed",
-                      "duration": 3191,
+                      "duration": 2772,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-07-19T17:12:05.099Z",
+                      "startTime": "2026-07-26T00:49:14.825Z",
                       "annotations": [
                         {
                           "type": "radar-startup-ms",
-                          "description": "1722"
+                          "description": "1286"
                         }
                       ],
                       "attachments": []
@@ -6465,7 +6464,7 @@
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1714"
+                      "description": "1240"
                     }
                   ],
                   "expectedStatus": "passed",
@@ -6473,10 +6472,10 @@
                   "projectName": "",
                   "results": [
                     {
-                      "workerIndex": 5,
-                      "parallelIndex": 5,
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
                       "status": "passed",
-                      "duration": 3664,
+                      "duration": 3325,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
@@ -6484,11 +6483,11 @@
                       "steps": [
                         {
                           "title": "open traffic",
-                          "duration": 36
+                          "duration": 46
                         },
                         {
                           "title": "open websocket",
-                          "duration": 36
+                          "duration": 46
                         },
                         {
                           "title": "open intercept",
@@ -6500,42 +6499,42 @@
                         },
                         {
                           "title": "open automate",
-                          "duration": 53
+                          "duration": 66
                         },
                         {
                           "title": "open findings",
-                          "duration": 47
-                        },
-                        {
-                          "title": "open workflows",
-                          "duration": 49
-                        },
-                        {
-                          "title": "open plugins",
-                          "duration": 58
-                        },
-                        {
-                          "title": "open advanced",
                           "duration": 53
                         },
                         {
+                          "title": "open workflows",
+                          "duration": 75
+                        },
+                        {
+                          "title": "open plugins",
+                          "duration": 57
+                        },
+                        {
+                          "title": "open advanced",
+                          "duration": 52
+                        },
+                        {
                           "title": "open sitemap",
-                          "duration": 50
+                          "duration": 67
                         },
                         {
                           "title": "open scope",
-                          "duration": 34
+                          "duration": 50
                         },
                         {
                           "title": "open ssl",
-                          "duration": 36
+                          "duration": 62
                         }
                       ],
-                      "startTime": "2026-07-19T17:12:06.431Z",
+                      "startTime": "2026-07-26T00:49:15.940Z",
                       "annotations": [
                         {
                           "type": "radar-startup-ms",
-                          "description": "1714"
+                          "description": "1240"
                         }
                       ],
                       "attachments": []
@@ -6575,15 +6574,15 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4002,
+                  "duration": 3220,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:06.822Z",
+                  "startTime": "2026-07-26T00:49:17.544Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -6611,15 +6610,15 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 5822,
+                  "duration": 5559,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:06.915Z",
+                  "startTime": "2026-07-26T00:49:17.609Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -6644,7 +6643,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3287"
+                  "description": "1222"
                 }
               ],
               "expectedStatus": "passed",
@@ -6652,19 +6651,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 4784,
+                  "duration": 2795,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:07.775Z",
+                  "startTime": "2026-07-26T00:49:17.823Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3287"
+                      "description": "1222"
                     }
                   ],
                   "attachments": []
@@ -6691,7 +6690,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3252"
+                  "description": "1285"
                 }
               ],
               "expectedStatus": "passed",
@@ -6699,19 +6698,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5037,
+                  "duration": 3431,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:08.188Z",
+                  "startTime": "2026-07-26T00:49:18.660Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3252"
+                      "description": "1285"
                     }
                   ],
                   "attachments": []
@@ -6738,7 +6737,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2788"
+                  "description": "1254"
                 }
               ],
               "expectedStatus": "passed",
@@ -6746,19 +6745,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 4506,
+                  "duration": 3195,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:08.302Z",
+                  "startTime": "2026-07-26T00:49:19.057Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2788"
+                      "description": "1254"
                     }
                   ],
                   "attachments": []
@@ -6784,7 +6783,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1784"
+                  "description": "1223"
                 }
               ],
               "expectedStatus": "passed",
@@ -6792,19 +6791,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 3215,
+                  "duration": 2817,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:10.108Z",
+                  "startTime": "2026-07-26T00:49:19.275Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1784"
+                      "description": "1223"
                     }
                   ],
                   "attachments": []
@@ -6830,7 +6829,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1740"
+                  "description": "1286"
                 }
               ],
               "expectedStatus": "passed",
@@ -6841,16 +6840,16 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3233,
+                  "duration": 2841,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:10.831Z",
+                  "startTime": "2026-07-26T00:49:20.631Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1740"
+                      "description": "1286"
                     }
                   ],
                   "attachments": []
@@ -6876,7 +6875,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3247"
+                  "description": "1392"
                 }
               ],
               "expectedStatus": "passed",
@@ -6884,19 +6883,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4729,
+                  "duration": 2968,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:12.569Z",
+                  "startTime": "2026-07-26T00:49:20.771Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3247"
+                      "description": "1392"
                     }
                   ],
                   "attachments": []
@@ -6930,7 +6929,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3810"
+                  "description": "1196"
                 },
                 {
                   "type": "skip",
@@ -6947,19 +6946,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "skipped",
-                  "duration": 4092,
+                  "duration": 1511,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:12.750Z",
+                  "startTime": "2026-07-26T00:49:22.103Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3810"
+                      "description": "1196"
                     },
                     {
                       "type": "skip",
@@ -6995,7 +6994,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3770"
+                  "description": "1194"
                 },
                 {
                   "type": "skip",
@@ -7015,16 +7014,16 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "skipped",
-                  "duration": 4039,
+                  "duration": 1508,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:12.821Z",
+                  "startTime": "2026-07-26T00:49:22.106Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3770"
+                      "description": "1194"
                     },
                     {
                       "type": "skip",
@@ -7059,7 +7058,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3776"
+                  "description": "1304"
                 },
                 {
                   "type": "skip",
@@ -7076,19 +7075,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "skipped",
-                  "duration": 4063,
+                  "duration": 1592,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:13.236Z",
+                  "startTime": "2026-07-26T00:49:22.268Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3776"
+                      "description": "1304"
                     },
                     {
                       "type": "skip",
@@ -7124,7 +7123,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3858"
+                  "description": "1277"
                 },
                 {
                   "type": "skip",
@@ -7141,19 +7140,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "skipped",
-                  "duration": 4157,
+                  "duration": 1691,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:13.332Z",
+                  "startTime": "2026-07-26T00:49:23.182Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3858"
+                      "description": "1277"
                     },
                     {
                       "type": "skip",
@@ -7189,7 +7188,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3269"
+                  "description": "1338"
                 },
                 {
                   "type": "skip",
@@ -7209,16 +7208,16 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "skipped",
-                  "duration": 3607,
+                  "duration": 1707,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:14.083Z",
+                  "startTime": "2026-07-26T00:49:23.484Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3269"
+                      "description": "1338"
                     },
                     {
                       "type": "skip",
@@ -7253,7 +7252,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "4389"
+                  "description": "1341"
                 },
                 {
                   "type": "skip",
@@ -7270,19 +7269,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "skipped",
-                  "duration": 4687,
+                  "duration": 1672,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:16.853Z",
+                  "startTime": "2026-07-26T00:49:23.622Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "4389"
+                      "description": "1341"
                     },
                     {
                       "type": "skip",
@@ -7318,7 +7317,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "4373"
+                  "description": "1338"
                 },
                 {
                   "type": "skip",
@@ -7338,16 +7337,16 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "skipped",
-                  "duration": 4676,
+                  "duration": 1675,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:16.868Z",
+                  "startTime": "2026-07-26T00:49:23.622Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "4373"
+                      "description": "1338"
                     },
                     {
                       "type": "skip",
@@ -7391,7 +7390,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "4350"
+                  "description": "1369"
                 }
               ],
               "expectedStatus": "passed",
@@ -7399,19 +7398,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 6086,
+                  "duration": 3371,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:17.310Z",
+                  "startTime": "2026-07-26T00:49:23.752Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "4350"
+                      "description": "1369"
                     }
                   ],
                   "attachments": []
@@ -7437,7 +7436,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "4358"
+                  "description": "1386"
                 }
               ],
               "expectedStatus": "passed",
@@ -7445,19 +7444,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 7966,
+                  "duration": 3293,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:17.313Z",
+                  "startTime": "2026-07-26T00:49:23.875Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "4358"
+                      "description": "1386"
                     }
                   ],
                   "attachments": []
@@ -7484,7 +7483,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "4360"
+                  "description": "1229"
                 }
               ],
               "expectedStatus": "passed",
@@ -7492,19 +7491,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 8026,
+                  "duration": 3500,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:17.511Z",
+                  "startTime": "2026-07-26T00:49:24.905Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "4360"
+                      "description": "1229"
                     }
                   ],
                   "attachments": []
@@ -7530,7 +7529,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "3808"
+                  "description": "1180"
                 }
               ],
               "expectedStatus": "passed",
@@ -7541,16 +7540,16 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 5693,
+                  "duration": 3116,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:17.778Z",
+                  "startTime": "2026-07-26T00:49:25.202Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "3808"
+                      "description": "1180"
                     }
                   ],
                   "attachments": []
@@ -7576,7 +7575,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2280"
+                  "description": "1257"
                 }
               ],
               "expectedStatus": "passed",
@@ -7584,19 +7583,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4156,
+                  "duration": 4741,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:21.551Z",
+                  "startTime": "2026-07-26T00:49:25.314Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2280"
+                      "description": "1257"
                     }
                   ],
                   "attachments": []
@@ -7622,7 +7621,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2271"
+                  "description": "1338"
                 }
               ],
               "expectedStatus": "passed",
@@ -7633,16 +7632,16 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 33604,
+                  "duration": 32700,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:21.556Z",
+                  "startTime": "2026-07-26T00:49:25.315Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2271"
+                      "description": "1338"
                     }
                   ],
                   "attachments": []
@@ -7670,7 +7669,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2238"
+                  "description": "1168"
                 }
               ],
               "expectedStatus": "passed",
@@ -7678,19 +7677,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 5661,
+                  "duration": 2964,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:23.403Z",
+                  "startTime": "2026-07-26T00:49:27.133Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2238"
+                      "description": "1168"
                     }
                   ],
                   "attachments": []
@@ -7716,7 +7715,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2237"
+                  "description": "1151"
                 }
               ],
               "expectedStatus": "passed",
@@ -7724,19 +7723,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
                   "status": "passed",
-                  "duration": 5788,
+                  "duration": 4792,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:23.501Z",
+                  "startTime": "2026-07-26T00:49:27.176Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2237"
+                      "description": "1151"
                     }
                   ],
                   "attachments": []
@@ -7763,7 +7762,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2240"
+                  "description": "1192"
                 }
               ],
               "expectedStatus": "passed",
@@ -7771,19 +7770,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3122,
+                  "duration": 2702,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:25.288Z",
+                  "startTime": "2026-07-26T00:49:28.325Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2240"
+                      "description": "1192"
                     }
                   ],
                   "attachments": []
@@ -7810,7 +7809,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2717"
+                  "description": "1199"
                 }
               ],
               "expectedStatus": "passed",
@@ -7818,19 +7817,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 5,
-                  "parallelIndex": 5,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3462,
+                  "duration": 2525,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:25.546Z",
+                  "startTime": "2026-07-26T00:49:28.418Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2717"
+                      "description": "1199"
                     }
                   ],
                   "attachments": []
@@ -7856,7 +7855,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "2196"
+                  "description": "1205"
                 }
               ],
               "expectedStatus": "passed",
@@ -7864,19 +7863,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3641,
+                  "duration": 2632,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:25.716Z",
+                  "startTime": "2026-07-26T00:49:30.068Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "2196"
+                      "description": "1205"
                     }
                   ],
                   "attachments": []
@@ -7903,7 +7902,7 @@
               "annotations": [
                 {
                   "type": "radar-startup-ms",
-                  "description": "1698"
+                  "description": "1085"
                 }
               ],
               "expectedStatus": "passed",
@@ -7911,19 +7910,19 @@
               "projectName": "",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 3237,
+                  "duration": 2652,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-19T17:12:28.417Z",
+                  "startTime": "2026-07-26T00:49:30.105Z",
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1698"
+                      "description": "1085"
                     }
                   ],
                   "attachments": []
@@ -7942,8 +7941,8 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-07-19T17:10:16.855Z",
-    "duration": 158323.762,
+    "startTime": "2026-07-26T00:47:54.127Z",
+    "duration": 123909.81999999999,
     "expected": 157,
     "skipped": 7,
     "unexpected": 0,

@@ -1,6 +1,8 @@
 import type {
   InstalledPlugin,
   PluginAuditEntry,
+  PluginApiAction,
+  PluginApiRequest,
   PluginDeveloperValidation,
   PluginInstallPreview,
   PluginInstallStatus,
@@ -21,7 +23,7 @@ const MAX_LINE = 180;
 const MAX_TEXT = 2000;
 const pluginIdPattern = /^[a-z0-9][a-z0-9._-]{1,78}[a-z0-9]$/;
 const versionPattern = /^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i;
-const pluginAuditActions = [
+export const PLUGIN_API_ACTIONS: readonly PluginApiAction[] = [
   "captures:list",
   "frames:list",
   "replay:prepare",
@@ -29,7 +31,10 @@ const pluginAuditActions = [
   "findings:create",
   "workflows:list",
   "workflows:save",
-  "workflows:run",
+  "workflows:run"
+];
+const pluginAuditActions = [
+  ...PLUGIN_API_ACTIONS,
   "panel:render",
   "plugin:validate"
 ] as const;
@@ -90,6 +95,23 @@ function nowIso() {
 
 function objectValue(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function isPluginApiAction(value: unknown): value is PluginApiAction {
+  return PLUGIN_API_ACTIONS.some((action) => action === value);
+}
+
+export function normalizePluginApiRequest(input: unknown): PluginApiRequest | null {
+  const value = objectValue(input);
+  const pluginId = String(value.pluginId || "").trim();
+  if (!pluginId || !isPluginApiAction(value.action)) {
+    return null;
+  }
+  return {
+    pluginId,
+    action: value.action,
+    input: objectValue(value.input)
+  };
 }
 
 function cleanLine(value: unknown, fallback = "") {
