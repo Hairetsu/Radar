@@ -173,6 +173,10 @@ async function run() {
     await win.loadURL(PREVIEW_URL);
     await sleep(2200);
 
+    // Operating mode persists across runs, so pin it before the manual shots.
+    await clickTestId(win, "manualFirstMode");
+    await sleep(300);
+
     await capture(win, "radar-01-traffic.png");
     await rightClickTestId(win, "trafficRow-cap-auth", 720, 360);
     await capture(win, "radar-06-request-menu.png");

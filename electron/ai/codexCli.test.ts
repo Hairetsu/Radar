@@ -96,6 +96,24 @@ describe("codexCli", () => {
     expect(resolveCodexCliPath()).toBe("codex");
   });
 
+  it("discovers the Codex executable bundled with ChatGPT desktop on macOS", () => {
+    if (process.platform !== "darwin") {
+      return;
+    }
+    process.env.CODEX_CLI_PATH = "/missing/env/codex";
+    process.env.CODEX_PATH = "/missing/legacy/codex";
+    const bundled = "/Applications/ChatGPT.app/Contents/Resources/codex";
+    const access = vi.spyOn(fs, "accessSync").mockImplementation((candidate) => {
+      if (String(candidate) === bundled) {
+        return;
+      }
+      throw new Error("ENOENT");
+    });
+
+    expect(resolveCodexCliPath()).toBe(bundled);
+    access.mockRestore();
+  });
+
   it("probes codex version", async () => {
     process.env.TERM = "xterm-256color";
     mockSpawn({ stdout: "codex 0.133.0\n" });
@@ -182,6 +200,17 @@ describe("codexCli", () => {
     ).rejects.toThrow("auth failed");
 
     expect(spawnMock.mock.calls[0][1]).toContain("gpt-test");
+  });
+
+  it("turns a missing executable during completion into actionable recovery guidance", async () => {
+    mockSpawn({ error: new Error("spawn codex ENOENT") });
+
+    await expect(
+      runCodexCliCompletion({
+        system: "system",
+        user: "user"
+      })
+    ).rejects.toThrow("Install ChatGPT/Codex desktop or set CODEX_CLI_PATH");
   });
 
   it("falls back to stdout when codex output file is absent", async () => {

@@ -154,11 +154,12 @@ Radar opens into a twelve-view operator console.
 
 Persistent areas:
 
-- **Left sidebar**: Radar lockup, project/session controls, view navigation, and live per-view counts.
+- **Left sidebar**: Radar lockup and grouped Observe, Test, Report, and Configure navigation. The active view shows its live count in context.
+- **Console block**: app-global controls at the foot of the sidebar — the Manual-First / AI-First mode toggle, AI connection status, Projects, Appearance, and AI settings.
 - **Top banner**: active project workspace/session and UTC clock.
-- **Header**: Radar identity, active project, managed-browser address/history controls, Playwright status, global Search, project Notes, live status pills, Projects, Appearance, and AI settings.
-- **Session selector**: quick session switching under the active project.
-- **Workspace panel**: the active tool surface.
+- **Header**: active project name, managed-browser address/history controls, browser and Playwright status, global Search, project Notes, and view-specific actions. The header tracks the current target; app-global controls live in the sidebar Console block.
+- **Session selector**: quick session switching under the Console block.
+- **Workspace panel**: the active evidence or tool surface. AI-First adds a compact mission dock without replacing the active view.
 - **Footer ticker**: current view, HTTP/S capture count, WebSocket frame count, TLS event count, and proxy status.
 
 Views:
@@ -1404,7 +1405,7 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, advanced testing review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, Advanced import/replay actions, finding review, or exports.
 
-Switch to **AI-First** from the top shell toggle when you want Radar to run from a prompt. AI-First opens a goal prompt, profile picker, optional Tutorial Mode, visible budget chips, Mission Graph, Capability Leases ledger, observation console, draft findings inbox, and local run-memory panel above the normal views. Enter a scoped goal such as:
+Switch to **AI-First** from the sidebar Console toggle when you want Radar to run from a prompt. A compact mission dock stays above the active evidence pane with status and immediate Pause, Resume, Stop, and Operations controls. **Operations** opens a right-hand drawer holding goal setup, run profile, Thoughtstream, Mission Graph, capability leases, the observation timeline, draft findings, and project-local run memory in one scrolling column, so recovery prompts, memory proposals, and finding drafts are never hidden behind a tab while a run is in progress. The drawer docks beside the evidence rather than over it: the workspace reserves its width so the active view stays readable. Drag the drawer's left edge—or focus it and use the arrow keys—to resize it, and close it whenever you want the full evidence workspace. Enter a scoped goal such as:
 
 ```text
 Inspect https://staging.example.com for auth, session, and API hardening issues.
@@ -1416,7 +1417,7 @@ Before starting, choose a run profile:
 
 | Profile | Use |
 | --- | --- |
-| **Browser Assessment** | Default live-site path. Explore the visible page through Playwright, capture resulting traffic, and use tightly budgeted replay or saved workflow verification after capability approval. |
+| **Browser Assessment** | Default live-site path. Explore the visible page through Playwright with a 10-minute active runtime budget, capture resulting traffic, and use tightly budgeted replay or saved workflow verification after capability approval. |
 | **Passive Map** | Read scoped evidence, sitemap, local context, and passive observations without replay or workflow execution. |
 | **Auth Review** | Inspect browser state, cookies, storage, and saved auth/session states. |
 | **API Hardening** | Review API captures and prepare Repeater, Automate, or Workflow drafts for manual approval. |
@@ -1438,9 +1439,9 @@ To run a guided lesson:
 4. Click **Start Tutorial**.
 5. At each lesson checkpoint, inspect both the **Guided Field Lesson** card and the browser or Radar evidence pane named by the timeline.
 6. Review the clue, why it matters, what to look for, stronger evidence, benign or contradictory explanations, and the next safe step.
-7. Click **Continue Lesson** when you are ready. Navigation, form actions, replay, and workflows still stop for any required capability approval separately.
+7. Click **Continue Lesson** when you are ready. Saved-scope `GET` opening and navigation use the authority confirmed by **Start Tutorial**; form actions, identity changes, replay, and workflows still stop for any required capability approval separately.
 
-Every meaningful inspection pauses the run. The checkpoint preserves cumulative elapsed time, tool calls, replay sends, workflow requests, mission state, and capability state. Switching modes, stopping, or denying a capability uses the normal AI-First behavior; Tutorial Mode never creates hidden automation or a separate security boundary.
+Every meaningful inspection pauses a Tutorial Mode run. A standard AI-First run continues choosing and executing successful bounded steps until it finishes, hits a safety or policy boundary, encounters a failure, asks an operator question, exhausts a budget, or is paused or stopped. Tutorial checkpoints preserve cumulative elapsed time, tool calls, replay sends, workflow requests, mission state, and capability state. Switching modes, stopping, or denying a capability uses the normal AI-First behavior; Tutorial Mode never creates hidden automation or a separate security boundary.
 
 The lesson card assigns one triage lane:
 
@@ -1495,7 +1496,7 @@ Minimum risk tiers are fixed by Radar rather than chosen by the model; a planner
 | Tier | Examples | Lease behavior |
 | --- | --- | --- |
 | No lease | Passive reads and prepare-only tools | Continue through existing profile, Scope, and budget checks without a capability lease. |
-| **Navigate** | Open or navigate the controlled browser | Requires a matching bounded lease. |
+| **Navigate** | Open or navigate the controlled browser | Requires a matching bounded lease. `GET`-only `openBrowser` and `navigateBrowser` requests inside saved Scope are auto-granted from the operator's **Start Run** or **Start Tutorial** confirmation and remain fully audited. |
 | **Reversible** | Fill an input or save/load an auth state | Requires a matching bounded lease. |
 | **Active** | Click, submit a form, send replay, or run an active workflow | Requires a matching bounded lease and the corresponding replay/workflow budget where applicable. |
 | **Destructive** | Destructive actions and `DELETE` requests | Never grantable. |
@@ -1537,7 +1538,7 @@ A lease expires when its duration ends and becomes exhausted when its action or 
 
 Receipts count normalized leased actions and known explicit request costs. Replays count their explicit request; active workflows reserve their declared bounded request cost; browser actions use a conservative normalized action cost. Separately, the managed-Chrome CDP observer now preserves request-time action, identity, and activation lineage for observed subresource captures. Those attributed subresources do not become extra lease receipt costs, and proxy-only traffic remains unattributed.
 
-When a run starts, Radar records a full observation transcript. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. Radar does not fall back to a preset autonomous script if the configured AI planner fails. The saved transcript is not truncated: it keeps status entries, Mission Graph revisions, capability decisions/receipts, rationale summaries, tool calls, tool results, visible targets, policy blocks, failed steps, and recovery actions. Use **Run History** to select any saved run in the active session and inspect its graph, lease ledger, transcript, findings, status, budgets, and available controls.
+When a run starts, Radar records a full observation transcript. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. The live **Agent Thoughtstream** surfaces the current mission focus, concise planner rationale, selected tool, visible target, and latest result as each decision is saved. It is an auditable decision brief, not private model chain-of-thought. Radar does not fall back to a preset autonomous script if the configured AI planner fails. The saved transcript is not truncated: it keeps status entries, Mission Graph revisions, capability decisions/receipts, rationale summaries, tool calls, tool results, visible targets, policy blocks, failed steps, and recovery actions. Use **Run History** to select any saved run in the active session and inspect its graph, Thoughtstream, lease ledger, transcript, findings, status, budgets, and available controls.
 
 Available AI-First tools:
 
@@ -1571,7 +1572,7 @@ Available AI-First tools:
 - `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
 - `proposeRunMemory` creates a transcript proposal for local run memory. It does not persist until you confirm it.
 
-The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. Click **Pause** to preserve the selected run's durable checkpoint, **Resume** to continue it, or **Stop** to end it. If a tool is already executing, Pause takes effect after that tool settles. Switching back to Manual-First stops an active autonomous run so it cannot continue invisibly.
+The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. In standard AI-First mode, successful scoped inspection steps continue automatically; **Resume** is reserved for an operator pause, safety approval, question, or recoverable failure. Tutorial Mode pauses after each meaningful successful inspection and labels that control **Continue Lesson**. Click **Pause** to preserve the selected run's durable checkpoint or **Stop** to end it. If a tool is already executing, Pause takes effect after that tool settles. Switching back to Manual-First stops an active autonomous run so it cannot continue invisibly. If the selected run has spent its runtime or tool-call budget, Radar shows the exact usage, disables Resume, and offers **Continue as New Run**. That explicit action starts the same goal and profile with a fresh bounded budget; it does not rewrite the exhausted checkpoint, and the new timeline records the source run id.
 
 AI-First runs are intentionally bounded:
 
@@ -1579,16 +1580,16 @@ AI-First runs are intentionally bounded:
 - During an AI click, fill, or form action, Playwright temporarily aborts any HTTP/S request outside saved Scope. Links and form actions with an out-of-scope destination are rejected before dispatch.
 - Submit buttons cannot be sent through the generic click tool; the agent must use the separately leased form-submission tool so POST authority stays explicit.
 - An out-of-scope origin from a goal remains an unsaved Scope proposal until the operator clicks **Commit**; the operator must then click **Start Run** again.
-- Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy. Checkpoints preserve cumulative tool-step, replay-send, workflow-request, and elapsed-time usage across pause/resume and recovery; resuming never replenishes a budget.
+- Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy. Browser Assessment defaults to 600 seconds; other profiles retain their narrower defaults. Checkpoints preserve cumulative tool-step, replay-send, workflow-request, and elapsed-time usage across pause/resume and recovery; resuming never replenishes a budget. Use **Continue as New Run** after exhaustion to preserve the old audit trail and start an explicitly separate bounded run.
 - Tutorial Mode adds a lesson object to visible transcript decisions and pauses after meaningful successful inspections. If the planner omits a lesson, Radar supplies a conservative learning-clue fallback instead of inventing a vulnerability classification.
 - CVE-review tutorial guidance is normalized at the planner boundary and requires product, affected-version, impact, deployment-scope, reproducibility, and durable-evidence fields. Missing support downgrades the lesson to private vendor review.
 - The planner can advance the Mission Graph only through a bounded patch based on the current revision. Stale revisions, invalid entity links, and invalid operator mutations fail closed instead of replacing or partially updating the graph.
 - Supported hypotheses, supported or verified claims, and covered cells require references that resolve to current local evidence.
 - A planner-created open operator question pauses the run before its selected tool executes. Resolve or dismiss the question before resuming.
-- Passive observation and prepare-only tools do not require a capability lease. Browser navigation, browser/auth mutation, replay, and active workflow tools require a matching granted lease.
+- Passive observation and prepare-only tools do not require a capability lease. Browser navigation, browser/auth mutation, replay, and active workflow tools require a matching granted lease. Starting either run mode explicitly confirms auto-granting only bounded, in-scope, `GET`-only `openBrowser` and `navigateBrowser` leases.
 - Capability authority is the intersection of the profile ceiling, current saved Scope, one exact origin/method/path-prefix/identity tuple, and remaining run budgets. A lease cannot widen any other layer.
 - Destructive authority and `DELETE` requests are never grantable. Lease duration, actions, known requests, concurrency, and payload bytes are capped.
-- A planner lease request creates a draft and pauses with the exact pending call before dispatch. **Grant** never resumes automatically; after a separate **Resume**, that pending call is attempted exactly once.
+- A planner lease request outside the narrow auto-granted navigation class creates a draft and pauses with the exact pending call before dispatch. **Grant** never resumes automatically; after a separate **Resume**, that pending call is attempted exactly once.
 - Durable receipts reserve normalized action and known explicit-request cost before dispatch, then record the outcome. Expiry, exhaustion, drift, unexpected effects, stop/completion, and runtime/session changes revoke or invalidate authority.
 - The selected profile controls which tools the agent can call. Disallowed tools create policy-block transcript entries instead of running.
 - Managed-Chrome captures created during an AI-First run retain run, navigation, action, identity, and activation lineage when available, plus frame URL and initiator metadata. Sequence and experiment lineage is retained only when an explicit producer supplies it. Late response/body updates preserve the request-time lineage.
@@ -1666,7 +1667,7 @@ Supported providers:
 
 Preset buttons:
 
-- **Codex Connect**: selects the local Codex provider and probes the installed `codex` executable.
+- **Codex Connect**: selects the local Codex provider and probes the `codex` executable bundled with ChatGPT/Codex desktop or installed on `PATH`.
 - **Cursor CLI Connect**: selects the local Cursor provider and probes the installed `agent` executable.
 
 For Cursor, use **Sign in with Cursor** if the CLI is installed but not authenticated.
@@ -2012,6 +2013,10 @@ For external browsers, you must manually trust Radar's generated CA certificate.
 
 Radar does not install this certificate automatically.
 
+### Managed Chrome Reports `SSLV3_ALERT_CERTIFICATE_UNKNOWN`
+
+Quit Radar and its managed Chrome window, then relaunch Radar and use **Open Browser** again. On macOS, Radar normalizes the user keychain search list at launch, preserves real keychain files, removes malformed stale entries, and places its dedicated local proxy keychain first. In **12 SSL**, confirm that the CA path and SPKI fingerprint are populated. External browsers still require manual CA trust.
+
 ### macOS Keychain Prompts
 
 Use **Open Browser** rather than your normal browser profile. Radar launches a dedicated browser profile and uses the mock-keychain flag where supported.
@@ -2125,7 +2130,7 @@ Check:
 
 ### Codex Connect Cannot Find Codex
 
-Install Codex or set `CODEX_CLI_PATH` to the executable path before launching Radar.
+Install ChatGPT/Codex desktop or set `CODEX_CLI_PATH` to the executable path before launching Radar. On macOS, Radar checks both `/Applications/ChatGPT.app/Contents/Resources/codex` and `/Applications/Codex.app/Contents/Resources/codex` before falling back to `PATH`.
 
 ### Cursor CLI Connect Cannot Find Cursor
 

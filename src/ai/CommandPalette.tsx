@@ -53,18 +53,18 @@ type PaletteStep = "task" | "preview" | "result";
 
 const taskButtonClass = (active: boolean) =>
   cn(
-    "grid h-auto w-full content-center justify-start justify-items-start gap-1 border border-rule radar-card px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-muted transition-colors",
+    "grid h-auto w-full content-center justify-start justify-items-start gap-1 border border-rule radar-card px-3 py-2 text-left rd-label text-muted transition-colors",
     "hover:border-signal/45 hover:bg-signal/[0.08]",
     active && "border-signal/45 bg-signal/[0.1]"
   );
 
 const palettePanelClass = "grid gap-3";
 
-const paletteMetaClass = "flex flex-wrap gap-3 font-mono text-[9px] uppercase tracking-[0.28em] text-dim";
+const paletteMetaClass = "flex flex-wrap gap-3 rd-eyebrow text-dim";
 
 const capturePickerRowClass = (checked: boolean) =>
   cn(
-    "grid w-full cursor-pointer items-center gap-2 border-0 border-b border-rule/70 bg-transparent px-2 py-2 text-left font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition last:border-b-0",
+    "grid w-full cursor-pointer items-center gap-2 border-0 border-b border-rule/70 bg-transparent px-2 py-2 text-left rd-label text-muted transition last:border-b-0",
     "[grid-template-columns:auto_64px_minmax(0,1fr)]",
     "hover:bg-signal/[0.06] hover:text-bone",
     checked && "bg-signal/[0.08] text-bone"
@@ -72,7 +72,7 @@ const capturePickerRowClass = (checked: boolean) =>
 
 const packetPickerRowClass = (checked: boolean) =>
   cn(
-    "grid w-full cursor-pointer items-center gap-2 border-0 border-b border-rule/70 bg-transparent px-2 py-2 text-left font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition last:border-b-0",
+    "grid w-full cursor-pointer items-center gap-2 border-0 border-b border-rule/70 bg-transparent px-2 py-2 text-left rd-label text-muted transition last:border-b-0",
     "[grid-template-columns:auto_78px_minmax(0,1fr)]",
     "hover:bg-steel/[0.07] hover:text-bone",
     checked && "bg-steel/[0.09] text-bone"
@@ -420,11 +420,11 @@ export function CommandPalette({
       >
         <header className="flex items-start justify-between gap-4 border-b border-rule pb-4">
           <div>
-            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
+            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-label font-semibold uppercase tracking-banner text-signal">
               <Command size={12} strokeWidth={1.8} /> AI Channel · {VIEW_AI_LABELS[view]}
             </span>
-            <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">Command Palette</h3>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-muted">{contextLabel}</p>
+            <h3 className="font-display text-hero uppercase tracking-key text-bone">Command Palette</h3>
+            <p className="mt-1 text-label uppercase tracking-eyebrow text-muted">{contextLabel}</p>
           </div>
           <Button
             type="button"
@@ -516,8 +516,8 @@ export function CommandPalette({
                   data-testid={`aiTask-${key}`}
                   data-component="aiTaskButton"
                 >
-                  <strong className="block w-full text-left tracking-[0.22em] text-bone">{AI_TASK_META[key].label}</strong>
-                  <span className="block w-full text-left text-dim tracking-[0.14em] leading-[1.4]">
+                  <strong className="block w-full text-left tracking-eyebrow text-bone">{AI_TASK_META[key].label}</strong>
+                  <span className="block w-full text-left text-dim tracking-label leading-[1.4]">
                     {AI_TASK_META[key].hint}
                   </span>
                 </Button>
@@ -533,14 +533,14 @@ export function CommandPalette({
                     data-testid={`aiSkill-${skill.id}`}
                     data-component="aiSkillButton"
                   >
-                    <strong className="block w-full text-left tracking-[0.22em] text-bone">{skill.label}</strong>
-                    <span className="block w-full text-left text-dim tracking-[0.14em] leading-[1.4]">{skill.hint}</span>
+                    <strong className="block w-full text-left tracking-eyebrow text-bone">{skill.label}</strong>
+                    <span className="block w-full text-left text-dim tracking-label leading-[1.4]">{skill.hint}</span>
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
                     size="compact"
-                    className="h-7 justify-start px-2 text-[9px] uppercase tracking-[0.22em] text-rust hover:bg-rust/10"
+                    className="h-7 justify-start px-2 text-micro uppercase tracking-eyebrow text-rust hover:bg-rust/10"
                     onClick={() => deleteSkillAction(skill.id)}
                     data-testid={`aiDeleteSkill-${skill.id}`}
                     data-component="aiDeleteSkillButton"
@@ -594,12 +594,12 @@ export function CommandPalette({
                 data-component="aiPacketPicker"
               >
                 {totalPacketCount === 0 && (
-                  <p className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-dim">
+                  <p className="px-3 py-2 rd-label text-dim">
                     No HTTP or WebSocket packets
                   </p>
                 )}
                 {captures.length > 0 && (
-                  <div className="border-b border-rule/70 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.28em] text-dim">
+                  <div className="border-b border-rule/70 px-2 py-1 rd-eyebrow text-dim">
                     HTTP / HTTPS ({paletteCaptureIds.length}/{captures.length})
                   </div>
                 )}
@@ -628,7 +628,7 @@ export function CommandPalette({
                   );
                 })}
                 {webSocketEvents.length > 0 && (
-                  <div className="border-b border-rule/70 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.28em] text-dim">
+                  <div className="border-b border-rule/70 px-2 py-1 rd-eyebrow text-dim">
                     WebSocket ({paletteWebSocketEventIds.length}/{webSocketEvents.length})
                   </div>
                 )}
@@ -673,7 +673,7 @@ export function CommandPalette({
               data-component="aiUserPrompt"
             />
 
-            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+            <label className="flex items-center gap-2 rd-label text-muted">
               <input
                 type="checkbox"
                 checked={includeRaw}
@@ -689,7 +689,7 @@ export function CommandPalette({
           <section className={palettePanelClass}>
             <FieldLabel className="px-0 pt-0">Run</FieldLabel>
             {!canRun && (
-              <p className="border border-rust/30 bg-rust/5 px-3 py-2 font-mono text-[9px] uppercase leading-[1.6] tracking-[0.2em] text-rust">
+              <p className="border border-rust/30 bg-rust/5 px-3 py-2 font-mono text-micro uppercase leading-[1.6] tracking-label text-rust">
                 AI is not connected.{" "}
                 <button
                   type="button"
@@ -742,7 +742,7 @@ export function CommandPalette({
               </Button>
             </div>
 
-            {error && <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-rust">{error}</p>}
+            {error && <p className="rd-label text-rust">{error}</p>}
           </section>
         </div>
 
@@ -752,14 +752,14 @@ export function CommandPalette({
             data-testid="aiContextPreview"
             data-component="aiContextPreview"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
+            <div className="flex flex-wrap items-center justify-between gap-2 rd-eyebrow text-muted">
               <strong>Context preview</strong>
               <span>
                 {preview.captureCount + (preview.webSocketEventCount || 0)} packets · {preview.charCount} chars ·{" "}
                 {preview.redacted ? "redacted" : "raw"}
               </span>
             </div>
-            <pre className="max-h-64 overflow-auto border border-rule radar-panel p-3 text-[11px] leading-[1.5]">
+            <pre className="max-h-64 overflow-auto border border-rule radar-panel p-3 text-meta leading-[1.5]">
               {preview.previewText}
             </pre>
           </section>
@@ -767,11 +767,11 @@ export function CommandPalette({
 
         {step === "result" && result && (
           <section className="grid gap-2 border-t border-rule pt-4" data-testid="aiResult" data-component="aiResult">
-            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
+            <div className="flex flex-wrap items-center justify-between gap-2 rd-eyebrow text-muted">
               <strong>Result</strong>
               <span>audit {result.auditId}</span>
             </div>
-            <pre className="max-h-64 overflow-auto border border-rule radar-panel p-3 text-[11px] leading-[1.5]">
+            <pre className="max-h-64 overflow-auto border border-rule radar-panel p-3 text-meta leading-[1.5]">
               {resultPreview(result)}
             </pre>
             {(result.output?.task === "repeater_drafts" || result.output?.task === "browser_helper") && (
@@ -797,11 +797,11 @@ export function CommandPalette({
                 <div
                   key={entry.id}
                   className={cn(
-                    "grid gap-1 border border-rule px-3 py-2 font-mono text-[9px] uppercase tracking-[0.2em] text-dim",
+                    "grid gap-1 border border-rule px-3 py-2 rd-label text-dim",
                     !entry.ok && "border-rust/45"
                   )}
                 >
-                  <strong className="tracking-[0.24em] text-bone">
+                  <strong className="tracking-eyebrow text-bone">
                     {entry.skillId ? `custom:${entry.skillId}` : entry.task}
                   </strong>
                   <span>

@@ -23,11 +23,11 @@ function lessonList(title: string, items: string[], icon: "look" | "stronger" | 
   const Icon = icon === "look" ? Route : icon === "stronger" ? CheckCircle2 : ShieldQuestion;
   return (
     <div className="border-l border-rule pl-3">
-      <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-muted">
+      <div className="flex items-center gap-2 rd-label text-muted">
         <Icon size={12} strokeWidth={1.7} className={icon === "falsify" ? "text-sand" : "text-signal"} />
         {title}
       </div>
-      <ul className="mt-2 grid gap-1.5 text-[11px] leading-5 text-copy">
+      <ul className="mt-2 grid gap-1.5 text-meta leading-5 text-copy">
         {items.map((item) => (
           <li key={item} className="relative pl-3 before:absolute before:left-0 before:top-[9px] before:h-px before:w-1.5 before:bg-current">
             {item}
@@ -50,8 +50,8 @@ function readinessRows(guidance: AgentTutorialGuidance) {
     ["Repeat", guidance.cveReadiness.reproducibility]
   ].map(([label, value]) => (
     <div key={label} className="grid gap-1 border-t border-rule/70 py-2 sm:grid-cols-[72px_1fr]">
-      <span className="font-mono text-[8.5px] uppercase tracking-[0.2em] text-muted">{label}</span>
-      <span className="text-[11px] leading-5 text-copy">{value}</span>
+      <span className="rd-label text-muted">{label}</span>
+      <span className="text-meta leading-5 text-copy">{value}</span>
     </div>
   ));
 }
@@ -70,7 +70,7 @@ export function AgentTutorialGuide({ run }: { run: AgentRun | null }) {
       <div className="relative flex flex-wrap items-center justify-between gap-2 border-b border-signal/20 px-4 py-3">
         <div className="flex items-center gap-2">
           <BookOpenCheck size={15} strokeWidth={1.7} className="text-signal" />
-          <span className="font-mono text-[9px] uppercase tracking-[0.26em] text-signal">Guided Field Lesson</span>
+          <span className="rd-eyebrow text-signal">Guided Field Lesson</span>
         </div>
         <div className="flex flex-wrap gap-1">
           <StatusBadge tone="good">paced</StatusBadge>
@@ -92,15 +92,15 @@ export function AgentTutorialGuide({ run }: { run: AgentRun | null }) {
               <StatusBadge tone="move">{lesson.stage}</StatusBadge>
               <StatusBadge tone={dispositionTone(lesson.disposition)}>{lesson.disposition.replaceAll("-", " ")}</StatusBadge>
             </div>
-            <h3 className="mt-3 font-display text-[18px] uppercase tracking-[0.055em] text-bone">{lesson.title}</h3>
-            <p className="mt-2 text-[13px] leading-6 text-copy">{lesson.clue}</p>
+            <h3 className="mt-3 font-display text-title uppercase tracking-data text-bone">{lesson.title}</h3>
+            <p className="mt-2 text-lead leading-6 text-copy">{lesson.clue}</p>
             <div className="mt-3 border border-rule bg-ink/30 p-3">
-              <span className="font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted">Why this matters</span>
-              <p className="mt-1.5 text-[11.5px] leading-5 text-copy">{lesson.whyItMatters}</p>
+              <span className="rd-eyebrow text-muted">Why this matters</span>
+              <p className="mt-1.5 text-body leading-5 text-copy">{lesson.whyItMatters}</p>
             </div>
             <div className="mt-3 border-l-2 border-signal bg-signal/[0.06] p-3">
-              <span className="font-mono text-[8.5px] uppercase tracking-[0.22em] text-signal">Next safe step</span>
-              <p className="mt-1.5 text-[11.5px] leading-5 text-bone">{lesson.safeNextStep}</p>
+              <span className="rd-eyebrow text-signal">Next safe step</span>
+              <p className="mt-1.5 text-body leading-5 text-bone">{lesson.safeNextStep}</p>
             </div>
           </div>
 
@@ -110,15 +110,15 @@ export function AgentTutorialGuide({ run }: { run: AgentRun | null }) {
             {lessonList("Could disprove it", lesson.falsifiers, "falsify")}
             <div className={cn("border border-rule bg-ink/28 p-3 sm:col-span-3 lg:col-span-1 xl:col-span-3", lesson.disposition === "cve-review" && "border-rust/35")}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted">Triage lane</span>
+                <span className="rd-eyebrow text-muted">Triage lane</span>
                 {lesson.evidenceRefs.length > 0 && <StatusBadge>{lesson.evidenceRefs.length} evidence ref{lesson.evidenceRefs.length === 1 ? "" : "s"}</StatusBadge>}
               </div>
-              <p className="mt-2 text-[11px] leading-5 text-copy">{lesson.dispositionRationale}</p>
+              <p className="mt-2 text-meta leading-5 text-copy">{lesson.dispositionRationale}</p>
               {readinessRows(lesson)}
               {lesson.evidenceRefs.length > 0 && (
-                <p className="mt-2 font-mono text-[9px] leading-4 text-muted">{lesson.evidenceRefs.join(" · ")}</p>
+                <p className="mt-2 font-mono text-micro leading-4 text-muted">{lesson.evidenceRefs.join(" · ")}</p>
               )}
-              <p className="mt-2 border-t border-rule/70 pt-2 font-mono text-[8.5px] leading-4 text-muted">
+              <p className="mt-2 border-t border-rule/70 pt-2 font-mono text-micro leading-4 text-muted">
                 CVE review is a handoff candidate, never an assignment. Confirm authorization, preserve minimal evidence, and coordinate privately with the vendor or appropriate CNA.
               </p>
             </div>

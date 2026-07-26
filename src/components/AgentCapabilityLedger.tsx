@@ -124,7 +124,7 @@ export function AgentCapabilityLedger({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-3 py-2">
         <div className="flex items-center gap-2">
           <KeyRound size={13} className="text-sand" strokeWidth={1.8} />
-          <h2 id="capability-ledger-heading" className="font-mono text-[9px] uppercase tracking-[0.24em] text-bone">
+          <h2 id="capability-ledger-heading" className="rd-eyebrow text-bone">
             Capability Leases
           </h2>
           {state && <StatusBadge>r{state.revision}</StatusBadge>}
@@ -143,13 +143,13 @@ export function AgentCapabilityLedger({
           <form className="grid content-start gap-2 border-b border-rule p-3 lg:border-b-0 lg:border-r" onSubmit={submitLease}>
             <div className="grid grid-cols-2 gap-2">
               <label className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.18em] text-muted">Authority class</span>
+                <span className="rd-label-sm text-muted">Authority class</span>
                 <Select variant="compact" value={selectedTemplate.id} disabled={!canEdit || templates.length === 0} onChange={(event) => setTemplateId(event.target.value as LeaseTemplateId)} data-testid="capabilityTemplateSelect">
                   {templates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}
                 </Select>
               </label>
               <label className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.18em] text-muted">HTTP method</span>
+                <span className="rd-label-sm text-muted">HTTP method</span>
                 <Select variant="compact" value={method} disabled={!canEdit} onChange={(event) => setMethod(event.target.value)} data-testid="capabilityMethodSelect">
                   {["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH"].map((item) => <option key={item} value={item}>{item}</option>)}
                 </Select>
@@ -162,15 +162,15 @@ export function AgentCapabilityLedger({
             </div>
             <div className="grid grid-cols-3 gap-2">
               <label className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Minutes</span>
+                <span className="rd-label-sm text-muted">Minutes</span>
                 <Input variant="compact" type="number" min={1} max={Math.max(1, Math.floor(profile.capabilityCeiling.maxDurationMs / 60_000))} value={durationMinutes} disabled={!canEdit} onChange={(event) => setDurationMinutes(Number(event.target.value) || 1)} data-testid="capabilityDurationInput" />
               </label>
               <label className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Actions</span>
+                <span className="rd-label-sm text-muted">Actions</span>
                 <Input variant="compact" type="number" min={1} max={profile.capabilityCeiling.maxUses} value={maxUses} disabled={!canEdit} onChange={(event) => setMaxUses(Number(event.target.value) || 1)} data-testid="capabilityUsesInput" />
               </label>
               <label className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Requests</span>
+                <span className="rd-label-sm text-muted">Requests</span>
                 <Input variant="compact" type="number" min={1} max={profile.capabilityCeiling.maxRequests} value={maxRequests} disabled={!canEdit} onChange={(event) => setMaxRequests(Number(event.target.value) || 1)} data-testid="capabilityRequestsInput" />
               </label>
             </div>
@@ -178,7 +178,7 @@ export function AgentCapabilityLedger({
             <Button type="submit" variant="outline" size="compact" disabled={!canEdit || !origin.trim() || !reason.trim() || templates.length === 0} data-testid="capabilityPropose">
               <Plus size={11} /> Propose For Review
             </Button>
-            <p className="font-mono text-[9px] leading-4 text-muted">
+            <p className="font-mono text-micro leading-4 text-muted">
               {canEdit ? "DRAFT ONLY · Grant is a separate operator action and never resumes the run" : "PAUSE TO CHANGE AUTHORITY"}
             </p>
           </form>
@@ -190,13 +190,13 @@ export function AgentCapabilityLedger({
                 <article key={lease.id} className="mb-2 border border-rule bg-ink/30 p-3" data-testid={`capabilityLease-${lease.id}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-sand">{TIER_LABEL[lease.riskTier]}</span>
-                      <h3 className="mt-1 font-display text-[12px] uppercase tracking-[0.05em] text-bone">{lease.name}</h3>
+                      <span className="rd-label-sm text-sand">{TIER_LABEL[lease.riskTier]}</span>
+                      <h3 className="mt-1 font-display text-body uppercase tracking-data text-bone">{lease.name}</h3>
                     </div>
                     <div className="flex gap-1"><StatusBadge>{lease.status}</StatusBadge><StatusBadge>{lease.id.slice(-8)}</StatusBadge></div>
                   </div>
-                  <p className="mt-2 text-[11px] leading-5 text-muted">{lease.reason}</p>
-                  <div className="mt-2 grid gap-1 font-mono text-[9px] text-copy">
+                  <p className="mt-2 text-meta leading-5 text-muted">{lease.reason}</p>
+                  <div className="mt-2 grid gap-1 font-mono text-micro text-copy">
                     {lease.grants.map((grant, index) => (
                       <span key={`${grant.origin}-${grant.method}-${grant.pathPrefix}-${grant.identity}-${index}`} className="select-text break-all">
                         {grant.method} {grant.origin}{grant.pathPrefix} · identity {grant.identity}
@@ -224,12 +224,12 @@ export function AgentCapabilityLedger({
 
             <div className="border-t border-rule pt-2">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1 font-mono text-[8.5px] uppercase tracking-[0.2em] text-muted"><RadioTower size={11} /> Action Receipts</span>
-                <span className="flex items-center gap-1 font-mono text-[8px] text-muted"><TimerReset size={10} /> UTC</span>
+                <span className="flex items-center gap-1 rd-label text-muted"><RadioTower size={11} /> Action Receipts</span>
+                <span className="flex items-center gap-1 font-mono text-nano text-muted"><TimerReset size={10} /> UTC</span>
               </div>
               <div className="max-h-[150px] overflow-auto" role="table" aria-label="Capability action receipts" data-testid="capabilityReceipts">
                 {state?.receipts.slice(-16).reverse().map((receipt) => (
-                  <div key={receipt.id} role="row" className="grid grid-cols-[62px_84px_84px_minmax(0,1fr)] gap-2 border-b border-rule py-1.5 font-mono text-[8.5px] text-copy">
+                  <div key={receipt.id} role="row" className="grid grid-cols-[62px_84px_84px_minmax(0,1fr)] gap-2 border-b border-rule py-1.5 font-mono text-micro text-copy">
                     <span role="cell">{receipt.createdAt.slice(11, 19)}Z</span>
                     <span role="cell">{receipt.tool}</span>
                     <span role="cell">{receipt.decision} / {receipt.status}</span>

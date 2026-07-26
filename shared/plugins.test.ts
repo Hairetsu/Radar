@@ -3,6 +3,7 @@ import {
   approveInstalledPlugin,
   buildPluginInstallPreview,
   hasPluginPermission,
+  normalizePluginApiRequest,
   normalizeInstalledPlugin,
   normalizeInstalledPlugins,
   normalizePluginManifest,
@@ -47,6 +48,27 @@ describe("plugins", () => {
     expect(normalizePluginManifest({ ...manifest, entry: "../index.js", panels: [] })).toBeNull();
     expect(parsePluginManifestJson("{")).toBeNull();
     expect(parsePluginManifestJson(JSON.stringify({ ...manifest, entry: "/abs.js", panels: [] }))).toBeNull();
+  });
+
+  it("narrows plugin API requests from unknown input", () => {
+    expect(
+      normalizePluginApiRequest({
+        pluginId: " jwt-helper ",
+        action: "captures:list",
+        input: { query: "status:200" }
+      })
+    ).toEqual({
+      pluginId: "jwt-helper",
+      action: "captures:list",
+      input: { query: "status:200" }
+    });
+    expect(normalizePluginApiRequest({ pluginId: "jwt-helper", action: "unknown", input: {} })).toBeNull();
+    expect(normalizePluginApiRequest({ pluginId: "", action: "captures:list", input: {} })).toBeNull();
+    expect(normalizePluginApiRequest({ pluginId: "jwt-helper", action: "captures:list", input: [] })).toEqual({
+      pluginId: "jwt-helper",
+      action: "captures:list",
+      input: {}
+    });
   });
 
   it("normalizes installed plugin grants and approval", () => {

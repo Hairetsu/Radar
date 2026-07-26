@@ -3,6 +3,7 @@ import type {
   AgentCookie,
   AgentCapabilityActionRequest,
   AgentCapabilityLease,
+  AgentCapabilityLeaseRequest,
   AgentCapturedTrafficContext,
   AgentContextSummary,
   AgentDecision,
@@ -225,6 +226,19 @@ function toolMayEmitNetwork(call: AgentToolCall) {
 
 function tutorialPausesAfter(call: AgentToolCall) {
   return call.tool !== "showView" && call.tool !== "waitForNetworkIdle";
+}
+
+function canAutoGrantScopedNavigation(request: AgentCapabilityLeaseRequest) {
+  const autoGrantTools = new Set(["openBrowser", "navigateBrowser"]);
+  return (
+    request.riskTier === "navigate" &&
+    request.tools.length > 0 &&
+    request.tools.every((tool) => autoGrantTools.has(tool)) &&
+    request.grants.length > 0 &&
+    request.grants.every((grant) => grant.method === "GET") &&
+    request.maxConcurrency === 1 &&
+    request.maxPayloadBytes === 0
+  );
 }
 
 function tutorialOrientation(): AgentTutorialGuidance {
@@ -1017,18 +1031,40 @@ export class AgentRuntime {
   }
 
   start(request: AgentRunRequest) {
-    const goal = String(request.goal || "").trim();
+    const continuationOf = String(request.continuationOf || "").trim().slice(0, 128);
+    const sourceRun = continuationOf ? this.deps.loadRun(continuationOf) : null;
+    if (continuationOf && !sourceRun) {
+      throw new Error("The source run for this continuation no longer exists.");
+    }
+    if (sourceRun && sourceRun.sessionId !== this.deps.currentSessionId()) {
+      throw new Error("A continuation must remain in the source run's local session.");
+    }
+    if (sourceRun && (sourceRun.status === "queued" || sourceRun.status === "running")) {
+      throw new Error("An active run cannot be used as a continuation source.");
+    }
+    const goal = String(sourceRun?.goal || request.goal || "").trim();
     if (!goal) {
       throw new Error("Agent goal is required.");
     }
 
     const createdAt = nowIso();
-    const profileId = normalizeAgentRunProfileId(request.profileId);
-    const startUrl = firstUrlFromText(goal) || request.startUrl || "";
-    const policy = normalizeAgentPolicy(
-      { ...request.policy, tutorialMode: request.tutorialMode === true || request.policy?.tutorialMode === true },
-      profileId
-    );
+    const profileId = sourceRun?.profileId || normalizeAgentRunProfileId(request.profileId);
+    const startUrl = firstUrlFromText(goal) || request.startUrl || sourceRun?.checkpoint?.startUrl || "";
+    const profilePolicy = normalizeAgentPolicy({}, profileId);
+    const tutorialMode = sourceRun?.policy.tutorialMode === true ||
+      request.tutorialMode === true ||
+      request.policy?.tutorialMode === true;
+    const policy = normalizeAgentPolicy(sourceRun
+      ? {
+          maxRuntimeMs: profilePolicy.maxRuntimeMs,
+          maxSteps: Math.min(sourceRun.policy.maxSteps, profilePolicy.maxSteps),
+          maxReplay: Math.min(sourceRun.policy.maxReplay, profilePolicy.maxReplay),
+          maxWorkflowRequests: Math.min(sourceRun.policy.maxWorkflowRequests, profilePolicy.maxWorkflowRequests),
+          maxCaptureSample: Math.min(sourceRun.policy.maxCaptureSample, profilePolicy.maxCaptureSample),
+          allowRawContext: sourceRun.policy.allowRawContext && profilePolicy.allowRawContext,
+          tutorialMode
+        }
+      : { ...request.policy, tutorialMode }, profileId);
     const run: AgentRun = {
       id: createId("agent"),
       sessionId: this.deps.currentSessionId(),
@@ -1051,11 +1087,18 @@ export class AgentRuntime {
       mission: createAgentMission(goal, startUrl, createdAt),
       capabilities: createAgentCapabilityState(),
       timeline: [
-        timeline("Run queued from AI-First goal prompt.", {
-          phase: "status",
-          summary: `Queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`,
-          ...(policy.tutorialMode ? { tutorial: tutorialOrientation() } : {})
-        })
+        timeline(
+          continuationOf
+            ? `Continuation queued from ${continuationOf}; the source transcript remains preserved.`
+            : "Run queued from AI-First goal prompt.",
+          {
+            phase: "status",
+            summary: continuationOf
+              ? `Continuation queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`
+              : `Queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`,
+            ...(policy.tutorialMode ? { tutorial: tutorialOrientation() } : {})
+          }
+        )
       ],
       findings: []
     };
@@ -1100,10 +1143,14 @@ export class AgentRuntime {
     }
     const checkpoint = elapsedCheckpoint(run);
     if (checkpoint.elapsedMs >= run.policy.maxRuntimeMs) {
-      throw new Error("Agent run cannot resume because its runtime budget is exhausted.");
+      throw new Error(
+        `Agent runtime budget exhausted (${Math.ceil(checkpoint.elapsedMs / 1000)}s used / ${Math.ceil(run.policy.maxRuntimeMs / 1000)}s allowed). Resume never resets safety budgets; start a continuation run with a fresh bounded budget.`
+      );
     }
     if (checkpoint.stepCount >= run.policy.maxSteps) {
-      throw new Error("Agent run cannot resume because its tool-call budget is exhausted.");
+      throw new Error(
+        `Agent tool-call budget exhausted (${checkpoint.stepCount} used / ${run.policy.maxSteps} allowed). Resume never resets safety budgets; start a continuation run with a fresh bounded budget.`
+      );
     }
     if (missionHasOpenQuestion(missionFromRun(run))) {
       throw new Error("Answer or dismiss the open mission question before resuming this run.");
@@ -1925,6 +1972,7 @@ export class AgentRuntime {
       } else if (outcome.status === "unknown" || outcome.status === "failed") {
         capabilityRevocationNote = `Capability outcome was ${outcome.status}: ${outcome.reason}`;
       } else if (
+        normalizedCall.tool !== "openBrowser" &&
         normalizedCall.tool !== "loadAuthState" &&
         normalizedCall.tool !== "activateIdentityProfile" &&
         normalizedCall.tool !== "verifyIdentityProfile"
@@ -2169,21 +2217,46 @@ export class AgentRuntime {
           if (!proposed.ok) {
             throw new Error(proposed.error);
           }
-          withUpdate(run, this.deps.saveRun, {
-            status: "paused",
-            capabilities: proposed.state,
-            checkpoint: checkpointFromCounters(counters, undefined, decision.call),
-            timeline: [
-              ...run.timeline,
-              timeline(`Capability lease review required: ${proposed.lease.name}`, {
-                phase: "policy-block",
-                summary: `${proposed.lease.riskTier} lease proposed for ${decision.call.tool}`,
-                target: visibleTargetForTool(decision.call),
-                ...(tutorial ? { tutorial } : {})
-              })
-            ]
-          });
-          return;
+          if (canAutoGrantScopedNavigation(decision.leaseRequest)) {
+            const granted = grantAgentCapabilityLease(proposed.state, proposed.lease.id, {
+              allowlist: this.deps.allowlist(),
+              allowedTools: profile.allowedTools,
+              ceiling: profile.capabilityCeiling,
+              authFingerprint: await this.currentAuthFingerprint(),
+              now: nowIso()
+            });
+            if (!granted.ok) {
+              throw new Error(granted.error);
+            }
+            run = withUpdate(run, this.deps.saveRun, {
+              capabilities: granted.state,
+              timeline: [
+                ...run.timeline,
+                timeline(`Scoped navigation authorized by ${run.policy.tutorialMode ? "Start Tutorial" : "Start Run"}.`, {
+                  phase: "decision",
+                  summary: `${decision.call.tool} can continue autonomously within saved Scope`,
+                  target: visibleTargetForTool(decision.call)
+                })
+              ]
+            });
+          } else {
+            withUpdate(run, this.deps.saveRun, {
+              status: "paused",
+              capabilities: proposed.state,
+              checkpoint: checkpointFromCounters(counters, undefined, decision.call),
+              timeline: [
+                ...run.timeline,
+                timeline(`Capability lease review required: ${proposed.lease.name}`, {
+                  phase: "policy-block",
+                  summary: `${proposed.lease.riskTier} lease proposed for ${decision.call.tool}`,
+                  target: visibleTargetForTool(decision.call),
+                  toolCall: decision.call,
+                  ...(tutorial ? { tutorial } : {})
+                })
+              ]
+            });
+            return;
+          }
         }
 
         if (decision.action === "finish") {
@@ -2249,6 +2322,7 @@ export class AgentRuntime {
                 phase: "decision",
                 summary: decision.rationale || tutorial?.title,
                 target: visibleTargetForTool(decision.call),
+                toolCall: decision.call,
                 ...(tutorial ? { tutorial } : {})
               })
             ]

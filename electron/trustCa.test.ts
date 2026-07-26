@@ -30,6 +30,7 @@ describe("trustCa", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("process", { ...process, platform: "darwin" });
+    mocks.existsSync.mockReturnValue(false);
     mocks.spawnSync.mockReturnValue({
       status: 0,
       stdout: '"login.keychain-db"\n'
@@ -69,6 +70,53 @@ describe("trustCa", () => {
 
   it("parses the current user keychain search list", () => {
     expect(readUserKeychainSearchList()).toEqual(["login.keychain-db"]);
+  });
+
+  it("parses multiple quoted keychain paths without joining them", () => {
+    mocks.existsSync.mockReturnValue(true);
+    mocks.spawnSync.mockReturnValue({
+      status: 0,
+      stdout:
+        '    "/Users/test/Library/Keychains/login.keychain-db" "/Users/test/Library/Application Support/Radar/proxy-ca/radar.keychain-db"\n'
+    });
+
+    expect(readUserKeychainSearchList()).toEqual([
+      "/Users/test/Library/Keychains/login.keychain-db",
+      "/Users/test/Library/Application Support/Radar/proxy-ca/radar.keychain-db"
+    ]);
+  });
+
+  it("rewrites the search list to remove malformed recursive path entries", () => {
+    mocks.existsSync.mockImplementation((candidate) =>
+      ["/tmp/proxy-ca/radar.keychain-db", "/Users/test/Library/Keychains/login.keychain-db"].includes(String(candidate))
+    );
+    mocks.spawnSync.mockReturnValue({
+      status: 0,
+      stdout: [
+        '"/tmp/proxy-ca/radar.keychain-db"',
+        '"/Users/test/Library/Keychains/"/tmp/proxy-ca/radar.keychain-db"',
+        '"/Users/test/Library/Keychains/login.keychain-db"'
+      ].join("\n")
+    });
+
+    const previous = ensureRadarKeychainInSearchList("/tmp/proxy-ca/radar.keychain-db");
+
+    expect(previous).toEqual([
+      "/tmp/proxy-ca/radar.keychain-db",
+      "/Users/test/Library/Keychains/login.keychain-db"
+    ]);
+    expect(mocks.execFileSync).toHaveBeenCalledWith(
+      "security",
+      [
+        "list-keychains",
+        "-d",
+        "user",
+        "-s",
+        "/tmp/proxy-ca/radar.keychain-db",
+        "/Users/test/Library/Keychains/login.keychain-db"
+      ],
+      expect.any(Object)
+    );
   });
 
   it("no-ops keychain search updates when empty", () => {

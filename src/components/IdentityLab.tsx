@@ -417,13 +417,13 @@ export function IdentityLab({
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 id="identity-lab-heading" className="font-display text-[15px] uppercase tracking-[0.12em] text-bone">
+              <h2 id="identity-lab-heading" className="font-display text-lead uppercase tracking-key text-bone">
                 Identity Lab
               </h2>
               <StatusBadge tone="move">ADVANCED</StatusBadge>
               <StatusBadge tone="good">RECORDED EVIDENCE ONLY</StatusBadge>
             </div>
-            <p className="mt-1 max-w-3xl text-[11px] leading-5 text-muted">
+            <p className="mt-1 max-w-3xl text-meta leading-5 text-muted">
               Compare isolated identities against evidence Radar already captured. This surface sends no requests and makes no authorization claim.
             </p>
           </div>
@@ -435,8 +435,8 @@ export function IdentityLab({
             ["UNATTRIBUTED", unattributedCount]
           ].map(([label, value]) => (
             <div key={label} className="min-w-[82px] bg-ink/90 px-2 py-1.5 text-right">
-              <span className="block font-mono text-[7.5px] tracking-[0.2em] text-dim">{label}</span>
-              <strong className="font-display text-[15px] font-normal text-bone">{value}</strong>
+              <span className="block font-mono text-nano tracking-label text-dim">{label}</span>
+              <strong className="font-display text-lead font-normal text-bone">{value}</strong>
             </div>
           ))}
         </div>
@@ -445,16 +445,16 @@ export function IdentityLab({
       <div className="grid min-w-0 xl:grid-cols-[minmax(290px,0.7fr)_minmax(0,1.8fr)]">
         <aside className="min-w-0 border-b border-rule xl:border-b-0 xl:border-r" aria-label="Identity roster and editor">
           <div className="flex items-center justify-between border-b border-rule px-3 py-2">
-            <span className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.2em] text-muted">
+            <span className="flex items-center gap-2 rd-label text-muted">
               <ShieldCheck size={12} className="text-sand" /> Identity roster
             </span>
             <StatusBadge>{workspaceId || "NO WORKSPACE"}</StatusBadge>
           </div>
 
           {hasSnapshotIdentity && (
-            <div className="m-3 flex gap-2 border border-sand/35 bg-sand/10 p-2.5 text-[10px] leading-4 text-sand" role="note" data-testid="snapshotIsolationWarning">
+            <div className="m-3 flex gap-2 border border-sand/35 bg-sand/10 p-2.5 text-label leading-4 text-sand" role="note" data-testid="snapshotIsolationWarning">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-              <span><strong className="font-mono uppercase tracking-[0.08em]">Snapshot-only isolation.</strong> Cookie snapshots can drift from live browser state; treat attributed results as historical observations.</span>
+              <span><strong className="font-mono uppercase tracking-key">Snapshot-only isolation.</strong> Cookie snapshots can drift from live browser state; treat attributed results as historical observations.</span>
             </div>
           )}
 
@@ -471,11 +471,11 @@ export function IdentityLab({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <h3 className="truncate font-display text-[12px] uppercase tracking-[0.06em] text-bone">{identity.label}</h3>
+                        <h3 className="truncate font-display text-body uppercase tracking-data text-bone">{identity.label}</h3>
                         {active && <StatusBadge tone={activeActivationId ? "good" : "warn"}>ACTIVE</StatusBadge>}
                         {identity.archivedAt && <StatusBadge tone="ghost">ARCHIVED</StatusBadge>}
                       </div>
-                      <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-copy">
+                      <p className="mt-1 font-mono text-micro uppercase tracking-key text-copy">
                         {identity.roleLabel} · {identity.tenantLabel} · {identity.kind}
                       </p>
                     </div>
@@ -486,7 +486,7 @@ export function IdentityLab({
                     {active && activeActivationId && <StatusBadge title={activeActivationId}>ACT {shortRef(activeActivationId)}</StatusBadge>}
                     {active && !activeActivationId && <StatusBadge tone="warn">ACTIVATION NOT REPORTED</StatusBadge>}
                   </div>
-                  <p className="mt-2 select-text truncate font-mono text-[8.5px] text-dim" title={identity.origin}>{identity.origin}</p>
+                  <p className="mt-2 select-text truncate font-mono text-micro text-dim" title={identity.origin}>{identity.origin}</p>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     <Button type="button" variant="ghost" size="compact" disabled={locked || Boolean(identity.archivedAt)} onClick={() => beginEdit(identity)} aria-label={`Edit ${identity.label}`}>
                       <Edit3 size={11} /> Edit
@@ -509,7 +509,7 @@ export function IdentityLab({
 
           <form className="border-t border-rule bg-ink/20 p-3" onSubmit={(event) => void submitIdentity(event)} data-testid="identityForm">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.2em] text-muted">
+              <span className="flex items-center gap-2 rd-label text-muted">
                 {editingProfile ? <Edit3 size={12} className="text-signal" /> : <Plus size={12} className="text-signal" />}
                 {editingProfile ? "Edit identity" : "New isolated identity"}
               </span>
@@ -521,40 +521,40 @@ export function IdentityLab({
             </div>
             <div className="grid gap-2">
               <label htmlFor={`${formId}-label`} className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Identity label</span>
+                <span className="rd-label-sm text-muted">Identity label</span>
                 <Input id={`${formId}-label`} variant="compact" value={form.label} onChange={(event) => setForm((current) => ({ ...current, label: event.target.value }))} disabled={locked} maxLength={160} required />
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label htmlFor={`${formId}-kind`} className="grid gap-1">
-                  <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Kind</span>
+                  <span className="rd-label-sm text-muted">Kind</span>
                   <Select id={`${formId}-kind`} variant="compact" value={form.kind} onChange={(event) => setForm((current) => ({ ...current, kind: event.target.value as IdentityProfile["kind"] }))} disabled={locked}>
                     {(["anonymous", "user", "admin", "service"] as const).map((kind) => <option key={kind} value={kind}>{kind}</option>)}
                   </Select>
                 </label>
                 <label htmlFor={`${formId}-role`} className="grid gap-1">
-                  <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Role</span>
+                  <span className="rd-label-sm text-muted">Role</span>
                   <Input id={`${formId}-role`} variant="compact" value={form.roleLabel} onChange={(event) => setForm((current) => ({ ...current, roleLabel: event.target.value }))} disabled={locked} maxLength={100} required />
                 </label>
               </div>
               <label htmlFor={`${formId}-tenant`} className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Tenant</span>
+                <span className="rd-label-sm text-muted">Tenant</span>
                 <Input id={`${formId}-tenant`} variant="compact" value={form.tenantLabel} onChange={(event) => setForm((current) => ({ ...current, tenantLabel: event.target.value }))} disabled={locked} maxLength={120} required />
               </label>
               <label htmlFor={`${formId}-origin`} className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Target origin</span>
+                <span className="rd-label-sm text-muted">Target origin</span>
                 <Input id={`${formId}-origin`} variant="compact" type="url" placeholder="https://app.target.test" value={form.origin} onChange={(event) => setForm((current) => ({ ...current, origin: event.target.value }))} disabled={locked} required />
               </label>
               <label htmlFor={`${formId}-notes`} className="grid gap-1">
-                <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Operator notes</span>
+                <span className="rd-label-sm text-muted">Operator notes</span>
                   <Textarea id={`${formId}-notes`} variant="bare" className="h-[68px]" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} disabled={locked} maxLength={2000} data-testid="identityNotes" />
               </label>
-              <div className="flex items-center justify-between gap-2 border border-rule bg-surface/40 px-2 py-1.5 font-mono text-[8px] uppercase tracking-[0.12em] text-muted">
+              <div className="flex items-center justify-between gap-2 border border-rule bg-surface/40 px-2 py-1.5 font-mono text-nano uppercase tracking-key text-muted">
                 <span>Isolation</span>
                 <span className={editingProfile?.isolation === "snapshot-only" ? "text-sand" : "text-steel"}>
                   {editingProfile ? `${ISOLATION_LABEL[editingProfile.isolation]} · immutable` : "DEDICATED PROFILE · default"}
                 </span>
               </div>
-              {formError && <p className="border border-rust/35 bg-rust/10 p-2 text-[10px] text-rust" role="alert">{formError}</p>}
+              {formError && <p className="border border-rust/35 bg-rust/10 p-2 text-label text-rust" role="alert">{formError}</p>}
               <Button type="submit" variant="solid" size="compact" disabled={locked} data-testid="identitySubmit">
                 {editingProfile ? <Edit3 size={11} /> : <Plus size={11} />} {editingProfile ? "Save identity" : "Create identity"}
               </Button>
@@ -565,21 +565,21 @@ export function IdentityLab({
         <div className="min-w-0">
           <section className="min-w-0 border-b border-rule" aria-labelledby="identity-matrix-heading">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-3 py-2">
-              <h3 id="identity-matrix-heading" className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.2em] text-muted">
+              <h3 id="identity-matrix-heading" className="flex items-center gap-2 rd-label text-muted">
                 <Database size={12} className="text-steel" /> Role × tenant × resource
               </h3>
               <div className="flex gap-1.5"><StatusBadge tone="good">{attributedCaptures.length} ATTRIBUTED</StatusBadge><StatusBadge tone={unattributedCount ? "warn" : "ghost"}>{unattributedCount} EXCLUDED</StatusBadge></div>
             </div>
             <div className="grid gap-px border-b border-rule bg-rule sm:grid-cols-3" aria-label="Evidence interpretation rules">
-              <div className="bg-ink/70 px-3 py-2 font-mono text-[8.5px] leading-4 text-copy"><strong className="text-signal">2XX</strong> RESPONSE OBSERVED ≠ AUTHORIZATION PROOF</div>
-              <div className="bg-ink/70 px-3 py-2 font-mono text-[8.5px] leading-4 text-copy"><strong className="text-sand">401 / 403</strong> DENIAL RESPONSE OBSERVED</div>
-              <div className="bg-ink/70 px-3 py-2 font-mono text-[8.5px] leading-4 text-copy"><strong className="text-muted">NO ACTIVATION</strong> EXCLUDED FROM MATRIX</div>
+              <div className="bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-signal">2XX</strong> RESPONSE OBSERVED ≠ AUTHORIZATION PROOF</div>
+              <div className="bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-sand">401 / 403</strong> DENIAL RESPONSE OBSERVED</div>
+              <div className="bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-muted">NO ACTIVATION</strong> EXCLUDED FROM MATRIX</div>
             </div>
             <div className="max-h-[360px] overflow-auto" data-testid="identityMatrix">
               <table className="w-full min-w-[760px] border-collapse text-left">
                 <caption className="sr-only">Recorded identity evidence grouped by role, tenant, and normalized resource</caption>
                 <thead className="sticky top-0 z-10 bg-graphite">
-                  <tr className="border-b border-rule font-mono text-[8px] uppercase tracking-[0.17em] text-dim">
+                  <tr className="border-b border-rule rd-label-sm text-dim">
                     <th scope="col" className="px-3 py-2 font-normal">Role</th>
                     <th scope="col" className="px-3 py-2 font-normal">Tenant</th>
                     <th scope="col" className="px-3 py-2 font-normal">Normalized resource</th>
@@ -592,13 +592,13 @@ export function IdentityLab({
                   {matrixRows.map((row) => {
                     const statuses = [...new Set(row.captures.map((capture) => capture.status))];
                     return (
-                      <tr key={row.key} className="border-b border-rule/80 align-top text-[10px] text-copy" data-testid={`identityMatrixRow-${safeTestId(row.key)}`}>
+                      <tr key={row.key} className="border-b border-rule/80 align-top text-label text-copy" data-testid={`identityMatrixRow-${safeTestId(row.key)}`}>
                         <th scope="row" className="px-3 py-2 font-mono font-medium text-bone">{row.role}</th>
                         <td className="px-3 py-2 font-mono">{row.tenant}</td>
                         <td className="max-w-[300px] px-3 py-2 font-mono text-steel"><span className="select-text break-all">{row.resource}</span></td>
                         <td className="px-3 py-2">
                           <span>{row.identityLabels.join(", ")}</span>
-                          <span className="mt-1 block font-mono text-[7.5px] text-dim">
+                          <span className="mt-1 block font-mono text-nano text-dim">
                             {[
                               ...new Set(row.captures.map((capture) => capture.activationId).filter((value): value is string => Boolean(value)))
                             ].map((value) => `ACT ${shortRef(value)}`).join(" · ")}
@@ -623,24 +623,24 @@ export function IdentityLab({
           <div className="grid min-w-0 lg:grid-cols-[minmax(320px,0.9fr)_minmax(380px,1.1fr)]">
             <section className="min-w-0 border-b border-rule lg:border-b-0 lg:border-r" aria-labelledby="identity-comparison-heading">
               <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
-                <h3 id="identity-comparison-heading" className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.2em] text-muted">
+                <h3 id="identity-comparison-heading" className="flex items-center gap-2 rd-label text-muted">
                   <GitCompare size={12} className="text-signal" /> One-dimension comparison
                 </h3>
                 <StatusBadge tone="good">RECORDED ONLY</StatusBadge>
               </div>
               <div className="grid gap-3 p-3">
-                <p className="border-l-2 border-jade/60 bg-jade/5 px-2 py-1.5 font-mono text-[8.5px] uppercase leading-4 tracking-[0.1em] text-jade">
+                <p className="border-l-2 border-jade/60 bg-jade/5 px-2 py-1.5 font-mono text-micro uppercase leading-4 tracking-key text-jade">
                   Recorded evidence only · no traffic is sent · identity must be the sole changing dimension.
                 </p>
                 <label className="grid gap-1">
-                  <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">First recording</span>
+                  <span className="rd-label-sm text-muted">First recording</span>
                   <Select variant="compact" value={leftCaptureId} onChange={(event) => { setLeftCaptureId(event.target.value); setRightCaptureId(""); }} disabled={!attributedCaptures.length} aria-label="First recorded request">
                     <option value="">Select attributed capture</option>
                     {attributedCaptures.map((capture) => <option key={capture.id} value={capture.id}>{captureOptionLabel(capture, identityById)}</option>)}
                   </Select>
                 </label>
                 <label className="grid gap-1">
-                  <span className="font-mono text-[8px] uppercase tracking-[0.16em] text-muted">Matching second recording</span>
+                  <span className="rd-label-sm text-muted">Matching second recording</span>
                   <Select variant="compact" value={rightCaptureId} onChange={(event) => setRightCaptureId(event.target.value)} disabled={!leftCapture || !matchingRightCaptures.length} aria-label="Matching recorded request">
                     <option value="">Select different identity</option>
                     {matchingRightCaptures.map((capture) => <option key={capture.id} value={capture.id}>{captureOptionLabel(capture, identityById)}</option>)}
@@ -648,18 +648,18 @@ export function IdentityLab({
                 </label>
 
                 <div className="min-h-[118px] border border-rule bg-ink/30 p-2.5" aria-live="polite" data-testid="identityComparisonState">
-                  {!leftCapture && <p className="text-[10px] leading-5 text-muted">Choose an attributed recording. Radar will offer only recorded requests with the same method, exact target, query-key set, source, and payload under a different identity.</p>}
+                  {!leftCapture && <p className="text-label leading-5 text-muted">Choose an attributed recording. Radar will offer only recorded requests with the same method, exact target, query-key set, source, and payload under a different identity.</p>}
                   {leftCapture && !matchingRightCaptures.length && (
-                    <p className="flex gap-2 text-[10px] leading-5 text-sand"><AlertTriangle size={13} className="mt-1 shrink-0" /> Comparison blocked: no already-recorded request changes only the identity dimension.</p>
+                    <p className="flex gap-2 text-label leading-5 text-sand"><AlertTriangle size={13} className="mt-1 shrink-0" /> Comparison blocked: no already-recorded request changes only the identity dimension.</p>
                   )}
-                  {leftCapture && matchingRightCaptures.length > 0 && !rightCapture && <p className="text-[10px] leading-5 text-muted">{matchingRightCaptures.length} matching recording{matchingRightCaptures.length === 1 ? "" : "s"} available. Select the second identity.</p>}
+                  {leftCapture && matchingRightCaptures.length > 0 && !rightCapture && <p className="text-label leading-5 text-muted">{matchingRightCaptures.length} matching recording{matchingRightCaptures.length === 1 ? "" : "s"} available. Select the second identity.</p>}
                   {leftCapture && rightCapture && (
                     <div>
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                         <StatusBadge tone={comparisonDiffers ? "warn" : "good"}>{comparisonDiffers ? "RECORDED FIELDS DIFFER" : "RECORDED FIELDS EQUIVALENT"}</StatusBadge>
-                        <span className="font-mono text-[8px] text-dim">NOT AN AUTHORIZATION CONCLUSION</span>
+                        <span className="font-mono text-nano text-dim">NOT AN AUTHORIZATION CONCLUSION</span>
                       </div>
-                      <table className="w-full text-left font-mono text-[8.5px]">
+                      <table className="w-full text-left font-mono text-micro">
                         <caption className="sr-only">Recorded response comparison</caption>
                         <thead><tr className="text-dim"><th className="py-1 font-normal">Field</th><th className="py-1 font-normal">First</th><th className="py-1 font-normal">Second</th></tr></thead>
                         <tbody>
@@ -680,7 +680,7 @@ export function IdentityLab({
 
             <section className="min-w-0" aria-labelledby="causal-evidence-heading">
               <div className="flex items-center justify-between gap-2 border-b border-rule px-3 py-2">
-                <h3 id="causal-evidence-heading" className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.2em] text-muted">
+                <h3 id="causal-evidence-heading" className="flex items-center gap-2 rd-label text-muted">
                   <Activity size={12} className="text-sand" /> Action context → request ledger
                 </h3>
                 <StatusBadge>{actionGroups.length} ACTION KEYS</StatusBadge>
@@ -689,7 +689,7 @@ export function IdentityLab({
                 {actionGroups.map((group) => (
                   <article key={group.actionId} className="mb-2 border border-rule bg-ink/30" data-testid={`causalAction-${safeTestId(group.actionId)}`}>
                     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-2.5 py-2">
-                      <span className="flex min-w-0 items-center gap-2 font-mono text-[9px] text-bone"><Fingerprint size={11} className="shrink-0 text-signal" /><span className="select-text break-all">ACTION {group.actionId}</span></span>
+                      <span className="flex min-w-0 items-center gap-2 font-mono text-micro text-bone"><Fingerprint size={11} className="shrink-0 text-signal" /><span className="select-text break-all">ACTION {group.actionId}</span></span>
                       <StatusBadge tone="move">{group.requests.length} REQUEST{group.requests.length === 1 ? "" : "S"}</StatusBadge>
                     </header>
                     <ol aria-label={`Requests observed under action context ${group.actionId}`}>
@@ -698,10 +698,10 @@ export function IdentityLab({
                           <ArrowRight size={11} className="mt-0.5 text-sand" />
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="select-text break-all font-mono text-[9px] text-copy">{capture.method.toUpperCase()} {requestParts(capture).path}</span>
+                              <span className="select-text break-all font-mono text-micro text-copy">{capture.method.toUpperCase()} {requestParts(capture).path}</span>
                               <StatusBadge tone={statusTone(capture.status)}>{statusText(capture.status)}</StatusBadge>
                             </div>
-                            <p className="mt-1 font-mono text-[8px] text-dim">{capture.id} · {captureAttribution(capture, identityById)}</p>
+                            <p className="mt-1 font-mono text-nano text-dim">{capture.id} · {captureAttribution(capture, identityById)}</p>
                           </div>
                         </li>
                       ))}
@@ -711,7 +711,7 @@ export function IdentityLab({
 
                 <section className="border border-dashed border-sand/45 bg-sand/5" aria-labelledby="unmatched-evidence-heading" data-testid="causalUnmatched">
                   <header className="flex items-center justify-between gap-2 border-b border-sand/20 px-2.5 py-2">
-                    <h4 id="unmatched-evidence-heading" className="flex items-center gap-2 font-mono text-[8.5px] uppercase tracking-[0.15em] text-sand"><AlertTriangle size={11} /> Unmatched / background</h4>
+                    <h4 id="unmatched-evidence-heading" className="flex items-center gap-2 rd-label text-sand"><AlertTriangle size={11} /> Unmatched / background</h4>
                     <StatusBadge tone={unmatchedCaptures.length ? "warn" : "ghost"}>{unmatchedCaptures.length} RETAINED</StatusBadge>
                   </header>
                   {unmatchedCaptures.length ? (
@@ -719,15 +719,15 @@ export function IdentityLab({
                       {unmatchedCaptures.map((capture) => (
                         <li key={capture.id} className="border-b border-sand/15 px-2.5 py-2 last:border-b-0" data-testid={`causalUnmatchedCapture-${safeTestId(capture.id)}`}>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="select-text break-all font-mono text-[9px] text-copy">{capture.method.toUpperCase()} {requestParts(capture).path}</span>
+                            <span className="select-text break-all font-mono text-micro text-copy">{capture.method.toUpperCase()} {requestParts(capture).path}</span>
                             <StatusBadge tone={statusTone(capture.status)}>{statusText(capture.status)}</StatusBadge>
                           </div>
-                          <p className="mt-1 font-mono text-[8px] leading-4 text-dim">{capture.id} · no explicit actionId · {captureAttribution(capture, identityById)}</p>
+                          <p className="mt-1 font-mono text-nano leading-4 text-dim">{capture.id} · no explicit actionId · {captureAttribution(capture, identityById)}</p>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="px-2.5 py-3 text-[10px] text-muted">Every retained request has an explicit actionId.</p>
+                    <p className="px-2.5 py-3 text-label text-muted">Every retained request has an explicit actionId.</p>
                   )}
                 </section>
                 {!actionGroups.length && !unmatchedCaptures.length && <EmptyState className="min-h-[150px]"><Database size={20} />No recorded requests to correlate.</EmptyState>}

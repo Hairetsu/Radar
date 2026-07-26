@@ -28,10 +28,12 @@ export function readUserKeychainSearchList() {
     return [] as string[];
   }
 
-  return result.stdout
-    .split("\n")
-    .map((line) => line.replace(/^"|"$/g, "").trim())
-    .filter(Boolean);
+  const absolutePaths = result.stdout.match(/\/[^"\r\n]*?\.keychain(?:-db)?/g) || [];
+  const quotedPaths = [...result.stdout.matchAll(/"([^"\r\n]+)"/g)].map((match) => match[1]);
+  return [...new Set([...absolutePaths, ...quotedPaths])]
+    .map((candidate) => candidate.trim())
+    .filter((candidate) => /\.keychain(?:-db)?$/.test(candidate))
+    .filter((candidate) => !path.isAbsolute(candidate) || fs.existsSync(candidate));
 }
 
 export function setUserKeychainSearchList(keychains: string[]) {
@@ -77,10 +79,6 @@ export function trustProxyCa(caCertPath: string, caDir: string) {
 
 export function ensureRadarKeychainInSearchList(keychainPath: string) {
   const existing = readUserKeychainSearchList();
-  if (existing.includes(keychainPath)) {
-    return existing;
-  }
-
-  setUserKeychainSearchList([keychainPath, ...existing]);
+  setUserKeychainSearchList([keychainPath, ...existing.filter((candidate) => candidate !== keychainPath)]);
   return existing;
 }

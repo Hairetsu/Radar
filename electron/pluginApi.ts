@@ -4,7 +4,6 @@ import type {
   InstalledPlugin,
   PluginAuditEntry,
   PluginApiAction,
-  PluginApiRequest,
   PluginApiResult,
   PluginPermission,
   ReplayDraft,
@@ -16,7 +15,7 @@ import type {
 import { isAllowedTarget } from "../shared/allowlist.js";
 import { normalizeDraft } from "../shared/draft.js";
 import { normalizeFinding } from "../shared/findings.js";
-import { hasPluginPermission } from "../shared/plugins.js";
+import { hasPluginPermission, normalizePluginApiRequest } from "../shared/plugins.js";
 import { filterCapturesByQuery, filterWebSocketEventsByQuery } from "../shared/trafficQuery.js";
 import { normalizeWorkflowDefinition } from "../shared/workflows.js";
 
@@ -44,34 +43,12 @@ const actionPermissions: Record<PluginApiAction, PluginPermission> = {
   "workflows:run": "workflows:run"
 };
 
-function objectValue(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
 function actionResult(action: PluginApiAction, data: unknown): PluginApiResult {
   return { ok: true, action, data };
 }
 
 function actionError(action: PluginApiAction, error: string): PluginApiResult {
   return { ok: false, action, data: null, error };
-}
-
-function isPluginApiAction(value: unknown): value is PluginApiAction {
-  return Object.prototype.hasOwnProperty.call(actionPermissions, String(value));
-}
-
-function normalizeApiRequest(input: unknown): PluginApiRequest | null {
-  const value = objectValue(input);
-  const pluginId = String(value.pluginId || "").trim();
-  const action = String(value.action || "");
-  if (!pluginId || !isPluginApiAction(action)) {
-    return null;
-  }
-  return {
-    pluginId,
-    action,
-    input: objectValue(value.input)
-  };
 }
 
 function scopedCaptures(captures: CapturedRequest[], allowlist: string[]) {
@@ -99,7 +76,8 @@ function filteredFrames(events: WebSocketEvent[], query: unknown) {
 }
 
 function normalizeWorkflowInputs(value: unknown) {
-  const input = objectValue(value);
+  const input =
+    value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
   return Object.fromEntries(Object.entries(input).map(([key, entry]) => [key, String(entry || "")]));
 }
 
@@ -119,7 +97,7 @@ function summarize(value: unknown) {
 }
 
 export async function runPluginApiAction(input: unknown, deps: PluginApiDependencies): Promise<PluginApiResult> {
-  const request = normalizeApiRequest(input);
+  const request = normalizePluginApiRequest(input);
   if (!request) {
     return actionError("captures:list", "Plugin API request was invalid.");
   }

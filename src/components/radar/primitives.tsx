@@ -2,11 +2,16 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib";
 
+/** Compact label for a sub-field inside an already-labelled group. */
+export function SubFieldLabel({ className, ...props }: React.ComponentPropsWithoutRef<"label">) {
+  return <label className={cn("block rd-label-sm text-muted", className)} {...props} />;
+}
+
 export function FieldLabel({ className, ...props }: React.ComponentPropsWithoutRef<"label">) {
   return (
     <label
       className={cn(
-        "block px-5 pb-1.5 pt-4 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal",
+        "block px-5 pb-1.5 pt-4 font-mono text-label font-semibold uppercase tracking-banner text-signal",
         "after:ml-2 after:inline-block after:h-px after:w-3.5 after:bg-signal after:align-middle after:content-['']",
         className
       )}
@@ -16,7 +21,7 @@ export function FieldLabel({ className, ...props }: React.ComponentPropsWithoutR
 }
 
 const statusBadgeVariants = cva(
-  "inline-flex h-[22px] items-center justify-center border px-1.5 font-mono text-[10px] font-semibold tracking-[0.04em]",
+  "inline-flex h-[22px] items-center justify-center border px-1.5 font-mono text-label font-semibold tracking-data",
   {
     variants: {
       tone: {
@@ -71,7 +76,7 @@ export function StatusPill({ className, live, cool, children, ...props }: Status
   return (
     <span
       className={cn(
-        "relative inline-flex h-8 items-center gap-2 border border-rule radar-status-pill px-3 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted",
+        "relative inline-flex h-8 items-center gap-2 border border-rule radar-status-pill px-3 rd-eyebrow text-muted",
         cool && "border-steel/35 text-steel",
         live && "border-signal/40 bg-signal/10 text-signal",
         className
@@ -95,7 +100,7 @@ export function EmptyState({ className, ...props }: React.ComponentPropsWithoutR
   return (
     <div
       className={cn(
-        "flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 text-center font-mono text-[10px] uppercase tracking-[0.32em] text-dim [&_svg]:animate-[pulse_3s_ease-in-out_infinite] [&_svg]:text-rule",
+        "flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 text-center rd-banner text-dim [&_svg]:animate-[pulse_3s_ease-in-out_infinite] [&_svg]:text-rule",
         className
       )}
       {...props}
