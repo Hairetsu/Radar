@@ -4,16 +4,16 @@ import { cn } from "../../lib";
 
 export const selectVariants = cva(
   [
-    "flex min-w-0 appearance-none border border-rule radar-field px-3 font-mono text-[12px] outline-none transition",
-    "focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/10",
+    "flex min-w-0 appearance-none border border-rule radar-field px-3 font-mono text-body outline-none transition",
+    "focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-[var(--theme-focus-glow)]",
     "disabled:cursor-not-allowed disabled:opacity-50"
   ],
   {
     variants: {
       variant: {
-        default: "h-10 tracking-[0.02em]",
-        method: "h-10 radar-input-gradient font-semibold uppercase tracking-[0.12em] text-signal",
-        compact: "h-9 text-[11px] uppercase tracking-[0.12em]"
+        default: "h-10 tracking-data",
+        method: "h-10 radar-input-gradient font-semibold uppercase tracking-key text-signal",
+        compact: "h-9 text-meta uppercase tracking-key"
       }
     },
     defaultVariants: {

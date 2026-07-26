@@ -83,13 +83,13 @@ export function AiSettingsPanel({
       >
         <header className="flex items-start justify-between gap-4 border-b border-rule pb-4">
           <div>
-            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
+            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-label font-semibold uppercase tracking-banner text-signal">
               <Settings2 size={12} strokeWidth={1.8} /> AI Channel
             </span>
-            <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">Connection</h3>
+            <h3 className="font-display text-hero uppercase tracking-key text-bone">Connection</h3>
             <p
               className={cn(
-                "mt-1 text-[10px] uppercase tracking-[0.24em]",
+                "mt-1 text-label uppercase tracking-eyebrow",
                 connected ? "text-jade" : checking ? "text-sand" : "text-muted"
               )}
               data-testid="aiConnectionStatus"
@@ -189,7 +189,7 @@ export function AiSettingsPanel({
                 Sign in with Cursor
               </Button>
               <p
-                className="radar-note border px-3 py-2 font-mono text-[9px] uppercase leading-[1.6] tracking-[0.2em]"
+                className="radar-note border px-3 py-2 font-mono text-micro uppercase leading-[1.6] tracking-label"
                 data-testid="aiLocalCursorNote"
                 data-component="aiLocalCursorNote"
               >
@@ -198,7 +198,7 @@ export function AiSettingsPanel({
               </p>
               <Input
                 variant="compact"
-                className="uppercase tracking-[0.12em]"
+                className="uppercase tracking-key"
                 type="password"
                 value={settings.apiKey === "local" ? "" : settings.apiKey}
                 onChange={(event) =>
@@ -212,7 +212,7 @@ export function AiSettingsPanel({
             </div>
           ) : settings.provider === "codex-local" ? (
             <p
-              className="radar-note border px-3 py-2 font-mono text-[9px] uppercase leading-[1.6] tracking-[0.2em]"
+              className="radar-note border px-3 py-2 font-mono text-micro uppercase leading-[1.6] tracking-label"
               data-testid="aiLocalCodexNote"
               data-component="aiLocalCodexNote"
             >
@@ -221,7 +221,7 @@ export function AiSettingsPanel({
           ) : (
             <Input
               variant="compact"
-              className="uppercase tracking-[0.12em]"
+              className="uppercase tracking-key"
               type="password"
               value={settings.apiKey}
               onChange={(event) => onSettingsChange({ ...settings, apiKey: event.target.value })}
@@ -235,7 +235,7 @@ export function AiSettingsPanel({
           {settings.provider === "openai-compatible" && (
             <Input
               variant="compact"
-              className="uppercase tracking-[0.12em]"
+              className="uppercase tracking-key"
               value={settings.baseUrl}
               onChange={(event) => onSettingsChange({ ...settings, baseUrl: event.target.value })}
               spellCheck={false}
@@ -270,7 +270,7 @@ export function AiSettingsPanel({
             </Button>
           </div>
 
-          {error && <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-rust">{error}</p>}
+          {error && <p className="rd-label text-rust">{error}</p>}
         </section>
       </div>
     </div>

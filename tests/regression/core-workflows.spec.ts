@@ -56,8 +56,27 @@ test("[REG-APP-006] @core opens and dismisses every primary overlay", async ({ r
 
 test("[REG-APP-007] @core toggles operating mode without creating an agent run", async ({ radarPage: page }) => {
   await page.getByTestId("aiFirstMode").click();
+  await expect(page.getByTestId("agentMissionDock")).toBeVisible();
   await expect(page.getByTestId("aiFirstConsole")).toBeVisible();
   await expect(page.getByTestId("agentTimeline")).toContainText("Prompt AI-First to start a scoped run.");
+  const layout = await page.getByTestId("aiDrawerBody").evaluate((drawerBody) => {
+    const consolePanel = drawerBody.closest('[data-testid="aiFirstConsole"]');
+    const evidencePane = consolePanel?.nextElementSibling;
+    return {
+      drawerClientHeight: drawerBody.clientHeight,
+      drawerScrollHeight: drawerBody.scrollHeight,
+      drawerOverflowY: getComputedStyle(drawerBody).overflowY,
+      evidencePaneHeight: evidencePane?.getBoundingClientRect().height || 0
+    };
+  });
+  expect(layout.drawerOverflowY).toBe("auto");
+  expect(layout.drawerScrollHeight).toBeGreaterThan(layout.drawerClientHeight);
+  expect(layout.evidencePaneHeight).toBeGreaterThan(0);
+  await page.getByTestId("closeAiDrawer").click();
+  await expect(page.getByTestId("aiFirstConsole")).toBeHidden();
+  await expect(page.getByTestId("agentMissionDock")).toBeVisible();
+  await page.getByTestId("toggleAiDrawer").click();
+  await expect(page.getByTestId("aiFirstConsole")).toBeVisible();
   await page.getByTestId("manualFirstMode").click();
   await expect(page.getByTestId("aiFirstConsole")).toBeHidden();
 });

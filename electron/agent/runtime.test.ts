@@ -7,7 +7,8 @@ import type {
   AgentDecisionContext,
   AgentRun,
   AgentRunMemoryEntry,
-  AgentRunRequest
+  AgentRunRequest,
+  AgentStorageState
 } from "../../shared/agent-types.js";
 import type {
   AutomatePayloadSet,
@@ -70,6 +71,7 @@ function makeRuntime(
     browserState?: BrowserState;
     openBrowser?: (url: string) => Promise<BrowserState>;
     navigateBrowser?: (url: string) => Promise<BrowserState>;
+    getStorageState?: () => Promise<AgentStorageState>;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
     leaseRequest?: AgentCapabilityLeaseRequest;
   } = {}
@@ -114,13 +116,16 @@ function makeRuntime(
   const fillInput = vi.fn(async ({ selector }: { selector: string; value: string }) => ({ filled: true, selector }));
   const submitForm = vi.fn(async ({ selector }: { selector: string }) => ({ submitted: true, selector, url: "https://hairetsu.com/account" }));
   const getCookies = vi.fn(async () => ({ cookies: [] }));
-  const getStorageState = vi.fn(async () => ({
-    url: "https://hairetsu.com",
-    origin: "https://hairetsu.com",
-    cookies: [],
-    localStorage: {},
-    sessionStorage: {}
-  }));
+  const getStorageState = vi.fn(
+    options.getStorageState ||
+      (async () => ({
+        url: "https://hairetsu.com",
+        origin: "https://hairetsu.com",
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {}
+      }))
+  );
   const saveAuthState = vi.fn(async ({ name }: { name: string }) => ({
     name,
     origin: "https://hairetsu.com",
@@ -338,6 +343,69 @@ function identityProfile(id = "identity-user-a"): IdentityProfile {
 }
 
 describe("AgentRuntime", () => {
+  it("continues a standard run through scoped browser navigation without manual resume", async () => {
+    let storageReadCount = 0;
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: { tool: "openBrowser", input: { url: "https://hairetsu.com" } },
+        rationale: "Open the scoped target."
+      },
+      {
+        action: "tool",
+        call: { tool: "getDomSummary", input: {} },
+        rationale: "Inspect the visible page structure."
+      },
+      { action: "finish", rationale: "Scoped inspection complete.", findings: [] }
+    ];
+    const { runtime, runs, openBrowser, decideNextAction } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: {
+        ...browserLease(
+          ["openBrowser"],
+          [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+          "navigate"
+        ),
+        maxPayloadBytes: 0
+      },
+      getStorageState: async () => {
+        storageReadCount += 1;
+        if (storageReadCount <= 2) {
+          throw new Error("Browser is not open yet.");
+        }
+        return {
+          url: "https://hairetsu.com",
+          origin: "https://hairetsu.com",
+          cookies: [],
+          localStorage: {},
+          sessionStorage: {}
+        };
+      },
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Inspect https://hairetsu.com",
+      startUrl: "https://hairetsu.com",
+      profileId: "browser-assessment"
+    });
+
+    await vi.waitFor(() => {
+      const current = runs.get(run.id);
+      expect(current?.status, current?.timeline.map((entry) => entry.note || entry.summary).join("\n")).toBe("completed");
+    });
+    expect(openBrowser).toHaveBeenCalledTimes(1);
+    expect(decideNextAction).toHaveBeenCalledTimes(3);
+    expect(runs.get(run.id)?.timeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ summary: "openBrowser can continue autonomously within saved Scope" }),
+        expect.objectContaining({ summary: "openBrowser completed" })
+      ])
+    );
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.summary === "Lesson checkpoint — waiting for operator")).toBe(false);
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Auth state changed unexpectedly"))).toBe(false);
+  });
+
   it("paces Tutorial Mode at evidence checkpoints and preserves lesson guidance", async () => {
     const decisions: AgentDecision[] = [
       {
@@ -1172,6 +1240,57 @@ describe("AgentRuntime", () => {
       workflowRequestCount: 1,
       startUrl: "https://hairetsu.com"
     });
+  });
+
+  it("explains exhausted resume budgets and creates an audited continuation", async () => {
+    const exhaustedRun: AgentRun = {
+      id: "agent-exhausted",
+      sessionId: "session-test",
+      createdAt: "2026-07-19T00:00:00.000Z",
+      updatedAt: "2026-07-19T00:05:32.763Z",
+      goal: "Inspect https://www.tylerstech.net/",
+      profileId: "browser-assessment",
+      status: "failed",
+      policy: {
+        maxRuntimeMs: 300000,
+        maxSteps: 40,
+        maxReplay: 3,
+        maxWorkflowRequests: 3,
+        maxCaptureSample: 100,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "https://www.tylerstech.net/",
+        targetOrigin: "https://www.tylerstech.net",
+        stepCount: 19,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 332763,
+        lastResumedAt: "2026-07-19T00:05:32.763Z"
+      },
+      timeline: [],
+      findings: [],
+      error: "Agent exceeded its runtime budget while waiting for the next planner decision."
+    };
+    const { runtime } = makeRuntime(exhaustedRun, {
+      allowlist: ["https://www.tylerstech.net"],
+      decideNextAction: async () => ({ action: "finish", rationale: "Continuation complete.", findings: [] })
+    });
+
+    expect(() => runtime.resume(exhaustedRun.id)).toThrow(
+      "Agent runtime budget exhausted (333s used / 300s allowed). Resume never resets safety budgets; start a continuation run with a fresh bounded budget."
+    );
+
+    const continuation = runtime.start({
+      goal: exhaustedRun.goal,
+      startUrl: exhaustedRun.checkpoint?.startUrl,
+      profileId: exhaustedRun.profileId,
+      continuationOf: exhaustedRun.id
+    });
+    expect(continuation.id).not.toBe(exhaustedRun.id);
+    expect(continuation.goal).toBe(exhaustedRun.goal);
+    expect(continuation.policy.maxRuntimeMs).toBe(600000);
+    expect(continuation.timeline[0]?.note).toContain(`Continuation queued from ${exhaustedRun.id}`);
   });
 
   it("rejects planner findings without evidence references", async () => {

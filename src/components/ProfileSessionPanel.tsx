@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import type { LocalContext, LocalProfile, LocalSessionSummary } from "../types";
 import { cn } from "../lib/utils";
 import { EmptyState, StatusBadge } from "./radar/primitives";
+import { revealClass } from "./shell/layoutClasses";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -91,11 +92,11 @@ export function ProfileSessionPanel({
       >
         <header className="flex items-start justify-between gap-4 border-b border-rule pb-4">
           <div>
-            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
+            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-label font-semibold uppercase tracking-banner text-signal">
               <FolderOpen size={12} strokeWidth={1.8} /> Local Ledger
             </span>
-            <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">Projects & Sessions</h3>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-muted">
+            <h3 className="font-display text-hero uppercase tracking-key text-bone">Projects & Sessions</h3>
+            <p className="mt-1 text-label uppercase tracking-eyebrow text-muted">
               Active · {context ? `${context.profile.name} / ${context.session.name}` : "standby"}
             </p>
           </div>
@@ -107,7 +108,7 @@ export function ProfileSessionPanel({
         <div className="grid min-h-0 gap-5 overflow-hidden [grid-template-columns:minmax(260px,0.8fr)_minmax(360px,1.2fr)] max-[900px]:grid-cols-1 max-[900px]:overflow-auto">
           <section className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden border border-rule radar-card-gradient">
             <div className="border-b border-rule px-4 py-3">
-              <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.36em] text-signal">
+              <span className="font-mono text-label font-semibold uppercase tracking-banner text-signal">
                 Project
               </span>
             </div>
@@ -163,7 +164,7 @@ export function ProfileSessionPanel({
                     key={profile.id}
                     className={cn(
                       "grid gap-3 border-b border-rule px-4 py-3 transition",
-                      "opacity-0 animate-[enter_720ms_cubic-bezier(0.2,0.74,0.19,1)_forwards]",
+                      revealClass,
                       active ? "bg-signal/[0.08]" : "hover:bg-signal/[0.04]"
                     )}
                     style={{ animationDelay: `${80 + index * 45}ms` }}
@@ -172,10 +173,10 @@ export function ProfileSessionPanel({
                   >
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[18px] uppercase tracking-[0.05em] text-bone [font-stretch:75%]">
+                        <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-title uppercase tracking-data text-bone [font-stretch:75%]">
                           {profile.name}
                         </strong>
-                        <span className="mt-1 block text-[10px] uppercase tracking-[0.18em] text-muted">
+                        <span className="mt-1 block text-label uppercase tracking-label text-muted">
                           Updated {stamp(profile.updatedAt)}
                         </span>
                       </div>
@@ -201,7 +202,7 @@ export function ProfileSessionPanel({
 
           <section className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden border border-rule radar-card-gradient">
             <div className="border-b border-rule px-4 py-3">
-              <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.36em] text-signal">
+              <span className="font-mono text-label font-semibold uppercase tracking-banner text-signal">
                 Session
               </span>
             </div>
@@ -248,7 +249,7 @@ export function ProfileSessionPanel({
                     key={session.id}
                     className={cn(
                       "grid gap-3 border-b border-rule px-4 py-3 transition",
-                      "opacity-0 animate-[enter_720ms_cubic-bezier(0.2,0.74,0.19,1)_forwards]",
+                      revealClass,
                       active ? "bg-signal/[0.08]" : "hover:bg-signal/[0.04]"
                     )}
                     style={{ animationDelay: `${120 + index * 45}ms` }}
@@ -258,10 +259,10 @@ export function ProfileSessionPanel({
                     <div className="grid gap-2">
                       <div className="flex min-w-0 items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-[20px] uppercase tracking-[0.04em] text-bone [font-stretch:75%]">
+                          <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-head uppercase tracking-data text-bone [font-stretch:75%]">
                             {session.name}
                           </strong>
-                          <span className="mt-1 block text-[10px] uppercase tracking-[0.18em] text-muted">
+                          <span className="mt-1 block text-label uppercase tracking-label text-muted">
                             {stamp(session.startedAt)} · updated {stamp(session.updatedAt)}
                           </span>
                         </div>

@@ -793,6 +793,7 @@ export type AgentRunRequest = {
   startUrl?: string;
   profileId?: AgentRunProfileId;
   tutorialMode?: boolean;
+  continuationOf?: string;
   policy?: Partial<AgentPolicy>;
 };
 

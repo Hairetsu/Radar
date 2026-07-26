@@ -4,9 +4,9 @@ import { cn } from "../../lib";
 
 export const buttonVariants = cva(
   [
-    "relative inline-flex items-center justify-center gap-2 border font-mono text-[10.5px] font-semibold uppercase tracking-[0.18em]",
+    "relative inline-flex items-center justify-center gap-2 border font-mono text-meta font-semibold uppercase tracking-label",
     "transition duration-200 ease-out",
-    "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-signal/15",
+    "focus-visible:ring-[4px] focus-visible:ring-[var(--theme-focus-glow)]",
     "disabled:cursor-wait disabled:opacity-50 disabled:hover:translate-y-0",
     "[&_svg]:shrink-0"
   ],
@@ -19,12 +19,12 @@ export const buttonVariants = cva(
           "border-[color-mix(in_srgb,var(--color-bone)_18%,transparent)] bg-transparent text-bone hover:border-signal hover:bg-signal/5 hover:text-signal",
         icon: "border-rule bg-graphite text-copy hover:border-signal hover:bg-signal/5 hover:text-signal",
         zap:
-          "z-0 overflow-hidden border-signal bg-transparent font-bold tracking-[0.22em] text-signal before:absolute before:inset-0 before:-z-10 before:translate-y-full before:bg-signal before:transition-transform before:duration-300 before:content-[''] hover:text-ink hover:before:translate-y-0",
+          "z-0 overflow-hidden border-signal bg-transparent font-bold tracking-eyebrow text-signal before:absolute before:inset-0 before:-z-10 before:translate-y-full before:bg-signal before:transition-transform before:duration-300 before:content-[''] hover:text-ink hover:before:translate-y-0",
         ghost: "border-transparent bg-transparent text-muted hover:border-rule hover:bg-surface/50 hover:text-bone"
       },
       size: {
         default: "h-9 px-5",
-        compact: "h-[30px] px-3 text-[10px]",
+        compact: "h-[30px] px-3 text-label",
         sm: "h-8 px-3.5",
         icon: "h-9 w-9 px-0"
       }

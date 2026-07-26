@@ -1,4 +1,4 @@
-import type { AgentCapabilityCeiling, AgentPolicy, AgentRunProfileId, AgentToolName } from "./agent-types.js";
+import type { AgentCapabilityCeiling, AgentPolicy, AgentRun, AgentRunProfileId, AgentToolName } from "./agent-types.js";
 
 export type AgentRunProfile = {
   id: AgentRunProfileId;
@@ -93,7 +93,7 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
     id: "browser-assessment",
     label: "Browser Assessment",
     description: "Explore the visible scoped site through Playwright, capture traffic, inspect evidence, and run tightly budgeted verification tools.",
-    policy: policy({ maxReplay: 3, maxWorkflowRequests: 3, maxSteps: 40, maxCaptureSample: 100 }),
+    policy: policy({ maxRuntimeMs: 10 * 60_000, maxReplay: 3, maxWorkflowRequests: 3, maxSteps: 40, maxCaptureSample: 100 }),
     allowedTools: uniqueTools(activeReviewTools),
     capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxUses: 12, maxRequests: 20 }
   },
@@ -217,4 +217,34 @@ export function agentBudgetLabels(policy: AgentPolicy) {
     policy.allowRawContext ? "raw context allowed" : "raw context off",
     ...(policy.tutorialMode ? ["tutorial paced"] : [])
   ];
+}
+
+export type AgentBudgetExhaustion = {
+  kind: "runtime" | "steps";
+  used: number;
+  limit: number;
+};
+
+export function getAgentBudgetExhaustion(
+  run: Pick<AgentRun, "checkpoint" | "error" | "policy"> | null | undefined
+): AgentBudgetExhaustion | null {
+  if (!run?.checkpoint) {
+    return null;
+  }
+  const error = String(run.error || "").toLowerCase();
+  if (run.checkpoint.elapsedMs >= run.policy.maxRuntimeMs || error.includes("runtime budget")) {
+    return {
+      kind: "runtime",
+      used: run.checkpoint.elapsedMs,
+      limit: run.policy.maxRuntimeMs
+    };
+  }
+  if (run.checkpoint.stepCount >= run.policy.maxSteps || error.includes("tool-call budget")) {
+    return {
+      kind: "steps",
+      used: run.checkpoint.stepCount,
+      limit: run.policy.maxSteps
+    };
+  }
+  return null;
 }

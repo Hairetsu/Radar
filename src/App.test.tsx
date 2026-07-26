@@ -413,10 +413,13 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(await screen.findByTestId("aiFirstMode"));
 
+    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
+    expect(screen.getByTestId("aiFirstConsole")).toHaveAttribute("aria-label", "AI operations drawer");
+    expect(screen.getByTestId("aiDrawerBody")).toHaveClass("overflow-y-auto");
     const timeline = await screen.findByTestId("agentTimeline");
     expect(timeline.textContent).toContain("Run queued from AI-First goal prompt.");
-    expect(screen.getByText("analyzeSecurityHeaders failed")).toBeInTheDocument();
-    expect(screen.getByText("No target-origin captures for https://apexads.io")).toBeInTheDocument();
+    expect(timeline).toHaveTextContent("analyzeSecurityHeaders failed");
+    expect(timeline).toHaveTextContent("No target-origin captures for https://apexads.io");
 
     fireEvent.click(screen.getByTestId("agentRecovery-retry-tool"));
     await waitFor(() => {
@@ -426,6 +429,34 @@ describe("App", () => {
       });
       expect(screen.getByText("Recovery queued with preserved budgets and fresh visible state.")).toBeInTheDocument();
     });
+  });
+
+  it("groups navigation and keeps AI operations in a closable, resizable drawer", async () => {
+    render(<App />);
+
+    for (const group of ["Observe", "Test", "Report", "Configure"]) {
+      expect(await screen.findByText(group)).toBeInTheDocument();
+    }
+
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
+    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
+
+    // Run state must not be hidden behind a tab: the timeline, findings inbox,
+    // and run memory all stay reachable in one scrolling column.
+    expect(screen.getByTestId("agentTimeline")).toBeVisible();
+    expect(screen.getByTestId("agentMemoryTitle")).toBeVisible();
+
+    const resizeHandle = screen.getByTestId("resizeAiDrawer");
+    fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" });
+    expect(resizeHandle).toHaveAttribute("aria-valuenow", "652");
+
+    fireEvent.click(screen.getByTestId("closeAiDrawer"));
+    expect(screen.queryByTestId("aiFirstConsole")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("toggleAiDrawer"));
+    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
   });
 
   it("selects a saved AI-First run and resumes its durable checkpoint", async () => {
@@ -475,6 +506,59 @@ describe("App", () => {
     await waitFor(() => {
       expect(resumeAgentRun).toHaveBeenCalledWith(pausedRun.id);
       expect(screen.getByText("AI-First run queued from its durable checkpoint.")).toBeInTheDocument();
+    });
+  });
+
+  it("seals an exhausted checkpoint and starts an explicit continuation run", async () => {
+    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
+    startAgentRun.mockClear();
+    const exhaustedRun: AgentRun = {
+      id: "agent-exhausted",
+      sessionId: "session-test",
+      createdAt: "2026-07-19T00:00:00.000Z",
+      updatedAt: "2026-07-19T00:05:32.763Z",
+      goal: "Inspect https://www.tylerstech.net/",
+      profileId: "browser-assessment",
+      status: "failed",
+      policy: {
+        maxRuntimeMs: 300000,
+        maxSteps: 40,
+        maxReplay: 3,
+        maxWorkflowRequests: 3,
+        maxCaptureSample: 100,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "https://www.tylerstech.net/",
+        targetOrigin: "https://www.tylerstech.net",
+        stepCount: 19,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 332763,
+        lastResumedAt: "2026-07-19T00:05:32.763Z"
+      },
+      timeline: [],
+      findings: [],
+      error: "Agent exceeded its runtime budget while waiting for the next planner decision."
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([exhaustedRun]);
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://www.tylerstech.net"]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByTestId("aiFirstMode"));
+
+    expect(await screen.findByTestId("agentBudgetExhausted")).toHaveTextContent("333s used / 300s allowed");
+    expect(screen.getByTestId("resumeAgentRun")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("continueAgentRun"));
+
+    await waitFor(() => {
+      expect(startAgentRun).toHaveBeenCalledWith({
+        goal: exhaustedRun.goal,
+        startUrl: "https://www.tylerstech.net/",
+        profileId: "browser-assessment",
+        continuationOf: exhaustedRun.id
+      });
+      expect(window.radar!.resumeAgentRun).not.toHaveBeenCalledWith(exhaustedRun.id);
     });
   });
 
@@ -1532,6 +1616,7 @@ describe("App", () => {
           {
             id: "step-repeater",
             createdAt: "2026-05-25T00:00:01.000Z",
+            phase: "tool-call",
             note: "Agent is moving to Repeater.",
             toolCall: { tool: "showView", input: { view: "repeater", reason: "Replay inspection" } }
           }
@@ -1546,6 +1631,47 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Repeater" })).toBeInTheDocument();
     });
+  });
+
+  it("previews a planner decision without applying its visible tool call before dispatch", async () => {
+    window.localStorage.setItem("radar.appMode", "ai-first");
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([
+      {
+        id: "agent-decision-preview",
+        sessionId: "session-test",
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:01.000Z",
+        goal: "Choose the next evidence view",
+        profileId: "api-hardening",
+        status: "running",
+        policy: {
+          maxRuntimeMs: 120000,
+          maxSteps: 8,
+          maxReplay: 1,
+          maxWorkflowRequests: 1,
+          maxCaptureSample: 20,
+          allowRawContext: false
+        },
+        timeline: [
+          {
+            id: "decision-repeater",
+            createdAt: "2026-05-25T00:00:01.000Z",
+            phase: "decision",
+            summary: "Move to Repeater to inspect a prepared comparison.",
+            toolCall: { tool: "showView", input: { view: "repeater", reason: "Replay inspection" } }
+          }
+        ],
+        findings: []
+      }
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByTestId("agentThoughtstreamRationale")).toHaveTextContent(
+      "Move to Repeater to inspect a prepared comparison."
+    );
+    expect(screen.getByTestId("view-traffic")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("view-repeater")).not.toHaveAttribute("aria-current");
   });
 
   it("saves active profile and session names from the profile session panel", async () => {

@@ -50,10 +50,10 @@ export function NewSessionDialog({ open, name, onNameChange, onClose, onCreate }
       >
         <header className="flex items-start justify-between gap-4 border-b border-rule pb-4">
           <div>
-            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.42em] text-signal">
+            <span className="mb-1.5 inline-flex items-center gap-2 font-mono text-label font-semibold uppercase tracking-banner text-signal">
               <FilePlus2 size={12} strokeWidth={1.8} /> Session
             </span>
-            <h3 className="font-display text-[28px] uppercase tracking-[0.08em] text-bone">New Session</h3>
+            <h3 className="font-display text-hero uppercase tracking-key text-bone">New Session</h3>
           </div>
           <Button type="button" variant="icon" size="icon" onClick={onClose} aria-label="Close new session dialog">
             <X size={15} strokeWidth={1.8} />
