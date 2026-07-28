@@ -18,28 +18,6 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 
-export type WebSocketViewActionsProps = Pick<WebSocketDomain, "clearWebSocketEvents"> & {
-  onClearSelection: () => void;
-};
-
-export function WebSocketViewActions({ clearWebSocketEvents, onClearSelection }: WebSocketViewActionsProps) {
-  return (
-    <Button
-      variant="icon"
-      size="icon"
-      onClick={() => {
-        void clearWebSocketEvents();
-        onClearSelection();
-      }}
-      title="Clear WebSocket frames"
-      data-testid="clearWebSocketEvents"
-      data-component="clearWebSocketEvents"
-    >
-      <Eraser size={15} strokeWidth={1.7} />
-    </Button>
-  );
-}
-
 export type WebSocketViewProps = Pick<
   WebSocketDomain,
   | "webSocketEvents"

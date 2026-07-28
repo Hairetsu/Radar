@@ -48,6 +48,39 @@ export function useFindingsDomain({ setNotice, setActiveView }: UseFindingsDomai
 
   const findingRetestMatrix = useMemo(() => buildRetestMatrix(findings), [findings]);
 
+  const annotationByEvidenceId = useMemo(() => {
+    const map = new Map<string, EvidenceAnnotation>();
+    for (const annotation of evidenceAnnotations) {
+      map.set(`${annotation.kind}:${annotation.evidenceId}`, annotation);
+    }
+    return map;
+  }, [evidenceAnnotations]);
+
+  const getEvidenceAnnotation = useCallback(
+    (evidenceId: string, kind: EvidenceAnnotation["kind"]) =>
+      annotationByEvidenceId.get(`${kind}:${evidenceId}`) || {
+        evidenceId,
+        kind,
+        tags: [],
+        comment: "",
+        updatedAt: ""
+      },
+    [annotationByEvidenceId]
+  );
+
+  const saveEvidenceAnnotation = useCallback(async (annotation: EvidenceAnnotation) => {
+    if (!window.radar?.saveEvidenceAnnotation) {
+      setNotice("Run in Electron to save evidence annotations.");
+      return;
+    }
+    const saved = await window.radar.saveEvidenceAnnotation(annotation);
+    setEvidenceAnnotations((items) => {
+      const key = `${saved.kind}:${saved.evidenceId}`;
+      return [saved, ...items.filter((item) => `${item.kind}:${item.evidenceId}` !== key)];
+    });
+    setNotice("Annotation saved");
+  }, [setNotice]);
+
   const saveFinding = useCallback(async (finding: Finding) => {
     if (!window.radar?.saveFinding) {
       setNotice("Run in Electron to save findings.");
@@ -246,6 +279,8 @@ export function useFindingsDomain({ setNotice, setActiveView }: UseFindingsDomai
     setFindingReport,
     evidenceAnnotations,
     setEvidenceAnnotations,
+    getEvidenceAnnotation,
+    saveEvidenceAnnotation,
     selectedFinding,
     findingMergeSuggestions,
     findingRetestMatrix,
