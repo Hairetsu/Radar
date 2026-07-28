@@ -4,22 +4,6 @@ import type { WorkbenchShellDomain } from "../../hooks/workbench/useWorkbenchShe
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 
-export type ScopeViewActionsProps = Pick<ScopeDomain, "saveTargets">;
-
-export function ScopeViewActions({ saveTargets }: ScopeViewActionsProps) {
-  return (
-    <Button
-      variant="solid"
-      size="compact"
-      onClick={() => saveTargets()}
-      data-testid="commitTargets"
-      data-component="commitTargets"
-    >
-      Commit
-    </Button>
-  );
-}
-
 export type ScopeViewProps = Pick<ScopeDomain, "targetText" | "setTargetText"> &
   Pick<WorkbenchShellDomain, "setAiPaletteOpen">;
 

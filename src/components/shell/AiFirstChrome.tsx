@@ -1,10 +1,9 @@
 import { getAgentBudgetExhaustion } from "../../../shared/agentProfiles.js";
 import type { AppMode } from "../../types";
+import type { AiOperationsDrawerLocalState } from "../../hooks/useAiOperationsDrawerLocalState";
 import { AgentMissionDock } from "./AgentMissionDock";
 import {
   AiOperationsDrawer,
-  useAiOperationsDrawerLocalState,
-  type AiOperationsDrawerLocalState,
   type AiOperationsDrawerProps
 } from "./AiOperationsDrawer";
 
@@ -105,5 +104,3 @@ export function AiFirstChrome({
     </>
   );
 }
-
-export { useAiOperationsDrawerLocalState };

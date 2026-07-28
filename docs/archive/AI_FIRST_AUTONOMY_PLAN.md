@@ -23,7 +23,7 @@ isProject: false
 
 Radar should support two top-level operating modes. **Manual-First** keeps the current operator-led workbench, where AI assists through summaries, drafts, checklists, and notes. **AI-First** makes prompts the primary control surface: the operator writes goals in natural language, and Radar turns them into scoped plans, browser actions, request analysis, repeater probes, and report notes. Human input in AI-First should be limited to prompts, scope setup, credentials the app cannot infer, and emergency stop.
 
-Current AI behavior is intentionally prepare-only in [`electron/ai/tasks.ts`](/Users/thomaswhidden/Documents/Radar/electron/ai/tasks.ts):
+At the time this plan was written, AI behavior was intentionally prepare-only in `electron/ai/tasks.ts`:
 
 ```29:35:electron/ai/tasks.ts
 export function systemPrompt(task: AiTaskType) {
@@ -60,7 +60,7 @@ Add a persistent top-level toggle in the app shell:
    Add a live run timeline showing goal, current step, tool calls, captures inspected, replay attempts, findings, uncertainties, and stop status. This becomes the primary UI only in AI-First mode.
 
 3. **Scoped Toolbelt**
-   Wrap existing `window.radar` capabilities from [`shared/radar-api.ts`](/Users/thomaswhidden/Documents/Radar/shared/radar-api.ts) as typed agent tools: browser open/navigate/back/reload, capture snapshot, target management, replay send, burst replay, SSL review, and report-note generation.
+   Wrap existing `window.radar` capabilities from `shared/radar-api.ts` as typed agent tools: browser open/navigate/back/reload, capture snapshot, target management, replay send, burst replay, SSL review, and report-note generation.
 
 4. **Session Memory Within Local Workspace**
    Persist agent runs locally alongside captures and sessions. Keep this local-first: no cross-session cloud memory, but allow Radar to remember prior run timelines, tested hypotheses, and dismissed findings within the local SQLite workspace.
@@ -97,8 +97,8 @@ flowchart TD
 Core behavior:
 
 - The user supplies a goal and scope, then the agent operates without per-action approval.
-- Every network action must pass the existing allowlist logic in [`shared/allowlist.ts`](/Users/thomaswhidden/Documents/Radar/shared/allowlist.ts).
-- Replay and burst actions must keep the existing hard caps from [`electron/main.ts`](/Users/thomaswhidden/Documents/Radar/electron/main.ts), with stricter autonomous defaults.
+- Every network action must pass the existing allowlist logic in `shared/allowlist.ts`.
+- Replay and burst actions must keep the existing hard caps from `electron/main.ts`, with stricter autonomous defaults.
 - The agent can open and navigate the Radar browser, inspect captures, clone requests into replay drafts, send single replay probes, run capped bursts, and write findings.
 - The agent cannot bypass scope, change provider credentials, trust certificates, erase evidence, or expand target scope unless the initial prompt explicitly included that target.
 - Raw headers/bodies remain policy-controlled. Autonomous mode can use raw local context for local providers, but cloud providers should default to redacted context unless the run profile allows raw data.
@@ -106,7 +106,7 @@ Core behavior:
 ## Implementation Shape
 
 1. **Shared Contract**
-   Add `AgentRun`, `AgentRunStatus`, `AgentToolCall`, `AgentFinding`, `AgentPolicy`, and `AgentRunRequest` types under `shared/`. Extend [`shared/radar-api.ts`](/Users/thomaswhidden/Documents/Radar/shared/radar-api.ts) with `startAgentRun`, `stopAgentRun`, `getAgentRun`, and `listAgentRuns`.
+   Add `AgentRun`, `AgentRunStatus`, `AgentToolCall`, `AgentFinding`, `AgentPolicy`, and `AgentRunRequest` types under `shared/`. Extend `shared/radar-api.ts` with `startAgentRun`, `stopAgentRun`, `getAgentRun`, and `listAgentRuns`.
 
 2. **Main-Process Runtime**
    Add `electron/agent/` for the run loop, tool registry, policy checks, run persistence, and provider interaction. This layer should call existing browser, capture, replay, proxy, and AI provider functions instead of duplicating them.
@@ -121,7 +121,7 @@ Core behavior:
    Replace prepare-only autonomous prompts with a structured planner/executor protocol: plan next step, request one tool call, observe result, update findings, continue or stop. Keep existing command-palette prompts for Ask Mode.
 
 6. **Persistence And Audit**
-   Extend local storage so agent runs survive app restarts. The current AI audit in [`electron/ai/audit.ts`](/Users/thomaswhidden/Documents/Radar/electron/ai/audit.ts) is in-memory only; autonomous runs need durable local history.
+   Extend local storage so agent runs survive app restarts. The current AI audit in `electron/ai/audit.ts` is in-memory only; autonomous runs need durable local history.
 
 ## Safety Rules
 

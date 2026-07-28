@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Activity,
   FilePlus2,
@@ -7,56 +6,20 @@ import {
   ShieldCheck,
   Trash2
 } from "lucide-react";
-import { parseWorkflowDefinition } from "../../../shared/workflows.js";
 import type { TrafficDomain } from "../../hooks/workbench/useTrafficDomain";
 import type { WorkflowsDomain } from "../../hooks/workbench/useWorkflowsDomain";
+import { useWorkflowEditorDraft } from "../../hooks/useWorkflowEditorDraft";
 import {
   cn,
   diffTone,
   validationTone,
-  workflowDefinitionText,
   workflowResultTone
 } from "../../lib";
-import type { WorkflowDefinition, WorkflowStepTemplate } from "../../types";
+import type { WorkflowStepTemplate } from "../../types";
 import { EmptyState, FieldLabel, StatusBadge } from "../radar/primitives";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
-
-export type WorkflowsViewActionsProps = Pick<WorkflowsDomain, "selectedWorkflow"> & {
-  onSaveWorkflow: () => void;
-  onRunWorkflow: () => void;
-};
-
-export function WorkflowsViewActions({
-  selectedWorkflow,
-  onSaveWorkflow,
-  onRunWorkflow
-}: WorkflowsViewActionsProps) {
-  return (
-    <>
-      <Button
-        variant="outline"
-        type="button"
-        onClick={onSaveWorkflow}
-        data-testid="saveWorkflowHeader"
-      >
-        <FilePlus2 size={14} strokeWidth={1.7} />
-        Save Workflow
-      </Button>
-      <Button
-        variant="solid"
-        type="button"
-        onClick={onRunWorkflow}
-        disabled={!selectedWorkflow}
-        data-testid="runWorkflowHeader"
-      >
-        <Play size={14} strokeWidth={1.7} />
-        Run Workflow
-      </Button>
-    </>
-  );
-}
 
 export type WorkflowsViewProps = Pick<
   WorkflowsDomain,
@@ -101,98 +64,26 @@ export function WorkflowsView({
   selected: selectedCapture,
   workflowActionsRef
 }: WorkflowsViewProps) {
-  const [workflowEditorText, setWorkflowEditorText] = useState("");
-  const [workflowEditorError, setWorkflowEditorError] = useState("");
-  const [workflowInputs, setWorkflowInputs] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    setWorkflowEditorText(workflowDefinitionText(selectedWorkflow));
-    setWorkflowEditorError("");
-    setWorkflowInputs(
-      Object.fromEntries(
-        (selectedWorkflow?.inputs || []).map((input) => [
-          input.id,
-          input.type === "capture-id" ? selectedCapture?.id || input.defaultValue : input.defaultValue
-        ])
-      )
-    );
-  }, [selectedCapture?.id, selectedWorkflow]);
-
-  useEffect(() => {
-    if (!aiPreparedWorkflowDraft) {
-      return;
-    }
-    setWorkflowEditorText(workflowDefinitionText(aiPreparedWorkflowDraft));
-    setWorkflowEditorError("");
-    setWorkflowInputs(
-      Object.fromEntries(
-        aiPreparedWorkflowDraft.inputs.map((input) => [
-          input.id,
-          input.type === "capture-id" ? selectedCapture?.id || input.defaultValue : input.defaultValue
-        ])
-      )
-    );
-  }, [aiPreparedWorkflowDraft, selectedCapture?.id]);
-
-  const saveWorkflowEditor = () => {
-    const parsed = parseWorkflowDefinition(workflowEditorText);
-    if (!parsed) {
-      setWorkflowEditorError("Workflow definition is invalid or has no supported steps.");
-      return;
-    }
-    setWorkflowEditorError("");
-    void saveWorkflow({
-      ...parsed,
-      builtIn: false,
-      id: parsed.builtIn ? `${parsed.id}-custom` : parsed.id,
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  const validateWorkflowEditorDryRun = () => {
-    void validateWorkflowEditor(workflowEditorText, workflowInputs);
-  };
-
-  const insertWorkflowTemplate = (templateId: string) => {
-    const template = workflowStepTemplates.find((item) => item.id === templateId);
-    const parsed = parseWorkflowDefinition(workflowEditorText) || selectedWorkflow;
-    if (!template || !parsed) {
-      setWorkflowEditorError("Select or draft a workflow before inserting a template.");
-      return;
-    }
-    const activeTemplate = template.step.kind === "active-replay" || template.step.kind === "browser-open";
-    const nextStep = {
-      ...template.step,
-      id: `${template.step.id}-${parsed.steps.length + 1}`
-    };
-    const nextWorkflow: WorkflowDefinition = {
-      ...parsed,
-      mode: activeTemplate ? "active" : parsed.mode,
-      scope: activeTemplate
-        ? {
-            ...parsed.scope,
-            allowActive: true,
-            maxRequests: Math.max(parsed.scope.maxRequests, 1)
-          }
-        : parsed.scope,
-      steps: [...parsed.steps, nextStep],
-      updatedAt: new Date().toISOString()
-    };
-    setWorkflowEditorError("");
-    setWorkflowEditorText(workflowDefinitionText(nextWorkflow));
-    void validateWorkflowEditor(nextWorkflow, workflowInputs);
-  };
-
-  const runSelectedWorkflow = () => {
-    if (!selectedWorkflow) {
-      return;
-    }
-    void runWorkflow(selectedWorkflow.id, workflowInputs);
-  };
-
-  if (workflowActionsRef) {
-    workflowActionsRef.current = { save: saveWorkflowEditor, run: runSelectedWorkflow };
-  }
+  const {
+    workflowEditorText,
+    setWorkflowEditorText,
+    workflowEditorError,
+    workflowInputs,
+    setWorkflowInputs,
+    saveWorkflowEditor,
+    validateWorkflowEditorDryRun,
+    insertWorkflowTemplate,
+    runSelectedWorkflow
+  } = useWorkflowEditorDraft({
+    selectedWorkflow,
+    selectedCapture,
+    aiPreparedWorkflowDraft,
+    workflowStepTemplates,
+    saveWorkflow,
+    validateWorkflow: validateWorkflowEditor,
+    runWorkflow,
+    workflowActionsRef
+  });
 
   return (
     <div className="grid min-h-0 [grid-template-columns:minmax(300px,0.34fr)_minmax(420px,0.74fr)_minmax(320px,0.42fr)] max-[1320px]:grid-cols-[minmax(300px,0.42fr)_minmax(460px,1fr)] max-[900px]:grid-cols-1">

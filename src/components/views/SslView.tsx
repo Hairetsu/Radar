@@ -1,22 +1,11 @@
 import { FilePlus2, LockKeyhole, Play, Settings2 } from "lucide-react";
 import type { SslProxyDomain } from "../../hooks/workbench/useSslProxyDomain";
 import type { TrafficDomain } from "../../hooks/workbench/useTrafficDomain";
-import type { WorkbenchShellDomain } from "../../hooks/workbench/useWorkbenchShell";
 import { tlsLine } from "../../lib";
 import type { BrowserState } from "../../types";
 import { EmptyState, StatusBadge, ToneText } from "../radar/primitives";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-
-export type SslViewActionsProps = Pick<WorkbenchShellDomain, "notice">;
-
-export function SslViewActions({ notice }: SslViewActionsProps) {
-  return (
-    <span className="max-w-[340px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-meta tracking-data text-muted">
-      {notice}
-    </span>
-  );
-}
 
 export type SslViewProps = Pick<
   SslProxyDomain,

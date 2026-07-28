@@ -1,11 +1,4 @@
 import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type PointerEvent as ReactPointerEvent
-} from "react";
-import {
   BookOpenCheck,
   Pause,
   Play,
@@ -23,13 +16,13 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-import { getAgentBudgetExhaustion } from "../../../shared/agentProfiles.js";
 import {
   clampAiDrawerWidth,
   cn,
   recoveryActionLabel,
   timelineEntryText
 } from "../../lib";
+import { useAiOperationsDrawerController } from "../../hooks/useAiOperationsDrawerController";
 import type {
   AgentCapabilityAction,
   AgentMissionSteeringAction,
@@ -131,59 +124,24 @@ export function AiOperationsDrawer({
   deleteAgentRunMemory,
   setNotice
 }: AiOperationsDrawerProps) {
-  const aiDrawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const activeAgentBudgetExhaustion = getAgentBudgetExhaustion(activeAgentRun);
-
-  useEffect(() => {
-    const resizeDrawer = (event: globalThis.PointerEvent) => {
-      const resize = aiDrawerResizeRef.current;
-      if (!resize) {
-        return;
-      }
-      const nextWidth = resize.startWidth + resize.startX - event.clientX;
-      onDrawerWidthChange(clampAiDrawerWidth(nextWidth, window.innerWidth));
-    };
-    const stopResizingDrawer = () => {
-      aiDrawerResizeRef.current = null;
-    };
-    window.addEventListener("pointermove", resizeDrawer);
-    window.addEventListener("pointerup", stopResizingDrawer);
-    return () => {
-      window.removeEventListener("pointermove", resizeDrawer);
-      window.removeEventListener("pointerup", stopResizingDrawer);
-    };
-  }, [onDrawerWidthChange]);
-
-  const beginAiDrawerResize = (event: ReactPointerEvent<globalThis.HTMLDivElement>) => {
-    event.preventDefault();
-    aiDrawerResizeRef.current = {
-      startX: event.clientX,
-      startWidth: drawerWidth
-    };
-  };
-
-  const submitAgentGoal = (event: FormEvent) => {
-    event.preventDefault();
-    void startAgentRun();
-  };
-
-  const submitAgentMemory = (event: FormEvent) => {
-    event.preventDefault();
-    if (!agentMemoryTitle.trim() || !agentMemoryNotes.trim()) {
-      setNotice("Run memory needs a title and notes.");
-      return;
-    }
-    void createAgentRunMemory({
-      title: agentMemoryTitle,
-      notes: agentMemoryNotes,
-      evidenceRefs: selectedCapture ? [`capture:${selectedCapture.id}`] : []
-    }).then((saved) => {
-      if (saved) {
-        onAgentMemoryTitleChange("");
-        onAgentMemoryNotesChange("");
-      }
-    });
-  };
+  const {
+    activeAgentBudgetExhaustion,
+    beginResize: beginAiDrawerResize,
+    submitGoal: submitAgentGoal,
+    submitMemory: submitAgentMemory
+  } = useAiOperationsDrawerController({
+    drawerWidth,
+    onDrawerWidthChange,
+    activeAgentRun,
+    startAgentRun,
+    agentMemoryTitle,
+    agentMemoryNotes,
+    selectedCapture,
+    createAgentRunMemory,
+    onAgentMemoryTitleChange,
+    onAgentMemoryNotesChange,
+    setNotice
+  });
 
   return (
     <aside
@@ -608,33 +566,4 @@ export function AiOperationsDrawer({
       </div>
     </aside>
   );
-}
-
-export type AiOperationsDrawerLocalState = {
-  aiDrawerOpen: boolean;
-  setAiDrawerOpen: (open: boolean) => void;
-  aiDrawerWidth: number;
-  setAiDrawerWidth: (width: number) => void;
-  agentMemoryTitle: string;
-  setAgentMemoryTitle: (title: string) => void;
-  agentMemoryNotes: string;
-  setAgentMemoryNotes: (notes: string) => void;
-};
-
-export function useAiOperationsDrawerLocalState(initialOpen = true): AiOperationsDrawerLocalState {
-  const [aiDrawerOpen, setAiDrawerOpen] = useState(initialOpen);
-  const [aiDrawerWidth, setAiDrawerWidth] = useState(620);
-  const [agentMemoryTitle, setAgentMemoryTitle] = useState("");
-  const [agentMemoryNotes, setAgentMemoryNotes] = useState("");
-
-  return {
-    aiDrawerOpen,
-    setAiDrawerOpen,
-    aiDrawerWidth,
-    setAiDrawerWidth,
-    agentMemoryTitle,
-    setAgentMemoryTitle,
-    agentMemoryNotes,
-    setAgentMemoryNotes
-  };
 }
