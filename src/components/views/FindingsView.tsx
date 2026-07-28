@@ -1,4 +1,3 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Braces,
@@ -14,6 +13,7 @@ import type { AutomateDomain } from "../../hooks/workbench/useAutomateDomain";
 import type { FindingsDomain } from "../../hooks/workbench/useFindingsDomain";
 import type { TrafficDomain } from "../../hooks/workbench/useTrafficDomain";
 import type { WorkbenchShellDomain } from "../../hooks/workbench/useWorkbenchShell";
+import { useFindingsViewState } from "../../hooks/useFindingsViewState";
 import {
   cn,
   findingConfidences,
@@ -26,7 +26,6 @@ import {
 } from "../../lib";
 import type { WebSocketEvent } from "../../types";
 import type {
-  Finding,
   FindingConfidence,
   FindingReportPreset,
   FindingSeverity,
@@ -38,61 +37,6 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-
-export type FindingsViewActionsProps = Pick<
-  FindingsDomain & TrafficDomain,
-  "findingTemplates" | "selected" | "createFindingFromCapture"
-> & {
-  findingTemplateId: FindingTemplateId;
-  setFindingTemplateId: (value: FindingTemplateId) => void;
-  onBuildReport: () => void;
-};
-
-export function FindingsViewActions({
-  findingTemplates,
-  selected,
-  createFindingFromCapture,
-  findingTemplateId,
-  setFindingTemplateId,
-  onBuildReport
-}: FindingsViewActionsProps) {
-  return (
-    <>
-      <Select
-        variant="compact"
-        value={findingTemplateId}
-        onChange={(event) => setFindingTemplateId(event.target.value as FindingTemplateId)}
-        aria-label="Finding template"
-        data-testid="findingTemplateSelectHeader"
-      >
-        {findingTemplates.map((template) => (
-          <option key={template.id} value={template.id}>
-            {template.title}
-          </option>
-        ))}
-      </Select>
-      <Button
-        variant="outline"
-        type="button"
-        onClick={() => void createFindingFromCapture(selected, findingTemplateId)}
-        disabled={!selected}
-        data-testid="createFindingFromCaptureHeader"
-      >
-        <FileText size={14} strokeWidth={1.7} />
-        From Capture
-      </Button>
-      <Button
-        variant="solid"
-        type="button"
-        onClick={onBuildReport}
-        data-testid="buildFindingReportHeader"
-      >
-        <ExternalLink size={14} strokeWidth={1.7} />
-        Build Report
-      </Button>
-    </>
-  );
-}
 
 export type FindingsViewProps = Pick<
   FindingsDomain,
@@ -149,175 +93,56 @@ export function FindingsView({
   selectedWebSocketEvent,
   buildReportRef
 }: FindingsViewProps) {
-  const [findingDraft, setFindingDraft] = useState<Finding | null>(null);
-  const [findingReportFormat, setFindingReportFormat] = useState<"markdown" | "html">("markdown");
-  const [findingReportPreset, setFindingReportPreset] = useState<FindingReportPreset>("client-report");
-  const [findingReportTitle, setFindingReportTitle] = useState("Radar Client Report");
-  const [findingReportIncludeDrafts, setFindingReportIncludeDrafts] = useState(false);
-  const [findingReportIncludeRaw, setFindingReportIncludeRaw] = useState(false);
-  const [findingReportExecutiveSummary, setFindingReportExecutiveSummary] = useState("");
-  const [findingReportMethodology, setFindingReportMethodology] = useState("");
-  const [findingReportScopeSummary, setFindingReportScopeSummary] = useState("");
-  const [findingReportLimitations, setFindingReportLimitations] = useState("");
-  const [findingReportChangeLog, setFindingReportChangeLog] = useState("");
-  const [findingStatusFilter, setFindingStatusFilter] = useState<FindingStatus | "all">("all");
-  const [findingSeverityFilter, setFindingSeverityFilter] = useState<FindingSeverity | "all">("all");
-  const [findingOwnerFilter, setFindingOwnerFilter] = useState("all");
-  const [findingComponentFilter, setFindingComponentFilter] = useState("all");
-  const [findingTextFilter, setFindingTextFilter] = useState("");
-  const findingSelectionIdRef = useRef("");
-
-  useLayoutEffect(() => {
-    const selectedFindingId = selectedFinding?.id || "";
-    if (findingSelectionIdRef.current === selectedFindingId) {
-      return;
-    }
-    findingSelectionIdRef.current = selectedFindingId;
-    setFindingDraft(selectedFinding);
-    setFindingTemplateId(selectedFinding?.templateId || "headers");
-  }, [selectedFinding, setFindingTemplateId]);
-
-  const findingOwnerOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          findings
-            .flatMap((finding) => [finding.owner, finding.assignee])
-            .map((value) => value.trim())
-            .filter(Boolean)
-        )
-      ).sort((left, right) => left.localeCompare(right)),
-    [findings]
-  );
-
-  const findingComponentOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          findings
-            .map((finding) => finding.component.trim())
-            .filter(Boolean)
-        )
-      ).sort((left, right) => left.localeCompare(right)),
-    [findings]
-  );
-
-  const filteredFindings = useMemo(() => {
-    const query = findingTextFilter.trim().toLowerCase();
-    return findings.filter((finding) => {
-      if (findingStatusFilter !== "all" && finding.status !== findingStatusFilter) {
-        return false;
-      }
-      if (findingSeverityFilter !== "all" && finding.severity !== findingSeverityFilter) {
-        return false;
-      }
-      if (
-        findingOwnerFilter !== "all" &&
-        finding.owner.trim() !== findingOwnerFilter &&
-        finding.assignee.trim() !== findingOwnerFilter
-      ) {
-        return false;
-      }
-      if (findingComponentFilter !== "all" && finding.component.trim() !== findingComponentFilter) {
-        return false;
-      }
-      if (!query) {
-        return true;
-      }
-      return [
-        finding.title,
-        finding.component,
-        finding.owner,
-        finding.assignee,
-        finding.status,
-        finding.severity,
-        finding.affectedAssets.join(" "),
-        finding.notes
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
-    });
-  }, [
-    findingComponentFilter,
-    findingOwnerFilter,
-    findingSeverityFilter,
+  const {
+    findingDraft,
+    findingReportFormat,
+    setFindingReportFormat,
+    findingReportPreset,
+    setFindingReportPreset,
+    findingReportTitle,
+    setFindingReportTitle,
+    findingReportIncludeDrafts,
+    setFindingReportIncludeDrafts,
+    findingReportIncludeRaw,
+    setFindingReportIncludeRaw,
+    findingReportExecutiveSummary,
+    setFindingReportExecutiveSummary,
+    findingReportMethodology,
+    setFindingReportMethodology,
+    findingReportScopeSummary,
+    setFindingReportScopeSummary,
+    findingReportLimitations,
+    setFindingReportLimitations,
+    findingReportChangeLog,
+    setFindingReportChangeLog,
     findingStatusFilter,
+    setFindingStatusFilter,
+    findingSeverityFilter,
+    setFindingSeverityFilter,
+    findingOwnerFilter,
+    setFindingOwnerFilter,
+    findingComponentFilter,
+    setFindingComponentFilter,
     findingTextFilter,
-    findings
-  ]);
-
-  const updateFindingDraft = (patch: Partial<Finding>) => {
-    setFindingDraft((current) => (current ? { ...current, ...patch } : current));
-  };
-
-  const saveFindingDraft = () => {
-    if (!findingDraft) {
-      return;
-    }
-    void saveFinding({
-      ...findingDraft,
-      title: findingDraft.title.trim(),
-      component: findingDraft.component.trim(),
-      owner: findingDraft.owner.trim(),
-      assignee: findingDraft.assignee.trim(),
-      affectedAssets: findingDraft.affectedAssets.map((asset) => asset.trim()).filter(Boolean),
-      updatedAt: new Date().toISOString(),
-      reviewedAt:
-        findingDraft.status === "reviewed" && !findingDraft.reviewedAt
-          ? new Date().toISOString()
-          : findingDraft.reviewedAt
-    });
-  };
-
-  const buildFindingReport = () => {
-    void buildFindingReportPreview({
-      format: findingReportFormat,
-      preset: findingReportPreset,
-      title: findingReportTitle.trim() || undefined,
-      includeDrafts: findingReportIncludeDrafts,
-      includeAppendix: true,
-      includeRawEvidence: findingReportIncludeRaw,
-      includeRetestMatrix: true,
-      executiveSummary: findingReportExecutiveSummary,
-      methodology: findingReportMethodology,
-      scopeSummary: findingReportScopeSummary,
-      limitations: findingReportLimitations,
-      changeLog: findingReportChangeLog
-    });
-  };
-
-  if (buildReportRef) {
-    buildReportRef.current = buildFindingReport;
-  }
-
-  const copyFindingReport = async () => {
-    if (!findingReport?.body) {
-      return;
-    }
-    try {
-      await window.navigator.clipboard.writeText(findingReport.body);
-      setNotice("Report copied");
-    } catch {
-      setNotice("Report copy failed");
-    }
-  };
-
-  const downloadFindingReport = () => {
-    if (!findingReport?.body) {
-      return;
-    }
-    const extension = findingReport.format === "html" ? "html" : "md";
-    const blob = new window.Blob([findingReport.body], {
-      type: findingReport.format === "html" ? "text/html" : "text/markdown"
-    });
-    const url = window.URL.createObjectURL(blob);
-    const link = window.document.createElement("a");
-    link.href = url;
-    link.download = `radar-findings.${extension}`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
+    setFindingTextFilter,
+    findingOwnerOptions,
+    findingComponentOptions,
+    filteredFindings,
+    updateFindingDraft,
+    saveFindingDraft,
+    buildFindingReport,
+    copyFindingReport,
+    downloadFindingReport
+  } = useFindingsViewState({
+    findings,
+    selectedFinding,
+    setFindingTemplateId,
+    saveFinding,
+    buildFindingReportPreview,
+    findingReport,
+    setNotice,
+    buildReportRef
+  });
 
   return (
     <div className="grid min-h-0 [grid-template-columns:minmax(300px,0.42fr)_minmax(460px,1fr)] max-[1180px]:grid-cols-1">

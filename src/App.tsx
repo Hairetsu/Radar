@@ -1,51 +1,23 @@
-import { useMemo, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent } from "react";
-import { Bot, FileText, Search, X } from "lucide-react";
+import { useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import {
   cn,
-  contextMenuPosition,
   elapsed,
-  formatCapturedRequest,
-  globalSearchKindLabel,
-  originFromUrl,
-  REQUEST_EXPORT_LABELS,
-  type RequestExportFormat
 } from "./lib";
-import { AiSettingsPanel } from "./ai/AiSettingsPanel";
-import { CommandPalette } from "./ai/CommandPalette";
 import { AiFirstChrome } from "./components/shell/AiFirstChrome";
-import { useAiOperationsDrawerLocalState } from "./components/shell/AiOperationsDrawer";
-import { PanelHeader } from "./components/shell/PanelHeader";
 import { Sidebar } from "./components/shell/Sidebar";
 import { TelemetryTicker } from "./components/shell/TelemetryTicker";
 import { WorkspaceHeader } from "./components/shell/WorkspaceHeader";
-import { ProjectArtifactsOverlay } from "./components/shell/ProjectArtifactsOverlay";
-import { RequestContextMenu, type RequestMenuState } from "./components/shell/RequestContextMenu";
 import { shellClass, revealClass } from "./components/shell/layoutClasses";
-import { AdvancedView, AdvancedViewActions } from "./components/views/AdvancedView";
-import { AutomateView, AutomateViewActions } from "./components/views/AutomateView";
-import { FindingsView, FindingsViewActions } from "./components/views/FindingsView";
-import { InterceptView, InterceptViewActions } from "./components/views/InterceptView";
-import { PluginsView, PluginsViewActions } from "./components/views/PluginsView";
-import { RepeaterView, RepeaterViewActions } from "./components/views/RepeaterView";
-import { ScopeView, ScopeViewActions } from "./components/views/ScopeView";
-import { SitemapView } from "./components/views/SitemapView";
-import { SslView } from "./components/views/SslView";
-import { TrafficView, TrafficViewActions } from "./components/views/TrafficView";
-import { WebSocketView, WebSocketViewActions } from "./components/views/WebSocketView";
-import { WorkflowsView, WorkflowsViewActions } from "./components/views/WorkflowsView";
-import { AppearanceSettingsPanel } from "./components/AppearanceSettingsPanel";
-import { NewSessionDialog } from "./components/NewSessionDialog";
-import { ProfileSessionPanel } from "./components/ProfileSessionPanel";
-import { EmptyState, StatusBadge } from "./components/radar/primitives";
-import { Button } from "./components/ui/button";
-import { Input } from "./components/ui/input";
+import { WorkbenchViewRouter } from "./components/shell/WorkbenchViewRouter";
+import { WorkbenchActionBar } from "./components/shell/WorkbenchActionBar";
+import { WorkbenchOverlays } from "./components/shell/WorkbenchOverlays";
 import { useRadarWorkbench, type RadarWorkbench } from "./hooks/useRadarWorkbench";
+import { useAiOperationsDrawerLocalState } from "./hooks/useAiOperationsDrawerLocalState";
+import { useRequestContextMenu } from "./hooks/useRequestContextMenu";
+import { useWebSocketSelection } from "./hooks/useWebSocketSelection";
 import type {
-  CapturedRequest,
   FindingTemplateId,
-  GlobalSearchResult,
-  LocalSessionSummary,
-  WebSocketEvent
+  LocalSessionSummary
 } from "./types";
 
 export function App() {
@@ -53,12 +25,10 @@ export function App() {
 
   const aiDrawer = useAiOperationsDrawerLocalState();
 
-  const [requestMenu, setRequestMenu] = useState<RequestMenuState | null>(null);
+  const requestContextMenu = useRequestContextMenu(workbench);
   const [findingTemplateId, setFindingTemplateId] = useState("headers" as FindingTemplateId);
   const [identityLabOpen, setIdentityLabOpen] = useState(false);
-  const [selectedWebSocketId, setSelectedWebSocketId] = useState("");
-  const [selectedWebSocketIds, setSelectedWebSocketIds] = useState<string[]>([]);
-  const webSocketSelectionAnchorRef = useRef("");
+  const webSocketSelection = useWebSocketSelection(workbench);
   const findingsBuildReportRef = useRef<(() => void) | null>(null);
   const workflowActionsRef = useRef<{ save: () => void; run: () => void } | null>(null);
 
@@ -97,72 +67,6 @@ export function App() {
     }
   };
 
-  const requestMenuCapture = requestMenu
-    ? workbench.captures.find((capture: CapturedRequest) => capture.id === requestMenu.captureId) || null
-    : null;
-  const requestMenuOrigin = requestMenuCapture ? originFromUrl(requestMenuCapture.url) : "";
-  const requestMenuOriginInScope = Boolean(requestMenuOrigin && workbench.targets.includes(requestMenuOrigin));
-
-  const onOpenRequestMenu = (event: MouseEvent<HTMLElement>, capture: CapturedRequest | null = workbench.selected) => {
-    if (!capture) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const nextPosition = contextMenuPosition(event);
-    workbench.selectTrafficCapture(capture.id);
-    setRequestMenu({ ...nextPosition, captureId: capture.id });
-  };
-
-  const copyRequestExport = async (format: RequestExportFormat) => {
-    if (!requestMenuCapture) {
-      return;
-    }
-    try {
-      await window.navigator.clipboard.writeText(formatCapturedRequest(requestMenuCapture, format));
-      workbench.setNotice(`Request copied as ${REQUEST_EXPORT_LABELS[format]}`);
-    } catch {
-      workbench.setNotice("Copy failed");
-    } finally {
-      setRequestMenu(null);
-    }
-  };
-
-  const copyRequestUrl = async () => {
-    if (!requestMenuCapture) {
-      return;
-    }
-    try {
-      await window.navigator.clipboard.writeText(requestMenuCapture.url);
-      workbench.setNotice("Request URL copied");
-    } catch {
-      workbench.setNotice("Copy failed");
-    } finally {
-      setRequestMenu(null);
-    }
-  };
-
-  const cloneMenuRequest = () => {
-    if (requestMenuCapture) {
-      workbench.cloneToRepeater(requestMenuCapture);
-    }
-    setRequestMenu(null);
-  };
-
-  const addMenuRequestToScope = async () => {
-    if (requestMenuCapture) {
-      await workbench.addTarget(requestMenuCapture.url);
-    }
-    setRequestMenu(null);
-  };
-
-  const deleteMenuRequest = async () => {
-    if (requestMenuCapture) {
-      await workbench.deleteCapture(requestMenuCapture.id);
-    }
-    setRequestMenu(null);
-  };
-
   const buildFindingReport = () => {
     findingsBuildReportRef.current?.();
   };
@@ -175,32 +79,6 @@ export function App() {
     workflowActionsRef.current?.run();
   };
 
-  const submitGlobalSearch = (event: FormEvent) => {
-    event.preventDefault();
-    void workbench.runGlobalSearch(workbench.globalSearchQuery);
-  };
-
-  const submitProjectNote = (event: FormEvent) => {
-    event.preventDefault();
-    void workbench.saveProjectNote();
-  };
-
-  const submitSavedView = (event: FormEvent) => {
-    event.preventDefault();
-    void workbench.saveCurrentView();
-  };
-
-  const openGlobalSearchResult = (result: GlobalSearchResult) => {
-    if (result.target.view === "websocket" && result.target.id) {
-      setSelectedWebSocketId(result.target.id);
-      setSelectedWebSocketIds([result.target.id]);
-      webSocketSelectionAnchorRef.current = result.target.id;
-    }
-    workbench.openGlobalSearchResult(result);
-  };
-
-  const selectedWebSocketEvent =
-    workbench.webSocketEvents.find((event: WebSocketEvent) => event.id === selectedWebSocketId) || null;
 
   // Space reserved for the docked AI-First drawer, so evidence stays visible
   // beside it rather than behind it. The drawer sits 8px from the panel edge.
@@ -248,120 +126,6 @@ export function App() {
           onBrowserReload={workbench.browserReload}
         />
 
-        {workbench.globalSearchOpen && (
-          <div
-            className="fixed inset-0 z-30 grid place-items-start bg-ink/76 px-4 py-[8vh] backdrop-blur-sm"
-            data-testid="globalSearchOverlay"
-            data-component="globalSearchOverlay"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                workbench.setGlobalSearchOpen(false);
-              }
-            }}
-          >
-            <section className="mx-auto w-full max-w-3xl border border-signal/45 bg-surface shadow-[0_32px_120px_-72px_var(--color-signal)]">
-              <form
-                className="flex items-center gap-3 border-b border-rule radar-form-gradient p-3"
-                onSubmit={submitGlobalSearch}
-              >
-                <Search className="shrink-0 text-signal" size={17} strokeWidth={1.8} />
-                <Input
-                  autoFocus
-                  value={workbench.globalSearchQuery}
-                  onChange={(event) => {
-                    workbench.setGlobalSearchQuery(event.target.value);
-                    void workbench.runGlobalSearch(event.target.value);
-                  }}
-                  placeholder='Search evidence, findings, replays... try kind:capture host:api status:403 "set-cookie"'
-                  className="h-10 border-0 bg-transparent px-0 text-lead"
-                  data-testid="globalSearchInput"
-                  data-component="globalSearchInput"
-                />
-                <Button type="submit" variant="solid" size="compact" data-testid="runGlobalSearch">
-                  Search
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="icon"
-                  onClick={() => workbench.setGlobalSearchOpen(false)}
-                  aria-label="Close global search"
-                  data-testid="closeGlobalSearch"
-                >
-                  <X size={15} strokeWidth={1.8} />
-                </Button>
-              </form>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-3 py-2">
-                <span className="rd-eyebrow text-muted">
-                  {workbench.globalSearchPending
-                    ? "Searching local project"
-                    : workbench.globalSearchResult?.ok
-                      ? `${workbench.globalSearchResult.total} result${workbench.globalSearchResult.total === 1 ? "" : "s"}`
-                      : "Global project search"}
-                </span>
-                <span className="rd-label text-muted">
-                  Filters: kind, host, path, status, severity, source
-                </span>
-              </div>
-              <div className="max-h-[58vh] overflow-auto p-2">
-                {workbench.globalSearchError && (
-                  <div className="border border-rust/45 bg-rust/10 p-3 text-lead text-bone" data-testid="globalSearchError">
-                    {workbench.globalSearchError}
-                  </div>
-                )}
-                {!workbench.globalSearchError && !workbench.globalSearchResult?.results.length && (
-                  <EmptyState>
-                    {workbench.globalSearchQuery.trim()
-                      ? "No local project results matched that query."
-                      : "Type to search captures, frames, replays, findings, workflows, plugins, Advanced signals, and filters."}
-                  </EmptyState>
-                )}
-                {!workbench.globalSearchError &&
-                  workbench.globalSearchResult?.results.map((result: GlobalSearchResult) => (
-                    <button
-                      key={result.id}
-                      type="button"
-                      className="mb-2 block w-full border border-rule bg-ink/28 p-3 text-left transition hover:border-signal/45 hover:bg-signal/[0.06]"
-                      onClick={() => openGlobalSearchResult(result)}
-                      data-testid={`globalSearchResult-${result.kind}`}
-                      data-component="globalSearchResult"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="mb-1 block rd-eyebrow text-signal">
-                            {globalSearchKindLabel(result.kind)}
-                            {result.host ? ` // ${result.host}` : ""}
-                          </span>
-                          <strong className="block overflow-hidden text-ellipsis whitespace-nowrap font-display text-lead uppercase tracking-data text-bone [font-stretch:75%]">
-                            {result.title}
-                          </strong>
-                        </div>
-                        <StatusBadge>{result.status || result.severity || result.source || "open"}</StatusBadge>
-                      </div>
-                      <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-label text-muted">
-                        {result.subtitle}
-                      </p>
-                      <p className="mt-2 line-clamp-2 text-body leading-relaxed text-copy">{result.detail}</p>
-                      {result.matches[0] && (
-                        <p className="mt-2 border-l border-signal/40 pl-2 font-mono text-label leading-relaxed text-muted">
-                          {result.matches[0].label}: {result.matches[0].snippet}
-                        </p>
-                      )}
-                    </button>
-                  ))}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {workbench.projectArtifactsOpen && (
-          <ProjectArtifactsOverlay
-            workbench={workbench}
-            submitProjectNote={submitProjectNote}
-            submitSavedView={submitSavedView}
-          />
-        )}
-
         <section
           className={cn(
             revealClass,
@@ -371,130 +135,17 @@ export function App() {
           )}
           style={{ "--ai-drawer-inset": `${aiDrawerInset}px` } as CSSProperties}
         >
-          <div className="radar-ai-inset relative flex items-center justify-between gap-4 border-b border-rule radar-panel-gradient px-4 pb-3 pt-3 after:absolute after:bottom-[-1px] after:left-4 after:right-4 after:h-px after:bg-[linear-gradient(90deg,var(--color-signal),transparent_50%)] after:content-[''] max-[640px]:flex-col max-[640px]:items-start max-[640px]:px-4">
-            <PanelHeader meta={workbench.meta} />
-            <div className="flex flex-wrap items-center gap-2 pb-1">
-              <Button
-                variant="outline"
-                type="button"
-                onClick={workbench.openGlobalSearch}
-                title="Global search (⌘P)"
-                data-testid="openGlobalSearch"
-                data-component="openGlobalSearch"
-              >
-                <Search size={14} strokeWidth={1.7} />
-                Search
-              </Button>
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => workbench.setProjectArtifactsOpen(true)}
-                title="Project notes and saved views"
-                data-testid="openProjectArtifacts"
-                data-component="openProjectArtifacts"
-              >
-                <FileText size={14} strokeWidth={1.7} />
-                Notes
-              </Button>
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => workbench.setAiPaletteOpen(true)}
-                title="Command palette (⌘K)"
-                data-testid="openAiPalette"
-                data-component="openAiPalette"
-              >
-                <Bot size={14} strokeWidth={1.7} />
-                AI
-              </Button>
-              {workbench.activeView === "traffic" && (
-                <TrafficViewActions
-                  openNewSessionDialog={workbench.openNewSessionDialog}
-                  clearCaptures={workbench.clearCaptures}
-                />
-              )}
-              {workbench.activeView === "websocket" && (
-                <WebSocketViewActions
-                  clearWebSocketEvents={workbench.clearWebSocketEvents}
-                  onClearSelection={() => {
-                    setSelectedWebSocketId("");
-                    setSelectedWebSocketIds([]);
-                    webSocketSelectionAnchorRef.current = "";
-                  }}
-                />
-              )}
-              {workbench.activeView === "intercept" && (
-                <InterceptViewActions
-                  interceptState={workbench.interceptState}
-                  setRequestInterceptEnabled={workbench.setRequestInterceptEnabled}
-                  setResponseInterceptEnabled={workbench.setResponseInterceptEnabled}
-                  resumeAllIntercepts={workbench.resumeAllIntercepts}
-                />
-              )}
-              {workbench.activeView === "repeater" && (
-                <RepeaterViewActions
-                  addTarget={workbench.addTarget}
-                  draft={workbench.draft}
-                />
-              )}
-              {workbench.activeView === "automate" && (
-                <AutomateViewActions
-                  automatePositions={workbench.automatePositions}
-                  automatePayloads={workbench.automatePayloads}
-                  startAutomateSession={workbench.startAutomateSession}
-                />
-              )}
-              {workbench.activeView === "findings" && (
-                <FindingsViewActions
-                  findingTemplates={workbench.findingTemplates}
-                  selected={workbench.selected}
-                  createFindingFromCapture={workbench.createFindingFromCapture}
-                  findingTemplateId={findingTemplateId}
-                  setFindingTemplateId={setFindingTemplateId}
-                  onBuildReport={buildFindingReport}
-                />
-              )}
-              {workbench.activeView === "workflows" && (
-                <WorkflowsViewActions
-                  selectedWorkflow={workbench.selectedWorkflow}
-                  onSaveWorkflow={saveWorkflowEditor}
-                  onRunWorkflow={runSelectedWorkflow}
-                />
-              )}
-              {workbench.activeView === "plugins" && (
-                <PluginsViewActions
-                  pluginInstallPath={workbench.pluginInstallPath}
-                  previewPluginInstall={workbench.previewPluginInstall}
-                  installPlugin={workbench.installPlugin}
-                />
-              )}
-              {workbench.activeView === "advanced" && (
-                <AdvancedViewActions
-                  identityLabOpen={identityLabOpen}
-                  setIdentityLabOpen={setIdentityLabOpen}
-                  setAdvancedImportText={workbench.setAdvancedImportText}
-                  advancedImportText={workbench.advancedImportText}
-                />
-              )}
-              {workbench.activeView === "scope" && (
-                <ScopeViewActions saveTargets={workbench.saveTargets} />
-              )}
-              {workbench.activeView === "repeater" && workbench.notice && (
-                <span
-                  className="max-w-[340px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-meta tracking-data text-danger"
-                  role="status"
-                  data-testid="replayNotice"
-                >
-                  {workbench.notice}
-                </span>
-              )}
-              {workbench.activeView === "ssl" && (
-                <span className="max-w-[340px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-meta tracking-data text-muted">
-                  {workbench.notice}
-                </span>
-              )}
-            </div>
-          </div>
+          <WorkbenchActionBar
+            workbench={workbench}
+            findingTemplateId={findingTemplateId}
+            setFindingTemplateId={setFindingTemplateId}
+            identityLabOpen={identityLabOpen}
+            setIdentityLabOpen={setIdentityLabOpen}
+            onClearWebSocketSelection={webSocketSelection.clear}
+            onBuildFindingReport={buildFindingReport}
+            onSaveWorkflow={saveWorkflowEditor}
+            onRunWorkflow={runSelectedWorkflow}
+          />
 
           <AiFirstChrome
             appMode={workbench.appMode}
@@ -539,63 +190,21 @@ export function App() {
           />
 
           <div className="radar-ai-inset relative grid min-h-0 overflow-hidden [grid-template-rows:minmax(0,1fr)]">
-            {workbench.activeView === "traffic" && (
-              <TrafficView
-                {...workbench}
-                findingTemplateId={findingTemplateId}
-                onOpenRequestMenu={onOpenRequestMenu}
-              />
-            )}
-            {workbench.activeView === "websocket" && (
-              <WebSocketView
-                {...workbench}
-                findingTemplateId={findingTemplateId}
-                selectedWebSocketId={selectedWebSocketId}
-                setSelectedWebSocketId={setSelectedWebSocketId}
-                selectedWebSocketIds={selectedWebSocketIds}
-                setSelectedWebSocketIds={setSelectedWebSocketIds}
-                selectionAnchorRef={webSocketSelectionAnchorRef}
-              />
-            )}
-            {workbench.activeView === "intercept" && (
-              <InterceptView {...workbench} />
-            )}
-            {workbench.activeView === "repeater" && (
-              <RepeaterView {...workbench} />
-            )}
-            {workbench.activeView === "automate" && (
-              <AutomateView {...workbench} />
-            )}
-            {workbench.activeView === "findings" && (
-              <FindingsView
-                {...workbench}
-                findingTemplateId={findingTemplateId}
-                setFindingTemplateId={setFindingTemplateId}
-                selectedWebSocketEvent={selectedWebSocketEvent}
-                buildReportRef={findingsBuildReportRef}
-              />
-            )}
-            {workbench.activeView === "workflows" && (
-              <WorkflowsView {...workbench} workflowActionsRef={workflowActionsRef} />
-            )}
-            {workbench.activeView === "plugins" && (
-              <PluginsView {...workbench} />
-            )}
-            {workbench.activeView === "advanced" && (
-              <AdvancedView
-                {...workbench}
-                identityLabOpen={identityLabOpen}
-              />
-            )}
-            {workbench.activeView === "sitemap" && (
-              <SitemapView {...workbench} />
-            )}
-            {workbench.activeView === "scope" && (
-              <ScopeView {...workbench} />
-            )}
-            {workbench.activeView === "ssl" && (
-              <SslView {...workbench} />
-            )}
+            <WorkbenchViewRouter
+              workbench={workbench}
+              findingTemplateId={findingTemplateId}
+              setFindingTemplateId={setFindingTemplateId}
+              identityLabOpen={identityLabOpen}
+              selectedWebSocketId={webSocketSelection.selectedWebSocketId}
+              setSelectedWebSocketId={webSocketSelection.setSelectedWebSocketId}
+              selectedWebSocketIds={webSocketSelection.selectedWebSocketIds}
+              setSelectedWebSocketIds={webSocketSelection.setSelectedWebSocketIds}
+              webSocketSelectionAnchorRef={webSocketSelection.selectionAnchorRef}
+              selectedWebSocketEvent={webSocketSelection.selectedWebSocketEvent}
+              findingsBuildReportRef={findingsBuildReportRef}
+              workflowActionsRef={workflowActionsRef}
+              onOpenRequestMenu={requestContextMenu.open}
+            />
           </div>
         </section>
       </section>
@@ -608,94 +217,11 @@ export function App() {
         proxyRunning={workbench.proxyState.running}
       />
 
-      <AppearanceSettingsPanel
-        open={workbench.appearance.settingsOpen}
-        onClose={() => workbench.appearance.setSettingsOpen(false)}
-        themeId={workbench.appearance.themeId}
-        onThemeChange={workbench.appearance.setTheme}
-      />
-
-      <NewSessionDialog
-        open={workbench.newSessionOpen}
-        name={workbench.newSessionName}
-        onNameChange={workbench.setNewSessionName}
-        onClose={() => workbench.setNewSessionOpen(false)}
-        onCreate={workbench.confirmNewSession}
-      />
-
-      <ProfileSessionPanel
-        open={workbench.profileSessionOpen}
-        onClose={() => workbench.setProfileSessionOpen(false)}
-        context={workbench.localContext}
-        profiles={workbench.profiles}
-        sessions={workbench.sessions}
-        profileName={workbench.profileName}
-        onProfileNameChange={workbench.setProfileName}
-        sessionName={workbench.sessionName}
-        onSessionNameChange={workbench.setSessionName}
-        onCreateProfile={workbench.createLocalProfile}
-        onSaveProfile={workbench.saveLocalProfile}
-        onLoadProfile={workbench.loadLocalProfile}
-        onCreateSession={workbench.createLocalSession}
-        onSaveSession={workbench.saveLocalSession}
-        onLoadSession={workbench.loadLocalSession}
-        onSeedDemoProject={workbench.seedDemoProject}
-      />
-
-      <AiSettingsPanel
-        open={workbench.ai.settingsOpen}
-        onClose={() => workbench.ai.setSettingsOpen(false)}
-        settings={workbench.ai.settings}
-        onSettingsChange={workbench.ai.setSettings}
-        models={workbench.ai.models}
-        modelsLoading={workbench.ai.modelsLoading}
-        connected={workbench.ai.connected}
-        checking={workbench.ai.checking}
-        message={workbench.ai.message}
-        error={workbench.ai.error}
-        onSave={() => workbench.ai.saveSettings()}
-        onProbe={() => workbench.ai.probe()}
-        onConnectPreset={(presetId) => workbench.ai.connectPreset(presetId)}
-        onCursorLogin={() => workbench.ai.loginCursor()}
-        saving={workbench.ai.saving}
-        probing={workbench.ai.probing}
-        connecting={workbench.ai.connecting}
-        cursorLoggingIn={workbench.ai.cursorLoggingIn}
-      />
-
-      <CommandPalette
-        open={workbench.aiPaletteOpen}
-        view={workbench.activeView}
-        onClose={() => workbench.setAiPaletteOpen(false)}
-        captureIds={workbench.selectedIds}
-        captures={workbench.scopedTrafficCaptures}
-        webSocketEventIds={selectedWebSocketIds}
-        webSocketEvents={workbench.webSocketEvents}
-        targets={workbench.targets}
-        browserUrl={workbench.browserState.url || workbench.address}
-        draft={workbench.draft}
-        lastResponse={workbench.lastResponse}
-        sslEvents={workbench.sslEvents}
-        proxyRunning={workbench.proxyState.running}
-        proxyUrl={workbench.proxyState.proxyUrl}
-        caCertPath={workbench.proxyState.caCertPath}
-        canRun={workbench.ai.canRun}
-        onOpenSettings={() => workbench.ai.setSettingsOpen(true)}
-        onApplyDraft={workbench.applyAiDraft}
-        onPrepareNavigate={workbench.prepareAiNavigate}
-        onNotice={workbench.setNotice}
-      />
-
-      <RequestContextMenu
-        requestMenu={requestMenu}
-        requestMenuCapture={requestMenuCapture}
-        requestMenuOriginInScope={requestMenuOriginInScope}
-        onClose={() => setRequestMenu(null)}
-        onCopyExport={copyRequestExport}
-        onCopyUrl={copyRequestUrl}
-        onCloneToRepeater={cloneMenuRequest}
-        onAddToScope={addMenuRequestToScope}
-        onDelete={deleteMenuRequest}
+      <WorkbenchOverlays
+        workbench={workbench}
+        selectedWebSocketIds={webSocketSelection.selectedWebSocketIds}
+        onOpenGlobalSearchResult={webSocketSelection.openGlobalSearchResult}
+        requestContextMenuProps={requestContextMenu.menuProps}
       />
     </main>
   );

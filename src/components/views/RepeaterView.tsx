@@ -5,14 +5,12 @@ import {
   Pin,
   Plus,
   Send,
-  Target,
   Variable,
   X,
   Zap
 } from "lucide-react";
 import { jsonFormat, jsonMinify, jwtDecode, parseCookieHeader, urlDecode, urlEncode } from "../../../shared/requestTransforms.js";
 import type { RepeaterDomain } from "../../hooks/workbench/useRepeaterDomain";
-import type { ScopeDomain } from "../../hooks/workbench/useScopeDomain";
 import type { WebSocketDomain } from "../../hooks/workbench/useWebSocketDomain";
 import type { WorkbenchShellDomain } from "../../hooks/workbench/useWorkbenchShell";
 import { bodyPreview, cn, elapsed, statusTone } from "../../lib";
@@ -22,40 +20,6 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-
-export type RepeaterViewActionsProps = Pick<ScopeDomain, "addTarget"> & Pick<RepeaterDomain, "draft">;
-
-export function RepeaterViewActions({ addTarget, draft }: RepeaterViewActionsProps) {
-  return (
-    <Button
-      variant="outline"
-      onClick={() => addTarget(draft.url)}
-      data-testid="trustOrigin"
-      data-component="trustOrigin"
-    >
-      <Target size={14} strokeWidth={1.7} />
-      Trust Origin
-    </Button>
-  );
-}
-
-export type RepeaterNoticeProps = Pick<WorkbenchShellDomain, "notice">;
-
-export function RepeaterNotice({ notice }: RepeaterNoticeProps) {
-  if (!notice) {
-    return null;
-  }
-
-  return (
-    <span
-      className="max-w-[340px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-meta tracking-data text-danger"
-      role="status"
-      data-testid="replayNotice"
-    >
-      {notice}
-    </span>
-  );
-}
 
 export type RepeaterViewProps = Pick<
   RepeaterDomain,

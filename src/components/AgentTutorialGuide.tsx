@@ -1,60 +1,10 @@
-import { BookOpenCheck, CheckCircle2, CircleHelp, Route, ShieldQuestion } from "lucide-react";
-import type { AgentRun, AgentTutorialDisposition, AgentTutorialGuidance } from "../types";
+import { BookOpenCheck, CircleHelp } from "lucide-react";
+import type { AgentRun } from "../types";
 import { cn } from "../lib";
+import { dispositionTone } from "./agentTutorialPresentation";
 import { EmptyState, StatusBadge } from "./radar/primitives";
-
-function dispositionTone(disposition: AgentTutorialDisposition) {
-  if (disposition === "cve-review") {
-    return "danger" as const;
-  }
-  if (disposition === "vendor-report") {
-    return "warn" as const;
-  }
-  if (disposition === "local-hardening") {
-    return "move" as const;
-  }
-  return "good" as const;
-}
-
-function lessonList(title: string, items: string[], icon: "look" | "stronger" | "falsify") {
-  if (items.length === 0) {
-    return null;
-  }
-  const Icon = icon === "look" ? Route : icon === "stronger" ? CheckCircle2 : ShieldQuestion;
-  return (
-    <div className="border-l border-rule pl-3">
-      <div className="flex items-center gap-2 rd-label text-muted">
-        <Icon size={12} strokeWidth={1.7} className={icon === "falsify" ? "text-sand" : "text-signal"} />
-        {title}
-      </div>
-      <ul className="mt-2 grid gap-1.5 text-meta leading-5 text-copy">
-        {items.map((item) => (
-          <li key={item} className="relative pl-3 before:absolute before:left-0 before:top-[9px] before:h-px before:w-1.5 before:bg-current">
-            {item}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function readinessRows(guidance: AgentTutorialGuidance) {
-  if (!guidance.cveReadiness) {
-    return null;
-  }
-  return [
-    ["Product", guidance.cveReadiness.product],
-    ["Versions", guidance.cveReadiness.affectedVersions.join(", ")],
-    ["Impact", guidance.cveReadiness.securityImpact],
-    ["Reach", guidance.cveReadiness.deploymentScope],
-    ["Repeat", guidance.cveReadiness.reproducibility]
-  ].map(([label, value]) => (
-    <div key={label} className="grid gap-1 border-t border-rule/70 py-2 sm:grid-cols-[72px_1fr]">
-      <span className="rd-label text-muted">{label}</span>
-      <span className="text-meta leading-5 text-copy">{value}</span>
-    </div>
-  ));
-}
+import { TutorialLessonList } from "./TutorialLessonList";
+import { TutorialReadinessRows } from "./TutorialReadinessRows";
 
 export function AgentTutorialGuide({ run }: { run: AgentRun | null }) {
   const lessons = run?.timeline.flatMap((entry) => (entry.tutorial ? [entry.tutorial] : [])) || [];
@@ -105,16 +55,16 @@ export function AgentTutorialGuide({ run }: { run: AgentRun | null }) {
           </div>
 
           <div className="grid min-w-0 gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            {lessonList("Look for", lesson.lookFor, "look")}
-            {lessonList("Stronger evidence", lesson.strongerEvidence, "stronger")}
-            {lessonList("Could disprove it", lesson.falsifiers, "falsify")}
+            <TutorialLessonList title="Look for" items={lesson.lookFor} icon="look" />
+            <TutorialLessonList title="Stronger evidence" items={lesson.strongerEvidence} icon="stronger" />
+            <TutorialLessonList title="Could disprove it" items={lesson.falsifiers} icon="falsify" />
             <div className={cn("border border-rule bg-ink/28 p-3 sm:col-span-3 lg:col-span-1 xl:col-span-3", lesson.disposition === "cve-review" && "border-rust/35")}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="rd-eyebrow text-muted">Triage lane</span>
                 {lesson.evidenceRefs.length > 0 && <StatusBadge>{lesson.evidenceRefs.length} evidence ref{lesson.evidenceRefs.length === 1 ? "" : "s"}</StatusBadge>}
               </div>
               <p className="mt-2 text-meta leading-5 text-copy">{lesson.dispositionRationale}</p>
-              {readinessRows(lesson)}
+              <TutorialReadinessRows guidance={lesson} />
               {lesson.evidenceRefs.length > 0 && (
                 <p className="mt-2 font-mono text-micro leading-4 text-muted">{lesson.evidenceRefs.join(" · ")}</p>
               )}

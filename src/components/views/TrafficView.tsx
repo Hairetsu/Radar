@@ -5,7 +5,6 @@ import {
   ArrowUpWideNarrow,
   Copy,
   Eraser,
-  FilePlus2,
   FileText,
   Repeat2,
   Search,
@@ -36,37 +35,6 @@ import {
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
-
-export type TrafficViewActionsProps = Pick<TrafficDomain, "clearCaptures"> & {
-  openNewSessionDialog: () => void;
-};
-
-export function TrafficViewActions({ openNewSessionDialog, clearCaptures }: TrafficViewActionsProps) {
-  return (
-    <>
-      <Button
-        variant="outline"
-        onClick={openNewSessionDialog}
-        title="Open a fresh local session"
-        data-testid="createLocalSession"
-        data-component="createLocalSession"
-      >
-        <FilePlus2 size={14} strokeWidth={1.7} />
-        New Session
-      </Button>
-      <Button
-        variant="icon"
-        size="icon"
-        onClick={clearCaptures}
-        title="Clear log"
-        data-testid="clearCaptures"
-        data-component="clearCaptures"
-      >
-        <Eraser size={15} strokeWidth={1.7} />
-      </Button>
-    </>
-  );
-}
 
 export type TrafficViewProps = Pick<
   TrafficDomain,
