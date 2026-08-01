@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -15,26 +15,20 @@ import {
 } from "lucide-react";
 import type { IdentityProfile, IdentityProfileDraft } from "../../shared/identityProfiles.js";
 import type { CapturedRequest } from "../types";
+import { useIdentityLabEditor } from "../hooks/useIdentityLabEditor";
 import {
   captureAttribution,
   captureOptionLabel,
-  cleanActionId,
-  comparisonFields,
-  comparisonSignature,
-  EMPTY_FORM,
   HEALTH_TONE,
   ISOLATION_LABEL,
   matrixMeaning,
   requestParts,
-  resourceLabel,
   safeTestId,
   shortRef,
   statusText,
-  statusTone,
-  validOrigin,
-  type IdentityFormState,
-  type MatrixRow
+  statusTone
 } from "./identityLabPresentation";
+import { buildIdentityLabModel } from "./identityLabModel";
 import { EmptyState, StatusBadge } from "./radar/primitives";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -69,150 +63,46 @@ export function IdentityLab({
   onVerify,
   onArchive
 }: IdentityLabProps) {
-  const formId = useId();
-  const [editingId, setEditingId] = useState("");
-  const [form, setForm] = useState<IdentityFormState>(EMPTY_FORM);
-  const [formError, setFormError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [leftCaptureId, setLeftCaptureId] = useState("");
   const [rightCaptureId, setRightCaptureId] = useState("");
 
-  const workspaceIdentities = useMemo(
-    () => identities.filter((identity) => identity.workspaceId === workspaceId),
-    [identities, workspaceId]
+  const model = useMemo(
+    () =>
+      buildIdentityLabModel({
+        workspaceId,
+        identities,
+        captures,
+        leftCaptureId,
+        rightCaptureId
+      }),
+    [workspaceId, identities, captures, leftCaptureId, rightCaptureId]
   );
-  const identityById = useMemo(
-    () => new Map(workspaceIdentities.map((identity) => [identity.id, identity])),
-    [workspaceIdentities]
-  );
-  const editingProfile = editingId ? identityById.get(editingId) : undefined;
-  const locked = busy || submitting;
-
-  const attributedCaptures = useMemo(
-    () => captures.filter((capture) => Boolean(capture.activationId && capture.identityId && identityById.has(capture.identityId))),
-    [captures, identityById]
-  );
-  const unattributedCount = captures.length - attributedCaptures.length;
-
-  const matrixRows = useMemo(() => {
-    const rows = new Map<string, MatrixRow>();
-    for (const capture of attributedCaptures) {
-      const identity = identityById.get(capture.identityId || "");
-      if (!identity) continue;
-      const resource = resourceLabel(capture);
-      const key = `${identity.roleLabel}\n${identity.tenantLabel}\n${resource}`;
-      const row = rows.get(key) || {
-        key,
-        role: identity.roleLabel,
-        tenant: identity.tenantLabel,
-        resource,
-        identityLabels: [],
-        captures: []
-      };
-      row.identityLabels.push(identity.label);
-      row.captures.push(capture);
-      rows.set(key, row);
-    }
-    return [...rows.values()]
-      .map((row) => ({ ...row, identityLabels: [...new Set(row.identityLabels)].sort((a, b) => a.localeCompare(b)) }))
-      .sort((left, right) => left.key.localeCompare(right.key));
-  }, [attributedCaptures, identityById]);
-
-  const actionGroups = useMemo(() => {
-    const groups = new Map<string, CapturedRequest[]>();
-    for (const capture of captures) {
-      const actionId = cleanActionId(capture.actionId);
-      if (!actionId) continue;
-      groups.set(actionId, [...(groups.get(actionId) || []), capture]);
-    }
-    return [...groups.entries()]
-      .map(([actionId, requests]) => ({
-        actionId,
-        requests: [...requests].sort((left, right) => left.startedAt.localeCompare(right.startedAt) || left.id.localeCompare(right.id))
-      }))
-      .sort((left, right) => {
-        const leftTime = left.requests[0]?.startedAt || "";
-        const rightTime = right.requests[0]?.startedAt || "";
-        return leftTime.localeCompare(rightTime) || left.actionId.localeCompare(right.actionId);
-      });
-  }, [captures]);
-  const unmatchedCaptures = useMemo(
-    () => captures.filter((capture) => !cleanActionId(capture.actionId)).sort((left, right) => left.startedAt.localeCompare(right.startedAt)),
-    [captures]
-  );
-
-  const leftCapture = attributedCaptures.find((capture) => capture.id === leftCaptureId);
-  const matchingRightCaptures = leftCapture
-    ? attributedCaptures.filter(
-        (capture) =>
-          capture.id !== leftCapture.id &&
-          capture.identityId !== leftCapture.identityId &&
-          comparisonSignature(capture) === comparisonSignature(leftCapture)
-      )
-    : [];
-  const rightCapture = matchingRightCaptures.find((capture) => capture.id === rightCaptureId);
-  const comparedFields = leftCapture && rightCapture ? comparisonFields(leftCapture, rightCapture) : [];
-  const comparisonDiffers = comparedFields.some((field) => field.different);
-
-  const beginEdit = (profile: IdentityProfile) => {
-    setEditingId(profile.id);
-    setForm({
-      label: profile.label,
-      kind: profile.kind,
-      roleLabel: profile.roleLabel,
-      tenantLabel: profile.tenantLabel,
-      origin: profile.origin,
-      notes: profile.notes
-    });
-    setFormError("");
-  };
-
-  const resetForm = () => {
-    setEditingId("");
-    setForm(EMPTY_FORM);
-    setFormError("");
-  };
-
-  const submitIdentity = async (event: FormEvent) => {
-    event.preventDefault();
-    if (locked) return;
-    const origin = validOrigin(form.origin);
-    if (!form.label.trim() || !form.roleLabel.trim() || !form.tenantLabel.trim() || !origin) {
-      setFormError("Label, role, tenant, and an HTTP(S) origin are required.");
-      return;
-    }
-    const draft: IdentityProfileDraft = {
-      label: form.label.trim(),
-      kind: form.kind,
-      roleLabel: form.roleLabel.trim(),
-      tenantLabel: form.tenantLabel.trim(),
-      origin,
-      notes: form.notes.trim(),
-      refreshMode: editingProfile?.refreshMode || "manual",
-      ...(editingProfile?.refreshWorkflowId ? { refreshWorkflowId: editingProfile.refreshWorkflowId } : {}),
-      ...(editingProfile?.maxHealthAgeMs ? { maxHealthAgeMs: editingProfile.maxHealthAgeMs } : {})
-    };
-    setSubmitting(true);
-    setFormError("");
-    try {
-      if (editingProfile) {
-        await onUpdate({ ...editingProfile, ...draft, updatedAt: new Date().toISOString() });
-      } else {
-        await onCreate(draft);
-      }
-      resetForm();
-    } catch (error) {
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : `Identity ${editingProfile ? "update" : "creation"} failed. Review the profile and try again.`
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const hasSnapshotIdentity = workspaceIdentities.some((identity) => identity.isolation === "snapshot-only");
+  const {
+    workspaceIdentities,
+    identityById,
+    attributedCaptures,
+    unattributedCount,
+    matrixRows,
+    actionGroups,
+    unmatchedCaptures,
+    leftCapture,
+    matchingRightCaptures,
+    rightCapture,
+    comparedFields,
+    comparisonDiffers,
+    hasSnapshotIdentity
+  } = model;
+  const {
+    formId,
+    form,
+    setForm,
+    formError,
+    editingProfile,
+    locked,
+    beginEdit,
+    resetForm,
+    submitIdentity
+  } = useIdentityLabEditor({ identities: identityById, busy, onCreate, onUpdate });
 
   return (
     <section

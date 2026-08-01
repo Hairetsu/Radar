@@ -13,7 +13,9 @@ Use this page as the index for Radar's operator, engineering, roadmap, and histo
 
 - [Code Conventions](CODE_CONVENTIONS.md) — repository boundaries, TypeScript practices, security rules, testing, and component conventions.
 - [Branching](BRANCHING.md) — branch and delivery workflow.
-- [Refactor Audit](REFACTOR_AUDIT.md) — repository complexity findings and implementation status.
+- [Refactor Audit](REFACTOR_AUDIT.md) — historical repository complexity findings and implementation status.
+- [Complexity Refactor and Residual Risk Audit](COMPLEXITY_RISK_AUDIT.md) — the 2026-07-31 refactor execution record and before/after evidence.
+- [Post-Refactor Complexity Audit](POST_REFACTOR_COMPLEXITY_AUDIT.md) — fresh 2026-08-01 working-tree findings ranked from highest concern to lowest.
 
 ## Active Direction
 
