@@ -1,20 +1,30 @@
-/* global document, location, localStorage, sessionStorage, getComputedStyle, HTMLElement, HTMLFormElement, HTMLAnchorElement, HTMLInputElement, HTMLButtonElement */
-import { chromium, type Browser, type BrowserContext, type Locator, type Page, type Route } from "playwright-core";
-import { isAllowedTarget } from "../shared/allowlist.js";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import type {
   AgentClickableElement,
   AgentCookie,
   AgentStorageState
 } from "../shared/agent-types.js";
+import { createPlaywrightActions } from "./browser/playwrightActions.js";
+import {
+  inspectPlaywrightClickableElements,
+  inspectPlaywrightCookies,
+  inspectPlaywrightDom,
+  inspectPlaywrightPageText,
+  inspectPlaywrightStorage,
+  type PlaywrightDomSummary
+} from "./browser/playwrightInspection.js";
+import {
+  AUTOMATION_ACTION_TIMEOUT_MS,
+  AUTOMATION_CONNECT_TIMEOUT_MS,
+  AUTOMATION_NAVIGATION_TIMEOUT_MS
+} from "./browser/playwrightConstants.js";
 
-const AUTOMATION_CONNECT_TIMEOUT_MS = 10_000;
-const AUTOMATION_ACTION_TIMEOUT_MS = 8_000;
-const AUTOMATION_NAVIGATION_TIMEOUT_MS = 20_000;
-const MAX_AUTOMATION_SELECTOR_LENGTH = 500;
-const MAX_AUTOMATION_TEXT = 20_000;
-const MAX_AUTOMATION_ARIA = 12_000;
-const MAX_AUTOMATION_ELEMENTS = 120;
-const AGENT_REF_ATTRIBUTE = "data-radar-agent-ref";
+export {
+  automationSelectorForRef,
+  isAutomationRequestAllowed,
+  normalizeAutomationSelector
+} from "./browser/playwrightActions.js";
+export type { PlaywrightDomSummary } from "./browser/playwrightInspection.js";
 
 export type PlaywrightAutomationStatus = "disconnected" | "connecting" | "ready" | "error";
 
@@ -25,16 +35,6 @@ export type PlaywrightAutomationState = {
   title: string;
   loading: boolean;
   error?: string;
-};
-
-export type PlaywrightDomSummary = {
-  url: string;
-  title: string;
-  text: string;
-  ariaSnapshot: string;
-  links: Array<{ text: string; href: string }>;
-  buttons: string[];
-  forms: Array<{ action: string; method: string; inputs: string[] }>;
 };
 
 export type PlaywrightBrowserController = {
@@ -64,73 +64,12 @@ type ControllerOptions = {
   onStateChange?: (state: PlaywrightAutomationState) => void;
 };
 
-function clip(value: unknown, max: number) {
-  const text = String(value || "").replace(/\s+\n/g, "\n").trim();
-  return text.length > max ? `${text.slice(0, max)}...` : text;
-}
-
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
 function isHttpUrl(value: string) {
   return /^https?:\/\//i.test(value);
-}
-
-export function isAutomationRequestAllowed(url: string, allowlist: string[]) {
-  return !isHttpUrl(url) || isAllowedTarget(url, allowlist);
-}
-
-export function automationSelectorForRef(ref: string) {
-  const normalized = String(ref || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
-  if (!normalized) {
-    throw new Error("Browser element reference is required.");
-  }
-  return `[${AGENT_REF_ATTRIBUTE}="${normalized}"]`;
-}
-
-export function normalizeAutomationSelector(value: unknown) {
-  const selector = String(value || "").trim().slice(0, MAX_AUTOMATION_SELECTOR_LENGTH);
-  if (!selector) {
-    throw new Error("A browser element selector is required.");
-  }
-  return selector;
-}
-
-function normalizeCookie(cookie: Awaited<ReturnType<BrowserContext["cookies"]>>[number]): AgentCookie {
-  return {
-    name: cookie.name,
-    value: cookie.value,
-    domain: cookie.domain,
-    path: cookie.path,
-    expires: cookie.expires,
-    httpOnly: cookie.httpOnly,
-    secure: cookie.secure,
-    sameSite: cookie.sameSite
-  };
-}
-
-async function potentialActionUrl(locator: Locator) {
-  return locator.evaluate((node) => {
-    const element = node as HTMLElement;
-    const form = element instanceof HTMLFormElement ? element : element.closest("form");
-    const href = element instanceof HTMLAnchorElement ? element.href : "";
-    const formAction = element.getAttribute("formaction") || form?.action || "";
-    return href || formAction || "";
-  });
-}
-
-async function keepActionInVisibleTab(locator: Locator) {
-  await locator.evaluate((node) => {
-    const element = node as HTMLElement;
-    if (element.getAttribute("target")?.toLowerCase() === "_blank") {
-      element.setAttribute("target", "_self");
-    }
-    const form = element instanceof HTMLFormElement ? element : element.closest("form");
-    if (form?.getAttribute("target")?.toLowerCase() === "_blank") {
-      form.setAttribute("target", "_self");
-    }
-  });
 }
 
 export function createPlaywrightBrowserController(options: ControllerOptions): PlaywrightBrowserController {
@@ -338,230 +277,44 @@ export function createPlaywrightBrowserController(options: ControllerOptions): P
     }
   };
 
-  const runScopedAction = async <T>(action: (page: Page) => Promise<T>) => {
-    const page = await ensurePage();
-    if (!context) {
-      throw new Error("Playwright is not connected to the Radar browser.");
-    }
-    let blockedUrl = "";
-    const routeHandler = async (route: Route) => {
-      const url = route.request().url();
-      if (isAutomationRequestAllowed(url, options.allowlist())) {
-        await route.continue();
-        return;
-      }
-      blockedUrl ||= url;
-      await route.abort("blockedbyclient");
-    };
-    await context.route("**/*", routeHandler);
-    try {
-      const result = await action(page);
-      const selected = await settlePage(page);
-      if (blockedUrl) {
-        throw new Error(`Playwright blocked an out-of-scope browser request: ${blockedUrl}`);
-      }
-      if (isHttpUrl(selected.url()) && !isAllowedTarget(selected.url(), options.allowlist())) {
-        throw new Error(`Playwright blocked an out-of-scope browser destination: ${selected.url()}`);
-      }
-      return result;
-    } finally {
-      await context.unroute("**/*", routeHandler).catch(() => undefined);
-    }
-  };
-
-  const locatorFor = async (selectorValue: unknown) => {
-    const selector = normalizeAutomationSelector(selectorValue);
-    const page = await ensurePage();
-    const locator = page.locator(selector).first();
-    if ((await locator.count()) === 0) {
-      throw new Error(`Browser element was not found: ${selector}`);
-    }
-    return { selector, page, locator };
-  };
-
   const getPageText = async () => {
     const page = await ensurePage();
-    const text = await page.locator("body").innerText({ timeout: AUTOMATION_ACTION_TIMEOUT_MS }).catch(() => "");
-    title = await page.title();
+    const result = await inspectPlaywrightPageText(page);
+    title = result.title;
     notify();
-    return { url: page.url(), title, text: clip(text, MAX_AUTOMATION_TEXT) };
+    return result;
   };
 
   const getDomSummary = async (): Promise<PlaywrightDomSummary> => {
     const page = await ensurePage();
-    const text = await page.locator("body").innerText({ timeout: AUTOMATION_ACTION_TIMEOUT_MS }).catch(() => "");
-    const links = await page.locator("a[href]").evaluateAll((nodes) =>
-      nodes.slice(0, 80).map((node) => {
-        const anchor = node as HTMLAnchorElement;
-        return {
-          text: (anchor.innerText || anchor.getAttribute("aria-label") || "").trim().slice(0, 120),
-          href: anchor.href
-        };
-      })
-    );
-    const buttons = await page
-      .locator('button, [role="button"], input[type="submit"], input[type="button"]')
-      .evaluateAll((nodes) =>
-        nodes
-          .slice(0, 80)
-          .map((node) => {
-            const element = node as HTMLInputElement;
-            return (element.innerText || element.value || element.getAttribute("aria-label") || "").trim().slice(0, 120);
-          })
-          .filter(Boolean)
-      );
-    const forms = await page.locator("form").evaluateAll((nodes) =>
-      nodes.slice(0, 20).map((node) => {
-        const form = node as HTMLFormElement;
-        return {
-          action: form.action || location.href,
-          method: (form.method || "GET").toUpperCase(),
-          inputs: Array.from(form.querySelectorAll("input, textarea, select"))
-            .map((input) => input.getAttribute("name") || input.id || input.getAttribute("type") || input.tagName)
-            .filter(Boolean)
-            .slice(0, 40)
-        };
-      })
-    );
-    const ariaSnapshot = await page.locator("body").ariaSnapshot({ timeout: 4_000 }).catch(() => "");
-    title = await page.title();
+    const result = await inspectPlaywrightDom(page);
+    title = result.title;
     notify();
-    return {
-      url: page.url(),
-      title,
-      text: clip(text, 6_000),
-      ariaSnapshot: clip(ariaSnapshot, MAX_AUTOMATION_ARIA),
-      links,
-      buttons,
-      forms
-    };
+    return result;
   };
 
   const getClickableElements = async () => {
-    const page = await ensurePage();
-    const elements = await page
-      .locator('a[href], button, [role="button"], input, textarea, select, summary, [tabindex]:not([tabindex="-1"])')
-      .evaluateAll((nodes, input) => {
-        const { attribute, max } = input as { attribute: string; max: number };
-        document.querySelectorAll(`[${attribute}]`).forEach((node) => node.removeAttribute(attribute));
-        return nodes
-          .filter((node) => {
-            const element = node as HTMLElement;
-            const rect = element.getBoundingClientRect();
-            const style = getComputedStyle(element);
-            return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-          })
-          .slice(0, max)
-          .map((node, index) => {
-            const element = node as HTMLInputElement;
-            const ref = `pw-${index + 1}`;
-            element.setAttribute(attribute, ref);
-            return {
-              ref,
-              text: (
-                element.innerText ||
-                element.value ||
-                element.getAttribute("aria-label") ||
-                element.getAttribute("name") ||
-                element.id ||
-                ""
-              )
-                .trim()
-                .slice(0, 140),
-              tag: element.tagName.toLowerCase(),
-              role: element.getAttribute("role") || element.getAttribute("type") || "",
-              href: element instanceof HTMLAnchorElement ? element.href : undefined,
-              name: element.getAttribute("name") || undefined,
-              placeholder: element.getAttribute("placeholder") || undefined,
-              disabled: element.matches(":disabled") || element.getAttribute("aria-disabled") === "true"
-            };
-          });
-      }, { attribute: AGENT_REF_ATTRIBUTE, max: MAX_AUTOMATION_ELEMENTS });
-    return {
-      url: page.url(),
-      elements: elements.map(({ ref, ...element }) => ({
-        selector: automationSelectorForRef(ref),
-        ...element
-      }))
-    };
+    return inspectPlaywrightClickableElements(await ensurePage());
   };
 
-  const clickElement = async ({ selector: selectorValue }: { selector: string }) => {
-    const { selector, page, locator } = await locatorFor(selectorValue);
-    const submitsForm = await locator.evaluate((node) => {
-      const element = node as HTMLElement;
-      if (element instanceof HTMLInputElement) {
-        return ["submit", "image"].includes(element.type.toLowerCase());
-      }
-      if (element instanceof HTMLButtonElement) {
-        return (element.getAttribute("type") || "submit").toLowerCase() === "submit" && Boolean(element.form);
-      }
-      return false;
-    });
-    if (submitsForm) {
-      throw new Error("Use submitForm for a submit control so Radar can apply form-action policy.");
-    }
-    const targetUrl = await potentialActionUrl(locator);
-    if (isHttpUrl(targetUrl) && !isAllowedTarget(targetUrl, options.allowlist())) {
-      throw new Error(`Playwright blocked an out-of-scope click target: ${targetUrl}`);
-    }
-    await keepActionInVisibleTab(locator);
-    await runScopedAction(async () => {
-      await locator.scrollIntoViewIfNeeded();
-      await locator.click({ timeout: AUTOMATION_ACTION_TIMEOUT_MS });
-    });
-    return { clicked: true, selector, url: selectPage()?.url() || page.url() };
-  };
-
-  const fillInput = async ({ selector: selectorValue, value }: { selector: string; value: string }) => {
-    const { selector, locator } = await locatorFor(selectorValue);
-    await runScopedAction(async () => {
-      await locator.scrollIntoViewIfNeeded();
-      await locator.fill(String(value));
-    });
-    return { filled: true, selector };
-  };
-
-  const submitForm = async ({ selector: selectorValue }: { selector: string }) => {
-    const { selector, page, locator } = await locatorFor(selectorValue);
-    const targetUrl = await potentialActionUrl(locator);
-    if (isHttpUrl(targetUrl) && !isAllowedTarget(targetUrl, options.allowlist())) {
-      throw new Error(`Playwright blocked an out-of-scope form target: ${targetUrl}`);
-    }
-    await keepActionInVisibleTab(locator);
-    await runScopedAction(async () => {
-      await locator.evaluate((node) => {
-        const element = node as HTMLElement;
-        const form = element instanceof HTMLFormElement ? element : element.closest("form");
-        if (!form) throw new Error("No form exists for the selected browser element.");
-        form.requestSubmit();
-      });
-    });
-    return { submitted: true, selector, url: selectPage()?.url() || page.url() };
-  };
+  const { clickElement, fillInput, submitForm } = createPlaywrightActions({
+    allowlist: options.allowlist,
+    context: () => context,
+    ensurePage,
+    selectPage,
+    settlePage
+  });
 
   const getCookies = async () => {
     const page = await ensurePage();
     if (!context) throw new Error("Playwright is not connected to the Radar browser.");
-    const cookies = await context.cookies(page.url());
-    return { cookies: cookies.map(normalizeCookie).filter((cookie) => cookie.name) };
+    return inspectPlaywrightCookies(context, page);
   };
 
   const getStorageState = async (): Promise<AgentStorageState> => {
     const page = await ensurePage();
-    const storage = await page.evaluate(() => ({
-      localStorage: Object.fromEntries(Object.entries(localStorage)),
-      sessionStorage: Object.fromEntries(Object.entries(sessionStorage))
-    }));
-    const cookies = await getCookies();
-    const pageUrl = page.url();
-    return {
-      url: pageUrl,
-      origin: new URL(pageUrl).origin,
-      cookies: cookies.cookies,
-      localStorage: storage.localStorage,
-      sessionStorage: storage.sessionStorage
-    };
+    if (!context) throw new Error("Playwright is not connected to the Radar browser.");
+    return inspectPlaywrightStorage(context, page);
   };
 
   return {

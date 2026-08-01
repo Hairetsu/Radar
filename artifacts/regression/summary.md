@@ -1,10 +1,10 @@
 # Radar Regression Report
 
-Generated: 2026-07-26T00:49:58.043Z
+Generated: 2026-07-28T23:24:16.532Z
 Overall result: **PASSED**
 Workers: 6
-Wall time: 123.9s
-Aggregate workflow time: 607.4s
+Wall time: 122.9s
+Aggregate workflow time: 597.7s
 
 ## Outcome
 
@@ -79,20 +79,20 @@ No failed workflows.
 
 | Rank | Workflow | Outcome | Duration | Attempts |
 | ---: | --- | --- | ---: | ---: |
-| 1 | **REG-WF-007** [REG-WF-007] @network @security blocks an active workflow with no selected capture | passed | 35.7s | 1 |
-| 2 | **REG-WS-006** [REG-WS-006] @security shows a bounded WebSocket replay error without disturbing HTTP evidence | passed | 32.7s | 1 |
+| 1 | **REG-WF-007** [REG-WF-007] @network @security blocks an active workflow with no selected capture | passed | 34.1s | 1 |
+| 2 | **REG-WS-006** [REG-WS-006] @security shows a bounded WebSocket replay error without disturbing HTTP evidence | passed | 32.5s | 1 |
 | 3 | **REG-AIF-006** [REG-AIF-006] @ai records retry, retry-with-evidence, skip, and stop recovery choices | passed | 12.2s | 1 |
-| 4 | **REG-AIF-003** [REG-AIF-003] @ai @security enforces visible tool, replay, workflow, capture-sample, and runtime budgets | passed | 11.9s | 1 |
-| 5 | **REG-AUTO-006** [REG-AUTO-006] @network pauses and resumes a real slow Automate session without duplicate sends | passed | 9.2s | 1 |
-| 6 | **REG-AUTO-008** [REG-AUTO-008] @network retries only a failed Automate attempt after fixture recovery | passed | 8.6s | 1 |
-| 7 | **REG-WF-006** [REG-WF-006] @network @security runs one selected in-scope active workflow request through the normal contract | passed | 7.7s | 1 |
-| 8 | **REG-AIF-004** [REG-AIF-004] @ai pauses a delayed planner and resumes the same durable run | passed | 7.6s | 1 |
-| 9 | **REG-WF-011** [REG-WF-011] @ai @network @security reuses the normal workflow contract after an exact capability grant | passed | 7.6s | 1 |
-| 10 | **REG-AUTO-007** [REG-AUTO-007] @network stops only the selected Automate session while another completes | passed | 7.3s | 1 |
+| 4 | **REG-AIF-003** [REG-AIF-003] @ai @security enforces visible tool, replay, workflow, capture-sample, and runtime budgets | passed | 11.6s | 1 |
+| 5 | **REG-WF-011** [REG-WF-011] @ai @network @security reuses the normal workflow contract after an exact capability grant | passed | 9.5s | 1 |
+| 6 | **REG-AUTO-008** [REG-AUTO-008] @network retries only a failed Automate attempt after fixture recovery | passed | 7.7s | 1 |
+| 7 | **REG-AUTO-006** [REG-AUTO-006] @network pauses and resumes a real slow Automate session without duplicate sends | passed | 7.6s | 1 |
+| 8 | **REG-AIF-004** [REG-AIF-004] @ai pauses a delayed planner and resumes the same durable run | passed | 7.4s | 1 |
+| 9 | **REG-AIF-012** [REG-AIF-012] @ai @persistence restores completed, stopped, and failed AI runs after restart | passed | 6.9s | 1 |
+| 10 | **REG-AIF-009** [REG-AIF-009] @ai @persistence confirms, dismisses, searches, and restores project run memory | passed | 6.6s | 1 |
 
 ## Application Startup Distribution
 
-Samples: 158 · min 1.1s · median 1.2s · p95 1.4s · max 4.2s.
+Samples: 158 · min 1.1s · median 1.2s · p95 1.8s · max 3.1s.
 
 ## Skipped Coverage Gaps
 

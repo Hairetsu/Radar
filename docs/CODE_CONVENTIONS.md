@@ -18,19 +18,27 @@ This guide documents the code conventions already present in Radar and should be
 Use the existing folders as ownership boundaries:
 
 - `shared/`: TypeScript modules that can run in both renderer and Electron. Domain types, allowlist logic, capture shaping, draft normalization, text truncation, and API contracts belong here.
-- `electron/`: Main-process code, IPC handlers, filesystem access, proxy/browser orchestration, and AI provider calls.
+- `electron/`: Main-process code, filesystem access, proxy/browser orchestration, and AI provider calls.
+- `electron/ipc/`: One boundary registrar per domain. Registrars own IPC input normalization and delegate to explicit operation objects.
+- `electron/store/`: SQLite schema, migrations, transactions, row mappers, and feature repositories composed by `electron/localStore.ts`.
+- `electron/capture/`: Session-bound HTTP and WebSocket ledgers, hot-cache limits, owned causal-attribution state, and persistence ports.
+- `electron/intercept/`: Scoped request/response queueing, match/replace application, and explicit operator resolution.
+- `electron/proxy/`: Local CA and MITM proxy lifecycle. Keep proxy event wiring behind the controller instead of in `electron/main.ts`.
+- `electron/browser/`: Managed-browser and CDP lifecycle, Electron debugger capture, scoped Playwright actions, browser inspection, and capture adapters.
 - `electron/ai/`: AI settings, prompts, context building, provider calls, connect presets, and audit logic.
-- `electron/agent/`: AI-First autonomous run loop, policy checks, and tool orchestration. Keep scope/replay limits here and have the runtime call existing browser, capture, and replay functions instead of duplicating them.
+- `electron/agent/`: AI-First autonomous run loop, policy checks, and tool orchestration. Keep scope/replay limits here and have the runtime call existing browser, capture, and replay functions instead of duplicating them. Keep the public tool registry as a facade; catalog metadata belongs in `toolRegistry/definitions.ts` and canonical untrusted-input normalization belongs in `toolRegistry/normalization.ts`.
 - `src/`: React renderer code.
 - `src/hooks/`: Stateful renderer workflows. `useRadarWorkbench` is the composition root for workbench state.
-- `src/hooks/workbench/`: Domain hooks composed by `useRadarWorkbench` (shell, scope, traffic, repeater, findings, workflows, automate, plugins, intercept, websocket, ssl/proxy, and related ports). Cross-domain writes go through typed ports such as `NavigationPort` and `NoticePort`.
+- `src/hooks/workbench/`: Domain hooks composed by `useRadarWorkbench` (shell, scope, traffic, repeater, findings, workflows, automate, plugins, intercept, websocket, ssl/proxy, and related ports). Cross-domain writes go through typed ports such as `NavigationPort` and `NoticePort`. Keep `useAgentDomain` as the AI-First composition hook; lifecycle, governance, memory, and timeline projection live in focused `agent/` hooks.
 - `src/lib/`: Renderer-facing utility re-exports and presentation helpers (including `cn()` and `presentation.ts` tone/format helpers).
 - `src/components/ui/`: shadcn-style form and action primitives (`Button`, `Input`, `Select`, `Textarea`).
 - `src/components/radar/`: Radar-specific presentation primitives (labels, status badges, pills, empty states).
 - `src/components/shell/`: App chrome (sidebar, workspace header, panel header, telemetry ticker, AI-First drawer chrome, project artifacts overlay, request context menu, layout class helpers).
-- `src/components/views/`: One view module per workbench tab (`TrafficView`, `RepeaterView`, …), each typed with `Pick<RadarWorkbench, …>` for the workbench keys it uses. Header action strips export as `*ViewActions` alongside the view body.
+- `src/components/views/`: One view module per workbench tab (`TrafficView`, `RepeaterView`, …), with each retained header action strip in its own `*ViewActions.tsx` file.
 - `src/ai/`: AI command palette UI and renderer metadata.
 - `src/test/`: Shared renderer test setup and structural guards such as the `data-testid` inventory.
+- `shared/agentMission/`: Mission normalization, update/patch application, operator steering, and reference/evidence validation behind the `shared/agentMission.ts` compatibility barrel.
+- `shared/agentCapabilities/`: Capability risk, normalization, lease mutation, receipt accounting, and authorization behind the `shared/agentCapabilities.ts` compatibility barrel.
 
 When adding a feature, start with the shared types and pure helpers, then wire Electron IPC, then expose the typed preload API, then update hooks/UI, then tests.
 
@@ -140,17 +148,17 @@ const selected = useMemo(
 
 - `shared/radar-api.ts` is the preload contract. Update it before adding a new `window.radar` method.
 - `electron/preload.ts` should be a thin one-to-one map from `RadarApi` methods to `ipcRenderer.invoke`.
-- `electron/main.ts` owns `ipcMain.handle` registrations. IPC channel names should follow the existing `domain:action` pattern, such as `browser:open`, `proxy:start`, and `ai:run`.
+- `electron/ipc/register*Ipc.ts` owns `ipcMain.handle` registrations. `electron/main.ts` composes registrars with explicit domain operations. IPC channel names should follow the existing `domain:action` pattern, such as `browser:open`, `proxy:start`, and `ai:run`.
 - Keep `contextIsolation: true` and `nodeIntegration: false` for renderer windows.
 - Main-process handlers should clamp numeric input, normalize strings, and reject unsafe actions.
 - Replay, burst replay, browser launch, proxy setup, CA generation, and AI provider calls stay in the main process.
-- Module-level main-process state is acceptable for app-wide browser/proxy/capture state. Expose snapshots as serializable values.
+- Keep app-wide browser, proxy, intercept, and capture state beside focused controllers or ledgers. `electron/main.ts` should compose those boundaries rather than own feature algorithms. Expose snapshots as serializable values.
 - Catch platform/API failures at the boundary and return useful error messages or result objects.
 - Do not log secrets, API keys, request bodies, or raw headers.
 
 ## SQLite Local Store Migrations
 
-- `electron/localStore.ts` owns the local SQLite schema, `LOCAL_STORE_SCHEMA_VERSION`, and the ordered migration list.
+- `electron/store/schema.ts` owns the current SQLite DDL. `electron/store/migrations.ts` owns `LOCAL_STORE_SCHEMA_VERSION` and the ordered migration ledger. `electron/localStore.ts` composes repositories and owns profile/workspace/session context compatibility.
 - Each schema change must add an idempotent migration entry, update `LOCAL_STORE_SCHEMA_VERSION`, record the migration in `schema_migrations`, and keep the legacy `meta.schema_version` value current for compatibility.
 - Migrations should create missing tables/indexes with `IF NOT EXISTS`, add columns only after checking `PRAGMA table_info`, and preserve existing rows unless the change explicitly documents a safe data transform.
 - Opening a store with a newer migration version must fail closed instead of attempting to downgrade or mutate unknown data.
@@ -177,6 +185,7 @@ const selected = useMemo(
 - Radar must not install root certificates automatically.
 - Keep proxy CA files and AI settings in Electron user data, not in the repository.
 - Treat model responses as untrusted. Normalize every AI task output before using it.
+- Keep AI-First mission and capability barrels thin. New integrity rules belong in the focused `shared/agentMission/` or `shared/agentCapabilities/` owner and must retain direct tests through the public barrel.
 
 ## AI Feature Conventions
 
@@ -251,7 +260,10 @@ import { StatusBadge } from "./components/radar/primitives";
 - Shared utility tests should cover valid inputs, invalid inputs, boundary cases, and fail-closed behavior.
 - Electron/AI tests should stub globals such as `fetch`, use temp directories for filesystem state, and clean up in `afterEach`.
 - Add or update tests in the same change as behavior changes. At minimum, cover the happy path, an invalid input path, and any security/scope boundary touched.
-- Maintain the configured coverage thresholds in `vite.config.ts`.
+- Maintain the configured broad-domain coverage thresholds in `vite.config.ts` and the staged
+  high-risk-surface thresholds in `vitest.critical.config.ts`. The critical gate must expand with
+  extracted agent, browser, store, controller, and renderer-intent logic; do not lower the primary
+  90% line/function/statement gate to absorb newly instrumented files.
 
 Useful commands:
 

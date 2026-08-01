@@ -129,3 +129,8 @@ export type RunCounters = {
   activeIdentity: string;
 };
 
+export type AgentExecutionLifecycle = {
+  running: Set<string>;
+  stopped: Set<string>;
+  requestedRunStatus: Map<string, "paused" | "stopped">;
+};

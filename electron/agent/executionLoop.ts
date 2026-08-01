@@ -10,18 +10,16 @@ import {
   withUpdate
 } from "./runState.js";
 import { timeline } from "./runtimeClock.js";
-import type { AgentRuntimeDeps, RunCounters } from "./runtimeTypes.js";
+import type {
+  AgentExecutionLifecycle,
+  AgentRuntimeDeps,
+  RunCounters
+} from "./runtimeTypes.js";
 import {
   recoveryActionsForFailure
 } from "./toolMetadata.js";
 import { resumeCheckpoint } from "./executionRecovery.js";
 import { executePlanningStep } from "./planningStep.js";
-
-export type AgentExecutionLifecycle = {
-  running: Set<string>;
-  stopped: Set<string>;
-  requestedRunStatus: Map<string, "paused" | "stopped">;
-};
 
 type ExecuteRunLoopInput = {
   runId: string;

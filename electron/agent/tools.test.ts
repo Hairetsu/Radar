@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { availableToolNames, normalizeAgentToolCall, toolSchemas } from "./tools.js";
+import {
+  AGENT_TOOL_REGISTRY,
+  availableToolNames,
+  normalizeAgentToolCall,
+  toolSchemas
+} from "./tools.js";
 
 describe("agent tools", () => {
   it("exposes tool schemas for planner context", () => {
@@ -32,6 +37,14 @@ describe("agent tools", () => {
     );
     expect(toolSchemas()).toHaveProperty("getDomSummary");
     expect(availableToolNames()).not.toEqual(expect.arrayContaining(["installPlugin", "approvePlugin", "runPluginApiAction"]));
+    expect(new Set(AGENT_TOOL_REGISTRY.map((descriptor) => descriptor.name)).size).toBe(
+      AGENT_TOOL_REGISTRY.length
+    );
+    expect(
+      AGENT_TOOL_REGISTRY.find((descriptor) => descriptor.name === "getCaptures")?.normalize({
+        limit: 500
+      })
+    ).toEqual({ tool: "getCaptures", input: { limit: 100, targetOrigin: "" } });
   });
 
   it("normalizes observation tool inputs", () => {

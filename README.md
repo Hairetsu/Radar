@@ -33,7 +33,7 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 
 ## Stack
 
-- Electron 42 main process (`electron/main.ts`) wiring CDP capture, mockttp HTTP/WebSocket proxying, system browser launcher, autonomous agent runs, and AI IPC.
+- Electron 42 main process with `electron/main.ts` as the lifecycle/composition root over focused capture, proxy, managed-browser, Playwright, autonomous-agent, and IPC modules.
 - React 18 + Vite + TypeScript renderer (`src/`).
 - Tailwind CSS v4 with CSS-variable themes and shadcn-style UI primitives (`cn`, `cva`, `src/components/ui/`).
 - SQLite local store (`radar-local.sqlite`) with an explicit migration ledger for projects, sessions, identity metadata and activations, evidence, workflows, plugins, AI run history, and project-scoped run memory.
@@ -261,8 +261,17 @@ See [docs/REGRESSION_SUITE_SPEC.md](docs/REGRESSION_SUITE_SPEC.md) for the full 
 
 ```
 electron/
-  main.ts         Main-process: CDP capture, HTTP/WebSocket proxy, browser launcher, IPC handlers
-  playwrightBrowser.ts Persistent Playwright-over-CDP controller for managed Chrome
+  main.ts         Main-process bootstrap, lifecycle, controller composition, and IPC registration root
+  ipc/            Typed domain IPC boundary registrars
+  store/          SQLite schema, migrations, row mappers, transactions, and repositories
+  agent/          AI-First runtime, planning, policy, capabilities, and tool execution
+    planner/      Prompt construction, context compaction, and decision normalization
+    toolRegistry/ Tool metadata and canonical untrusted-input normalization
+  browser/        Managed-browser/CDP lifecycle, scoped Playwright actions, inspection, and capture adapters
+  capture/        Session-bound HTTP/WebSocket ledgers and causal-attribution state
+  intercept/      Scoped request/response interception and queue resolution
+  proxy/          Local CA and MITM proxy lifecycle
+  playwrightBrowser.ts Playwright-over-CDP lifecycle facade for managed Chrome
   preload.ts      Exposes the typed `window.radar` API to the renderer
   screenshot.ts   Headless screenshot runner for README assets
   ai/             Provider adapters, context builder, connect presets, audit trail
@@ -272,10 +281,15 @@ src/
   components/
     ui/           shadcn-style primitives (Button, Input, Select, Textarea)
     radar/        Radar-specific labels, badges, pills, and empty states
+    views/        Workbench views with separate header action components
+  hooks/workbench/agent/ Focused AI-First lifecycle, governance, memory, and timeline-projection hooks
   lib/            Renderer utilities including `cn()` for class merging
   styles.css      Theme tokens, base styles, shell texture, and keyframes
   types.ts        Shared types between main and renderer
   main.tsx        React entry
+shared/
+  agentMission/   Mission normalization, patches, steering, and validation
+  agentCapabilities/ Capability normalization, leases, authorization, receipts, and risk
 docs/
   BRANCHING.md
   CODE_CONVENTIONS.md

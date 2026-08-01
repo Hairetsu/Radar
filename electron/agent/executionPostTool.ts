@@ -15,13 +15,16 @@ import {
   withUpdate
 } from "./runState.js";
 import { nowIso, timeline } from "./runtimeClock.js";
-import type { AgentRuntimeDeps, RunCounters } from "./runtimeTypes.js";
+import type {
+  AgentExecutionLifecycle,
+  AgentRuntimeDeps,
+  RunCounters
+} from "./runtimeTypes.js";
 import {
   toolMayEmitNetwork,
   tutorialPausesAfter,
   visibleTargetForTool
 } from "./toolMetadata.js";
-import type { AgentExecutionLifecycle } from "./executionLoop.js";
 
 type PostToolResult = {
   run: AgentRun;
