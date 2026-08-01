@@ -1,7 +1,92 @@
 import { describe, expect, it } from "vitest";
-import { normalizeAgentDecision } from "./planner.js";
+import type { AgentDecisionContext } from "../../shared/agent-types.js";
+import { createAgentCapabilityState } from "../../shared/agentCapabilities.js";
+import { createAgentMission } from "../../shared/agentMission.js";
+import { DEFAULT_AGENT_POLICY } from "../../shared/agentProfiles.js";
+import { buildAgentUserPrompt, normalizeAgentDecision } from "./planner.js";
 
 describe("agent planner", () => {
+  it("builds a redacted, budgeted planner context", () => {
+    const context: AgentDecisionContext = {
+      goal: "Inspect the scoped target",
+      startUrl: "https://target.example/",
+      targetOrigin: "https://target.example",
+      allowlist: ["https://target.example"],
+      browserState: {
+        open: true,
+        url: "https://target.example/",
+        title: "Target",
+        loading: false,
+        engine: "chrome"
+      },
+      policy: { ...DEFAULT_AGENT_POLICY, maxSteps: 10, maxReplay: 2, maxWorkflowRequests: 3 },
+      profile: "browser-assessment",
+      stepCount: 2,
+      replayCount: 1,
+      workflowRequestCount: 1,
+      availableTools: ["getCaptures"],
+      capturedTraffic: [
+        {
+          id: "capture-1",
+          method: "GET",
+          url: "https://target.example/account",
+          status: 200,
+          statusText: "OK",
+          type: "Fetch",
+          mimeType: "application/json",
+          source: "browser",
+          requestHeaders: { Authorization: "Bearer secret" },
+          responseHeaders: { "set-cookie": "session=secret" },
+          requestBodyPreview: "password=secret",
+          responseBodyPreview: "token=secret"
+        }
+      ],
+      contextSummary: {
+        generatedAt: "2026-07-31T00:00:00.000Z",
+        sitemap: { hostCount: 0, endpointCount: 0, topHosts: [] },
+        findings: [],
+        advanced: {
+          graphQlOperations: 0,
+          imports: 0,
+          authRows: 0,
+          parameters: 0,
+          secrets: 0,
+          headerSignals: 0
+        },
+        workflows: { definitions: [], recentRuns: [] },
+        projectArtifacts: { notes: [], savedViews: [] },
+        runMemory: []
+      },
+      runMemory: [],
+      mission: createAgentMission("Inspect the scoped target", "https://target.example/"),
+      capabilities: createAgentCapabilityState(),
+      tutorialMode: false,
+      timeline: [
+        {
+          id: "timeline-1",
+          createdAt: "2026-07-31T00:00:00.000Z",
+          toolResult: {
+            tool: "getCaptures",
+            ok: true,
+            data: { captures: [] }
+          }
+        }
+      ]
+    };
+
+    const prompt = JSON.parse(buildAgentUserPrompt(context)) as Record<string, unknown>;
+    expect(prompt).toMatchObject({
+      budgetRemaining: { toolCalls: 8, replay: 1, workflowRequests: 2 },
+      capturedTraffic: [
+        {
+          requestHeaders: { Authorization: "[REDACTED]" },
+          responseHeaders: { "set-cookie": "[REDACTED]" }
+        }
+      ],
+      mission: { revision: 0 },
+      capabilities: { revision: 0 }
+    });
+  });
   it("normalizes tool decisions", () => {
     expect(
       normalizeAgentDecision(
@@ -197,7 +282,7 @@ describe("agent planner", () => {
       })
     ).toEqual({
       action: "tool",
-      call: { tool: "getSitemapCoverage", input: { limit: undefined } },
+      call: { tool: "getSitemapCoverage", input: { limit: 12 } },
       rationale: "",
       missionPatch: {
         baseRevision: 4,

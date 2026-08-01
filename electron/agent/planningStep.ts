@@ -20,7 +20,11 @@ import {
   withUpdate
 } from "./runState.js";
 import { timeline } from "./runtimeClock.js";
-import type { AgentRuntimeDeps, RunCounters } from "./runtimeTypes.js";
+import type {
+  AgentExecutionLifecycle,
+  AgentRuntimeDeps,
+  RunCounters
+} from "./runtimeTypes.js";
 import { visibleTargetForTool } from "./toolMetadata.js";
 import { availableToolNames } from "./tools.js";
 import {
@@ -29,9 +33,6 @@ import {
   completeAgentRun
 } from "./executionDecision.js";
 import { settleToolStep } from "./executionPostTool.js";
-import type {
-  AgentExecutionLifecycle
-} from "./executionLoop.js";
 
 function decisionContext({
   run,

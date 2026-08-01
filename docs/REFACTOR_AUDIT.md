@@ -2,6 +2,8 @@
 
 Date: 2026-07-26
 
+> **Historical audit:** this file preserves the pre-refactor baseline and the first implementation pass. Its baseline rankings are superseded by [Current Complexity and Risk Audit](COMPLEXITY_RISK_AUDIT.md). Statements below the implementation-status section describe the repository as it existed on 2026-07-26, not the current architecture.
+
 ## Purpose
 
 This audit identifies files whose size, responsibility count, state surface, or coupling makes Radar harder for a human to understand safely. The goal is not to split files mechanically. The goal is to make each file answer one clear question.
@@ -64,7 +66,7 @@ No README or `docs/USER_GUIDE.md` change is required: this pass is internal-only
 - Focused agent-runtime verification: passed, 32 tests
 - Production renderer chunks: 427.58 kB application, 142.93 kB React, 75.60 kB Radar domain, and 30.98 kB icons; no Vite chunk-size warning
 
-## Scope And Method
+## Historical Baseline: Scope And Method
 
 The review covered the complete tracked repository:
 
