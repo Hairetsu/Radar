@@ -77,6 +77,8 @@ export function Sidebar({
         "max-[1180px]:grid max-[1180px]:grid-cols-[auto_minmax(0,1fr)_minmax(190px,auto)_minmax(190px,auto)] max-[1180px]:items-center max-[1180px]:gap-3 max-[1180px]:border-r-0 max-[1180px]:border-b max-[1180px]:py-2",
         "max-[760px]:grid-cols-1"
       )}
+      data-testid="sidebar"
+      data-component="sidebar"
     >
       <div className="flex items-center gap-3 border-b border-rule/80 pb-3 max-[1180px]:border-b-0 max-[1180px]:pb-0">
         <span className="grid h-10 w-10 shrink-0 place-items-center border border-signal/45 bg-signal/10 font-display text-head font-bold tracking-[0] text-bone shadow-[0_0_26px_-18px_var(--color-signal)] [font-stretch:75%]">

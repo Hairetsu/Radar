@@ -4,7 +4,7 @@ import { cn } from "../../lib";
 
 export const inputVariants = cva(
   [
-    "flex min-w-0 border border-rule radar-field font-mono text-body tracking-data outline-none transition",
+    "flex min-w-0 w-full border border-rule radar-field font-mono text-body tracking-data outline-none transition",
     // Fields opt out of the global focus outline: the border shift plus glow is
     // the conventional field affordance and never clips inside dense panes.
     "placeholder:text-dim focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-[var(--theme-focus-glow)]",
@@ -27,7 +27,21 @@ export const inputVariants = cva(
 
 export interface InputProps extends React.ComponentPropsWithoutRef<"input">, VariantProps<typeof inputVariants> {}
 
-export const Input = React.forwardRef<React.ElementRef<"input">, InputProps>(({ className, variant, ...props }, ref) => (
-  <input ref={ref} className={cn(inputVariants({ variant }), className)} {...props} />
+export const Input = React.forwardRef<React.ElementRef<"input">, InputProps>(({
+  className,
+  variant,
+  id,
+  placeholder,
+  "aria-label": ariaLabel,
+  ...props
+}, ref) => (
+  <input
+    ref={ref}
+    className={cn(inputVariants({ variant }), className)}
+    id={id}
+    placeholder={placeholder}
+    aria-label={ariaLabel || (!id && typeof placeholder === "string" ? placeholder : undefined)}
+    {...props}
+  />
 ));
 Input.displayName = "Input";

@@ -1,8 +1,10 @@
 # Regression Testing
 
-Radar's regression suite uses Playwright's Electron support to run complete operator workflows against the production renderer, preload bridge, Electron main process, SQLite store, proxy, and bounded AI runtime. The stable 164-case catalog and expected proof for every workflow are defined in [REGRESSION_SUITE_SPEC.md](REGRESSION_SUITE_SPEC.md).
+Radar's regression suite uses Playwright's Electron support to run complete operator workflows against the production renderer, preload bridge, Electron main process, SQLite store, proxy, bounded AI runtime, and UI/font/usability matrix. The stable 189-case catalog and expected proof for every workflow are defined in [REGRESSION_SUITE_SPEC.md](REGRESSION_SUITE_SPEC.md).
 
-All 164 catalog IDs have executable Playwright registrations. A normal local or pull-request run executes 157 deterministic cases and reports seven environment-gated cases as explicit skips: five installed-browser/platform cases and two scheduled soak cases.
+The implemented viewport, typography, visual-diff, keyboard, and human-usability extension is documented in [UI_VISUAL_REGRESSION_SPEC.md](UI_VISUAL_REGRESSION_SPEC.md). `REG-UI-001` through `REG-UI-025` are part of the canonical catalog.
+
+All 189 catalog IDs have executable Playwright registrations. UI runs add two scheduled/release gates (`REG-UI-021` and `REG-UI-024`); Linux is the canonical pixel-baseline host for `REG-UI-020`, while other platforms report it as an explicit skip and still run native font/structure smoke.
 
 ## Run The Suite
 
@@ -29,6 +31,24 @@ Run the scheduled longevity and high-volume cases:
 ```bash
 RADAR_REGRESSION_SOAK=1 pnpm test:regression:build
 ```
+
+Build and run the blocking UI/font/zoom/usability cases with bounded local concurrency:
+
+```bash
+pnpm test:regression:ui:build
+```
+
+Run the scheduled full screenshot matrix, or explicitly update Linux baselines after reviewing expected/actual/diff evidence:
+
+```bash
+pnpm test:regression:ui:full
+pnpm test:regression:ui:update
+pnpm test:regression:ui:update:full
+```
+
+The first update command refreshes the 19 pull-request anchors; the `:full` variant refreshes all 183 gated nightly images. Both require the explicit update guard embedded in the package scripts, and CI never updates snapshots. Complete [UI_USABILITY_REVIEW.md](UI_USABILITY_REVIEW.md), then select the release review gate with `RADAR_UI_HUMAN_REVIEW=1 pnpm test:regression:ui`.
+
+GitHub Actions runs the Linux structural/font/zoom suite and approved anchors on every pull request and `develop` push. The canonical pixel runner is pinned to `ubuntu-24.04-arm` so approved snapshots and CI use the same OS and architecture. The scheduled job runs all 183 full-matrix images on Linux and native font/structure smoke on macOS and Windows; each job retains `artifacts/regression/` for 14 days.
 
 Both gates can be enabled together. Standard Playwright flags remain available:
 
@@ -84,11 +104,15 @@ Every invocation writes to `artifacts/regression/`:
 | `html/index.html` | Interactive workflow report with attempts, steps, and retained attachments. |
 | `results.json` | Complete Playwright machine-readable result data. |
 | `results/` | Screenshots, videos, traces, and concise error context retained on failure. |
+| `ui-summary.md` / `ui-summary.json` | UI environment selection, blockers, full/platform/human gate state, and evidence counts. |
+| `font-audit.json` | Aggregated expected, resolved, loaded, fallback, and external-resource font evidence. |
+| `layout-metrics.json` | Aggregated renderer/window dimensions, zoom, effective type sizes, scroll paths, and violations. |
+| `visual/` | Expected, actual, and diff images copied from Playwright attachments when emitted. |
 
-A failing or flaky `@security` workflow is listed as a release blocker. Platform and soak skips remain visible rather than being counted as implemented success. Catalog coverage is scanned from all `tests/regression/*.spec.ts` files, so a narrowed `--grep` run does not incorrectly report unselected tests as unimplemented.
+A failing or flaky `@security` workflow is listed as a release blocker. Failed/flaky `@ui-critical`, `@font`, and blocking `@usability` cases are UI release blockers. Platform, full-matrix, human-review, and soak skips remain visible rather than being counted as implemented success. Catalog coverage is scanned from all `tests/regression/*.spec.ts` files, so a narrowed `--grep` run does not incorrectly report unselected tests as unimplemented.
 
 ## Coverage Areas
 
-The catalog exercises application startup, projects/sessions, HTTP/S capture, WebSockets, scope, proxy/TLS, intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Advanced Testing, file/report flows, Manual-First AI, AI-First planning/recovery/authority, Identity Lab, database migrations, corruption resistance, multi-instance isolation, resilience, installed-browser behavior, and soak/high-volume behavior.
+The catalog exercises application startup, projects/sessions, HTTP/S capture, WebSockets, scope, proxy/TLS, intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Advanced Testing, file/report flows, Manual-First AI, AI-First planning/recovery/authority, Identity Lab, deterministic local fonts, window/zoom layouts, keyboard focus, visual baselines, stress copy, human usability review, database migrations, corruption resistance, multi-instance isolation, resilience, installed-browser behavior, and soak/high-volume behavior.
 
 Add or update a stable catalog case whenever a user-facing workflow or safety boundary changes. Prefer visible controls and visible/durable outcomes. Direct Electron evaluation is reserved for process-level invariants that cannot be proven through the operator surface.

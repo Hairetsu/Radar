@@ -202,6 +202,7 @@ export function InterceptView({
                 value={interceptResponseStatus}
                 disabled={!selectedInterceptItem}
                 onChange={(event) => setInterceptResponseStatus(Number(event.target.value))}
+                aria-label="Intercept response status"
                 data-testid="interceptStatus"
                 data-component="interceptStatus"
               />
@@ -210,6 +211,7 @@ export function InterceptView({
                 disabled={!selectedInterceptItem}
                 onChange={(event) => setInterceptResponseStatusText(event.target.value)}
                 spellCheck={false}
+                aria-label="Intercept response status text"
                 data-testid="interceptStatusText"
                 data-component="interceptStatusText"
               />
@@ -223,6 +225,7 @@ export function InterceptView({
                 onChange={(event) =>
                   setInterceptDraft({ ...interceptDraft, method: event.target.value })
                 }
+                aria-label="Intercept request method"
                 data-testid="interceptMethod"
                 data-component="interceptMethod"
               >
@@ -237,6 +240,7 @@ export function InterceptView({
                   setInterceptDraft({ ...interceptDraft, url: event.target.value })
                 }
                 spellCheck={false}
+                aria-label="Intercept request URL"
                 data-testid="interceptUrl"
                 data-component="interceptUrl"
               />

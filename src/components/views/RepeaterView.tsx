@@ -133,7 +133,13 @@ export function RepeaterView({
             )}
           </Button>
         ))}
-        <Button variant="ghost" className="h-8 px-2" onClick={() => void createReplayTab()} data-testid="createReplayTab">
+        <Button
+          variant="ghost"
+          className="h-8 px-2"
+          aria-label="Create Repeater tab"
+          onClick={() => void createReplayTab()}
+          data-testid="createReplayTab"
+        >
           <Plus size={14} strokeWidth={1.8} />
         </Button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -153,6 +159,7 @@ export function RepeaterView({
           <Button
             variant="ghost"
             className="h-8"
+            aria-label={activeReplayTab?.pinned ? "Unpin Repeater tab" : "Pin Repeater tab"}
             onClick={() => void toggleReplayTabPin(activeReplayTab?.id || "")}
             data-testid="pinReplayTab"
           >
@@ -300,6 +307,7 @@ export function RepeaterView({
               <Input
                 variant="compact"
                 type="number"
+                aria-label="Burst count"
                 min={1}
                 max={50}
                 value={count}
@@ -315,6 +323,7 @@ export function RepeaterView({
               <Input
                 variant="compact"
                 type="number"
+                aria-label="Burst parallel requests"
                 min={1}
                 max={5}
                 value={concurrency}
@@ -330,6 +339,7 @@ export function RepeaterView({
               <Input
                 variant="compact"
                 type="number"
+                aria-label="Burst delay in milliseconds"
                 min={0}
                 max={10000}
                 step={50}

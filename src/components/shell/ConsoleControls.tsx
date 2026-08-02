@@ -109,7 +109,7 @@ export function ConsoleControls({
           type="button"
           variant="outline"
           size="compact"
-          className="w-[30px] px-0"
+          className="w-8 px-0"
           onClick={onOpenAppearanceSettings}
           title="Appearance settings"
           aria-label="Appearance settings"
@@ -122,7 +122,7 @@ export function ConsoleControls({
           type="button"
           variant="outline"
           size="compact"
-          className="w-[30px] px-0"
+          className="w-8 px-0"
           onClick={onOpenAiSettings}
           title="AI connection settings"
           aria-label="AI connection settings"

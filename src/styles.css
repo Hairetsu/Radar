@@ -1,4 +1,17 @@
-@import url("https://fonts.googleapis.com/css2?family=Antonio:wght@100..700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Hanken+Grotesk:ital,wght@0,300..900;1,300..900&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Saira:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Unbounded:wght@300;400;500;600;700;800&display=swap");
+@import "@fontsource/antonio/latin.css";
+@import "@fontsource/saira/latin.css";
+@import "@fontsource/jetbrains-mono/latin.css";
+@import "@fontsource/jetbrains-mono/latin-italic.css";
+@import "@fontsource/instrument-serif/latin.css";
+@import "@fontsource/instrument-serif/latin-italic.css";
+@import "@fontsource/hanken-grotesk/latin.css";
+@import "@fontsource/hanken-grotesk/latin-italic.css";
+@import "@fontsource/dm-mono/latin.css";
+@import "@fontsource/dm-mono/latin-italic.css";
+@import "@fontsource/unbounded/latin.css";
+@import "@fontsource/sora/latin.css";
+@import "@fontsource/space-mono/latin.css";
+@import "@fontsource/space-mono/latin-italic.css";
 @import "tailwindcss";
 
 @theme {
@@ -8,12 +21,12 @@
 
   /* Type scale — dense at the operator end, widening for headings.
      Steps are deliberately few so views stop hand-picking pixel sizes. */
-  --text-nano: 8px;
-  --text-micro: 9px;
-  --text-label: 10px;
-  --text-meta: 11px;
-  --text-body: 12px;
-  --text-lead: 14px;
+  --text-nano: 9px;
+  --text-micro: 10px;
+  --text-label: 11px;
+  --text-meta: 12px;
+  --text-body: 13px;
+  --text-lead: 15px;
   --text-title: 18px;
   --text-head: 22px;
   --text-hero: 28px;
@@ -128,8 +141,8 @@
     linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.08), transparent 42%),
     rgba(255, 255, 255, 0.02);
   --theme-note-border: rgba(var(--theme-accent-rgb), 0.25);
-  --theme-focus: rgba(var(--theme-accent-rgb), 0.85);
-  --theme-focus-glow: rgba(var(--theme-accent-rgb), 0.2);
+  --theme-focus: rgb(var(--theme-accent-rgb) / 0.85);
+  --theme-focus-glow: rgb(var(--theme-accent-rgb) / 0.2);
   --theme-noise:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0 0.75 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -228,7 +241,7 @@
   --theme-note-border: rgba(var(--theme-accent-rgb), 0.3);
   /* Paper needs an opaque ring; a translucent one washes out against cream. */
   --theme-focus: rgb(var(--theme-accent-rgb));
-  --theme-focus-glow: rgba(var(--theme-accent-rgb), 0.16);
+  --theme-focus-glow: rgb(var(--theme-accent-rgb) / 0.16);
   --theme-noise:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.32 0 0 0 0 0.24 0 0 0 0 0.18 0 0 0 0.4 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -328,7 +341,7 @@
     rgba(17, 10, 31, 0.55);
   --theme-note-border: rgba(var(--theme-secondary-rgb), 0.4);
   --theme-focus: rgb(var(--theme-accent-rgb));
-  --theme-focus-glow: rgba(var(--theme-accent-rgb), 0.26);
+  --theme-focus-glow: rgb(var(--theme-accent-rgb) / 0.26);
   --theme-noise:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.83 0 0 0 0 1 0 0 0 0 0.16 0 0 0 0.4 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -389,9 +402,16 @@
      theme, surface, and nested-scroll container. The 1px offset is deliberate:
      full-bleed rows sit inside overflow-hidden panes and a larger offset would
      be clipped away. */
-  :focus-visible {
-    outline: 2px solid var(--theme-focus);
+  :focus {
+    outline: 2px solid var(--theme-focus) !important;
     outline-offset: 1px;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--theme-focus);
+    box-shadow: 0 0 0 3px var(--theme-focus-glow);
   }
 
   /* Scroll regions and evidence panes are focusable for keyboard scrolling, so
@@ -411,7 +431,7 @@
 
   pre {
     @apply m-0 overflow-auto whitespace-pre-wrap font-mono;
-    font-size: 11px;
+    font-size: var(--text-body);
     line-height: 1.65;
     overflow-wrap: anywhere;
     font-feature-settings: "calt" 0;

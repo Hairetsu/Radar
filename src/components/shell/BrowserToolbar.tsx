@@ -25,7 +25,7 @@ export function BrowserToolbar({
 }: BrowserToolbarProps) {
   return (
     <form
-      className="grid w-[min(720px,55vw)] grid-cols-[auto_auto_auto_minmax(180px,1fr)_auto] justify-self-end max-[1180px]:w-full max-[1180px]:justify-self-start max-[640px]:grid-cols-[auto_auto_auto_minmax(100px,1fr)]"
+      className="grid w-[min(680px,52vw)] grid-cols-[auto_auto_auto_minmax(180px,1fr)_auto] justify-self-end max-[1180px]:w-full max-[1180px]:justify-self-start max-[640px]:grid-cols-[auto_auto_auto_minmax(100px,1fr)]"
       onSubmit={onNavigate}
       data-testid="browserLauncher"
       data-component="browserLauncher"
@@ -65,7 +65,7 @@ export function BrowserToolbar({
       </Button>
       <Input
         variant="compact"
-        className="h-[38px] min-w-0 rounded-none border-r-0 font-mono text-label max-[640px]:border-r"
+        className="h-[38px] min-w-0 rounded-none border-r-0 font-mono text-body max-[640px]:border-r"
         value={address}
         onChange={(event) => setAddress(event.target.value)}
         aria-label="Browser address"

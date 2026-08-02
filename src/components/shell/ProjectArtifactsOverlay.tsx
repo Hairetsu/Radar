@@ -21,6 +21,7 @@ import type {
   ProjectNote,
   SavedView
 } from "../../types";
+import { useRestoreFocus } from "../../hooks/useRestoreFocus";
 
 type ArtifactWriteResult<TPreview> = {
   ok: boolean;
@@ -88,6 +89,8 @@ export function ProjectArtifactsOverlay({
   submitProjectNote,
   submitSavedView
 }: ProjectArtifactsOverlayProps) {
+  useRestoreFocus(true);
+
   return (
     <div
       className="fixed inset-0 z-30 grid place-items-start bg-ink/76 px-4 py-[8vh] backdrop-blur-sm"
