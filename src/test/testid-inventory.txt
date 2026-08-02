@@ -156,6 +156,7 @@ dockStopAgentRun
 downloadFindingReport
 draftAdvancedImportWorkflow
 dropIntercept
+evidencePane
 findingAssets
 findingAssignee
 findingComponent
@@ -322,6 +323,7 @@ seedDemoProject
 sendWebSocketReplay
 sessionNameInput
 sessionSelector
+sidebar
 snapshotIsolationWarning
 startAgentRun
 startAutomateSession
@@ -330,6 +332,8 @@ startProxy
 stopAgentRun
 stopAutomateSession
 stopProxy
+telemetryTicker
+telemetryUtcClock
 themeOptions
 toggleAiDrawer
 toggleIdentityLab
@@ -353,6 +357,7 @@ webSocketDirectionFilter
 webSocketReplayPayload
 webSocketSearch
 webSocketTags
+workbenchActionBar
 workflowCatalog
 workflowDefinition
 workflowDryRun
@@ -362,5 +367,8 @@ workflowRevisions
 workflowRunHistory
 workflowStepTemplates
 workflowUseSelectedCapture
+workspaceHeader
+workspacePanel
+workspaceUtcClock
 writeHandoffPackage
 writeProjectBundle

@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - develop
+  schedule:
+    - cron: "17 6 * * *"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -50,9 +52,106 @@ jobs:
       - name: Build
         run: pnpm build
 
+  ui-regression:
+    # Pixel baselines are rendered and approved on this exact OS/architecture.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Linux runtime libraries
+        run: pnpm exec playwright install-deps
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pull-request UI, font, zoom, and visual anchors
+        if: github.event_name != 'schedule'
+        run: xvfb-run -a pnpm test:regression:ui
+
+      - name: Nightly full UI matrix
+        if: github.event_name == 'schedule'
+        env:
+          RADAR_REGRESSION_PLATFORM: "1"
+          RADAR_REGRESSION_UI_FULL: "1"
+        run: xvfb-run -a pnpm test:regression:ui:full
+
+      - name: Upload UI regression evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ui-regression-linux-${{ github.run_id }}
+          path: artifacts/regression
+          if-no-files-found: warn
+          retention-days: 14
+
+  ui-platform-smoke:
+    if: github.event_name == 'schedule'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run native-scale UI platform smoke
+        env:
+          RADAR_REGRESSION_PLATFORM: "1"
+        run: pnpm exec playwright test tests/regression/ui-fonts.spec.ts tests/regression/ui-keyboard.spec.ts tests/regression/ui-layout.spec.ts --grep "REG-UI-(001|002|003|005|015|022|025)" --workers=1
+
+      - name: Upload UI platform evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ui-regression-${{ matrix.os }}-${{ github.run_id }}
+          path: artifacts/regression
+          if-no-files-found: warn
+          retention-days: 14
+
   promote:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs: test
+    needs:
+      - test
+      - ui-regression
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

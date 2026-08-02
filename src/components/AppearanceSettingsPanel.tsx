@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { THEME_OPTIONS, themeOption, type ThemeId } from "../lib/theme";
 import { cn } from "../lib/utils";
 import { revealClass } from "./shell/layoutClasses";
+import { useRestoreFocus } from "../hooks/useRestoreFocus";
 
 type AppearanceSettingsPanelProps = {
   open: boolean;
@@ -13,6 +14,8 @@ type AppearanceSettingsPanelProps = {
 };
 
 export function AppearanceSettingsPanel({ open, onClose, themeId, onThemeChange }: AppearanceSettingsPanelProps) {
+  useRestoreFocus(open);
+
   useEffect(() => {
     if (!open) {
       return;

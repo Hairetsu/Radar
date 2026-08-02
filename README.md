@@ -28,7 +28,7 @@ Radar is a local-first defensive web security workbench. It launches a dedicated
 - AI-First Tutorial Mode: turn a scoped assessment into a paced field lesson with evidence-led clue cards, stronger-evidence and falsifier prompts, safe next steps, and an operator checkpoint after every meaningful inspection.
 - Command-palette AI with per-view skills, provider adapters, context preview, selectable HTTP/S and WebSocket packets, prepare-only outputs, and session audit trail.
 - AI-First autonomous runs with a Browser Assessment profile, Playwright accessibility/element inspection and actionability-aware click/fill/form tools, scoped request routing during browser actions, a full observation console, revision-checked Mission Graph patches, risk-tiered capability leases with durable action receipts, cumulative checkpointed budgets, durable pause/resume, operator steering and failure recovery, resolved-evidence graph/finding gates, review-first Repeater/Workflow drafts, and project-scoped run memory for tested hypotheses, dismissed leads, and retest notes.
-- Switchable Bureau, Vellum, and Specter themes with high-contrast text selection for request/response inspection.
+- Switchable Bureau, Vellum, and Specter themes with locally bundled fonts, high-contrast text selection, and automated desktop zoom/readability contracts for request/response inspection.
 - Seeded **Radar Demo Project** for screenshots, manual QA, onboarding, and walkthroughs, with synthetic captures, WebSocket frames, findings, workflows, plugins, Advanced signals, and AI run history.
 
 ## Stack
@@ -48,7 +48,7 @@ pnpm install
 pnpm dev
 ```
 
-This starts Vite on `127.0.0.1:5173`, then launches Electron pointing at it. `pnpm build` runs `tsc` and a production Vite build into `dist/`. `pnpm lint` runs ESLint. `pnpm screenshots` rebuilds and refreshes README screenshots into `docs/screens/`. `pnpm plugin:validate -- <plugin-path>` validates a local plugin manifest and referenced entry/panel files without installing it.
+This starts Vite on `127.0.0.1:5173`, then launches Electron pointing at it. `pnpm build` runs `tsc` and a production Vite build into `dist/`. `pnpm lint` runs ESLint. `pnpm test:regression:ui:build` builds and runs the blocking UI/font/zoom/usability suite; `pnpm test:regression:ui:full` builds and selects the 183-image scheduled view/theme/window matrix. Linux CI owns pixel baselines, while scheduled macOS and Windows jobs exercise native font and structure smoke. `pnpm screenshots` rebuilds and refreshes README screenshots into `docs/screens/`. `pnpm plugin:validate -- <plugin-path>` validates a local plugin manifest and referenced entry/panel files without installing it.
 
 ## Install (Releases)
 
@@ -243,7 +243,7 @@ The interface is a themed "operator console" aesthetic:
 - **Vellum**: Instrument Serif / Hanken Grotesk / DM Mono with vermillion ink on sunlit paper.
 - **Specter**: Unbounded / Sora / Space Mono with chartreuse acid over midnight plum.
 - Theme tokens live in `src/styles.css` as CSS variables that feed Tailwind's `@theme`; layout and surfaces are Tailwind utilities in components.
-- A shared type and tracking scale (`text-nano` through `text-mark`, `tracking-data` through `tracking-banner`) and the `rd-eyebrow` / `rd-label` / `rd-banner` label roles keep chrome consistent across the three mono faces.
+- A shared type and tracking scale (`text-nano` through `text-mark`, `tracking-data` through `tracking-banner`) and the `rd-eyebrow` / `rd-label` / `rd-banner` label roles keep chrome consistent across the three mono faces. Editable and evidence text starts at 13px, while dense supporting roles remain at least 9px before zoom.
 - Asymmetric layout: compact grouped navigation, a sidebar Console block for app-global controls, a classification banner up top, restrained display numerals anchoring each panel, dense evidence grids, an AI mission dock with a right-side operations drawer that docks beside the evidence, and a bottom telemetry ticker.
 - Motion via Tailwind utilities and keyframes in `src/styles.css`: staggered page-load reveal with blur-in, dual-ring radar pulse on the brand mark, pulsing live dots, and a bottom-up signal fill on the burst button. `prefers-reduced-motion` drops the travel and ambient loops while keeping every state change legible.
 - One focus idiom throughout: a theme-aware `:focus-visible` outline for controls and rows, and a border shift plus glow for text fields, so keyboard operation stays visible on paper and midnight themes alike.
@@ -254,7 +254,7 @@ The interface is a themed "operator console" aesthetic:
 See [docs/CODE_CONVENTIONS.md](docs/CODE_CONVENTIONS.md) for the repo-specific code style guide used for future development.
 See [docs/BRANCHING.md](docs/BRANCHING.md) for the protected branch and promotion workflow.
 See [docs/MANUAL_QA_CHECKLIST.md](docs/MANUAL_QA_CHECKLIST.md) for the twelve-view release and demo QA checklist.
-See [docs/REGRESSION_TESTING.md](docs/REGRESSION_TESTING.md) for the 164-case multi-instance Playwright Electron regression suite, loopback fixture labs, platform/soak gates, and release report artifacts.
+See [docs/REGRESSION_TESTING.md](docs/REGRESSION_TESTING.md) for the 189-case multi-instance Playwright Electron regression suite, UI/font/zoom matrices, loopback fixture labs, platform/soak gates, and release report artifacts.
 See [docs/REGRESSION_SUITE_SPEC.md](docs/REGRESSION_SUITE_SPEC.md) for the full real-use workflow catalog and execution roadmap.
 
 ## Project Layout

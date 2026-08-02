@@ -8,6 +8,9 @@ Use this page as the index for Radar's operator, engineering, roadmap, and histo
 - [Manual QA Checklist](MANUAL_QA_CHECKLIST.md) — release-oriented manual verification.
 - [Regression Testing](REGRESSION_TESTING.md) — how to run and interpret the regression suite.
 - [Regression Suite Specification](REGRESSION_SUITE_SPEC.md) — expected end-to-end coverage.
+- [UI, Typography, and Human-Usability Regression Specification](UI_VISUAL_REGRESSION_SPEC.md) — implemented viewport, font, visual-diff, reachability, focus, and human-review coverage.
+- [Font Assets](FONT_ASSETS.md) — pinned local font packages, licenses, roles, and regression requirements.
+- [UI Usability Release Review](UI_USABILITY_REVIEW.md) — release-candidate human review record and executable gate input.
 
 ## Engineering Documentation
 

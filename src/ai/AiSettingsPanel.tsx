@@ -6,6 +6,7 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { aiProviderFromValue } from "../lib/aiProvider";
 import { cn } from "../lib/utils";
+import { useRestoreFocus } from "../hooks/useRestoreFocus";
 import type { AiConnectPresetId, AiSettings } from "./types";
 
 type AiSettingsPanelProps = {
@@ -50,6 +51,7 @@ export function AiSettingsPanel({
   cursorLoggingIn
 }: AiSettingsPanelProps) {
   const pending = saving || probing || connecting || cursorLoggingIn;
+  useRestoreFocus(open);
 
   useEffect(() => {
     if (!open) {

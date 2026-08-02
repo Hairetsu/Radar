@@ -4,9 +4,9 @@ import { cn } from "../../lib";
 
 export const buttonVariants = cva(
   [
-    "relative inline-flex items-center justify-center gap-2 border font-mono text-meta font-semibold uppercase tracking-label",
+    "relative inline-flex items-center justify-center gap-2 border font-mono text-body font-semibold uppercase tracking-label",
     "transition duration-200 ease-out",
-    "focus-visible:ring-[4px] focus-visible:ring-[var(--theme-focus-glow)]",
+    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-focus)] focus-visible:ring-[4px] focus-visible:ring-[var(--theme-focus-glow)]",
     "disabled:cursor-wait disabled:opacity-50 disabled:hover:translate-y-0",
     "[&_svg]:shrink-0"
   ],
@@ -24,7 +24,7 @@ export const buttonVariants = cva(
       },
       size: {
         default: "h-9 px-5",
-        compact: "h-[30px] px-3 text-label",
+        compact: "h-[30px] px-3 text-body",
         sm: "h-8 px-3.5",
         icon: "h-9 w-9 px-0"
       }

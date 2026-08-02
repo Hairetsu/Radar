@@ -45,7 +45,7 @@ export function SitemapView({
   setActiveView
 }: SitemapViewProps) {
   return (
-    <div className="grid min-h-0 [grid-template-columns:minmax(280px,0.55fr)_minmax(360px,1fr)] max-[1180px]:grid-cols-1">
+    <div className="grid min-h-0 [grid-template-columns:minmax(280px,0.55fr)_minmax(360px,1fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
       <div className="min-h-0 overflow-auto border-r border-rule max-[1180px]:border-r-0 max-[1180px]:border-b">
         {sitemap.roots.length === 0 && (
           <EmptyState>

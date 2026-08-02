@@ -6,6 +6,7 @@ import { EmptyState, StatusBadge } from "./radar/primitives";
 import { revealClass } from "./shell/layoutClasses";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { useRestoreFocus } from "../hooks/useRestoreFocus";
 
 type ProfileSessionPanelProps = {
   open: boolean;
@@ -57,6 +58,8 @@ export function ProfileSessionPanel({
   onLoadSession,
   onSeedDemoProject
 }: ProfileSessionPanelProps) {
+  useRestoreFocus(open);
+
   useEffect(() => {
     if (!open) {
       return;

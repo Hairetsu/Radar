@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { AppearanceSettingsPanel } from "./AppearanceSettingsPanel";
 
 describe("AppearanceSettingsPanel", () => {
@@ -24,5 +25,29 @@ describe("AppearanceSettingsPanel", () => {
     );
     await user.click(screen.getByTestId("themeOption-vellum"));
     expect(onThemeChange).toHaveBeenCalledWith("vellum");
+  });
+
+  it("restores focus to the control that opened it", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Open appearance</button>
+          <AppearanceSettingsPanel
+            open={open}
+            themeId="bureau"
+            onClose={() => setOpen(false)}
+            onThemeChange={vi.fn()}
+          />
+        </>
+      );
+    }
+
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Open appearance" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: "Close appearance settings" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });

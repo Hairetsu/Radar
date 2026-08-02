@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useEffect, useRef, type FormEvent } from "react";
 import { Search, X } from "lucide-react";
 import { globalSearchKindLabel } from "../../lib";
 import type { RadarWorkbench } from "../../hooks/useRadarWorkbench";
@@ -6,6 +6,7 @@ import type { GlobalSearchResult } from "../../types";
 import { EmptyState, StatusBadge } from "../radar/primitives";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { useRestoreFocus } from "../../hooks/useRestoreFocus";
 
 interface GlobalSearchOverlayProps {
   workbench: RadarWorkbench;
@@ -16,6 +17,13 @@ export function GlobalSearchOverlay({
   workbench,
   onOpenResult
 }: GlobalSearchOverlayProps) {
+  useRestoreFocus(true);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     void workbench.runGlobalSearch(workbench.globalSearchQuery);
@@ -39,6 +47,7 @@ export function GlobalSearchOverlay({
         >
           <Search className="shrink-0 text-signal" size={17} strokeWidth={1.8} />
           <Input
+            ref={inputRef}
             autoFocus
             value={workbench.globalSearchQuery}
             onChange={(event) => {

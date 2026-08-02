@@ -2,6 +2,7 @@ import { FormEvent, useEffect } from "react";
 import { FilePlus2, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { useRestoreFocus } from "../hooks/useRestoreFocus";
 
 type NewSessionDialogProps = {
   open: boolean;
@@ -12,6 +13,8 @@ type NewSessionDialogProps = {
 };
 
 export function NewSessionDialog({ open, name, onNameChange, onClose, onCreate }: NewSessionDialogProps) {
+  useRestoreFocus(open);
+
   useEffect(() => {
     if (!open) {
       return;
