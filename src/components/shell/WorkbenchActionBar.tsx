@@ -39,7 +39,11 @@ export function WorkbenchActionBar({
   onRunWorkflow
 }: WorkbenchActionBarProps) {
   return (
-    <div className="radar-ai-inset relative flex items-center justify-between gap-4 border-b border-rule radar-panel-gradient px-4 pb-3 pt-3 after:absolute after:bottom-[-1px] after:left-4 after:right-4 after:h-px after:bg-[linear-gradient(90deg,var(--color-signal),transparent_50%)] after:content-[''] max-[640px]:flex-col max-[640px]:items-start max-[640px]:px-4">
+    <div
+      className="radar-ai-inset relative flex items-center justify-between gap-4 border-b border-rule radar-panel-gradient px-4 pb-3 pt-3 after:absolute after:bottom-[-1px] after:left-4 after:right-4 after:h-px after:bg-[linear-gradient(90deg,var(--color-signal),transparent_50%)] after:content-[''] max-[640px]:flex-col max-[640px]:items-start max-[640px]:px-4"
+      data-testid="workbenchActionBar"
+      data-component="workbenchActionBar"
+    >
       <PanelHeader meta={workbench.meta} />
       <div className="flex flex-wrap items-center gap-2 pb-1">
         <Button

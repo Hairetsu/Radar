@@ -53,8 +53,8 @@ export function PluginsView({
   pluginAudit
 }: PluginsViewProps) {
   return (
-    <div className="grid min-h-0 [grid-template-columns:minmax(320px,0.48fr)_minmax(420px,1fr)] max-[1100px]:grid-cols-1">
-      <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1100px]:border-r-0 max-[1100px]:border-b">
+    <div className="grid min-h-0 [grid-template-columns:minmax(320px,0.48fr)_minmax(420px,1fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
+      <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
         <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(3,minmax(0,1fr))]">
           {[
             ["Installed", plugins.length],
@@ -190,7 +190,7 @@ export function PluginsView({
         </div>
       </div>
 
-      <div className="grid min-h-0 [grid-template-rows:minmax(0,0.95fr)_minmax(420px,0.7fr)]">
+      <div className="grid min-h-0 overflow-auto [grid-template-rows:minmax(120px,0.95fr)_minmax(420px,0.7fr)]">
         <div className="min-h-0 overflow-auto radar-traffic-list" data-testid="pluginRegistry">
           {plugins.length === 0 && <EmptyState>No local plugins installed</EmptyState>}
           {plugins.map((plugin) => (

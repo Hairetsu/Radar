@@ -1,6 +1,6 @@
 # Radar Full-Workflow Regression Suite Specification
 
-Status: implemented coverage contract (164/164 IDs registered)  
+Status: implemented coverage contract (189/189 IDs registered)
 Runner: Playwright Electron  
 Canonical product workflow: `docs/USER_GUIDE.md`  
 Canonical manual inventory: `docs/MANUAL_QA_CHECKLIST.md`
@@ -358,6 +358,36 @@ Generate fixtures in a per-test temporary directory:
 | `REG-RES-002` | `@core` | Rapidly switch views/sessions while polling data. | No stale selection crash, cross-session flash, or unhandled rejection. |
 | `REG-RES-003` | `@soak` | Repeat demo load, view navigation, filtering, and project switching 50 times. | Stable record counts and bounded Electron renderer/main memory growth. |
 | `REG-RES-004` | `@soak` `@network` | Capture/replay a bounded high-volume fixture set. | UI remains responsive, caps hold, persistence completes, and report flags performance regressions. |
+
+### S. UI, typography, and human usability
+
+| ID | Tags | Operator use case and actions | Required proof |
+| --- | --- | --- | --- |
+| `REG-UI-001` | `@ui` `@ui-critical` | Resize the real Electron window to the supported minimum. | Persistent shell remains visible with no global horizontal overflow. |
+| `REG-UI-002` | `@ui` `@font` `@security` | Load every production theme without network access. | Pinned local faces load and no external font/resource request or silent fallback occurs. |
+| `REG-UI-003` | `@ui` `@font` | Switch through Bureau, Vellum, and Specter. | Display, sans, and mono samples resolve to each theme's intended families. |
+| `REG-UI-004` | `@ui` `@usability` | Inspect editable, evidence, supporting, and control type roles. | Computed sizes and multiline line heights remain above the role contract. |
+| `REG-UI-005` | `@ui` `@usability` | Traverse all twelve views, Identity Lab, and AI-First at minimum size. | Required controls are visible or scroll-reachable and focusable where interactive. |
+| `REG-UI-006` | `@ui` | Traverse every view at laptop and default profiles. | Each view avoids global overflow and preserves its primary surface. |
+| `REG-UI-007` | `@ui` | Inspect dense evidence at wide and large profiles. | Panels gain useful space without producing unbounded reading widths. |
+| `REG-UI-008` | `@ui` `@usability` | Traverse Traffic, Repeater, Findings, and Workflows at 125% and 150%. | Critical controls remain visible or scroll-reachable without document overflow. |
+| `REG-UI-009` | `@ui` `@usability` | Measure persistent and evidence actions at minimum size. | Visible critical controls have accessible names and usable target dimensions. |
+| `REG-UI-010` | `@ui` `@usability` | Inspect every view action bar at minimum size. | Unrelated toolbar and primary-action rectangles do not overlap. |
+| `REG-UI-011` | `@ui` `@usability` | Scroll Findings, Workflows, Plugins, and Automate to their final regions. | Dense panels expose their last controls/results through internal scrolling. |
+| `REG-UI-012` | `@ui` `@usability` | Inspect primary headings/actions at minimum size. | Clipped text is absent or exposes its full accessible/title value. |
+| `REG-UI-013` | `@ui` `@usability` | Open search, artifacts, appearance, AI settings, and project/session overlays. | Each fits the viewport and exposes an internal scroll path when needed. |
+| `REG-UI-014` | `@ui` `@ai` | Open, resize, scroll, and close the AI operations drawer. | Drawer bounds hold while the active evidence pane remains visible. |
+| `REG-UI-015` | `@ui` `@usability` | Keyboard-tab through the minimum-window shell. | Focus remains visible, onscreen, and on rendered controls. |
+| `REG-UI-016` | `@ui` `@usability` | Open and close search/settings with keyboard and close controls. | Focus returns to the exact opener after dismissal. |
+| `REG-UI-017` | `@ui` `@usability` | Resolve theme text, state, focus, and selection tokens. | Required contrast ratios pass for all themes. |
+| `REG-UI-018` | `@ui` `@usability` | Inspect long request/response evidence at 150% zoom. | Evidence stays selectable, copyable, legible, and internally scrollable. |
+| `REG-UI-019` | `@ui` | Run the shell with reduced motion. | Nonessential animation stops without hiding status or controls. |
+| `REG-UI-020` | `@ui` `@visual` `@ui-critical` | Capture the pull-request anchor set on Linux. | Approved platform-qualified expected/actual pixel comparisons pass. |
+| `REG-UI-021` | `@ui` `@visual` `@ui-full` | Run the scheduled view/theme/window matrix. | All required actual images are retained and Linux baselines compare. |
+| `REG-UI-022` | `@ui` `@platform` `@font` | Run native-scale font smoke on a supported OS. | Every theme loads pinned faces and the production shell renders. |
+| `REG-UI-023` | `@ui` `@usability` | Enter long URLs, titles, definitions, policy messages, Unicode, and emoji. | Copy wraps/truncates safely without hiding critical actions or widening the document. |
+| `REG-UI-024` | `@ui` `@usability` | Validate the release-candidate human review record. | Required environment, workflow, legibility, hierarchy, and decision fields are completed. |
+| `REG-UI-025` | `@ui` `@visual` `@usability` `@ui-critical` | Traverse every view at 90% and critical workflows at 80%. | Effective evidence size, hierarchy, alignment, control distinction, and overflow contracts pass. |
 
 ## Completed Implementation Waves
 

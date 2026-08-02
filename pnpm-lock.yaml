@@ -5,6 +5,33 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
+  "@fontsource/antonio":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/dm-mono":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/hanken-grotesk":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/instrument-serif":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/jetbrains-mono":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/saira":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/sora":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/space-mono":
+    specifier: 5.3.0
+    version: 5.3.0
+  "@fontsource/unbounded":
+    specifier: 5.3.0
+    version: 5.3.0
   class-variance-authority:
     specifier: ^0.7.1
     version: 0.7.1
@@ -1100,6 +1127,42 @@ packages:
       "@noble/hashes":
         optional: true
     dev: true
+
+  /@fontsource/antonio@5.3.0:
+    resolution: {integrity: sha512-LB0XN3BDXKLWsHaR9qouHKGs6PT7NhVmIOPv+a3Kv8UpZSZs67lLH7vX99pOXE0v0rh9bToJQWqvO6X0fiVKxA==}
+    dev: false
+
+  /@fontsource/dm-mono@5.3.0:
+    resolution: {integrity: sha512-OINjI8C1S/wpchhQxl7njZdMn4+hnDCpQ4YtvvOpKNARo+0J8O1x1IcrChxNjHOhfVv1by8C/FQoy3hXK+C1Ug==}
+    dev: false
+
+  /@fontsource/hanken-grotesk@5.3.0:
+    resolution: {integrity: sha512-eiqAvcMT88tCMCBzn6qKgMHGLJKq3NEXO3+0y9JXqzyty2U6KZnaGtbfiQgzRAXfwFp559hJQ0zBgJ6d89AuTA==}
+    dev: false
+
+  /@fontsource/instrument-serif@5.3.0:
+    resolution: {integrity: sha512-mDiaIg0u67sYV59fie92Wz4sM8UiVlbL7fLxnFPCKkX15DMASEnQTREbaP5S5/3DCcsoAOcQ0sV9E4AeY4QqYQ==}
+    dev: false
+
+  /@fontsource/jetbrains-mono@5.3.0:
+    resolution: {integrity: sha512-fqDfB5I9f1p1TV486aUgB9t8zP84P0O1FtQR5Ol9vjwPy+S+EIGlVYm1cvj2W5shcZMTg2nZFdVMoH5wFu8a1A==}
+    dev: false
+
+  /@fontsource/saira@5.3.0:
+    resolution: {integrity: sha512-Sbc9SUZsXjULjzjDbBYicL+gQSdLlqwEiyHi6Gs5R9PSsdUWTmTa77jH1a8MalWWHafoq6SK/G3ovyIbGEN5Ww==}
+    dev: false
+
+  /@fontsource/sora@5.3.0:
+    resolution: {integrity: sha512-SqW3OpKxxfKvxDLPlbdrWf2KooPfbd+W3jaYn483o+Y/JrmU87vjFPNptDqwP428c3vY+gnranLhjcbRaXB0Jw==}
+    dev: false
+
+  /@fontsource/space-mono@5.3.0:
+    resolution: {integrity: sha512-FrpBMOVWn3PRdRHlrZWC55X3kZG/2BTH7SM5ZyS/bky3iKya2BturI5lk+t0RoDQL2JyHzURsVq/EisCsxpI5A==}
+    dev: false
+
+  /@fontsource/unbounded@5.3.0:
+    resolution: {integrity: sha512-pPD6hsTnjoQRr6pCsqMHbHBfauB4LZygCNQEUJHu+CO2wzDFHqELEFSG7sTwo5Z5Gr4q3OK0fIILOXBJDv6lcw==}
+    dev: false
 
   /@graphql-tools/merge@9.1.9(graphql@16.14.0):
     resolution:

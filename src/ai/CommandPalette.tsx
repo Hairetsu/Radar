@@ -8,6 +8,7 @@ import {
   useCommandPaletteController,
   type CommandPaletteControllerInput
 } from "./useCommandPaletteController";
+import { useRestoreFocus } from "../hooks/useRestoreFocus";
 
 export function CommandPalette({
   open,
@@ -31,6 +32,8 @@ export function CommandPalette({
   onPrepareNavigate,
   onNotice
 }: CommandPaletteControllerInput) {
+  useRestoreFocus(open);
+
   const controller = useCommandPaletteController({
     open,
     view,

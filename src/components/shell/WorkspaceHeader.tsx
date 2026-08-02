@@ -57,7 +57,7 @@ export function WorkspaceHeader({
             : `Dossier No. R-${clock.getUTCFullYear()}-0481`}
         </span>
         <span className="mx-4 h-px flex-1 radar-dash-rule max-[640px]:hidden" />
-        <span>{utc}</span>
+        <span data-testid="workspaceUtcClock">{utc}</span>
       </div>
 
       <header
@@ -65,10 +65,12 @@ export function WorkspaceHeader({
           revealClass,
           "relative grid items-center gap-3 pb-2 pt-2.5 [animation-delay:140ms] [grid-template-columns:minmax(0,1fr)_auto] max-[1180px]:grid-cols-1"
         )}
+        data-testid="workspaceHeader"
+        data-component="workspaceHeader"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="min-w-0">
-            <h2 className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-head font-semibold uppercase leading-none tracking-[0] text-bone [font-stretch:75%]">
+          <div className="min-w-0 flex-1">
+            <h2 className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-display text-title font-semibold uppercase leading-none tracking-[0] text-bone [font-stretch:75%] min-[1600px]:text-head">
               {profileName || "Field"}
             </h2>
             <span className="mt-0.5 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rd-eyebrow text-muted">

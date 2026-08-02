@@ -57,8 +57,8 @@ export function InterceptView({
   dropIntercept
 }: InterceptViewProps) {
   return (
-    <div className="grid min-h-0 [grid-template-columns:minmax(0,0.95fr)_minmax(420px,1.05fr)] max-[1180px]:grid-cols-1">
-      <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_minmax(340px,0.9fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
+    <div className="grid min-h-0 [grid-template-columns:minmax(0,0.95fr)_minmax(420px,1.05fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
+      <div className="grid min-h-0 overflow-auto border-r border-rule [grid-template-rows:auto_minmax(132px,1fr)_minmax(340px,0.9fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
         <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(4,minmax(0,1fr))]">
           {[
             ["Mode", interceptState.config.requestEnabled ? "request" : "standby"],
@@ -202,6 +202,7 @@ export function InterceptView({
                 value={interceptResponseStatus}
                 disabled={!selectedInterceptItem}
                 onChange={(event) => setInterceptResponseStatus(Number(event.target.value))}
+                aria-label="Intercept response status"
                 data-testid="interceptStatus"
                 data-component="interceptStatus"
               />
@@ -210,6 +211,7 @@ export function InterceptView({
                 disabled={!selectedInterceptItem}
                 onChange={(event) => setInterceptResponseStatusText(event.target.value)}
                 spellCheck={false}
+                aria-label="Intercept response status text"
                 data-testid="interceptStatusText"
                 data-component="interceptStatusText"
               />
@@ -223,6 +225,7 @@ export function InterceptView({
                 onChange={(event) =>
                   setInterceptDraft({ ...interceptDraft, method: event.target.value })
                 }
+                aria-label="Intercept request method"
                 data-testid="interceptMethod"
                 data-component="interceptMethod"
               >
@@ -237,6 +240,7 @@ export function InterceptView({
                   setInterceptDraft({ ...interceptDraft, url: event.target.value })
                 }
                 spellCheck={false}
+                aria-label="Intercept request URL"
                 data-testid="interceptUrl"
                 data-component="interceptUrl"
               />

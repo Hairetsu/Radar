@@ -3,7 +3,7 @@ import type { SslProxyDomain } from "../../hooks/workbench/useSslProxyDomain";
 import type { TrafficDomain } from "../../hooks/workbench/useTrafficDomain";
 import { tlsLine } from "../../lib";
 import type { BrowserState } from "../../types";
-import { EmptyState, StatusBadge, ToneText } from "../radar/primitives";
+import { EmptyState, FieldLabel, StatusBadge, ToneText } from "../radar/primitives";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 
@@ -151,10 +151,11 @@ export function SslView({
             ))}
           </div>
           <div className="grid min-h-0 gap-2 px-4 pb-3">
-            <span className="font-mono text-label leading-relaxed tracking-data text-muted">
+            <FieldLabel htmlFor="proxyProfileNotes" className="px-0 pt-0 font-normal normal-case tracking-data">
               {selectedProxyProfile?.hint || "Select a client profile to keep setup notes."}
-            </span>
+            </FieldLabel>
             <Textarea
+              id="proxyProfileNotes"
               variant="code"
               className="min-h-0"
               value={proxyProfileNotes}

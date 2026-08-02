@@ -22,6 +22,8 @@ export function TelemetryTicker({ utc, meta, captureCount, sslEventCount, proxyR
         "relative z-[3] flex items-center justify-between border-t border-rule px-4 rd-banner text-muted backdrop-blur-[10px] [animation-delay:380ms] radar-chrome",
         "[grid-column:1/3] [grid-row:2/3] max-[1180px]:[grid-column:1/2] max-[1180px]:[grid-row:3/4]"
       )}
+      data-testid="telemetryTicker"
+      data-component="telemetryTicker"
     >
       <div className="flex items-center gap-4 max-[640px]:gap-3">
         <span className="flex items-center gap-2 text-signal">
@@ -29,7 +31,7 @@ export function TelemetryTicker({ utc, meta, captureCount, sslEventCount, proxyR
           Radar Online
         </span>
         <span className="flex items-center gap-2">
-          UTC <em className="not-italic font-semibold text-bone">{utc}</em>
+          UTC <em className="not-italic font-semibold text-bone" data-testid="telemetryUtcClock">{utc}</em>
         </span>
         <span className="flex items-center gap-2 max-[640px]:hidden">
           Sector <em className="not-italic font-semibold text-bone">03</em>

@@ -111,7 +111,7 @@ export function App() {
         }}
       />
 
-      <section className="relative z-[2] flex min-h-0 min-w-0 flex-col overflow-hidden px-3.5 py-3 [grid-column:2/3] [grid-row:1/2] max-[1180px]:overflow-visible max-[1180px]:[grid-column:1/2] max-[1180px]:[grid-row:2/3] max-[640px]:px-3">
+      <section className="relative z-[2] flex min-h-0 min-w-0 flex-col overflow-hidden px-3.5 py-3 [grid-column:2/3] [grid-row:1/2] max-[1180px]:[grid-column:1/2] max-[1180px]:[grid-row:2/3] max-[640px]:px-3">
         <WorkspaceHeader
           localContext={workbench.localContext}
           clock={workbench.clock}
@@ -129,11 +129,13 @@ export function App() {
         <section
           className={cn(
             revealClass,
-            "relative mt-3 grid min-h-0 min-w-0 flex-1 overflow-hidden border border-rule/80 shadow-[0_24px_70px_-52px_rgba(0,0,0,0.9)] [animation-delay:220ms] [grid-template-rows:auto_minmax(0,1fr)] max-[1180px]:min-h-[620px] max-[1180px]:overflow-visible",
+            "relative mt-3 grid min-h-0 min-w-0 flex-1 overflow-hidden border border-rule/80 shadow-[0_24px_70px_-52px_rgba(0,0,0,0.9)] [animation-delay:220ms] [grid-template-rows:auto_minmax(0,1fr)]",
             workbench.appMode === "ai-first" && "[grid-template-rows:auto_auto_minmax(0,1fr)]",
             "radar-workspace max-[900px]:animate-none max-[900px]:opacity-100"
           )}
           style={{ "--ai-drawer-inset": `${aiDrawerInset}px` } as CSSProperties}
+          data-testid="workspacePanel"
+          data-component="workspacePanel"
         >
           <WorkbenchActionBar
             workbench={workbench}
@@ -189,7 +191,11 @@ export function App() {
             drawer={aiDrawer}
           />
 
-          <div className="radar-ai-inset relative grid min-h-0 overflow-hidden [grid-template-rows:minmax(0,1fr)]">
+          <div
+            className="radar-ai-inset relative grid min-h-0 overflow-hidden [grid-template-rows:minmax(0,1fr)] max-[1180px]:overflow-auto"
+            data-testid="evidencePane"
+            data-component="evidencePane"
+          >
             <WorkbenchViewRouter
               workbench={workbench}
               findingTemplateId={findingTemplateId}

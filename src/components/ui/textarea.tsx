@@ -26,8 +26,15 @@ export const textareaVariants = cva(
 export interface TextareaProps extends React.ComponentPropsWithoutRef<"textarea">, VariantProps<typeof textareaVariants> {}
 
 export const Textarea = React.forwardRef<React.ElementRef<"textarea">, TextareaProps>(
-  ({ className, variant, ...props }, ref) => (
-    <textarea ref={ref} className={cn(textareaVariants({ variant }), className)} {...props} />
+  ({ className, variant, id, placeholder, "aria-label": ariaLabel, ...props }, ref) => (
+    <textarea
+      ref={ref}
+      className={cn(textareaVariants({ variant }), className)}
+      id={id}
+      placeholder={placeholder}
+      aria-label={ariaLabel || (!id && typeof placeholder === "string" ? placeholder : undefined)}
+      {...props}
+    />
   )
 );
 Textarea.displayName = "Textarea";

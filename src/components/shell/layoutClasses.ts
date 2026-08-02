@@ -1,7 +1,7 @@
 import { cn } from "../../lib";
 
 export const shellClass =
-  "radar-shell relative grid h-full min-h-full cursor-default overflow-hidden [grid-template-columns:224px_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_28px] max-[1180px]:h-auto max-[1180px]:overflow-visible max-[1180px]:[grid-template-columns:1fr] max-[1180px]:[grid-template-rows:auto_auto_28px]";
+  "radar-shell relative grid h-full min-h-full cursor-default overflow-hidden [grid-template-columns:224px_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_28px] max-[1180px]:min-h-0 max-[1180px]:[grid-template-columns:1fr] max-[1180px]:[grid-template-rows:auto_minmax(0,1fr)_28px]";
 
 /**
  * Page-load reveal. The `radar-reveal` hook exists so reduced-motion can drop

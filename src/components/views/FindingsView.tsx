@@ -145,8 +145,8 @@ export function FindingsView({
   });
 
   return (
-    <div className="grid min-h-0 [grid-template-columns:minmax(300px,0.42fr)_minmax(460px,1fr)] max-[1180px]:grid-cols-1">
-      <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_auto_minmax(0,1fr)_auto] max-[1180px]:border-r-0 max-[1180px]:border-b">
+    <div className="grid min-h-0 [grid-template-columns:minmax(300px,0.42fr)_minmax(460px,1fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
+      <div className="grid min-h-0 overflow-auto border-r border-rule [grid-template-rows:auto_auto_minmax(120px,1fr)_auto] max-[1180px]:border-r-0 max-[1180px]:border-b">
         <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(4,minmax(0,1fr))]">
           {[
             ["Total", findings.length],
@@ -436,7 +436,7 @@ export function FindingsView({
                 </div>
               </div>
 
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div>
                   <FieldLabel htmlFor="findingAssets">Affected Assets</FieldLabel>
                   <Textarea
