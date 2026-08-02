@@ -168,7 +168,7 @@ export function RepeaterView({
         </div>
       </div>
 
-      <div className="grid min-h-0 [grid-template-columns:minmax(0,1.05fr)_minmax(360px,0.95fr)] max-[1180px]:grid-cols-1">
+      <div className="grid min-h-0 [grid-template-columns:minmax(0,1.05fr)_minmax(360px,0.95fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
         <div className="min-h-0 overflow-auto border-r border-rule max-[1180px]:border-r-0 max-[1180px]:border-b">
           <FieldLabel htmlFor="repeaterUrl">Request line</FieldLabel>
           <div className="grid items-center gap-2 px-5 pb-2 [grid-template-columns:110px_minmax(0,1fr)]">

@@ -122,7 +122,7 @@ export function AutomateView({
   promoteAutomateResultToFinding
 }: AutomateViewProps) {
   return (
-    <div className="grid min-h-0 [grid-template-columns:minmax(320px,0.58fr)_minmax(360px,1fr)] max-[1180px]:grid-cols-1">
+    <div className="grid min-h-0 [grid-template-columns:minmax(320px,0.58fr)_minmax(360px,1fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
       <div className="min-h-0 overflow-auto border-r border-rule max-[1180px]:border-r-0 max-[1180px]:border-b">
         <div className="grid gap-4 border-b border-rule radar-form-gradient px-5 py-5">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">

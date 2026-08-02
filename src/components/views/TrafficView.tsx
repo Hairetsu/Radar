@@ -156,7 +156,7 @@ export function TrafficView({
   }, [selectedCaptureId, getEvidenceAnnotation]);
 
   return (
-    <div className="grid min-h-0 [grid-template-columns:minmax(0,1.15fr)_minmax(340px,0.85fr)] max-[1180px]:grid-cols-1">
+    <div className="grid min-h-0 [grid-template-columns:minmax(0,1.15fr)_minmax(340px,0.85fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
       <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_minmax(180px,0.42fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
         <div className="radar-traffic-filter grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-2.5">
           <Select

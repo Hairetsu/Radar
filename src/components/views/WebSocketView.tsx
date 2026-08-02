@@ -149,7 +149,7 @@ export function WebSocketView({
   }, [webSocketEvents.length, webSocketSelectionAnchorRef]);
 
   return (
-    <div className="grid min-h-0 [grid-template-columns:minmax(0,1fr)_minmax(420px,0.78fr)] max-[1180px]:grid-cols-1">
+    <div className="grid min-h-0 [grid-template-columns:minmax(0,1fr)_minmax(420px,0.78fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
       <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_auto_minmax(0,1fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
         <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(5,minmax(0,1fr))] max-[900px]:grid-cols-2">
           {[

@@ -117,6 +117,12 @@ test.describe("UI layout, reachability, and density contracts", () => {
           testInfo
         });
         expect(blockingLayoutViolations(metrics), `${view} layout violations`).toEqual([]);
+        if (view === "intercept") {
+          const queueHeight = await page.getByTestId("interceptQueue").evaluate((element) =>
+            element.getBoundingClientRect().height
+          );
+          expect(queueHeight, "minimum Intercept queue height").toBeGreaterThanOrEqual(120);
+        }
       });
     }
     await openIdentityLab(page);
@@ -143,6 +149,13 @@ test.describe("UI layout, reachability, and density contracts", () => {
           testInfo
         });
         expect(blockingLayoutViolations(metrics), `${profileId}/${view}`).toEqual([]);
+        if (view === "findings") {
+          const ownershipWidths = await Promise.all([
+            page.getByTestId("findingOwner").evaluate((element) => element.getBoundingClientRect().width),
+            page.getByTestId("findingAssignee").evaluate((element) => element.getBoundingClientRect().width)
+          ]);
+          expect(Math.min(...ownershipWidths), `${profileId}/findings ownership fields`).toBeGreaterThanOrEqual(170);
+        }
       }
     }
 
