@@ -128,12 +128,12 @@ test("[REG-WS-006] @security shows a bounded WebSocket replay error without dist
 
 test("[REG-SCOPE-007] @ai @network @security policy-blocks out-of-scope AI navigation without a target send", async ({ radarPage: page, targetLab }) => {
   await loadDemo(page);
-  await configureFixtureAi(page, targetLab);
+  const operator = await configureFixtureAi(page, targetLab);
   targetLab.reset();
-  await page.getByTestId("aiFirstMode").click();
-  await page.getByTestId("agentGoalInput").fill("Attempt an out-of-scope navigation policy check for REG-SCOPE-007");
-  await page.getByTestId("startAgentRun").click();
-  await expect(page.getByTestId("agentTimeline")).toContainText(/scope|policy|blocked/i);
+  await operator.getByTestId("agentGoalInput").fill("Attempt https://outside.invalid/navigation for REG-SCOPE-007");
+  await operator.getByTestId("startAgentRun").click();
+  await expect(page.getByTestId("scopeTargetList")).toContainText("https://outside.invalid");
+  await expect(operator.getByTestId("aiOperatorComposer")).toContainText(/scope consent required/i);
   expect(targetLab.requests.filter((request) => request.path.startsWith("/api/"))).toHaveLength(0);
 });
 

@@ -9,6 +9,7 @@ import type {
 } from "../../shared/agent-types.js";
 
 interface AgentIpcOperations {
+  authorize: (webContentsId: number, action: AgentIpcAction) => boolean;
   start: (request: AgentRunRequest) => AgentRun;
   pause: (id: string) => AgentRun | null;
   resume: (id: string) => AgentRun | null;
@@ -32,51 +33,94 @@ interface AgentIpcOperations {
   deleteMemory: (id: string) => AgentRunMemoryEntry[];
 }
 
+export type AgentIpcAction =
+  | "start"
+  | "pause"
+  | "resume"
+  | "recover"
+  | "steer-mission"
+  | "update-capabilities"
+  | "stop"
+  | "get"
+  | "list"
+  | "list-memory"
+  | "save-memory"
+  | "delete-memory";
+
+function requireAuthorized(operations: AgentIpcOperations, webContentsId: number, action: AgentIpcAction) {
+  if (!operations.authorize(webContentsId, action)) {
+    throw new Error("This Radar window is not authorized for that agent operation.");
+  }
+}
+
 export function registerAgentIpc(
   ipcMain: IpcMain,
   operations: AgentIpcOperations
 ) {
-  ipcMain.handle("agent:start", (_event, payload: AgentRunRequest) =>
-    operations.start(payload || {})
-  );
-  ipcMain.handle("agent:pause", (_event, id) =>
-    operations.pause(String(id || ""))
-  );
-  ipcMain.handle("agent:resume", (_event, id) =>
-    operations.resume(String(id || ""))
-  );
+  ipcMain.handle("agent:start", (event, payload: AgentRunRequest) => {
+    requireAuthorized(operations, event.sender.id, "start");
+    return operations.start(payload || {});
+  });
+  ipcMain.handle("agent:pause", (event, id) => {
+    requireAuthorized(operations, event.sender.id, "pause");
+    return operations.pause(String(id || ""));
+  });
+  ipcMain.handle("agent:resume", (event, id) => {
+    requireAuthorized(operations, event.sender.id, "resume");
+    return operations.resume(String(id || ""));
+  });
   ipcMain.handle(
     "agent:recover",
-    (_event, id, request: AgentRunRecoveryRequest) =>
-      operations.recover(
+    (event, id, request: AgentRunRecoveryRequest) => {
+      requireAuthorized(operations, event.sender.id, "recover");
+      return operations.recover(
         String(id || ""),
         request || { action: "stop-run" }
-      )
+      );
+    }
   );
   ipcMain.handle(
     "agent:mission:steer",
-    (_event, id, request: AgentMissionSteeringRequest) =>
-      operations.steerMission(String(id || ""), request)
+    (event, id, request: AgentMissionSteeringRequest) => {
+      requireAuthorized(operations, event.sender.id, "steer-mission");
+      return operations.steerMission(String(id || ""), request);
+    }
   );
   ipcMain.handle(
     "agent:capabilities:update",
-    (_event, id, request: AgentCapabilityActionRequest) =>
-      operations.updateCapabilities(String(id || ""), request)
+    (event, id, request: AgentCapabilityActionRequest) => {
+      requireAuthorized(operations, event.sender.id, "update-capabilities");
+      return operations.updateCapabilities(String(id || ""), request);
+    }
   );
-  ipcMain.handle("agent:stop", (_event, id) =>
-    operations.stop(String(id || ""))
-  );
-  ipcMain.handle("agent:get", (_event, id) =>
-    operations.get(String(id || ""))
-  );
-  ipcMain.handle("agent:list", () => operations.list());
-  ipcMain.handle("agent-memory:list", () => operations.listMemory());
+  ipcMain.handle("agent:stop", (event, id) => {
+    requireAuthorized(operations, event.sender.id, "stop");
+    return operations.stop(String(id || ""));
+  });
+  ipcMain.handle("agent:get", (event, id) => {
+    requireAuthorized(operations, event.sender.id, "get");
+    return operations.get(String(id || ""));
+  });
+  ipcMain.handle("agent:list", (event) => {
+    requireAuthorized(operations, event.sender.id, "list");
+    return operations.list();
+  });
+  ipcMain.handle("agent-memory:list", (event) => {
+    requireAuthorized(operations, event.sender.id, "list-memory");
+    return operations.listMemory();
+  });
   ipcMain.handle(
     "agent-memory:save",
-    (_event, entry: AgentRunMemoryEntry) => operations.saveMemory(entry)
+    (event, entry: AgentRunMemoryEntry) => {
+      requireAuthorized(operations, event.sender.id, "save-memory");
+      return operations.saveMemory(entry);
+    }
   );
-  ipcMain.handle("agent-memory:delete", (_event, id) => ({
-    ok: true,
-    memory: operations.deleteMemory(String(id || ""))
-  }));
+  ipcMain.handle("agent-memory:delete", (event, id) => {
+    requireAuthorized(operations, event.sender.id, "delete-memory");
+    return {
+      ok: true,
+      memory: operations.deleteMemory(String(id || ""))
+    };
+  });
 }

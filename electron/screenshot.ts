@@ -10,6 +10,7 @@ const ROOT = path.join(__dirname, "..", "..");
 const OUT = path.join(ROOT, "docs", "screens");
 const PREVIEW_URL = "http://127.0.0.1:4173";
 const SCREENSHOT_PRELOAD = path.join(__dirname, "screenshotPreload.js");
+const AI_OPERATOR_SCREENSHOT_PRELOAD = path.join(__dirname, "aiOperatorScreenshotPreload.js");
 
 let previewProcess: ChildProcess | undefined;
 
@@ -173,10 +174,6 @@ async function run() {
     await win.loadURL(PREVIEW_URL);
     await sleep(2200);
 
-    // Operating mode persists across runs, so pin it before the manual shots.
-    await clickTestId(win, "manualFirstMode");
-    await sleep(300);
-
     await capture(win, "radar-01-traffic.png");
     await rightClickTestId(win, "trafficRow-cap-auth", 720, 360);
     await capture(win, "radar-06-request-menu.png");
@@ -204,12 +201,27 @@ async function run() {
     await sleep(300);
     await capture(win, "radar-05-ai-palette.png");
     await pressEscape(win);
-    await clickTestId(win, "aiFirstMode");
-    await clickTestId(win, "agentTutorialToggle");
-    await fillTestId(win, "agentGoalInput", "Teach me how to inspect http://localhost:3000 for authorization clues.");
-    await clickTestId(win, "startAgentRun");
-    await waitForTestId(win, "agentTutorialGuide");
-    await capture(win, "radar-10-tutorial.png");
+
+    const aiOperator = new BrowserWindow({
+      width: 1040,
+      height: 840,
+      minWidth: 760,
+      minHeight: 640,
+      show: false,
+      backgroundColor: "#07110f",
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        preload: AI_OPERATOR_SCREENSHOT_PRELOAD,
+        sandbox: false
+      }
+    });
+    await aiOperator.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
+    await aiOperator.webContents.executeJavaScript(`window.localStorage.setItem("radar.theme", "bureau");`);
+    await aiOperator.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
+    await waitForTestId(aiOperator, "agentTutorialGuide");
+    await aiOperator.webContents.executeJavaScript(`document.querySelector('[data-testid="agentTutorialGuide"]')?.scrollIntoView({ block: "start" });`);
+    await capture(aiOperator, "radar-10-tutorial.png");
   } finally {
     previewProcess.kill("SIGTERM");
     app.quit();

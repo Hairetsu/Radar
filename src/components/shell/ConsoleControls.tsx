@@ -1,18 +1,18 @@
-import { Bot, Palette, Settings2, UserRound } from "lucide-react";
+import { Bot, ExternalLink, Palette, Settings2, UserRound } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../../lib";
 import type { AppMode } from "../../types";
-import { modeButtonClass } from "./layoutClasses";
 
 export type ConsoleControlsProps = {
   appMode: AppMode;
-  setAppMode: (mode: AppMode) => void;
+  aiOperatorVisible: boolean;
   aiConnected: boolean;
   aiChecking: boolean;
   aiStatusLabel: string;
   onOpenAiSettings: () => void;
   onOpenProfileSessionPanel: () => void;
   onOpenAppearanceSettings: () => void;
+  onOpenAiOperator: () => void;
 };
 
 /**
@@ -22,44 +22,23 @@ export type ConsoleControlsProps = {
  */
 export function ConsoleControls({
   appMode,
-  setAppMode,
+  aiOperatorVisible,
   aiConnected,
   aiChecking,
   aiStatusLabel,
   onOpenAiSettings,
   onOpenProfileSessionPanel,
-  onOpenAppearanceSettings
+  onOpenAppearanceSettings,
+  onOpenAiOperator
 }: ConsoleControlsProps) {
   return (
     <div className="grid gap-1.5" data-component="consoleControls">
       <span className="rd-eyebrow text-muted max-[1180px]:hidden">Console</span>
 
-      <div
-        className="grid grid-cols-2 overflow-hidden border border-rule bg-ink/35"
-        data-testid="appModeToggle"
-        data-component="appModeToggle"
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          className={cn(modeButtonClass(appMode === "manual-first"), "justify-center")}
-          onClick={() => setAppMode("manual-first")}
-          data-testid="manualFirstMode"
-          data-component="appModeButton"
-        >
-          Manual
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className={cn(modeButtonClass(appMode === "ai-first"), "justify-center border-l")}
-          onClick={() => setAppMode("ai-first")}
-          data-testid="aiFirstMode"
-          data-component="appModeButton"
-        >
-          AI-First
-        </Button>
-      </div>
+      <Button type="button" variant={appMode === "ai-first" ? "solid" : "outline"} className="w-full justify-between px-2.5" onClick={onOpenAiOperator} data-testid="openAiOperatorSidebar" data-component="openAiOperator">
+        <span className="flex items-center gap-2"><Bot size={12} /> {appMode === "ai-first" ? "AI-First" : "AI Operator"}</span>
+        <span className="flex items-center gap-1 font-mono text-nano"><span className={cn("h-1.5 w-1.5 rounded-full", aiOperatorVisible ? "bg-jade" : "bg-muted")} />{aiOperatorVisible ? "open" : "launch"}<ExternalLink size={10} /></span>
+      </Button>
 
       <Button
         type="button"

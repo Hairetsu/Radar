@@ -20,8 +20,11 @@ Use this page as the index for Radar's operator, engineering, roadmap, and histo
 - [Complexity Refactor and Residual Risk Audit](COMPLEXITY_RISK_AUDIT.md) — the 2026-07-31 refactor execution record and before/after evidence.
 - [Post-Refactor Complexity Audit](POST_REFACTOR_COMPLEXITY_AUDIT.md) — fresh 2026-08-01 working-tree findings ranked from highest concern to lowest.
 
-## Active Direction
+## Implemented Architecture
 
+- [AI Operator Window Specification](AI_OPERATOR_WINDOW_SPEC.md) — implemented product, architecture, safety, migration, and regression contract for the separate Electron companion window.
+
+## Active Direction
 - [Roadmap](ROADMAP.md)
 - [Roadmap 2](ROADMAP2.md)
 - [Roadmap 2 Execution](ROADMAP2_EXECUTION.md)

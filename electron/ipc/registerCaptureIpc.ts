@@ -1,6 +1,7 @@
 import type { IpcMain } from "electron";
 
 interface CaptureIpcOperations {
+  authorizeTargetsRead?: (webContentsId: number) => boolean;
   snapshot: () => unknown;
   query: (query: unknown) => unknown;
   session: (sessionId: string) => unknown;
@@ -45,7 +46,12 @@ export function registerCaptureIpc(
   ipcMain.handle("filters:set", (_event, filters) =>
     operations.setFilters(filters)
   );
-  ipcMain.handle("targets:get", () => operations.getTargets());
+  ipcMain.handle("targets:get", (event) => {
+    if (operations.authorizeTargetsRead && !operations.authorizeTargetsRead(event.sender.id)) {
+      throw new Error("This Radar window is not authorized to read saved Scope.");
+    }
+    return operations.getTargets();
+  });
   ipcMain.handle("targets:set", (_event, targets) =>
     operations.setTargets(targets)
   );

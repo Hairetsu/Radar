@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import {
   cn,
   elapsed,
 } from "./lib";
-import { AiFirstChrome } from "./components/shell/AiFirstChrome";
+import { AgentMissionBar } from "./components/shell/AgentMissionBar";
 import { Sidebar } from "./components/shell/Sidebar";
 import { TelemetryTicker } from "./components/shell/TelemetryTicker";
 import { WorkspaceHeader } from "./components/shell/WorkspaceHeader";
@@ -12,8 +12,9 @@ import { WorkbenchViewRouter } from "./components/shell/WorkbenchViewRouter";
 import { WorkbenchActionBar } from "./components/shell/WorkbenchActionBar";
 import { WorkbenchOverlays } from "./components/shell/WorkbenchOverlays";
 import { useRadarWorkbench, type RadarWorkbench } from "./hooks/useRadarWorkbench";
-import { useAiOperationsDrawerLocalState } from "./hooks/useAiOperationsDrawerLocalState";
+import { useAiOperatorWindowState } from "./hooks/useAiOperatorWindowState";
 import { useRequestContextMenu } from "./hooks/useRequestContextMenu";
+import { useWorkspaceWindowBridge } from "./hooks/useWorkspaceWindowBridge";
 import { useWebSocketSelection } from "./hooks/useWebSocketSelection";
 import type {
   FindingTemplateId,
@@ -23,12 +24,17 @@ import type {
 export function App() {
   const workbench: RadarWorkbench = useRadarWorkbench();
 
-  const aiDrawer = useAiOperationsDrawerLocalState();
+  const aiOperatorWindow = useAiOperatorWindowState();
 
   const requestContextMenu = useRequestContextMenu(workbench);
   const [findingTemplateId, setFindingTemplateId] = useState("headers" as FindingTemplateId);
   const [identityLabOpen, setIdentityLabOpen] = useState(false);
   const webSocketSelection = useWebSocketSelection(workbench);
+  useWorkspaceWindowBridge(workbench, (id) => {
+    webSocketSelection.setSelectedWebSocketId(id);
+    webSocketSelection.setSelectedWebSocketIds([id]);
+    webSocketSelection.selectionAnchorRef.current = id;
+  });
   const findingsBuildReportRef = useRef<(() => void) | null>(null);
   const workflowActionsRef = useRef<{ save: () => void; run: () => void } | null>(null);
 
@@ -79,11 +85,10 @@ export function App() {
     workflowActionsRef.current?.run();
   };
 
-
-  // Space reserved for the docked AI-First drawer, so evidence stays visible
-  // beside it rather than behind it. The drawer sits 8px from the panel edge.
-  const aiDrawerInset =
-    workbench.appMode === "ai-first" && aiDrawer.aiDrawerOpen ? aiDrawer.aiDrawerWidth + 16 : 0;
+  const mainAgentRun = workbench.executingAgentRun || workbench.activeAgentRun;
+  const showMissionBar = workbench.appMode === "ai-first" ||
+    aiOperatorWindow.visible ||
+    Boolean(mainAgentRun && ["queued", "running", "paused", "failed"].includes(mainAgentRun.status));
 
   return (
     <main className={shellClass} data-testid="radarShell" data-component="radarShell">
@@ -101,13 +106,14 @@ export function App() {
         sidebarViewStats={sidebarViewStats}
         consoleControls={{
           appMode: workbench.appMode,
-          setAppMode: workbench.setAppMode,
+          aiOperatorVisible: aiOperatorWindow.visible,
           aiConnected: workbench.ai.connected,
           aiChecking: workbench.ai.checking,
           aiStatusLabel: workbench.ai.connected ? "ready" : workbench.ai.checking ? "checking" : "offline",
-          onOpenAiSettings: () => workbench.ai.setSettingsOpen(true),
+          onOpenAiSettings: () => { void window.radar?.openAiOperator("settings"); },
           onOpenProfileSessionPanel: () => workbench.setProfileSessionOpen(true),
-          onOpenAppearanceSettings: () => workbench.appearance.setSettingsOpen(true)
+          onOpenAppearanceSettings: () => workbench.appearance.setSettingsOpen(true),
+          onOpenAiOperator: () => { void window.radar?.openAiOperator("runs"); }
         }}
       />
 
@@ -130,10 +136,9 @@ export function App() {
           className={cn(
             revealClass,
             "relative mt-3 grid min-h-0 min-w-0 flex-1 overflow-hidden border border-rule/80 shadow-[0_24px_70px_-52px_rgba(0,0,0,0.9)] [animation-delay:220ms] [grid-template-rows:auto_minmax(0,1fr)]",
-            workbench.appMode === "ai-first" && "[grid-template-rows:auto_auto_minmax(0,1fr)]",
+            showMissionBar && "[grid-template-rows:auto_auto_minmax(0,1fr)]",
             "radar-workspace max-[900px]:animate-none max-[900px]:opacity-100"
           )}
-          style={{ "--ai-drawer-inset": `${aiDrawerInset}px` } as CSSProperties}
           data-testid="workspacePanel"
           data-component="workspacePanel"
         >
@@ -149,50 +154,21 @@ export function App() {
             onRunWorkflow={runSelectedWorkflow}
           />
 
-          <AiFirstChrome
-            appMode={workbench.appMode}
-            agentRuns={workbench.agentRuns}
-            activeAgentRun={workbench.activeAgentRun}
-            pauseAgentRun={workbench.pauseAgentRun}
-            resumeAgentRun={workbench.resumeAgentRun}
-            stopAgentRun={workbench.stopAgentRun}
-            drawerProps={{
-              agentGoal: workbench.agentGoal,
-              setAgentGoal: workbench.setAgentGoal,
-              agentProfileId: workbench.agentProfileId,
-              setAgentProfileId: workbench.setAgentProfileId,
-              agentProfiles: workbench.agentProfiles,
-              selectedAgentRunProfile: workbench.selectedAgentRunProfile,
-              agentTutorialMode: workbench.agentTutorialMode,
-              setAgentTutorialMode: workbench.setAgentTutorialMode,
-              agentRuns: workbench.agentRuns,
-              activeAgentRun: workbench.activeAgentRun,
-              setSelectedAgentRunId: workbench.setSelectedAgentRunId,
-              activeAgentBudgetLabels: workbench.activeAgentBudgetLabels,
-              agentRunMemory: workbench.agentRunMemory,
-              filteredAgentRunMemory: workbench.filteredAgentRunMemory,
-              agentRunMemorySearch: workbench.agentRunMemorySearch,
-              setAgentRunMemorySearch: workbench.setAgentRunMemorySearch,
-              selectedCapture: workbench.selected,
-              startAgentRun: workbench.startAgentRun,
-              pauseAgentRun: workbench.pauseAgentRun,
-              resumeAgentRun: workbench.resumeAgentRun,
-              stopAgentRun: workbench.stopAgentRun,
-              continueAgentRun: workbench.continueAgentRun,
-              steerAgentMission: workbench.steerAgentMission,
-              updateAgentCapabilities: workbench.updateAgentCapabilities,
-              confirmAgentRunMemoryFromTimeline: async (entryId: string) => { await workbench.confirmAgentRunMemoryFromTimeline(entryId); },
-              dismissAgentRunMemoryFromTimeline: async (entryId: string) => { await workbench.dismissAgentRunMemoryFromTimeline(entryId); },
-              recoverAgentRun: workbench.recoverAgentRun,
-              createAgentRunMemory: workbench.createAgentRunMemory,
-              deleteAgentRunMemory: async (entryId: string) => { await workbench.deleteAgentRunMemory(entryId); },
-              setNotice: workbench.setNotice
-            }}
-            drawer={aiDrawer}
-          />
+          {showMissionBar && (
+            <AgentMissionBar
+              mode={workbench.appMode}
+              run={mainAgentRun}
+              operatorVisible={aiOperatorWindow.visible}
+              onPause={() => { void workbench.pauseAgentRun(); }}
+              onResume={() => { void workbench.resumeAgentRun(); }}
+              onStop={() => { void workbench.stopAgentRun(); }}
+              onReturnToManual={() => workbench.setAppMode("manual-first")}
+              onOpenOperator={() => { void window.radar?.openAiOperator("runs"); }}
+            />
+          )}
 
           <div
-            className="radar-ai-inset relative grid min-h-0 overflow-hidden [grid-template-rows:minmax(0,1fr)] max-[1180px]:overflow-auto"
+            className="relative grid min-h-0 overflow-hidden [grid-template-rows:minmax(0,1fr)] max-[1180px]:overflow-auto"
             data-testid="evidencePane"
             data-component="evidencePane"
           >

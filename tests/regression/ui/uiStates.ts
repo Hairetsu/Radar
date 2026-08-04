@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect } from "../fixtures";
+import { openAiOperatorWindow } from "../fixtures";
 
 export const WORKBENCH_VIEWS = [
   "traffic",
@@ -171,18 +172,13 @@ export const IDENTITY_REQUIRED_CONTROLS: RequiredControl[] = [
 ];
 
 export const AI_FIRST_REQUIRED_CONTROLS: RequiredControl[] = [
-  { selector: byTestId("agentMissionDock"), label: "mission dock" },
+  { selector: byTestId("aiOperatorHeader"), label: "operator header" },
   { selector: byTestId("agentGoalInput"), label: "agent goal", focus: true },
   { selector: byTestId("agentProfileSelect"), label: "agent profile", focus: true },
   { selector: byTestId("agentTutorialToggle"), label: "tutorial mode", focus: true },
   { selector: byTestId("startAgentRun"), label: "start run", focus: true },
-  { selector: byTestId("agentBudgetChips"), label: "agent budgets" },
-  { selector: byTestId("agentTimeline"), label: "agent timeline" },
-  { selector: byTestId("agentMissionGraph"), label: "mission graph" },
-  { selector: byTestId("agentCapabilityLedger"), label: "capability ledger" },
-  { selector: byTestId("aiDrawerBody"), label: "AI operations scroll area" },
-  { selector: byTestId("resizeAiDrawer"), label: "AI drawer resize", focus: true },
-  { selector: byTestId("closeAiDrawer"), label: "close AI drawer", focus: true }
+  { selector: byTestId("aiOperatorComposer"), label: "agent budgets" },
+  { selector: byTestId("aiOperatorFeed"), label: "agent feed" }
 ];
 
 export async function prepareRequiredViewState(page: Page, view: WorkbenchView) {
@@ -263,13 +259,9 @@ export async function openIdentityLab(page: Page) {
 }
 
 export async function openAiFirstConsole(page: Page) {
-  await page.getByTestId("aiFirstMode").click();
-  await expect(page.getByTestId("agentMissionDock")).toBeVisible();
-  const drawer = page.getByTestId("aiFirstConsole");
-  if (!(await drawer.isVisible())) {
-    await page.getByTestId("toggleAiDrawer").click();
-  }
-  await expect(drawer).toBeVisible();
+  const operator = await openAiOperatorWindow(page, "runs");
+  await expect(operator.getByTestId("aiOperatorShell")).toBeVisible();
+  return operator;
 }
 
 export async function applyStressCopy(page: Page) {

@@ -221,6 +221,7 @@ test("[REG-WF-004] @core @persistence records workflow revisions across edits", 
   definition.builtIn = false;
   await page.getByTestId("workflowDefinition").fill(JSON.stringify(definition, null, 2));
   await page.getByTestId("saveWorkflow").click();
+  await expect(page.getByTestId("workflowRevisions")).toContainText("1 saved");
   definition.name = "Regression Revision Two";
   await page.getByTestId("workflowDefinition").fill(JSON.stringify(definition, null, 2));
   await page.getByTestId("saveWorkflow").click();

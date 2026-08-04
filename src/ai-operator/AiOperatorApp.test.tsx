@@ -1,0 +1,214 @@
+// @vitest-environment jsdom
+
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RadarAiOperatorApi } from "../../shared/api/aiOperatorApi.js";
+import type { AgentRun } from "../../shared/agent-types.js";
+import type { WorkspaceContextSnapshot } from "../../shared/windowCoordination.js";
+import { AiOperatorApp } from "./AiOperatorApp";
+
+const workspaceContext: WorkspaceContextSnapshot = {
+  revision: 1,
+  mode: "manual-first",
+  activeView: "traffic",
+  project: { id: "profile-test", name: "Acme Defense" },
+  session: { id: "session-test", name: "Authorization Review" },
+  browser: { open: true, url: "https://target.test/dashboard", title: "Target" },
+  selection: { kind: "capture", id: "capture-1", label: "GET /account" },
+  executingRunId: "",
+  attentionCount: 0
+};
+
+function run(overrides: Partial<AgentRun> = {}): AgentRun {
+  return {
+    id: "run-test",
+    sessionId: "session-test",
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:01:00.000Z",
+    goal: "Review tenant isolation",
+    profileId: "browser-assessment",
+    status: "paused",
+    policy: {
+      maxRuntimeMs: 120_000,
+      maxSteps: 8,
+      maxReplay: 1,
+      maxWorkflowRequests: 1,
+      maxCaptureSample: 20,
+      allowRawContext: false
+    },
+    timeline: [],
+    findings: [],
+    ...overrides
+  };
+}
+
+function operatorApi(overrides: Partial<RadarAiOperatorApi> = {}): RadarAiOperatorApi {
+  const settings = { provider: "openai" as const, model: "gpt-4o-mini", apiKey: "test", baseUrl: "" };
+  return {
+    getLocalContext: vi.fn(async () => window.radar!.getLocalContext()),
+    getTargets: vi.fn(async () => ["https://target.test"]),
+    getAiSettings: vi.fn(async () => settings),
+    setAiSettings: vi.fn(async (next) => next),
+    connectAi: vi.fn(async () => ({
+      settings: { provider: "codex-local" as const, model: "auto", apiKey: "local", baseUrl: "codex://local" },
+      meta: { presetId: "codex" as const, label: "Codex", apiKeySource: "local" },
+      probe: { ok: true, message: "Connected" }
+    })),
+    probeAiConnection: vi.fn(async () => ({ ok: true, message: "Connected" })),
+    loginCursor: vi.fn(async () => ({ ok: true, message: "Signed in" })),
+    getAiModels: vi.fn(async () => [{ id: "gpt-4o-mini", label: "gpt-4o-mini" }]),
+    refreshAiModels: vi.fn(async () => [{ id: "gpt-4o-mini", label: "gpt-4o-mini" }]),
+    startAgentRun: vi.fn(async (request) => run({ goal: request.goal, status: "queued", profileId: request.profileId || "browser-assessment" })),
+    pauseAgentRun: vi.fn(async () => run()),
+    resumeAgentRun: vi.fn(async () => run({ status: "queued" })),
+    recoverAgentRun: vi.fn(async () => run()),
+    steerAgentMission: vi.fn(async () => run()),
+    updateAgentCapabilities: vi.fn(async () => run()),
+    stopAgentRun: vi.fn(async () => run({ status: "stopped" })),
+    getAgentRun: vi.fn(async () => null),
+    listAgentRuns: vi.fn(async () => []),
+    getAgentRunMemory: vi.fn(async () => []),
+    saveAgentRunMemory: vi.fn(async (entry) => entry),
+    deleteAgentRunMemory: vi.fn(async () => ({ ok: true, memory: [] })),
+    openAiOperator: vi.fn(async (section = "runs") => ({ created: true, visible: true, focused: true, section })),
+    getWorkspaceContext: vi.fn(async () => workspaceContext),
+    dispatchWorkspaceIntent: vi.fn(async () => ({ ok: true })),
+    focusWorkspace: vi.fn(async () => ({ ok: true })),
+    getAiOperatorWindowState: vi.fn(async () => ({ created: true, visible: true, focused: true, section: "runs" as const })),
+    getAppMode: vi.fn(async () => "manual-first" as const),
+    setAppMode: vi.fn(async (mode) => mode),
+    onWorkspaceContextChanged: vi.fn(() => () => undefined),
+    onAiOperatorWindowState: vi.fn(() => () => undefined),
+    onAppModeChanged: vi.fn(() => () => undefined),
+    onAgentChanged: vi.fn(() => () => undefined),
+    onAiConnectionChanged: vi.fn(() => () => undefined),
+    ...overrides
+  };
+}
+
+afterEach(() => {
+  window.localStorage.clear();
+  Object.defineProperty(window, "radarOperator", { value: undefined, writable: true, configurable: true });
+});
+
+describe("AiOperatorApp", () => {
+  it("renders a dedicated run rail, feed, composer, and connection section", async () => {
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+
+    render(<AiOperatorApp />);
+
+    expect(await screen.findByTestId("aiOperatorShell")).toBeInTheDocument();
+    expect(screen.getByTestId("aiRunRail")).toBeInTheDocument();
+    expect(screen.getByTestId("aiOperatorFeed")).toBeInTheDocument();
+    expect(screen.getByTestId("aiOperatorComposer")).toBeInTheDocument();
+    expect(screen.getByText("Acme Defense / Authorization Review / traffic")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("aiOperatorSettings"));
+    expect(screen.getByTestId("aiOperatorConnectionPanel")).toBeInTheDocument();
+    expect(api.probeAiConnection).toHaveBeenCalled();
+  });
+
+  it("starts a saved-scope mission and clears its session-scoped draft", async () => {
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    const goal = await screen.findByTestId("agentGoalInput");
+    fireEvent.change(goal, { target: { value: "Inspect https://target.test/account" } });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => expect(api.startAgentRun).toHaveBeenCalledWith(expect.objectContaining({
+      goal: "Inspect https://target.test/account",
+      startUrl: "https://target.test/account",
+      profileId: "browser-assessment"
+    })));
+    expect(goal).toHaveValue("");
+  });
+
+  it("prepares an out-of-scope origin in the visible workspace without starting", async () => {
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    fireEvent.change(await screen.findByTestId("agentGoalInput"), { target: { value: "Inspect https://outside.test/admin" } });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => expect(api.dispatchWorkspaceIntent).toHaveBeenCalledWith({
+      type: "propose-scope-origin",
+      origin: "https://outside.test",
+      reason: "AI Operator goal requested https://outside.test."
+    }));
+    expect(api.focusWorkspace).toHaveBeenCalled();
+    expect(api.startAgentRun).not.toHaveBeenCalled();
+  });
+
+  it("keeps failure recovery and finding evidence inline in the durable feed", async () => {
+    const failed = run({
+      status: "failed",
+      timeline: [{
+        id: "failure-1",
+        createdAt: "2026-05-25T00:01:00.000Z",
+        phase: "failure",
+        summary: "Replay failed safely.",
+        recoveryActions: ["retry-tool", "draft-finding", "stop-run"],
+        toolResult: { ok: false, tool: "sendReplay", error: "Target refused the connection." }
+      }],
+      findings: [{
+        id: "finding-1",
+        title: "Tenant boundary requires review",
+        notes: "Cross-tenant behavior needs operator validation.",
+        evidenceRefs: ["capture:capture-1"],
+        confidence: "medium",
+        createdAt: "2026-05-25T00:01:00.000Z",
+        affectedAssets: ["target.test"],
+        reproductionNotes: "Repeat with two test tenants.",
+        severityRationale: "Cross-tenant access would break authorization boundaries.",
+        remediation: "Enforce object ownership on the server.",
+        uncertainties: ["Requires operator validation."]
+      }]
+    });
+    const api = operatorApi({
+      listAgentRuns: vi.fn(async () => [failed]),
+      recoverAgentRun: vi.fn(async () => failed)
+    });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    expect(await screen.findByText("Target refused the connection.")).toBeInTheDocument();
+    expect(screen.getByText("Tenant boundary requires review")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("agentRecovery-retry-tool"));
+    await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "retry-tool", entryId: "failure-1" }));
+    fireEvent.click(screen.getByTestId("agentRecovery-draft-finding"));
+    await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "draft-finding", entryId: "failure-1" }));
+  });
+
+  it("opens a clean New Mission composer when paused history exists", async () => {
+    const api = operatorApi({ listAgentRuns: vi.fn(async () => [run()]) });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    expect(await screen.findByTestId("steerAgentRun")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("newAiMission"));
+    const goal = screen.getByTestId("agentGoalInput");
+    fireEvent.change(goal, { target: { value: "Inspect https://target.test/new" } });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => expect(api.startAgentRun).toHaveBeenCalledWith(expect.objectContaining({
+      goal: "Inspect https://target.test/new"
+    })));
+  });
+
+  it("moves provider editing into the companion and publishes through explicit probes", async () => {
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    fireEvent.click(await screen.findByTestId("aiOperatorSettings"));
+    fireEvent.click(screen.getByTestId("aiSaveSettings"));
+
+    await waitFor(() => expect(api.setAiSettings).toHaveBeenCalled());
+    expect(api.probeAiConnection).toHaveBeenCalled();
+    expect(api.refreshAiModels).toHaveBeenCalled();
+  });
+});

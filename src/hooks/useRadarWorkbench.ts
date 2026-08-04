@@ -3,7 +3,7 @@ import { parseHeaders } from "../lib";
 import { AGENT_RUN_PROFILES } from "../../shared/agentProfiles.js";
 import { TRAFFIC_QUERY_EXAMPLES } from "../../shared/trafficQuery.js";
 import { WORKFLOW_STEP_TEMPLATES } from "../../shared/workflows.js";
-import { useAiConnection } from "./useAiConnection";
+import { useAiConnectionSummary } from "./useAiConnectionSummary";
 import { useTheme } from "./useTheme";
 import {
   createWorkbenchHydrationPorts,
@@ -230,7 +230,7 @@ export function useRadarWorkbench() {
     identity: identityDomain,
     openGlobalSearchResult
   } = projectFeatures;
-  const ai = useAiConnection();
+  const ai = useAiConnectionSummary();
   const appearance = useTheme();
   const crossDomainActions = useWorkbenchCrossDomainActions({
     shell: shellDomain,

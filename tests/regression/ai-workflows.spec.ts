@@ -16,13 +16,13 @@ test("[REG-AIM-001] @ai configures, probes, and persists the deterministic local
   radarPage: page,
   targetLab
 }) => {
-  await configureFixtureAi(page, targetLab);
+  const operator = await configureFixtureAi(page, targetLab);
   await page.getByTestId("openAiSettings").click();
-  await expect(page.getByTestId("aiProvider")).toHaveValue("openai-compatible");
-  await expect(page.getByTestId("aiModel")).toHaveValue("radar-fixture-model");
-  await expect(page.getByTestId("aiApiKey")).toHaveAttribute("type", "password");
-  await page.getByTestId("aiProbeConnection").click();
-  await expect(page.getByTestId("aiConnectionStatus")).toContainText("Connected");
+  await expect(operator.getByTestId("aiProvider")).toHaveValue("openai-compatible");
+  await expect(operator.getByTestId("aiModel")).toHaveValue("radar-fixture-model");
+  await expect(operator.getByTestId("aiApiKey")).toHaveAttribute("type", "password");
+  await operator.getByTestId("aiProbeConnection").click();
+  await expect(operator.getByTestId("aiConnectionStatus")).toContainText("Connected");
 });
 
 test("[REG-AIM-002] @ai @security sends redacted scoped context by default", async ({ radarPage: page, targetLab }) => {
@@ -155,23 +155,22 @@ test("[REG-AIF-001] @ai @smoke completes a passive AI-First goal with a visible 
   targetLab
 }) => {
   await loadDemo(page);
-  await configureFixtureAi(page, targetLab);
-  await page.getByTestId("aiFirstMode").click();
-  await page.getByTestId("agentGoalInput").fill("Review the existing scoped evidence passively");
-  await page.getByTestId("startAgentRun").click();
-  await expect(page.getByTestId("agentRunSelect")).toContainText("COMPLETED");
-  await expect(page.getByTestId("agentTimeline")).toContainText("Deterministic passive review complete");
-  await expect(page.getByTestId("agentBudgetChips")).toBeVisible();
+  const operator = await configureFixtureAi(page, targetLab);
+  await operator.getByTestId("agentGoalInput").fill("Review the existing scoped evidence passively");
+  await operator.getByTestId("startAgentRun").click();
+  await expect(operator.getByTestId("aiOperatorComposer")).toContainText("completed", { timeout: 20_000 });
+  await expect(operator.getByTestId("agentTimeline")).toContainText("Deterministic passive review complete");
+  await expect(page.getByTestId("agentMissionBar")).toBeVisible();
 });
 
 test("[REG-AIF-002] @ai @security policy-blocks an out-of-scope planner action", async ({ radarPage: page, targetLab }) => {
   await loadDemo(page);
-  await configureFixtureAi(page, targetLab);
+  const operator = await configureFixtureAi(page, targetLab);
   targetLab.reset();
-  await page.getByTestId("aiFirstMode").click();
-  await page.getByTestId("agentGoalInput").fill("Attempt an out-of-scope navigation policy check");
-  await page.getByTestId("startAgentRun").click();
-  await expect(page.getByTestId("agentTimeline")).toContainText(/scope|policy|blocked/i);
+  await operator.getByTestId("agentGoalInput").fill("Attempt https://outside.invalid/navigation outside saved scope");
+  await operator.getByTestId("startAgentRun").click();
+  await expect(page.getByTestId("scopeTargetList")).toContainText("https://outside.invalid");
+  await expect(operator.getByTestId("aiOperatorComposer")).toContainText(/scope consent required/i);
   expect(targetLab.requests.filter((request) => request.path.startsWith("/api/"))).toHaveLength(0);
 });
 
@@ -180,15 +179,14 @@ test("[REG-AIF-008] @ai @security rejects incomplete findings and accepts comple
   targetLab
 }) => {
   await loadDemo(page);
-  await configureFixtureAi(page, targetLab);
-  await page.getByTestId("aiFirstMode").click();
-  await page.getByTestId("agentGoalInput").fill("Return an incomplete finding");
-  await page.getByTestId("startAgentRun").click();
-  await expect(page.getByTestId("agentRunSelect")).toContainText(/FAILED|COMPLETED/);
-  await expect(page.getByText("Incomplete fixture finding", { exact: true })).toHaveCount(0);
+  const operator = await configureFixtureAi(page, targetLab);
+  await operator.getByTestId("agentGoalInput").fill("Return an incomplete finding");
+  await operator.getByTestId("startAgentRun").click();
+  await expect(operator.getByTestId("aiOperatorComposer")).toContainText(/failed|completed/i, { timeout: 20_000 });
+  await expect(operator.getByText("Incomplete fixture finding", { exact: true })).toHaveCount(0);
 
-  await page.getByTestId("agentGoalInput").fill("Return a complete finding");
-  await page.getByTestId("startAgentRun").click();
-  await expect(page.getByText("Fixture evidence finding", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("agentTimeline")).toContainText("Fixture review complete");
+  await operator.getByTestId("agentGoalInput").fill("Return a complete finding");
+  await operator.getByTestId("startAgentRun").click();
+  await expect(operator.getByText("Fixture evidence finding", { exact: true })).toBeVisible();
+  await expect(operator.getByTestId("agentTimeline")).toContainText("Fixture review complete");
 });
