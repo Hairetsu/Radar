@@ -81,7 +81,17 @@ afterEach(() => {
   }
 });
 
-function createBrowser(electronSurfaceState: () => BrowserState | null = () => null) {
+function createBrowser(
+  electronSurfaceState: () => BrowserState | null = () => null,
+  startProxy = vi.fn(async () => ({
+    running: true,
+    port: 8_088,
+    proxyUrl: "http://127.0.0.1:8088",
+    caCertPath: "/tmp/ca.pem",
+    caKeyPath: "/tmp/ca-key.pem",
+    caFingerprint: "fingerprint"
+  }))
+) {
   const captureObserver = { start: vi.fn(async () => undefined), stop: vi.fn() };
   const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "radar-managed-browser-"));
   temporaryDirectories.push(userDataPath);
@@ -91,14 +101,7 @@ function createBrowser(electronSurfaceState: () => BrowserState | null = () => n
     defaultDebugPort: 9_223,
     profileId: () => "profile-1",
     allowlist: () => ["https://target.example"],
-    startProxy: vi.fn(async () => ({
-      running: true,
-      port: 8_088,
-      proxyUrl: "http://127.0.0.1:8088",
-      caCertPath: "/tmp/ca.pem",
-      caKeyPath: "/tmp/ca-key.pem",
-      caFingerprint: "fingerprint"
-    })),
+    startProxy,
     proxyState: () => ({
       running: false,
       port: 8_088,
@@ -111,7 +114,7 @@ function createBrowser(electronSurfaceState: () => BrowserState | null = () => n
     electronSurfaceState,
     onProcessExit
   });
-  return { browser, captureObserver, onProcessExit, userDataPath };
+  return { browser, captureObserver, onProcessExit, startProxy, userDataPath };
 }
 
 describe("managed browser", () => {
@@ -163,5 +166,29 @@ describe("managed browser", () => {
     browserMocks.processListeners.get("exit")?.(0, null);
     expect(onProcessExit).toHaveBeenCalledOnce();
     expect(browser.rawState().open).toBe(false);
+  });
+
+  it("uses the next local proxy port when the preferred port is occupied", async () => {
+    const addressInUse = Object.assign(
+      new Error("listen EADDRINUSE: address already in use :::8088"),
+      { code: "EADDRINUSE" }
+    );
+    const startProxy = vi.fn()
+      .mockRejectedValueOnce(addressInUse)
+      .mockResolvedValueOnce({
+        running: true,
+        port: 8_089,
+        proxyUrl: "http://127.0.0.1:8089",
+        caCertPath: "/tmp/ca.pem",
+        caKeyPath: "/tmp/ca-key.pem",
+        caFingerprint: "fingerprint"
+      });
+    const { browser } = createBrowser(() => null, startProxy);
+
+    await expect(browser.open("https://target.example/start")).resolves.toEqual(
+      expect.objectContaining({ open: true, engine: "chrome" })
+    );
+    expect(startProxy).toHaveBeenNthCalledWith(1, 8_088);
+    expect(startProxy).toHaveBeenNthCalledWith(2, 8_089);
   });
 });

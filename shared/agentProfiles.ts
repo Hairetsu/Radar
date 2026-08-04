@@ -24,6 +24,7 @@ export const DEFAULT_AGENT_POLICY: AgentPolicy = {
   maxReplay: 1,
   maxWorkflowRequests: 1,
   maxCaptureSample: 100,
+  maxParallelWorkers: 2,
   allowRawContext: false
 };
 
@@ -198,6 +199,7 @@ export function normalizeAgentPolicy(input: Partial<AgentPolicy> = {}, profileId
     maxReplay: clampNumber(input.maxReplay, defaults.maxReplay, 0, 10),
     maxWorkflowRequests: clampNumber(input.maxWorkflowRequests, defaults.maxWorkflowRequests, 0, 100),
     maxCaptureSample: clampNumber(input.maxCaptureSample, defaults.maxCaptureSample, 1, 100),
+    maxParallelWorkers: clampNumber(input.maxParallelWorkers, defaults.maxParallelWorkers || 2, 1, 4),
     allowRawContext: Boolean(input.allowRawContext && defaults.allowRawContext),
     ...(input.tutorialMode === true ? { tutorialMode: true } : {})
   };
@@ -212,6 +214,7 @@ export function agentBudgetLabels(policy: AgentPolicy) {
     `steps ${policy.maxSteps}`,
     `replay ${policy.maxReplay}`,
     `workflow ${policy.maxWorkflowRequests}`,
+    `recon ${policy.maxParallelWorkers || 2}`,
     `captures ${policy.maxCaptureSample}`,
     `timeout ${Math.round(policy.maxRuntimeMs / 1000)}s`,
     policy.allowRawContext ? "raw context allowed" : "raw context off",

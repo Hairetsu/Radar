@@ -4,7 +4,7 @@ import { cn } from "../../lib";
 
 export const buttonVariants = cva(
   [
-    "relative inline-flex items-center justify-center gap-2 border font-mono text-body font-semibold uppercase tracking-label",
+    "relative inline-flex items-center justify-center gap-2 whitespace-nowrap border font-mono text-body font-semibold uppercase tracking-label",
     "transition duration-200 ease-out",
     "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-focus)] focus-visible:ring-[4px] focus-visible:ring-[var(--theme-focus-glow)]",
     "disabled:cursor-wait disabled:opacity-50 disabled:hover:translate-y-0",

@@ -21,11 +21,16 @@ export default [
       globals: {
         window: "readonly",
         document: "readonly",
+        Element: "readonly",
+        Event: "readonly",
+        HTMLButtonElement: "readonly",
         HTMLElement: "readonly",
         HTMLTextAreaElement: "readonly",
         HTMLInputElement: "readonly",
         KeyboardEvent: "readonly",
+        ResizeObserver: "readonly",
         URL: "readonly",
+        WheelEvent: "readonly",
         setInterval: "readonly",
         clearInterval: "readonly",
         console: "readonly"

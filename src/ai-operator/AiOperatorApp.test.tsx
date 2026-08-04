@@ -116,12 +116,14 @@ describe("AiOperatorApp", () => {
 
     const goal = await screen.findByTestId("agentGoalInput");
     fireEvent.change(goal, { target: { value: "Inspect https://target.test/account" } });
+    fireEvent.change(screen.getByTestId("agentWorkerLimitSelect"), { target: { value: "4" } });
     fireEvent.click(screen.getByTestId("startAgentRun"));
 
     await waitFor(() => expect(api.startAgentRun).toHaveBeenCalledWith(expect.objectContaining({
       goal: "Inspect https://target.test/account",
       startUrl: "https://target.test/account",
-      profileId: "browser-assessment"
+      profileId: "browser-assessment",
+      policy: { maxParallelWorkers: 4 }
     })));
     expect(goal).toHaveValue("");
   });
@@ -181,6 +183,37 @@ describe("AiOperatorApp", () => {
     await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "retry-tool", entryId: "failure-1" }));
     fireEvent.click(screen.getByTestId("agentRecovery-draft-finding"));
     await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "draft-finding", entryId: "failure-1" }));
+  });
+
+  it("keeps compact recon handoffs reviewable in the mission inspector", async () => {
+    const reconRun = run({
+      timeline: [{
+        id: "recon-entry",
+        createdAt: "2026-05-25T00:00:30.000Z",
+        phase: "recon",
+        reconReport: {
+          id: "recon-report",
+          focus: "surface-map",
+          label: "Surface map",
+          status: "completed",
+          summary: "Observed one scoped account endpoint.",
+          observations: ["GET /account returned 200."],
+          evidenceRefs: ["capture:capture-1"],
+          gaps: ["Authentication coverage is unknown."],
+          startedAt: "2026-05-25T00:00:00.000Z",
+          completedAt: "2026-05-25T00:00:30.000Z"
+        }
+      }]
+    });
+    const api = operatorApi({ listAgentRuns: vi.fn(async () => [reconRun]) });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    fireEvent.click(await screen.findByTestId("aiInspector-recon"));
+    const inspector = await screen.findByTestId("aiInspectorRecon");
+    expect(inspector).toHaveTextContent("Observed one scoped account endpoint.");
+    expect(inspector).toHaveTextContent("Authentication coverage is unknown.");
+    expect(inspector).toHaveTextContent("capture:capture-1");
   });
 
   it("opens a clean New Mission composer when paused history exists", async () => {

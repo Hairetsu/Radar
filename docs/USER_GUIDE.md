@@ -156,7 +156,7 @@ Radar opens into a twelve-view operator console.
 
 Persistent areas:
 
-- **Left sidebar**: Radar lockup and grouped Observe, Test, Report, and Configure navigation. The active view shows its live count in context.
+- **Left sidebar**: Radar lockup and grouped Observe, Test, Report, and Configure navigation. The active view shows its live count in context. Below 1180px the sidebar becomes a horizontal strip along the top of the window: use the chevron buttons at either end to page through the views, scroll the strip with the mouse wheel or a trackpad swipe, or move through it with the keyboard. The chevrons appear only while views are off screen and dim at each end, and the active view is always scrolled back into sight — including when AI-First changes views for you.
 - **Console block**: app-global controls at the foot of the sidebar — current Manual-First / AI-First status, AI connection status, **Open AI Operator**, Projects, and Appearance.
 - **Top banner**: active project workspace/session and UTC clock.
 - **Header**: active project name, managed-browser address/history controls, browser and Playwright status, global Search, project Notes, and view-specific actions. The header tracks the current target; app-global controls live in the sidebar Console block.
@@ -425,9 +425,9 @@ Radar looks for a supported local browser:
 When Radar launches the browser it:
 
 - Uses a Radar-owned profile directory instead of your normal browser profile.
-- Starts the local Radar proxy if needed.
+- Starts the local Radar proxy if needed, preferring port `8088` and selecting a nearby open port when managed-browser startup finds it occupied.
 - Routes browser traffic through Radar's proxy.
-- Opens remote debugging on `127.0.0.1:9223`.
+- Opens remote debugging on `127.0.0.1:9223`, or a nearby open loopback port when `9223` is occupied.
 - Connects Playwright Core to that loopback endpoint and keeps it attached to the visible managed page.
 - Uses a launch-scoped certificate exception for Radar's generated proxy CA fingerprint.
 - Uses a mock keychain flag on macOS where supported to avoid prompting for your login keychain.
@@ -1409,7 +1409,7 @@ Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S)
 
 Open **AI Operator** from the sidebar Console block, the compact mission bar, the Command Palette settings action, or **Cmd/Ctrl+Shift+A** when you want Radar to run from a prompt. The companion is independent and non-modal, so the workspace remains full width and directly operable. Opening or focusing it does not change mode, start a run, contact a provider, or widen Scope. A successful **Start Run** changes Radar to AI-First.
 
-The AI Operator window has a run-history rail, a chronological agent feed with a fixed composer, and a Mission Inspector for the graph, budgets, capability leases, findings, memory, and Connection settings. Failed or policy-blocked calls, recovery controls, capability requests, memory proposals, finding drafts, and exhausted budgets remain inline in the feed even when the inspector also summarizes them. The companion is a singleton: repeated open requests focus the same window, closing hides it without pausing or stopping a run, and reopening restores the selected section and durable run state. At narrower sizes the inspector and run rail collapse behind explicit buttons; the feed and composer remain the default surface.
+The AI Operator window has a run-history rail, a chronological agent feed with a fixed composer, and a Mission Inspector for the graph, recon handoffs, capability leases, findings, memory, and Connection settings. Failed or policy-blocked calls, recon worker status, recovery controls, capability requests, memory proposals, finding drafts, and exhausted budgets remain inline in the feed even when the inspector also summarizes them. The companion is a singleton: repeated open requests focus the same window, closing hides it without pausing or stopping a run, and reopening restores the selected section and durable run state. At narrower sizes the inspector and run rail collapse behind explicit buttons; the feed and composer remain the default surface.
 
 The compact workspace mission bar appears while the companion is open or a run is active or needs attention. It keeps run status, current action, target, attention state, Pause, Resume, Stop, and **Open/Focus AI Operator** beside the evidence without becoming a second transcript. Enter a scoped goal in the companion such as:
 
@@ -1430,6 +1430,14 @@ Before starting, choose a run profile:
 | **Header/Cookie Review** | Focus on security headers, cookie flags, CORS, and evidence-backed affected assets. |
 | **Advanced API Review** | Inspect Advanced API/auth summaries and run explicitly budgeted saved workflows. |
 | **Report From Evidence** | Summarize local evidence into quality-gated draft findings and run memory. |
+
+### Parallel Recon And Lead Review
+
+Before clicking **Start Run**, choose **1–4 recon workers** in the composer; the default is 2. The setting is a maximum for that run and is inherited by **Continue as New Run**. One worker performs a general scoped overview, two split surface/API from auth/hardening, three cover surface, auth/hardening, and API/workflow lanes, and four separate surface, headers/cookies, auth/session, and API/workflow review.
+
+The initial recon wave waits until the mission has its first run-scoped HTTP/S capture. It is evidence analysis, not parallel browser automation: every worker receives a bounded, redacted local snapshot and has no Radar tools, browser control, capability lease, replay path, or permission to change Scope or auth state. Workers run concurrently, return compact observations, evidence references, and review gaps, then hand those reports to the lead planner. Open **Mission Inspector → Recon** to review every handoff; the same completion or failure status remains in the durable feed.
+
+A failed recon worker does not pause or fail the run. The lead agent continues with completed reports and the normal scoped context, and must reconcile gaps or conflicts rather than treating worker hypotheses as findings. After handoff, Radar caps repeated capture material in the lead prompt so the parallel review reduces context pressure. Provider inference and read-only recon wait time do not consume the effect-bearing active runtime budget; browser/tool/replay/workflow activity still does, and every provider call retains its own timeout and error handling.
 
 ### Tutorial Mode And CVE Triage
 
@@ -1544,7 +1552,7 @@ A lease expires when its duration ends and becomes exhausted when its action or 
 
 Receipts count normalized leased actions and known explicit request costs. Replays count their explicit request; active workflows reserve their declared bounded request cost; browser actions use a conservative normalized action cost. Separately, the managed-Chrome CDP observer now preserves request-time action, identity, and activation lineage for observed subresource captures. Those attributed subresources do not become extra lease receipt costs, and proxy-only traffic remains unattributed.
 
-When a run starts, Radar records a full observation transcript. The agent chooses one tool action at a time, observes the result, then chooses the next action or returns `finish`. The live **Agent Thoughtstream** surfaces the current mission focus, concise planner rationale, selected tool, visible target, and latest result as each decision is saved. It is an auditable decision brief, not private model chain-of-thought. Radar does not fall back to a preset autonomous script if the configured AI planner fails. The saved transcript is not truncated: it keeps status entries, Mission Graph revisions, capability decisions/receipts, rationale summaries, tool calls, tool results, visible targets, policy blocks, failed steps, and recovery actions. Use **Run History** to select any saved run in the active session and inspect its graph, Thoughtstream, lease ledger, transcript, findings, status, budgets, and available controls.
+When a run starts, Radar records a full observation transcript. After initial scoped traffic exists, bounded read-only recon workers persist compact handoffs before the lead continues one tool action at a time, observes the result, then chooses the next action or returns `finish`. The live **Agent Thoughtstream** surfaces the current mission focus, concise lead-planner rationale, selected tool, visible target, and latest result as each decision is saved. It is an auditable decision brief, not private model chain-of-thought. Radar does not fall back to a preset autonomous script if the configured AI planner fails. The saved transcript is not truncated: it keeps status and recon entries, Mission Graph revisions, capability decisions/receipts, rationale summaries, tool calls, tool results, visible targets, policy blocks, failed steps, and recovery actions. Use **Run History** to select any saved run in the active session and inspect its graph, recon reports, Thoughtstream, lease ledger, transcript, findings, status, budgets, and available controls.
 
 Available AI-First tools:
 
@@ -1586,7 +1594,7 @@ AI-First runs are intentionally bounded:
 - During an AI click, fill, or form action, Playwright temporarily aborts any HTTP/S request outside saved Scope. Links and form actions with an out-of-scope destination are rejected before dispatch.
 - Submit buttons cannot be sent through the generic click tool; the agent must use the separately leased form-submission tool so POST authority stays explicit.
 - An out-of-scope origin from a goal remains an unsaved Scope proposal until the operator clicks **Commit**; the operator must then click **Start Run** again.
-- Run budgets are visible before and during a run: tool steps, replay count, workflow requests, capture sample, timeout, and raw-context policy. Browser Assessment defaults to 600 seconds; other profiles retain their narrower defaults. Checkpoints preserve cumulative tool-step, replay-send, workflow-request, and elapsed-time usage across pause/resume and recovery; resuming never replenishes a budget. Use **Continue as New Run** after exhaustion to preserve the old audit trail and start an explicitly separate bounded run.
+- Run budgets are visible before and during a run: tool steps, replay count, workflow requests, parallel recon workers, capture sample, active timeout, and raw-context policy. Browser Assessment defaults to 600 seconds; other profiles retain their narrower defaults. Checkpoints preserve cumulative tool-step, replay-send, workflow-request, and effect-bearing active-time usage across pause/resume and recovery; provider inference and read-only recon waiting are tracked by their own call timeouts rather than spending the action budget. Resuming never replenishes a budget. Use **Continue as New Run** after exhaustion to preserve the old audit trail and start an explicitly separate bounded run.
 - Tutorial Mode adds a lesson object to visible transcript decisions and pauses after meaningful successful inspections. If the planner omits a lesson, Radar supplies a conservative learning-clue fallback instead of inventing a vulnerability classification.
 - CVE-review tutorial guidance is normalized at the planner boundary and requires product, affected-version, impact, deployment-scope, reproducibility, and durable-evidence fields. Missing support downgrades the lesson to private vendor review.
 - The planner can advance the Mission Graph only through a bounded patch based on the current revision. Stale revisions, invalid entity links, and invalid operator mutations fail closed instead of replacing or partially updating the graph.
@@ -1600,6 +1608,7 @@ AI-First runs are intentionally bounded:
 - The selected profile controls which tools the agent can call. Disallowed tools create policy-block transcript entries instead of running.
 - Managed-Chrome captures created during an AI-First run retain run, navigation, action, identity, and activation lineage when available, plus frame URL and initiator metadata. Sequence and experiment lineage is retained only when an explicit producer supplies it. Late response/body updates preserve the request-time lineage.
 - AI-First feeds the current run's in-scope HTTP/S captures into each planner decision, so redirects and canonical hostnames remain visible without repeated capture reads.
+- AI-First starts one bounded recon wave after the first run-scoped capture. Workers only analyze redacted local evidence, their reports remain visible in the feed and Recon inspector, and worker failure degrades to a documented lead-agent gap rather than failing the run.
 - AI-First capture reads only return evidence for the active run unless an origin filter narrows that run evidence further.
 - AI-First intercept tools are prepare-only. They can inspect queued items and load draft edits, but **Forward**, **Drop**, and **Resume All** remain operator actions.
 - WebSocket frames stay visible in **02 WebSocket** and can be selected for command-palette AI tasks; autonomous AI-First capture tools currently read HTTP/S captures.
@@ -2031,7 +2040,7 @@ Use **Open Browser** rather than your normal browser profile. Radar launches a d
 
 ### Proxy Will Not Start
 
-Port `8088` may already be in use. Stop the other process, then try **Engage Proxy** again.
+Manual **Engage Proxy** keeps the configured external-client port predictable, so port `8088` may already be in use. Stop the other process, then try **Engage Proxy** again. **Open Browser** can select a nearby open proxy port automatically and shows the chosen URL in **12 SSL**.
 
 ### Repeater Says Headers Must Be A JSON Object
 
@@ -2135,6 +2144,8 @@ Check:
 - The run timeline does not show invalid planner output, a policy block, an AI provider error, or a failed tool waiting for an operator recovery choice.
 - A paused or failed run still has cumulative elapsed-time and tool-step budget available before you click **Resume**.
 - A queued or running run was not checkpointed by **Return to Manual**; it should now be paused and recoverable, not silently stopped.
+- If a Recon entry says a worker failed, open **Mission Inspector → Recon**. The lead should continue with the other handoffs; a provider-wide error will also appear in the normal timeline.
+- The active runtime counter excludes provider inference and read-only recon wait. If a call itself times out, fix the provider connection or lower the recon-worker limit; **Resume** should not be used to hide a repeated provider failure.
 
 ### Codex Connect Cannot Find Codex
 

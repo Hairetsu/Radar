@@ -301,7 +301,7 @@ Generate fixtures in a per-test temporary directory:
 | `REG-SSL-004` | `@core` `@persistence` | Save Radar Browser, external, CLI, and device proxy notes. | Notes survive workspace reload and do not leak to another project. |
 | `REG-SSL-005` | `@platform` | Launch the supported isolated system browser to lab. | Dedicated profile/debug endpoint/proxy are used and traffic appears in Radar. |
 | `REG-SSL-006` | `@platform` `@security` | Switch projects while browser is active. | Old project browser/profile stops or detaches safely; state does not cross projects. |
-| `REG-SSL-007` | `@platform` | Simulate unavailable browser and occupied default ports. | Clear launch error or alternate port behavior; Radar remains usable. |
+| `REG-SSL-007` | `@platform` | Occupy the preferred managed proxy and Chrome debugging ports before browser launch. | Radar selects nearby loopback ports, reaches the target, and remains usable. |
 
 ### O. Identity Lab
 
