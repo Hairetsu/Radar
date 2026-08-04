@@ -5,6 +5,7 @@ import type {
   AgentCapabilityLeaseRequest,
   AgentDecision,
   AgentDecisionContext,
+  AgentReconWorkerReport,
   AgentRun,
   AgentRunMemoryEntry,
   AgentRunRequest,
@@ -73,6 +74,7 @@ function makeRuntime(
     navigateBrowser?: (url: string) => Promise<BrowserState>;
     getStorageState?: () => Promise<AgentStorageState>;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
+    runReconWorkers?: (context: AgentDecisionContext, maxWorkers: number) => Promise<AgentReconWorkerReport[]>;
     leaseRequest?: AgentCapabilityLeaseRequest;
   } = {}
 ) {
@@ -204,6 +206,7 @@ function makeRuntime(
     }
     return decision;
   });
+  const runReconWorkers = options.runReconWorkers ? vi.fn(options.runReconWorkers) : undefined;
 
   const runtime = new AgentRuntime({
     currentSessionId: () => "session-test",
@@ -254,6 +257,7 @@ function makeRuntime(
     getIdentityLabContext,
     activateIdentityProfile,
     verifyIdentityProfile,
+    runReconWorkers,
     decideNextAction,
     setActiveRunId: (runId) => {
       activeRunId = runId || "";
@@ -275,7 +279,8 @@ function makeRuntime(
     submitForm,
     saveAuthState,
     activateIdentityProfile,
-    verifyIdentityProfile
+    verifyIdentityProfile,
+    runReconWorkers
   };
 }
 
@@ -343,6 +348,47 @@ function identityProfile(id = "identity-user-a"): IdentityProfile {
 }
 
 describe("AgentRuntime", () => {
+  it("fans scoped evidence into bounded recon workers before lead review", async () => {
+    const leadContexts: AgentDecisionContext[] = [];
+    const { runtime, runs, runReconWorkers } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      captures: [capture("capture-recon", "https://hairetsu.com/api/account", { mimeType: "application/json" })],
+      runReconWorkers: async (context, maxWorkers) => [{
+        id: "recon-surface",
+        focus: "surface-map",
+        label: `Surface map (${maxWorkers})`,
+        status: "completed",
+        summary: "Observed one scoped API endpoint.",
+        observations: ["The account endpoint returned 200."],
+        evidenceRefs: [`capture:${context.capturedTraffic[0]?.id}`],
+        gaps: ["Authentication coverage is unknown."],
+        startedAt: "2026-05-25T00:00:00.000Z",
+        completedAt: "2026-05-25T00:00:01.000Z"
+      }],
+      decideNextAction: async (context) => {
+        leadContexts.push(context);
+        return { action: "finish", rationale: "Lead review complete.", findings: [] };
+      }
+    });
+
+    const run = runtime.start({
+      goal: "Inspect https://hairetsu.com",
+      startUrl: "https://hairetsu.com",
+      profileId: "browser-assessment",
+      policy: { maxParallelWorkers: 3 }
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(runReconWorkers).toHaveBeenCalledWith(expect.any(Object), 3);
+    expect(leadContexts[0]?.reconReports).toEqual([
+      expect.objectContaining({ id: "recon-surface", status: "completed" })
+    ]);
+    expect(runs.get(run.id)?.timeline).toEqual(expect.arrayContaining([
+      expect.objectContaining({ phase: "recon", reconReport: expect.objectContaining({ id: "recon-surface" }) }),
+      expect.objectContaining({ phase: "recon", summary: "1 completed · 0 failed" })
+    ]));
+  });
+
   it("continues a standard run through scoped browser navigation without manual resume", async () => {
     let storageReadCount = 0;
     const decisions: AgentDecision[] = [

@@ -15,6 +15,7 @@ agentThoughtstreamRationale
 agentTimeline
 agentTutorialGuide
 agentTutorialToggle
+agentWorkerLimitSelect
 aiApiKey
 aiApplyPrepared
 aiAudit
@@ -30,6 +31,7 @@ aiCursorLogin
 aiIncludeRaw
 aiInspectorFindings
 aiInspectorMemory
+aiInspectorRecon
 aiMissionInspector
 aiModel
 aiOpenSettingsFromPalette
@@ -358,6 +360,8 @@ trustOrigin
 validatePlugin
 validateWorkflow
 viewSwitch
+viewSwitchScrollEnd
+viewSwitchScrollStart
 webSocketComment
 webSocketDetailText
 webSocketDirectionFilter

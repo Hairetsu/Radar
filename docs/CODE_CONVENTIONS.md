@@ -27,6 +27,7 @@ Use the existing folders as ownership boundaries:
 - `electron/browser/`: Managed-browser and CDP lifecycle, Electron debugger capture, scoped Playwright actions, browser inspection, and capture adapters.
 - `electron/ai/`: AI settings, prompts, context building, provider calls, connect presets, and audit logic.
 - `electron/agent/`: AI-First autonomous run loop, policy checks, and tool orchestration. Keep scope/replay limits here and have the runtime call existing browser, capture, and replay functions instead of duplicating them. Keep the public tool registry as a facade; catalog metadata belongs in `toolRegistry/definitions.ts` and canonical untrusted-input normalization belongs in `toolRegistry/normalization.ts`.
+- `electron/agent/planner/recon.ts`: bounded read-only recon fan-out. Recon workers analyze compact scoped snapshots only, expose no tool registry or capability path, normalize their handoffs, and persist reports through ordinary timeline entries so restart/review behavior needs no parallel storage model. Provider/recon deliberation time is excluded from the effect-bearing runtime budget; per-call timeouts still bound each wait.
 - `electron/windows/`: workspace/AI Operator window ownership, singleton lifecycle, bounds persistence and display clamping, renderer-role authorization, sanitized context projection, typed workspace intents, and app-mode events.
 - `src/`: React renderer code.
 - `src/hooks/`: Stateful renderer workflows. `useRadarWorkbench` is the composition root for workbench state.
@@ -115,6 +116,7 @@ import { buildContextPayload } from "./context.js";
 - Wrap async workflows in `useCallback` and `useAsyncAction` when the UI needs pending state.
 - Use `useMemo` for derived values that are reused by render.
 - Use `useEffect` sparingly: subscriptions, polling, keyboard shortcuts, and startup loads. Prefer derived state, event handlers, and render-time ref assignment over effects for keeping callbacks in sync. Always return cleanup functions for timers and listeners.
+- Read layout and other mutable DOM state through `useSyncExternalStore` with a cached snapshot rather than mirroring it into state from an effect, as `useHorizontalOverflow` does for scroll travel. Use a ref callback for one-shot DOM work tied to which element is rendered, and register listeners natively when React's synthetic event would be passive (`wheel`, `touchmove`).
 - Keep form controls controlled: `value`, `onChange`, and explicit state setters.
 - Electron-dependent calls must go through `window.radar`. The renderer should degrade with a notice when `window.radar` is unavailable.
 - Do not import Electron, Node built-ins, filesystem APIs, or process APIs into `src/`.

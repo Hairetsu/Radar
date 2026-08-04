@@ -1,4 +1,4 @@
-import { Pause, Play, RotateCw, Send, Square, UserRound } from "lucide-react";
+import { Pause, Play, RotateCw, ScanSearch, Send, Square, UserRound } from "lucide-react";
 import type { FormEvent } from "react";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
@@ -11,6 +11,10 @@ import type { AiOperatorController } from "./useAiOperator";
 export function AgentComposer({ controller }: { controller: AiOperatorController }) {
   const run = controller.activeRun;
   const canSteer = Boolean(run && (run.status === "paused" || run.status === "failed"));
+  const workerControlsLocked = Boolean(controller.runningRun) || canSteer;
+  const displayedWorkerLimit = workerControlsLocked
+    ? run?.policy.maxParallelWorkers || 2
+    : controller.maxParallelWorkers;
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (canSteer && controller.goal.trim()) {
@@ -37,22 +41,36 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
           disabled={Boolean(controller.runningRun) && !canSteer}
           data-testid="agentGoalInput"
         />
-        <div className="grid gap-2 min-[720px]:grid-cols-[minmax(180px,0.8fr)_auto] min-[1200px]:grid-cols-[minmax(180px,0.8fr)_auto_minmax(0,1fr)]">
-          <Select value={controller.profileId} onChange={(event) => controller.setProfileId(event.target.value as AgentRunProfileId)} disabled={Boolean(controller.runningRun) || canSteer} data-testid="agentProfileSelect">
+        <div className="grid grid-cols-2 gap-2 min-[1500px]:grid-cols-[minmax(180px,0.8fr)_minmax(140px,0.55fr)_auto_minmax(0,1fr)]">
+          <Select variant="compact" value={controller.profileId} onChange={(event) => controller.setProfileId(event.target.value as AgentRunProfileId)} disabled={Boolean(controller.runningRun) || canSteer} data-testid="agentProfileSelect">
             {controller.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
           </Select>
+          <label className="relative min-w-0">
+            <span className="sr-only">Maximum parallel recon workers</span>
+            <ScanSearch size={13} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-signal" />
+            <Select
+              variant="compact"
+              className="pl-8"
+              value={displayedWorkerLimit}
+              onChange={(event) => controller.setMaxParallelWorkers(Number(event.target.value))}
+              disabled={workerControlsLocked}
+              data-testid="agentWorkerLimitSelect"
+            >
+              {[1, 2, 3, 4].map((count) => <option key={count} value={count}>Recon max · {count}</option>)}
+            </Select>
+          </label>
           <button
             type="button"
             role="switch"
             aria-checked={controller.tutorialMode}
             disabled={Boolean(controller.runningRun) || canSteer}
             onClick={() => controller.setTutorialMode(!controller.tutorialMode)}
-            className={cn("flex h-9 items-center gap-2 border px-3 rd-label transition", controller.tutorialMode ? "border-signal/50 bg-signal/10 text-signal" : "border-rule text-muted hover:text-bone")}
+            className={cn("col-span-2 flex h-9 items-center gap-2 border px-3 rd-label transition min-[1500px]:col-span-1", controller.tutorialMode ? "border-signal/50 bg-signal/10 text-signal" : "border-rule text-muted hover:text-bone")}
             data-testid="agentTutorialToggle"
           >
             <span className={cn("h-2 w-2 border border-current", controller.tutorialMode && "bg-signal")} /> Tutorial
           </button>
-          <div className="flex flex-wrap justify-end gap-1.5 min-[720px]:col-span-2 min-[1200px]:col-span-1">
+          <div className="col-span-2 flex min-w-0 flex-wrap justify-start gap-1.5 min-[1500px]:col-span-1 min-[1500px]:justify-end">
             {!controller.runningRun && !canSteer && <Button type="submit" variant="solid" disabled={controller.pending} data-testid="startAgentRun"><Play size={13} /> {controller.tutorialMode ? "Start Tutorial" : "Start Run"}</Button>}
             {canSteer && <Button type="submit" variant="solid" disabled={controller.pending || !controller.goal.trim()} data-testid="steerAgentRun"><Send size={13} /> Add Objective</Button>}
             <Button type="button" variant="outline" size="compact" disabled={!controller.canPause || controller.pending} onClick={() => void controller.pauseRun()} data-testid="pauseAgentRun"><Pause size={12} /> Pause</Button>

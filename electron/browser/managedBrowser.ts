@@ -38,6 +38,36 @@ async function findOpenPort(startPort: number) {
   throw new Error(`No open local port found for Chrome debugging near ${startPort}.`);
 }
 
+function isAddressInUseError(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "EADDRINUSE"
+  ) {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /EADDRINUSE|address already in use/i.test(message);
+}
+
+async function startManagedProxy(
+  startPort: number,
+  startProxy: (port: number) => Promise<ProxyState>
+) {
+  for (let offset = 0; offset < 80 && startPort + offset <= 65_535; offset += 1) {
+    const port = startPort + offset;
+    try {
+      return await startProxy(port);
+    } catch (error) {
+      if (!isAddressInUseError(error)) {
+        throw error;
+      }
+    }
+  }
+  throw new Error(`No open local port found for the Radar proxy near ${startPort}.`);
+}
+
 export function createManagedBrowser({
   userDataPath,
   defaultDebugPort,
@@ -137,7 +167,10 @@ export function createManagedBrowser({
   async function open(urlString: string) {
     const nextUrl = normalizeUrl(urlString);
     const browser = findSystemBrowser();
-    const proxy = await startProxy(proxyState().port);
+    const currentProxy = proxyState();
+    const proxy = currentProxy.running
+      ? currentProxy
+      : await startManagedProxy(currentProxy.port, startProxy);
     const remoteDebuggingPort = await findOpenPort(defaultDebugPort);
     const profileDir = profileDirectory();
     stop();

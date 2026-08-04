@@ -19,18 +19,20 @@ async function callOpenAi({
   model,
   baseUrl,
   system,
-  user
+  user,
+  timeoutMs = 4_000
 }: {
   apiKey: string;
   model: string;
   baseUrl: string;
   system: string;
   user: string;
+  timeoutMs?: number;
 }) {
   const root = (baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
   const response = await fetch(`${root}/chat/completions`, {
     method: "POST",
-    signal: AbortSignal.timeout(4_000),
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`
@@ -65,16 +67,18 @@ async function callAnthropic({
   apiKey,
   model,
   system,
-  user
+  user,
+  timeoutMs = 4_000
 }: {
   apiKey: string;
   model: string;
   system: string;
   user: string;
+  timeoutMs?: number;
 }) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    signal: AbortSignal.timeout(4_000),
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
@@ -108,17 +112,20 @@ async function callAnthropic({
 export async function complete({
   settings,
   system,
-  user
+  user,
+  timeoutMs
 }: {
   settings: AiSettings;
   system: string;
   user: string;
+  timeoutMs?: number;
 }) {
   if (settings.provider === "codex-local") {
     const text = await runCodexCliCompletion({
       model: settings.model,
       system,
-      user
+      user,
+      timeoutMs
     });
     return { text, parsed: extractJson(text) };
   }
@@ -128,7 +135,8 @@ export async function complete({
       model: settings.model,
       apiKey: settings.apiKey,
       system,
-      user
+      user,
+      timeoutMs
     });
     return { text, parsed: extractJson(text) };
   }
@@ -142,7 +150,8 @@ export async function complete({
       apiKey: settings.apiKey,
       model: settings.model,
       system,
-      user
+      user,
+      timeoutMs
     });
   }
 
@@ -154,7 +163,8 @@ export async function complete({
     model: settings.model,
     baseUrl,
     system,
-    user
+    user,
+    timeoutMs
   });
 }
 

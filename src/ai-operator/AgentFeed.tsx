@@ -57,7 +57,7 @@ export function AgentFeed({ controller }: { controller: AiOperatorController }) 
                     key={entry.id}
                     className={cn(
                       "relative mb-2 border bg-ink/32 p-3 before:absolute before:bottom-0 before:left-0 before:top-0 before:w-0.5",
-                      failure ? "border-rust/45 before:bg-rust" : entry.phase === "tool-call" ? "border-signal/35 before:bg-signal" : "border-rule before:bg-rule"
+                      failure ? "border-rust/45 before:bg-rust" : entry.phase === "tool-call" ? "border-signal/35 before:bg-signal" : entry.phase === "recon" ? "border-sand/35 before:bg-sand" : "border-rule before:bg-rule"
                     )}
                     data-testid={`agentTimelineEntry-${entry.id}`}
                     data-entry-id={entry.id}
@@ -68,8 +68,8 @@ export function AgentFeed({ controller }: { controller: AiOperatorController }) 
                         <span className="block rd-eyebrow text-muted">{entry.phase || "status"} / {entry.createdAt.slice(11, 19)}Z</span>
                         <p className="mt-1 font-display text-body uppercase tracking-data text-bone">{timelineEntryText(entry)}</p>
                       </div>
-                      <StatusBadge tone={failure ? "danger" : entry.toolResult?.ok ? "good" : "ghost"}>
-                        {entry.toolResult ? (entry.toolResult.ok ? "ok" : "failed") : entry.toolCall?.tool || "note"}
+                      <StatusBadge tone={failure || entry.reconReport?.status === "failed" ? "danger" : entry.toolResult?.ok || entry.reconReport?.status === "completed" ? "good" : "ghost"}>
+                        {entry.toolResult ? (entry.toolResult.ok ? "ok" : "failed") : entry.reconReport?.status || entry.toolCall?.tool || "note"}
                       </StatusBadge>
                     </div>
                     {entry.summary && entry.summary !== timelineEntryText(entry) && <p className="mt-2 text-body leading-5 text-copy">{entry.summary}</p>}

@@ -157,8 +157,8 @@ export function TrafficView({
 
   return (
     <div className="grid min-h-0 [grid-template-columns:minmax(0,1.15fr)_minmax(340px,0.85fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
-      <div className="grid min-h-0 border-r border-rule [grid-template-rows:auto_minmax(0,1fr)_minmax(180px,0.42fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
-        <div className="radar-traffic-filter grid items-center gap-2 border-b border-rule radar-form-gradient px-3 py-2.5">
+      <div className="flex min-h-0 flex-col border-r border-rule max-[1180px]:border-r-0 max-[1180px]:border-b">
+        <div className="radar-traffic-filter grid shrink-0 items-center gap-2 border-b border-rule radar-form-gradient px-3 py-2.5">
           <Select
             variant="compact"
             value={trafficMethodFilter}
@@ -262,7 +262,7 @@ export function TrafficView({
           </Button>
         </div>
         {(trafficSearch.trim() || savedFilters.length > 0) && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-rule px-3 py-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-rule px-3 py-2">
             {trafficSearch.trim() && (
               <StatusPill live>
                 {trafficSearch.trim()}
@@ -317,7 +317,7 @@ export function TrafficView({
           </div>
         )}
         {selectedIds.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-rule bg-rust/5 px-3 py-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-rule bg-rust/5 px-3 py-2">
             <span className="rd-label text-muted">
               {selectedIds.length} selected
             </span>
@@ -363,7 +363,7 @@ export function TrafficView({
             </Button>
           </div>
         )}
-        <div className="min-h-0 overflow-auto radar-traffic-list">
+        <div className="min-h-0 flex-1 overflow-auto radar-traffic-list">
           {trafficCaptures.length === 0 && (
             <EmptyState>
               <Activity size={18} strokeWidth={1.4} />

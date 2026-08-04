@@ -623,6 +623,22 @@ export type AgentDecision =
       missionPatch?: AgentMissionPatch;
     };
 
+export type AgentReconWorkerStatus = "completed" | "failed";
+
+export type AgentReconWorkerReport = {
+  id: string;
+  focus: string;
+  label: string;
+  status: AgentReconWorkerStatus;
+  summary: string;
+  observations: string[];
+  evidenceRefs: string[];
+  gaps: string[];
+  startedAt: string;
+  completedAt: string;
+  error?: string;
+};
+
 export type AgentDecisionContext = {
   goal: string;
   startUrl: string;
@@ -640,6 +656,7 @@ export type AgentDecisionContext = {
   runMemory: AgentRunMemoryEntry[];
   mission: AgentMission;
   capabilities: AgentCapabilityState;
+  reconReports?: AgentReconWorkerReport[];
   tutorialMode: boolean;
   timeline: AgentTimelineEntry[];
 };
@@ -648,7 +665,7 @@ export type AgentTimelineEntry = {
   id: string;
   createdAt: string;
   note?: string;
-  phase?: "status" | "decision" | "tool-call" | "tool-result" | "policy-block" | "failure";
+  phase?: "status" | "recon" | "decision" | "tool-call" | "tool-result" | "policy-block" | "failure";
   summary?: string;
   target?: {
     view?: AgentWorkbenchView;
@@ -661,6 +678,7 @@ export type AgentTimelineEntry = {
   actionId?: string;
   identityId?: string;
   tutorial?: AgentTutorialGuidance;
+  reconReport?: AgentReconWorkerReport;
   toolCall?: AgentToolCall;
   toolResult?: AgentToolResult;
 };
@@ -704,6 +722,7 @@ export type AgentPolicy = {
   maxReplay: number;
   maxWorkflowRequests: number;
   maxCaptureSample: number;
+  maxParallelWorkers?: number;
   allowRawContext: boolean;
   tutorialMode?: boolean;
 };

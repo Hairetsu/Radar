@@ -128,4 +128,42 @@ describe("proxy controller", () => {
     expect(controller.state().running).toBe(false);
     expect(proxyMocks.server.stop).toHaveBeenCalledOnce();
   });
+
+  it("cleans up a failed bind so startup can retry on another port", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "radar-proxy-controller-"));
+    temporaryDirectories.push(userDataPath);
+    const addressInUse = Object.assign(
+      new Error("listen EADDRINUSE: address already in use :::8088"),
+      { code: "EADDRINUSE" }
+    );
+    proxyMocks.server.start.mockRejectedValueOnce(addressInUse);
+    const controller = createProxyController({
+      userDataPath,
+      regressionMode: true,
+      defaultPort: 8_088,
+      currentSessionId: () => "session-1",
+      allowlist: () => ["https://target.example"],
+      captureById: () => undefined,
+      bindCaptureToCurrentSession: vi.fn(),
+      bindCaptureToSession: (capture) => capture,
+      rememberCapture: vi.fn(),
+      rememberSslEvent: vi.fn(),
+      rememberWebSocketRequest: vi.fn(),
+      rememberWebSocketAccepted: vi.fn(),
+      rememberWebSocketMessage: vi.fn(),
+      rememberWebSocketClose: vi.fn(),
+      queueInterceptRequest: vi.fn(async () => undefined),
+      queueInterceptResponse: vi.fn(async () => undefined)
+    });
+
+    await expect(controller.start(8_088)).rejects.toThrow("EADDRINUSE");
+    expect(controller.state().running).toBe(false);
+    expect(proxyMocks.server.stop).toHaveBeenCalledOnce();
+
+    await expect(controller.start(8_089)).resolves.toEqual(
+      expect.objectContaining({ running: true, port: 43_123 })
+    );
+    expect(proxyMocks.server.start).toHaveBeenNthCalledWith(1, 8_088);
+    expect(proxyMocks.server.start).toHaveBeenNthCalledWith(2, 8_089);
+  });
 });
