@@ -112,9 +112,12 @@ export function AgentMissionGraph({
       {!mission ? (
         <div className="p-4"><EmptyState>Start or select a run to open its durable Mission Graph.</EmptyState></div>
       ) : (
-        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-          <div className="min-w-0 border-b border-rule lg:border-b-0 lg:border-r">
-            <div className="grid grid-cols-2 gap-px border-b border-rule bg-rule sm:grid-cols-5">
+        <div className="grid min-w-0">
+          <div className="min-w-0 border-b border-rule">
+            <div
+              className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(auto-fit,minmax(104px,1fr))]"
+              data-testid="missionGraphCoverage"
+            >
               {coverageByDimension.map(({ dimension, covered, total }) => (
                 <div key={dimension} className="bg-ink/70 px-2 py-2">
                   <span className="block rd-label-sm text-muted">{dimension}</span>
@@ -230,7 +233,7 @@ export function AgentMissionGraph({
               </div>
             ) : <EmptyState>No mission nodes yet.</EmptyState>}
 
-            <form className="grid grid-cols-[112px_minmax(0,1fr)_auto] gap-2" onSubmit={submitNewItem}>
+            <form className="grid gap-2" onSubmit={submitNewItem}>
               <Select variant="compact" value={newKind} onChange={(event) => setNewKind(event.target.value as "objective" | "hypothesis")} disabled={!canSteer} aria-label="New mission item kind">
                 <option value="hypothesis">Hypothesis</option>
                 <option value="objective">Objective</option>

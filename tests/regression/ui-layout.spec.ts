@@ -450,6 +450,19 @@ test.describe("UI layout, reachability, and density contracts", () => {
       await assertAiOperatorControls(operator);
       await assertNoGlobalHorizontalOverflow(operator);
       if (profileId === "zoom-80") {
+        const missionGraph = operator.getByTestId("agentMissionGraph");
+        await expect(missionGraph).toBeVisible();
+        const graphLayout = await missionGraph.evaluate((element) => {
+          const coverage = element.querySelector<HTMLElement>("[data-testid='missionGraphCoverage']");
+          return {
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+            coverageClientWidth: coverage?.clientWidth || 0,
+            coverageScrollWidth: coverage?.scrollWidth || 0
+          };
+        });
+        expect(graphLayout.scrollWidth, "AI Operator Mission Graph should not overflow its inspector").toBeLessThanOrEqual(graphLayout.clientWidth + 1);
+        expect(graphLayout.coverageScrollWidth, "Mission Graph coverage labels should remain inside their grid").toBeLessThanOrEqual(graphLayout.coverageClientWidth + 1);
         for (const [trigger, overlay, close] of [
           ["openProjectArtifacts", "projectArtifactsOverlay", "closeProjectArtifacts"],
           ["openGlobalSearch", "globalSearchOverlay", "closeGlobalSearch"]
