@@ -47,24 +47,39 @@ test("[REG-SSL-006] @platform @security detaches an active browser identity when
   await expect(page.locator('[data-testid^="identityRoster-"]').filter({ hasText: "Project Switch Browser" })).toHaveCount(0);
 });
 
-test("[REG-SSL-007] @platform handles an occupied preferred debugging port and remains usable", async ({ electronApp, radarPage: page, targetLab }) => {
+test("[REG-SSL-007] @platform handles occupied preferred proxy and debugging ports and remains usable", async ({ electronApp, radarPage: page, targetLab }) => {
   test.skip(!runPlatform, "Set RADAR_REGRESSION_PLATFORM=1 on a host with a supported system browser.");
-  const preferredPort = Number(await electronApp.evaluate(() => process.env.RADAR_REGRESSION_DEBUG_PORT));
-  const blocker = net.createServer();
-  await new Promise<void>((resolve, reject) => {
-    blocker.once("error", reject);
-    blocker.listen(preferredPort, "127.0.0.1", () => resolve());
-  });
+  const preferredDebugPort = Number(await electronApp.evaluate(() => process.env.RADAR_REGRESSION_DEBUG_PORT));
+  const preferredProxyPort = Number(await electronApp.evaluate(() => process.env.RADAR_REGRESSION_PROXY_PORT));
+  const debugBlocker = net.createServer();
+  const proxyBlocker = net.createServer();
+  await Promise.all([
+    new Promise<void>((resolve, reject) => {
+      debugBlocker.once("error", reject);
+      debugBlocker.listen(preferredDebugPort, "127.0.0.1", () => resolve());
+    }),
+    new Promise<void>((resolve, reject) => {
+      proxyBlocker.once("error", reject);
+      proxyBlocker.listen(preferredProxyPort, () => resolve());
+    })
+  ]);
   try {
     await setScope(page, [targetLab.origin]);
     const identity = await createPlatformIdentity(page, targetLab.origin, "Alternate Port Browser");
     await identity.getByLabel("Activate Alternate Port Browser").click();
     await targetLab.waitForRequests(1, 30_000);
-    const state = await page.evaluate(() => window.radar!.getBrowserState());
-    expect(state.remoteDebuggingUrl).not.toContain(`:${preferredPort}`);
+    const [browserState, proxyState] = await page.evaluate(() =>
+      Promise.all([window.radar!.getBrowserState(), window.radar!.getProxyState()])
+    );
+    expect(browserState.remoteDebuggingUrl).not.toContain(`:${preferredDebugPort}`);
+    expect(proxyState.running).toBe(true);
+    expect(proxyState.port).not.toBe(preferredProxyPort);
     await expect(page.getByTestId("radarShell")).toBeVisible();
   } finally {
-    await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    await Promise.all([
+      new Promise<void>((resolve) => debugBlocker.close(() => resolve())),
+      new Promise<void>((resolve) => proxyBlocker.close(() => resolve()))
+    ]);
   }
 });
 

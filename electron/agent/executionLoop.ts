@@ -20,6 +20,7 @@ import {
 } from "./toolMetadata.js";
 import { resumeCheckpoint } from "./executionRecovery.js";
 import { executePlanningStep } from "./planningStep.js";
+import { runInitialRecon } from "./reconStep.js";
 
 type ExecuteRunLoopInput = {
   runId: string;
@@ -94,6 +95,10 @@ export async function executeRunLoop({
     }
 
     while (!isStopped(runId)) {
+      run = await runInitialRecon({ run, counters, deps });
+      if (isStopped(runId)) {
+        return;
+      }
       if (Date.now() - counters.startedAt > run.policy.maxRuntimeMs) {
         throw new Error(
           "Agent exceeded its runtime budget before returning finish."

@@ -66,6 +66,7 @@ export function useAiOperator() {
   const [composingNewMission, setComposingNewMission] = useState(false);
   const [goal, setGoalState] = useState("");
   const [profileId, setProfileId] = useState<AgentRunProfileId>("browser-assessment");
+  const [maxParallelWorkers, setMaxParallelWorkers] = useState(2);
   const [tutorialMode, setTutorialMode] = useState(false);
   const [notice, setNotice] = useState("AI Operator ready. No run starts until you submit a saved-scope goal.");
   const [pending, setPending] = useState(false);
@@ -292,6 +293,7 @@ export function useAiOperator() {
         goal: decision.goal,
         startUrl: decision.startUrl,
         profileId,
+        policy: { maxParallelWorkers },
         ...(tutorialMode ? { tutorialMode: true } : {})
       });
       replaceRun(run);
@@ -302,7 +304,7 @@ export function useAiOperator() {
     } finally {
       setPending(false);
     }
-  }, [dispatchWorkspaceIntent, goal, profileId, replaceRun, runningRun, selectRun, setGoal, tutorialMode, workspaceContext]);
+  }, [dispatchWorkspaceIntent, goal, maxParallelWorkers, profileId, replaceRun, runningRun, selectRun, setGoal, tutorialMode, workspaceContext]);
 
   const pauseRun = useCallback(async () => {
     if (!activeRun) return;
@@ -568,6 +570,8 @@ export function useAiOperator() {
     setGoal,
     profileId,
     setProfileId,
+    maxParallelWorkers,
+    setMaxParallelWorkers,
     profiles: AGENT_RUN_PROFILES,
     selectedProfile,
     tutorialMode,

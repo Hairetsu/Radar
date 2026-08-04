@@ -6,4 +6,7 @@ if (typeof window !== "undefined") {
     value: createRadarApiStub(),
     writable: true
   });
+
+  // jsdom has no layout engine and therefore no scroll implementation.
+  Element.prototype.scrollIntoView ||= () => {};
 }

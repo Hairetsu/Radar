@@ -16,7 +16,9 @@ import {
 } from "./evidenceContext.js";
 import {
   capabilityStateFromRun,
+  checkpointFromCounters,
   missionFromRun,
+  normalizedCheckpoint,
   withUpdate
 } from "./runState.js";
 import { timeline } from "./runtimeClock.js";
@@ -34,7 +36,7 @@ import {
 } from "./executionDecision.js";
 import { settleToolStep } from "./executionPostTool.js";
 
-function decisionContext({
+export function buildDecisionContext({
   run,
   counters,
   deps
@@ -50,6 +52,12 @@ function decisionContext({
     activeAllowlist,
     ""
   );
+  const reconReports = run.timeline
+    .flatMap((entry) => entry.reconReport ? [entry.reconReport] : [])
+    .slice(-8);
+  const plannerCaptureLimit = reconReports.length > 0
+    ? Math.min(run.policy.maxCaptureSample, 24)
+    : run.policy.maxCaptureSample;
   return {
     goal: run.goal,
     startUrl: counters.startUrl,
@@ -66,7 +74,7 @@ function decisionContext({
     ),
     capturedTraffic: capturedTrafficContext(
       captures,
-      run.policy.maxCaptureSample
+      plannerCaptureLimit
     ),
     contextSummary: runtimeContextSummary({
       deps,
@@ -76,6 +84,7 @@ function decisionContext({
     runMemory: deps.listRunMemory().slice(0, 16),
     mission: missionFromRun(run),
     capabilities: capabilityStateFromRun(run),
+    reconReports,
     tutorialMode: Boolean(run.policy.tutorialMode),
     timeline: run.timeline.slice(-16)
   };
@@ -106,11 +115,27 @@ export async function executePlanningStep({
   waitForSettle: (ms: number) => Promise<void>;
   currentAuthFingerprint: () => Promise<string>;
 }): Promise<{ run: AgentRun; ended: boolean }> {
+  const plannerWaitStartedAt = Date.now();
   const decision = await deps.decideNextAction(
-    decisionContext({ run, counters, deps })
-  );
+    buildDecisionContext({ run, counters, deps })
+  ).finally(() => {
+    // Provider inference is read-only deliberation. Keep the runtime budget focused
+    // on autonomous app activity so a slow local model cannot consume it by waiting.
+    counters.startedAt += Date.now() - plannerWaitStartedAt;
+  });
   if (isStopped(runId)) {
-    return { run, ended: true };
+    const current = deps.loadRun(runId) || run;
+    const checkpoint = normalizedCheckpoint(current);
+    return {
+      run: withUpdate(current, deps.saveRun, {
+        checkpoint: checkpointFromCounters(
+          counters,
+          checkpoint.pendingRecovery,
+          checkpoint.pendingCapabilityCall
+        )
+      }),
+      ended: true
+    };
   }
   if (Date.now() - counters.startedAt > run.policy.maxRuntimeMs) {
     throw new Error(

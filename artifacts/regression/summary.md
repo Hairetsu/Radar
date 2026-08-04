@@ -1,44 +1,38 @@
 # Radar Regression Report
 
-Generated: 2026-08-04T17:47:29.706Z
+Generated: 2026-08-04T20:34:48.217Z
 Overall result: **PASSED**
-Workers: 6
-Wall time: 118.7s
-Aggregate workflow time: 668.3s
+Workers: 2
+Wall time: 47.2s
+Aggregate workflow time: 93.2s
 
 ## Outcome
 
 | Passed | Failed | Flaky | Skipped | Selected |
 | ---: | ---: | ---: | ---: | ---: |
-| 182 | 0 | 0 | 10 | 192 |
+| 22 | 0 | 0 | 3 | 25 |
 
 ## Release Signals
 
 - No blocking workflow failures were detected.
 - No flaky workflows were detected.
-- 10 selected workflow(s) were skipped and remain explicit coverage gaps for this run.
-- 4 workflow(s) exceeded 10 seconds; review the slowest-workflow table for startup, polling, or IPC latency.
+- 3 selected workflow(s) were skipped and remain explicit coverage gaps for this run.
+- 1 workflow(s) exceeded 10 seconds; review the slowest-workflow table for startup, polling, or IPC latency.
 - No security-tagged release blockers were detected.
 - No critical UI/font/usability release blockers were detected.
 - The scheduled full UI matrix was not selected for this invocation.
 - The installed-browser platform matrix was not selected for this invocation.
 - Catalog automation: 192/192 stable IDs (100.0%).
-- This invocation selected 192/192 catalog IDs.
+- This invocation selected 25/192 catalog IDs.
 
 ## Results By Tag
 
 | Tag | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| @ai | 31 | 0 | 0 | 0 | 31 |
-| @core | 65 | 0 | 0 | 0 | 65 |
-| @files | 17 | 0 | 0 | 0 | 17 |
+| @ai | 1 | 0 | 0 | 0 | 1 |
 | @font | 3 | 0 | 0 | 0 | 3 |
-| @network | 29 | 0 | 0 | 3 | 32 |
-| @persistence | 24 | 0 | 0 | 0 | 24 |
-| @platform | 1 | 0 | 0 | 5 | 6 |
-| @security | 60 | 0 | 0 | 1 | 61 |
-| @smoke | 8 | 0 | 0 | 0 | 8 |
-| @soak | 0 | 0 | 0 | 2 | 2 |
+| @platform | 1 | 0 | 0 | 0 | 1 |
+| @security | 1 | 0 | 0 | 0 | 1 |
 | @ui | 22 | 0 | 0 | 3 | 25 |
 | @ui-critical | 2 | 0 | 0 | 1 | 3 |
 | @ui-full | 0 | 0 | 0 | 1 | 1 |
@@ -49,28 +43,7 @@ Aggregate workflow time: 668.3s
 
 | Surface | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Advanced Testing | 8 | 0 | 0 | 0 | 8 |
-| AI Manual-First | 8 | 0 | 0 | 0 | 8 |
-| AI-First | 12 | 0 | 0 | 0 | 12 |
-| AIOP | 3 | 0 | 0 | 0 | 3 |
-| Application Shell | 10 | 0 | 0 | 0 | 10 |
-| Automate | 9 | 0 | 0 | 0 | 9 |
-| Data & Persistence | 5 | 0 | 0 | 0 | 5 |
-| Files & Reports | 9 | 0 | 0 | 0 | 9 |
-| Findings | 9 | 0 | 0 | 0 | 9 |
-| HTTP/S Traffic | 12 | 0 | 0 | 0 | 12 |
-| Identity Lab | 5 | 0 | 0 | 2 | 7 |
-| Intercept | 8 | 0 | 0 | 0 | 8 |
-| Plugins | 10 | 0 | 0 | 0 | 10 |
-| Projects & Sessions | 8 | 0 | 0 | 0 | 8 |
-| Repeater | 10 | 0 | 0 | 0 | 10 |
-| Resilience | 2 | 0 | 0 | 2 | 4 |
-| Scope | 7 | 0 | 0 | 0 | 7 |
-| Sitemap | 3 | 0 | 0 | 0 | 3 |
-| SSL & Proxy | 4 | 0 | 0 | 3 | 7 |
 | UI, Typography & Usability | 22 | 0 | 0 | 3 | 25 |
-| WebSocket | 7 | 0 | 0 | 0 | 7 |
-| Workflows | 11 | 0 | 0 | 0 | 11 |
 
 ## Results By UI Environment
 
@@ -112,30 +85,23 @@ No failed workflows.
 
 | Rank | Workflow | Outcome | Duration | Attempts |
 | ---: | --- | --- | ---: | ---: |
-| 1 | **REG-WF-007** [REG-WF-007] @network @security blocks an active workflow with no selected capture | passed | 33.4s | 1 |
-| 2 | **REG-WS-006** [REG-WS-006] @security shows a bounded WebSocket replay error without disturbing HTTP evidence | passed | 32.5s | 1 |
-| 3 | **REG-UI-006** [REG-UI-006] @ui passes every view at laptop and default layouts | passed | 20.7s | 1 |
-| 4 | **REG-AIF-003** [REG-AIF-003] @ai @security enforces visible tool, replay, workflow, capture-sample, and runtime budgets | passed | 12.5s | 1 |
-| 5 | **REG-UI-005** [REG-UI-005] @ui @usability reaches required controls in all twelve views at minimum size | passed | 8.4s | 1 |
-| 6 | **REG-AUTO-008** [REG-AUTO-008] @network retries only a failed Automate attempt after fixture recovery | passed | 7.1s | 1 |
-| 7 | **REG-UI-008** [REG-UI-008] @ui @usability keeps critical workflows reachable at 125% and 150% zoom | passed | 7.1s | 1 |
-| 8 | **REG-UI-025** [REG-UI-025] @ui @visual @usability @ui-critical preserves clarity and hierarchy below 100% zoom | passed | 7.1s | 1 |
-| 9 | **REG-AIF-004** [REG-AIF-004] @ai pauses a delayed planner and resumes the same durable run | passed | 6.9s | 1 |
-| 10 | **REG-AUTO-006** [REG-AUTO-006] @network pauses and resumes a real slow Automate session without duplicate sends | passed | 6.9s | 1 |
+| 1 | **REG-UI-006** [REG-UI-006] @ui passes every view at laptop and default layouts | passed | 19.5s | 1 |
+| 2 | **REG-UI-005** [REG-UI-005] @ui @usability reaches required controls in all twelve views at minimum size | passed | 8.1s | 1 |
+| 3 | **REG-UI-025** [REG-UI-025] @ui @visual @usability @ui-critical preserves clarity and hierarchy below 100% zoom | passed | 6.8s | 1 |
+| 4 | **REG-UI-008** [REG-UI-008] @ui @usability keeps critical workflows reachable at 125% and 150% zoom | passed | 6.0s | 1 |
+| 5 | **REG-UI-010** [REG-UI-010] @ui @usability prevents toolbar and primary-action overlap | passed | 4.1s | 1 |
+| 6 | **REG-UI-012** [REG-UI-012] @ui @usability prevents undisclosed truncation on primary headings and actions | passed | 3.5s | 1 |
+| 7 | **REG-UI-013** [REG-UI-013] @ui @usability keeps primary overlays within the viewport with internal scrolling | passed | 3.4s | 1 |
+| 8 | **REG-UI-003** [REG-UI-003] @ui @font resolves every theme's display, sans, and mono roles | passed | 3.3s | 1 |
+| 9 | **REG-UI-002** [REG-UI-002] @ui @font @security loads production fonts locally without fallback or external traffic | passed | 3.3s | 1 |
+| 10 | **REG-UI-022** [REG-UI-022] @ui @platform @font loads all pinned font roles at native platform scale | passed | 3.0s | 1 |
 
 ## Application Startup Distribution
 
-Samples: 185 · min 1.0s · median 1.1s · p95 1.3s · max 1.9s.
+Samples: 24 · min 1.0s · median 1.0s · p95 1.2s · max 1.3s.
 
 ## Skipped Coverage Gaps
 
-- **REG-SSL-005** [REG-SSL-005] @platform launches the supported isolated browser through Radar to the local lab
-- **REG-SSL-006** [REG-SSL-006] @platform @security detaches an active browser identity when the project changes
-- **REG-SSL-007** [REG-SSL-007] @platform handles an occupied preferred debugging port and remains usable
-- **REG-ID-003** [REG-ID-003] @platform @network activates a scoped dedicated identity and attributes its real captures
-- **REG-ID-004** [REG-ID-004] @platform @network records healthy and failed dedicated identity verification semantics
-- **REG-RES-003** [REG-RES-003] @soak repeats demo load, navigation, filtering, and project state checks fifty times
-- **REG-RES-004** [REG-RES-004] @soak @network sustains a bounded high-volume capture and replay set
 - **REG-UI-020** [REG-UI-020] @ui @visual @ui-critical matches approved Linux visual anchors
 - **REG-UI-021** [REG-UI-021] @ui @visual @ui-full captures the full view, theme, and window matrix
 - **REG-UI-024** [REG-UI-024] @ui @usability validates the recorded human release review

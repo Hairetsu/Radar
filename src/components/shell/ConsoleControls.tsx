@@ -35,16 +35,30 @@ export function ConsoleControls({
     <div className="grid gap-1.5" data-component="consoleControls">
       <span className="rd-eyebrow text-muted max-[1180px]:hidden">Console</span>
 
-      <Button type="button" variant={appMode === "ai-first" ? "solid" : "outline"} className="w-full justify-between px-2.5" onClick={onOpenAiOperator} data-testid="openAiOperatorSidebar" data-component="openAiOperator">
-        <span className="flex items-center gap-2"><Bot size={12} /> {appMode === "ai-first" ? "AI-First" : "AI Operator"}</span>
-        <span className="flex items-center gap-1 font-mono text-nano"><span className={cn("h-1.5 w-1.5 rounded-full", aiOperatorVisible ? "bg-jade" : "bg-muted")} />{aiOperatorVisible ? "open" : "launch"}<ExternalLink size={10} /></span>
+      <Button
+        type="button"
+        variant={appMode === "ai-first" ? "solid" : "outline"}
+        className="h-8 w-full min-w-0 justify-between gap-2 px-2 text-label tracking-key"
+        onClick={onOpenAiOperator}
+        data-testid="openAiOperatorSidebar"
+        data-component="openAiOperator"
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Bot size={12} strokeWidth={1.8} />
+          <span className="truncate">{appMode === "ai-first" ? "AI-First" : "AI Operator"}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1 font-mono text-nano tracking-data">
+          <span className={cn("h-1.5 w-1.5 rounded-full", aiOperatorVisible ? "bg-jade" : "bg-current opacity-60")} />
+          {aiOperatorVisible ? "open" : "launch"}
+          <ExternalLink size={10} />
+        </span>
       </Button>
 
       <Button
         type="button"
         variant="ghost"
         className={cn(
-          "h-8 w-full justify-start gap-2 border px-2.5 rd-label transition",
+          "h-8 w-full justify-start gap-2 border px-2.5 text-label transition",
           aiConnected
             ? "border-jade/40 bg-jade/10 text-jade hover:bg-jade/15"
             : aiChecking
@@ -75,7 +89,7 @@ export function ConsoleControls({
           type="button"
           variant="outline"
           size="compact"
-          className="min-w-0 justify-start"
+          className="min-w-0 justify-start text-label"
           onClick={onOpenProfileSessionPanel}
           title="Projects and sessions"
           data-testid="openProfileSessionPanel"

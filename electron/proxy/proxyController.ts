@@ -61,6 +61,7 @@ export function createProxyController({
   queueInterceptResponse
 }: ProxyControllerOptions) {
   let server: ReturnType<typeof getLocal> | undefined;
+  let starting: Promise<ProxyState> | undefined;
   let state: ProxyState = {
     running: false,
     port: defaultPort,
@@ -88,10 +89,9 @@ export function createProxyController({
     return state;
   }
 
-  async function start(port = defaultPort) {
-    if (server) return state;
+  async function startNewServer(port: number) {
     const ca = await ensureCa();
-    server = getLocal({
+    const nextServer = getLocal({
       https: { keyPath: ca.caKeyPath, certPath: ca.caCertPath },
       http2: "fallback",
       passthrough: ["unknown-protocol"],
@@ -99,80 +99,103 @@ export function createProxyController({
       suggestChanges: false,
       maxBodySize: MAX_CAPTURED_BODY
     });
-    await server.start(Number(port) || defaultPort);
-    await server.on("request", async (request) => {
-      const sessionId = currentSessionId();
-      bindCaptureToCurrentSession(request.id);
-      const text = await request.body
-        .getText()
-        .catch(() => `[truncated: request body exceeded ${MAX_CAPTURED_BODY} bytes]`);
-      const capture = proxyRequestToCapture({
-        req: request,
-        bodyText: truncateText(text),
-        rules: allowlist()
+    try {
+      await nextServer.start(Number(port) || defaultPort);
+      await nextServer.on("request", async (request) => {
+        const sessionId = currentSessionId();
+        bindCaptureToCurrentSession(request.id);
+        const text = await request.body
+          .getText()
+          .catch(() => `[truncated: request body exceeded ${MAX_CAPTURED_BODY} bytes]`);
+        const capture = proxyRequestToCapture({
+          req: request,
+          bodyText: truncateText(text),
+          rules: allowlist()
+        });
+        bindCaptureToSession(capture, sessionId);
+        rememberCapture(capture);
       });
-      bindCaptureToSession(capture, sessionId);
-      rememberCapture(capture);
-    });
-    await server.on("response", async (response) => {
-      const entry = captureById(response.id);
-      if (!entry) return;
-      const text = await response.body
-        .getText()
-        .catch(() => `[truncated: response body exceeded ${MAX_CAPTURED_BODY} bytes]`);
-      const contentLengthHeader = response.headers?.["content-length"];
-      const contentLength = Number(
-        Array.isArray(contentLengthHeader) ? contentLengthHeader[0] : contentLengthHeader || 0
-      );
-      entry.status = response.statusCode;
-      entry.statusText = response.statusMessage || "";
-      entry.responseHeaders = safeJsonHeaders(response.headers || {});
-      entry.responseBody =
-        !text && Number.isFinite(contentLength) && contentLength > MAX_CAPTURED_BODY
-          ? `[truncated: response body exceeded ${MAX_CAPTURED_BODY} bytes]`
-          : truncateText(text || "");
-      entry.durationMs =
-        typeof response.timingEvents?.responseSentTimestamp === "number" &&
-        typeof response.timingEvents?.startTimestamp === "number"
-          ? Math.max(
-              0,
-              Math.round(
-                response.timingEvents.responseSentTimestamp - response.timingEvents.startTimestamp
+      await nextServer.on("response", async (response) => {
+        const entry = captureById(response.id);
+        if (!entry) return;
+        const text = await response.body
+          .getText()
+          .catch(() => `[truncated: response body exceeded ${MAX_CAPTURED_BODY} bytes]`);
+        const contentLengthHeader = response.headers?.["content-length"];
+        const contentLength = Number(
+          Array.isArray(contentLengthHeader) ? contentLengthHeader[0] : contentLengthHeader || 0
+        );
+        entry.status = response.statusCode;
+        entry.statusText = response.statusMessage || "";
+        entry.responseHeaders = safeJsonHeaders(response.headers || {});
+        entry.responseBody =
+          !text && Number.isFinite(contentLength) && contentLength > MAX_CAPTURED_BODY
+            ? `[truncated: response body exceeded ${MAX_CAPTURED_BODY} bytes]`
+            : truncateText(text || "");
+        entry.durationMs =
+          typeof response.timingEvents?.responseSentTimestamp === "number" &&
+          typeof response.timingEvents?.startTimestamp === "number"
+            ? Math.max(
+                0,
+                Math.round(
+                  response.timingEvents.responseSentTimestamp - response.timingEvents.startTimestamp
+                )
               )
-            )
-          : null;
-      rememberCapture(entry);
-    });
-    await server.on("tls-client-error", (event) => {
-      rememberSslEvent({
-        id: `ssl_${Date.now()}`,
-        url: event.remoteIpAddress || "tls-client",
-        error: event.failureCause || "tls-client-error",
-        trusted: false,
-        createdAt: new Date().toISOString()
+            : null;
+        rememberCapture(entry);
       });
-    });
-    await server.on("websocket-request", rememberWebSocketRequest);
-    await server.on("websocket-accepted", rememberWebSocketAccepted);
-    await server.on("websocket-message-received", rememberWebSocketMessage);
-    await server.on("websocket-message-sent", rememberWebSocketMessage);
-    await server.on("websocket-close", rememberWebSocketClose);
-    await server.forAnyWebSocket().thenPassThrough();
-    await server.forAnyRequest().waitForRequestBody().thenPassThrough({
-      beforeRequest: queueInterceptRequest,
-      beforeResponse: queueInterceptResponse,
-      ...(regressionMode ? { additionalTrustedCAs: [{ certPath: ca.caCertPath }] } : {})
-    });
-    state = {
-      ...ca,
-      running: true,
-      port: server.port,
-      proxyUrl: `http://127.0.0.1:${server.port}`
-    };
-    return state;
+      await nextServer.on("tls-client-error", (event) => {
+        rememberSslEvent({
+          id: `ssl_${Date.now()}`,
+          url: event.remoteIpAddress || "tls-client",
+          error: event.failureCause || "tls-client-error",
+          trusted: false,
+          createdAt: new Date().toISOString()
+        });
+      });
+      await nextServer.on("websocket-request", rememberWebSocketRequest);
+      await nextServer.on("websocket-accepted", rememberWebSocketAccepted);
+      await nextServer.on("websocket-message-received", rememberWebSocketMessage);
+      await nextServer.on("websocket-message-sent", rememberWebSocketMessage);
+      await nextServer.on("websocket-close", rememberWebSocketClose);
+      await nextServer.forAnyWebSocket().thenPassThrough();
+      await nextServer.forAnyRequest().waitForRequestBody().thenPassThrough({
+        beforeRequest: queueInterceptRequest,
+        beforeResponse: queueInterceptResponse,
+        ...(regressionMode ? { additionalTrustedCAs: [{ certPath: ca.caCertPath }] } : {})
+      });
+      server = nextServer;
+      state = {
+        ...ca,
+        running: true,
+        port: nextServer.port,
+        proxyUrl: `http://127.0.0.1:${nextServer.port}`
+      };
+      return state;
+    } catch (error) {
+      await nextServer.stop().catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async function start(port = defaultPort) {
+    if (server) return state;
+    if (starting) return starting;
+    const pending = startNewServer(port);
+    starting = pending;
+    try {
+      return await pending;
+    } finally {
+      if (starting === pending) {
+        starting = undefined;
+      }
+    }
   }
 
   async function stop() {
+    if (starting) {
+      await starting.catch(() => undefined);
+    }
     if (server) {
       await server.stop();
       server = undefined;

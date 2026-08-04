@@ -42,7 +42,7 @@ function compactToolResult(result: AgentDecisionContext["timeline"][number]["too
       tool: result.tool,
       ok: true,
       data: {
-        captures: result.data.captures.map((capture) => ({
+        captures: result.data.captures.slice(-24).map((capture) => ({
           id: capture.id,
           method: capture.method,
           url: capture.url,
@@ -297,6 +297,17 @@ export function buildAgentUserPrompt(context: AgentDecisionContext) {
       runMemory: context.runMemory,
       mission: compactMission(context.mission),
       capabilities: compactCapabilities(context.capabilities),
+      reconReports: (context.reconReports || []).map((report) => ({
+        id: report.id,
+        focus: report.focus,
+        label: report.label,
+        status: report.status,
+        summary: report.summary,
+        observations: report.observations,
+        evidenceRefs: report.evidenceRefs,
+        gaps: report.gaps,
+        error: report.error
+      })),
       timeline: context.timeline.map((entry) => ({
         id: entry.id,
         note: entry.note,

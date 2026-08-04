@@ -18,8 +18,10 @@ describe("agentProfiles", () => {
       maxReplay: 0,
       maxWorkflowRequests: 0,
       maxCaptureSample: 80,
+      maxParallelWorkers: 2,
       allowRawContext: false
     });
+    expect(normalizeAgentPolicy({ maxParallelWorkers: 99 }, "passive-map").maxParallelWorkers).toBe(4);
     expect(normalizeAgentPolicy({ tutorialMode: "true" as never }, "passive-map").tutorialMode).toBeUndefined();
   });
 

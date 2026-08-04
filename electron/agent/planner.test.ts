@@ -60,6 +60,18 @@ describe("agent planner", () => {
       runMemory: [],
       mission: createAgentMission("Inspect the scoped target", "https://target.example/"),
       capabilities: createAgentCapabilityState(),
+      reconReports: [{
+        id: "recon-1",
+        focus: "surface-map",
+        label: "Surface map",
+        status: "completed",
+        summary: "Observed one account endpoint.",
+        observations: ["GET /account returned 200."],
+        evidenceRefs: ["capture:capture-1"],
+        gaps: ["Authentication state is unknown."],
+        startedAt: "2026-07-31T00:00:00.000Z",
+        completedAt: "2026-07-31T00:00:01.000Z"
+      }],
       tutorialMode: false,
       timeline: [
         {
@@ -84,7 +96,13 @@ describe("agent planner", () => {
         }
       ],
       mission: { revision: 0 },
-      capabilities: { revision: 0 }
+      capabilities: { revision: 0 },
+      reconReports: [{
+        id: "recon-1",
+        focus: "surface-map",
+        status: "completed",
+        evidenceRefs: ["capture:capture-1"]
+      }]
     });
   });
   it("normalizes tool decisions", () => {

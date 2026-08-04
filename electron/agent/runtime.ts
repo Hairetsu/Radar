@@ -224,6 +224,10 @@ export class AgentRuntime {
           maxReplay: Math.min(sourceRun.policy.maxReplay, profilePolicy.maxReplay),
           maxWorkflowRequests: Math.min(sourceRun.policy.maxWorkflowRequests, profilePolicy.maxWorkflowRequests),
           maxCaptureSample: Math.min(sourceRun.policy.maxCaptureSample, profilePolicy.maxCaptureSample),
+          maxParallelWorkers: Math.min(
+            sourceRun.policy.maxParallelWorkers || 2,
+            profilePolicy.maxParallelWorkers || 2
+          ),
           allowRawContext: sourceRun.policy.allowRawContext && profilePolicy.allowRawContext,
           tutorialMode
         }

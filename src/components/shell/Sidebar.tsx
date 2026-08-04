@@ -1,6 +1,9 @@
+import { useCallback } from "react";
 import {
   Activity,
   Braces,
+  ChevronLeft,
+  ChevronRight,
   FileLock2,
   FileText,
   FlaskConical,
@@ -16,6 +19,7 @@ import {
 import { Button } from "../ui/button";
 import { Select } from "../ui/select";
 import { cn } from "../../lib";
+import { useHorizontalOverflow } from "../../hooks/useHorizontalOverflow";
 import { viewMeta, type WorkView } from "../../hooks/workbench/viewMeta";
 import type { BrowserState, LocalSession, LocalSessionSummary } from "../../types";
 import { ConsoleControls, type ConsoleControlsProps } from "./ConsoleControls";
@@ -68,6 +72,22 @@ export function Sidebar({
   sidebarViewStats,
   consoleControls
 }: SidebarProps) {
+  // The rail collapses into a horizontal strip under 1180px, where the grouped
+  // views run off the edge. The nudges only exist once that strip actually
+  // overflows, so the vertical rail never shows dead controls.
+  const viewScroll = useHorizontalOverflow();
+  const nudgeClass = cn(
+    "hidden h-8 w-7 shrink-0 self-center px-0 disabled:cursor-default disabled:opacity-30",
+    viewScroll.overflowing && "max-[1180px]:inline-flex"
+  );
+
+  // Only the active button carries this ref, so React runs it whenever the
+  // active view changes. That keeps the current tab on screen in the collapsed
+  // strip when AI-First switches views on the operator's behalf.
+  const revealActiveView = useCallback((node: HTMLButtonElement | null) => {
+    node?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, []);
+
   return (
     <aside
       className={cn(
@@ -97,56 +117,88 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav
-        className="mt-2.5 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 max-[1180px]:mt-0 max-[1180px]:flex-row max-[1180px]:gap-1 max-[1180px]:overflow-x-auto max-[1180px]:pr-0"
-        aria-label="Workbench views"
-        data-testid="viewSwitch"
-        data-component="viewSwitch"
-      >
-        {sidebarViewGroups.map((group) => (
-          <div key={group.label} className="grid gap-0.5 max-[1180px]:flex max-[1180px]:items-center">
-            <span className="px-2 font-mono text-nano font-semibold uppercase tracking-banner text-dim max-[1180px]:hidden">
-              {group.label}
-            </span>
-            <div className="grid max-[1180px]:flex">
-              {group.views.map((view) => {
-                const active = activeView === view;
-                const ViewIcon = sidebarViewIcons[view];
-                return (
-                  <Button
-                    key={view}
-                    variant="ghost"
-                    className={cn(sidebarViewButtonClass(active), "max-[1180px]:min-w-[156px]")}
-                    onClick={() => setActiveView(view)}
-                    aria-current={active ? "page" : undefined}
-                    data-testid={`view-${view}`}
-                    data-component="viewSwitchButton"
-                  >
-                    <span className="nav-icon grid h-6 w-6 shrink-0 place-items-center border border-rule/70 bg-ink/20 text-muted transition">
-                      <ViewIcon size={12} strokeWidth={1.7} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-baseline justify-between gap-2">
-                        <span className="font-display text-body font-semibold uppercase leading-none tracking-data [font-stretch:75%]">
-                          {viewMeta[view].label}
-                        </span>
-                        <span className="nav-num font-mono text-nano font-semibold tracking-label text-dim transition">
-                          {viewMeta[view].num}
-                        </span>
+      <div className="mt-2.5 flex min-h-0 min-w-0 flex-1 gap-1 max-[1180px]:mt-0 max-[1180px]:flex-none">
+        <Button
+          type="button"
+          variant="outline"
+          className={nudgeClass}
+          disabled={!viewScroll.canScrollStart}
+          onClick={() => viewScroll.scrollByPage(-1)}
+          aria-label="Scroll views left"
+          title="Scroll views left"
+          data-testid="viewSwitchScrollStart"
+          data-component="viewSwitchScrollStart"
+        >
+          <ChevronLeft size={14} strokeWidth={1.8} />
+        </Button>
+
+        <nav
+          ref={viewScroll.attach}
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 max-[1180px]:flex-row max-[1180px]:gap-1 max-[1180px]:overflow-y-hidden max-[1180px]:overflow-x-auto max-[1180px]:scroll-smooth max-[1180px]:pr-0 motion-reduce:scroll-auto"
+          aria-label="Workbench views"
+          data-testid="viewSwitch"
+          data-component="viewSwitch"
+        >
+          {sidebarViewGroups.map((group) => (
+            <div key={group.label} className="grid gap-0.5 max-[1180px]:flex max-[1180px]:items-center">
+              <span className="px-2 font-mono text-nano font-semibold uppercase tracking-banner text-dim max-[1180px]:hidden">
+                {group.label}
+              </span>
+              <div className="grid max-[1180px]:flex">
+                {group.views.map((view) => {
+                  const active = activeView === view;
+                  const ViewIcon = sidebarViewIcons[view];
+                  return (
+                    <Button
+                      key={view}
+                      ref={active ? revealActiveView : undefined}
+                      variant="ghost"
+                      className={cn(sidebarViewButtonClass(active), "max-[1180px]:min-w-[156px]")}
+                      onClick={() => setActiveView(view)}
+                      aria-current={active ? "page" : undefined}
+                      data-testid={`view-${view}`}
+                      data-component="viewSwitchButton"
+                    >
+                      <span className="nav-icon grid h-6 w-6 shrink-0 place-items-center border border-rule/70 bg-ink/20 text-muted transition">
+                        <ViewIcon size={12} strokeWidth={1.7} />
                       </span>
-                      {active && (
-                        <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-nano uppercase tracking-key text-muted">
-                          {sidebarViewStats[view]}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="font-display text-body font-semibold uppercase leading-none tracking-data [font-stretch:75%]">
+                            {viewMeta[view].label}
+                          </span>
+                          <span className="nav-num font-mono text-nano font-semibold tracking-label text-dim transition">
+                            {viewMeta[view].num}
+                          </span>
                         </span>
-                      )}
-                    </span>
-                  </Button>
-                );
-              })}
+                        {active && (
+                          <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-nano uppercase tracking-key text-muted">
+                            {sidebarViewStats[view]}
+                          </span>
+                        )}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
+
+        <Button
+          type="button"
+          variant="outline"
+          className={nudgeClass}
+          disabled={!viewScroll.canScrollEnd}
+          onClick={() => viewScroll.scrollByPage(1)}
+          aria-label="Scroll views right"
+          title="Scroll views right"
+          data-testid="viewSwitchScrollEnd"
+          data-component="viewSwitchScrollEnd"
+        >
+          <ChevronRight size={14} strokeWidth={1.8} />
+        </Button>
+      </div>
 
       <div className="mt-4 border-t border-rule/80 pt-3 max-[1180px]:mt-0 max-[1180px]:border-t-0 max-[1180px]:pt-0">
         <ConsoleControls {...consoleControls} />
