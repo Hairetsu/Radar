@@ -272,9 +272,12 @@ export function IdentityLab({
               <div className="flex gap-1.5"><StatusBadge tone="good">{attributedCaptures.length} ATTRIBUTED</StatusBadge><StatusBadge tone={unattributedCount ? "warn" : "ghost"}>{unattributedCount} EXCLUDED</StatusBadge></div>
             </div>
             <div className="grid gap-px border-b border-rule bg-rule sm:grid-cols-3" aria-label="Evidence interpretation rules">
-              <div className="bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-signal">2XX</strong> RESPONSE OBSERVED ≠ AUTHORIZATION PROOF</div>
-              <div className="bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-sand">401 / 403</strong> DENIAL RESPONSE OBSERVED</div>
-              <div className="bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-muted">NO ACTIVATION</strong> EXCLUDED FROM MATRIX</div>
+              <div className="min-h-12 bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy">
+                <strong className="text-signal">2XX</strong> RESPONSE OBSERVED ≠ AUTHORIZATION
+                <span className="block">PROOF</span>
+              </div>
+              <div className="min-h-12 bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-sand">401 / 403</strong> DENIAL RESPONSE OBSERVED</div>
+              <div className="min-h-12 bg-ink/70 px-3 py-2 font-mono text-micro leading-4 text-copy"><strong className="text-muted">NO ACTIVATION</strong> EXCLUDED FROM MATRIX</div>
             </div>
             <div className="max-h-[360px] overflow-auto" data-testid="identityMatrix">
               <table className="w-full min-w-[760px] border-collapse text-left">

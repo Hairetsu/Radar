@@ -81,6 +81,8 @@ The harness distinguishes native surfaces by URL and immutable preload role. `op
 
 `fullyParallel` is enabled, so independent workflows execute in multiple Radar instances at the same time. Use `--workers=N` to control concurrency. CI defaults to two workers; local Playwright uses the host's normal worker calculation.
 
+Playwright global setup resolves and verifies the Electron executable once before any worker starts. Electron 42 downloads its binary lazily, so keeping that bootstrap single-owner prevents parallel first-run launches from racing on the executable with `ETXTBSY`.
+
 `RADAR_REGRESSION_USER_DATA_DIR`, `RADAR_REGRESSION_ARTIFACT_DIR`, `RADAR_REGRESSION_PROXY_PORT`, and `RADAR_REGRESSION_DEBUG_PORT` are harness-only startup controls. Normal application launches retain Radar's standard paths and ports.
 
 ## Real-Use Fixtures
