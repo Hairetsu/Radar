@@ -44,8 +44,9 @@ test("[REG-UI-023] @ui @usability keeps stress-copy content from hiding critical
   await assertNoGlobalHorizontalOverflow(page);
   await expect(page.getByTestId("draftAdvancedImportWorkflow")).toBeVisible();
 
-  await openAiFirstConsole(page);
-  await page.getByTestId("agentGoalInput").fill(`${LONG_COPY}\n${LONG_COPY}`);
-  await assertNoGlobalHorizontalOverflow(page);
-  await expect(page.getByTestId("startAgentRun")).toBeVisible();
+  const operator = await openAiFirstConsole(page);
+  await applyWindowProfile(electronApp, operator, "minimum", testInfo);
+  await operator.getByTestId("agentGoalInput").fill(`${LONG_COPY}\n${LONG_COPY}`);
+  await assertNoGlobalHorizontalOverflow(operator);
+  await expect(operator.getByTestId("startAgentRun")).toBeVisible();
 });

@@ -1,16 +1,6 @@
-export type WorkView =
-  | "traffic"
-  | "websocket"
-  | "intercept"
-  | "repeater"
-  | "automate"
-  | "findings"
-  | "workflows"
-  | "plugins"
-  | "advanced"
-  | "scope"
-  | "ssl"
-  | "sitemap";
+import type { AgentWorkbenchView } from "../../../shared/agent-types.js";
+
+export type WorkView = AgentWorkbenchView;
 
 export const WORK_VIEWS: WorkView[] = [
   "traffic",

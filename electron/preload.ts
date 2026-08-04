@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { IpcRendererEvent } from "electron";
 import type { RadarApi } from "../shared/radar-api.js";
+import { WINDOW_CHANNELS } from "../shared/windowCoordination.js";
+
+function subscribe<T>(channel: string, listener: (payload: T) => void) {
+  const handler = (_event: IpcRendererEvent, payload: T) => listener(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
 
 const radar: RadarApi = {
   getLocalContext: () => ipcRenderer.invoke("local:context"),
@@ -135,7 +143,18 @@ const radar: RadarApi = {
   listAgentRuns: () => ipcRenderer.invoke("agent:list"),
   getAgentRunMemory: () => ipcRenderer.invoke("agent-memory:list"),
   saveAgentRunMemory: (entry) => ipcRenderer.invoke("agent-memory:save", entry),
-  deleteAgentRunMemory: (id: string) => ipcRenderer.invoke("agent-memory:delete", id)
+  deleteAgentRunMemory: (id: string) => ipcRenderer.invoke("agent-memory:delete", id),
+  openAiOperator: (section) => ipcRenderer.invoke(WINDOW_CHANNELS.openAiOperator, section),
+  getAiOperatorWindowState: () => ipcRenderer.invoke(WINDOW_CHANNELS.getAiOperatorState),
+  getAppMode: () => ipcRenderer.invoke(WINDOW_CHANNELS.getAppMode),
+  setAppMode: (mode) => ipcRenderer.invoke(WINDOW_CHANNELS.setAppMode, mode),
+  publishWorkspaceContext: (context) => ipcRenderer.invoke(WINDOW_CHANNELS.publishWorkspaceContext, context),
+  onWorkspaceIntent: (listener) => subscribe(WINDOW_CHANNELS.workspaceIntent, listener),
+  onAiOperatorWindowState: (listener) => subscribe(WINDOW_CHANNELS.aiOperatorStateChanged, listener),
+  onAppModeChanged: (listener) => subscribe(WINDOW_CHANNELS.appModeChanged, listener),
+  onAgentChanged: (listener) => subscribe(WINDOW_CHANNELS.agentChanged, listener),
+  onAiConnectionChanged: (listener) => subscribe(WINDOW_CHANNELS.aiConnectionChanged, listener)
 };
 
+contextBridge.exposeInMainWorld("radarSurface", "workspace");
 contextBridge.exposeInMainWorld("radar", radar);

@@ -723,7 +723,17 @@ const radarApi = {
   listAgentRuns: vi.fn(async () => []),
   getAgentRunMemory: vi.fn(async () => []),
   saveAgentRunMemory: vi.fn(async (entry) => ({ ...entry, status: entry.status === "proposed" ? "confirmed" : entry.status })),
-  deleteAgentRunMemory: vi.fn(async () => ({ ok: true, memory: [] }))
+  deleteAgentRunMemory: vi.fn(async () => ({ ok: true, memory: [] })),
+  openAiOperator: vi.fn(async (section = "runs") => ({ created: true, visible: true, focused: true, section })),
+  getAiOperatorWindowState: vi.fn(async () => ({ created: false, visible: false, focused: false, section: "runs" })),
+  getAppMode: vi.fn(async () => "manual-first" as const),
+  setAppMode: vi.fn(async (mode) => mode),
+  publishWorkspaceContext: vi.fn(async (context) => context),
+  onWorkspaceIntent: vi.fn(() => () => undefined),
+  onAiOperatorWindowState: vi.fn(() => () => undefined),
+  onAppModeChanged: vi.fn(() => () => undefined),
+  onAgentChanged: vi.fn(() => () => undefined),
+  onAiConnectionChanged: vi.fn(() => () => undefined)
   };
   return { ...radarApi, ...overrides } as RadarApi;
 }

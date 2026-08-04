@@ -25,8 +25,9 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] **Notes** opens the project artifacts panel; saving a project note and a current saved view survives project/session reload.
 - [ ] Project bundle **Preview Export** shows counts and raw-evidence warnings; **Preview Import** shows skipped conflicts and proposed scope without applying targets.
 - [ ] Handoff package preview includes reviewed findings by default, can opt into draft findings, and exports only referenced evidence.
-- [ ] Manual-First / AI-First toggle changes mode without starting an agent run.
-- [ ] AI-First profile selector and budget chips render before a run starts.
+- [ ] **Open AI Operator** and `Cmd/Ctrl+Shift+A` open or focus one non-modal companion window without starting a run or changing Manual-First mode.
+- [ ] AI connection summary is visible in the workspace; its settings action focuses **AI Operator → Connection** instead of opening a workspace overlay.
+- [ ] AI-First profile selector and budget chips render in the AI Operator before a run starts.
 - [ ] Bottom telemetry counts match visible request, WebSocket, TLS, and proxy state.
 
 ## 01 HTTP(S)
@@ -161,9 +162,19 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 
 ## AI-First Safety
 
-- [ ] Starting an AI-First run shows a visible timeline and stop control.
+- [ ] The AI Operator defaults to `1040 x 840`, cannot resize below `760 x 640`, and remains clamped to the active display after monitor/work-area changes.
+- [ ] Repeated open requests focus the same companion; no duplicate AI Operator window is created.
+- [ ] Closing the AI Operator hides it without stopping or pausing an active run; reopening restores the selected run, feed, and section.
+- [ ] The main workspace retains full evidence width with no drawer inset before, during, or after a run.
+- [ ] Starting a run changes both surfaces to AI-First and shows a durable feed plus immediate Stop in the companion and compact workspace mission bar.
+- [ ] **Return to Manual** pauses/checkpoints queued or running work before mode changes; a forced pause failure leaves both surfaces AI-First with Stop available.
+- [ ] The companion run rail, feed/composer, and Mission Inspector have independent scroll paths; the composer remains reachable at minimum size.
+- [ ] Below `940px` the inspector becomes a drawer; below `820px` the run rail becomes a drawer; neither transition hides the feed or composer.
+- [ ] `Cmd/Ctrl+Shift+A`, companion **Focus Workspace**, and feed **Reveal in Workspace** move focus only after explicit operator action.
+- [ ] Project, session, active view, browser summary, and selected evidence references synchronize to the companion without raw request bodies, headers, cookies, or storage values.
+- [ ] A companion-selected view/scope proposal/evidence reference applies through the visible workspace and records the expected operator-facing notice.
 - [ ] Run profile and budgets are visible for steps, replay, workflow requests, capture sample, timeout, and raw-context policy.
-- [ ] Observation Console shows the full saved transcript, not only the last few entries.
+- [ ] The chronological feed shows the full saved transcript, not only the last few entries.
 - [ ] AI-First tab switches are visible.
 - [ ] Tool cards show rationale summaries, visible targets, tool result state, and policy blocks.
 - [ ] A forced failed passive tool produces a highlighted failure card with retry, retry-with-evidence, skip/continue, stop, and draft-finding recovery controls.
@@ -173,6 +184,8 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] AI-proposed run memory can be confirmed or dismissed, manual memory can be created, memory search filters entries, and memory persists after project reload.
 - [ ] Raw context stays opt-in.
 - [ ] Stopping a run prevents additional tool steps.
+- [ ] Bureau, Vellum, and Specter theme changes propagate to both windows with the intended local display/body/mono font roles.
+- [ ] At 80%, 90%, 100%, 125%, 150%, and 200% zoom, both native windows preserve readable hierarchy, visible focus, internally scrollable evidence/feed, and reachable safety controls; 75% remains advisory for visual clarity.
 
 ## Local Data
 

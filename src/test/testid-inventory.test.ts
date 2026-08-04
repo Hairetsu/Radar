@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import inventoryText from "./testid-inventory.txt?raw";
 
-const sourceModules = import.meta.glob(["../App.tsx", "../components/**/*.{ts,tsx}", "../ai/**/*.{ts,tsx}"], {
+const sourceModules = import.meta.glob(["../App.tsx", "../components/**/*.{ts,tsx}", "../ai/**/*.{ts,tsx}", "../ai-operator/**/*.{ts,tsx}", "../RendererBootstrapError.tsx"], {
   query: "?raw",
   import: "default",
   eager: true

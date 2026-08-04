@@ -1,7 +1,7 @@
 # UI, Typography, And Human-Usability Regression Specification
 
-Status: automation complete; 202 Linux baselines are approved on `ubuntu-24.04-arm`; the human review record remains a release gate  
-Date: 2026-08-01  
+Status: two-window automation complete; existing Linux baselines remain canonical and AI Operator anchor changes require review on `ubuntu-24.04-arm`; the human review record remains a release gate
+Date: 2026-08-04
 Runner: Playwright Electron using the existing isolated Radar regression harness  
 Related contracts: `REGRESSION_SUITE_SPEC.md`, `REGRESSION_TESTING.md`, `MANUAL_QA_CHECKLIST.md`, and the Design section of `README.md`
 
@@ -9,7 +9,7 @@ Related contracts: `REGRESSION_SUITE_SPEC.md`, `REGRESSION_TESTING.md`, `MANUAL_
 
 This specification extends Radar's workflow regression system so a release can answer five additional questions:
 
-1. Is every primary operator workflow usable at the minimum supported window size?
+1. Is every primary operator workflow usable at the workspace and AI Operator minimum window sizes?
 2. Are text, evidence, warnings, and controls legible with the intended theme fonts rather than silent fallbacks?
 3. Do the three themes remain visually coherent and readable at common desktop sizes and zoom levels?
 4. Can a keyboard or pointer user reach every critical control without clipping, overlap, or hidden scroll traps?
@@ -26,8 +26,8 @@ Radar already has a strong foundation:
 - failures retain screenshots, video, traces, and error context;
 - `REG-APP-004` traverses every view;
 - `REG-APP-005` switches all three themes;
-- `REG-APP-006`, `REG-APP-007`, and `REG-APP-009` cover overlays, AI-First layout, Escape, and focus;
-- the production window declares `minWidth: 1120`, `minHeight: 760`, and defaults to `1480 × 940`;
+- `REG-APP-006`, `REG-APP-007`, `REG-APP-009`, and `REG-AIOP-001` through `REG-AIOP-003` cover overlays, companion lifecycle, AI-First layout, Escape, focus, and pause-before-Manual safety;
+- the workspace declares `minWidth: 1120`, `minHeight: 760`, and defaults to `1480 × 940`; the AI Operator declares `minWidth: 760`, `minHeight: 640`, and defaults to `1040 × 840`;
 - the documentation screenshot runner captures a fixed `1480 × 940` fixture surface.
 
 Before this work, the missing contracts were:
@@ -51,11 +51,11 @@ Radar is a desktop workbench. Phone and tablet layouts are not a supported targe
 
 | Profile | BrowserWindow outer size | Zoom | Required cadence | Purpose |
 | --- | ---: | ---: | --- | --- |
-| `minimum` | 1120 × 760 | 100% | Every pull request | Exact supported minimum; all critical controls must remain reachable. |
+| `minimum` | workspace 1120 × 760; AI Operator 760 × 640 | 100% | Every pull request | Exact native minima; all critical controls must remain reachable. |
 | `laptop` | 1366 × 768 | 100% | Every pull request | Common constrained desktop with little vertical room. |
-| `default` | 1480 × 940 | 100% | Every pull request | Product default and primary visual baseline. |
-| `wide` | 1920 × 1080 | 100% | Every pull request for anchors; nightly for all views | Tests intentional density and excessive stretching. |
-| `large` | 2560 × 1440 | 100% | Nightly/release | Ensures readable max widths and stable panel hierarchy. |
+| `default` | workspace 1480 × 940; AI Operator 1040 × 840 | 100% | Every pull request | Product defaults and primary visual baselines. |
+| `wide` | workspace 1920 × 1080; AI Operator 1280 × 900 | 100% | Every pull request for anchors; nightly for all views | Tests intentional density and excessive stretching. |
+| `large` | workspace 2560 × 1440; AI Operator 1280 × 900 | 100% | Nightly/release | Ensures readable max widths and stable panel hierarchy. |
 | `zoom-90` | 1480 × 940 | 90% | Every pull request | Common slight zoom-out; catches subtle density, alignment, and font-clarity regressions. |
 | `zoom-80` | 1480 × 940 | 80% | Every pull request for critical workflows | Strong zoom-out boundary; primary actions, warnings, and evidence must remain visually clear. |
 | `zoom-75` | 1920 × 1080 | 75% | Nightly advisory until declared blocking | Extreme density check for hierarchy loss, tiny text, and uncontrolled panel expansion. |
@@ -63,7 +63,7 @@ Radar is a desktop workbench. Phone and tablet layouts are not a supported targe
 | `zoom-150` | 1920 × 1080 | 150% | Every pull request for critical workflows | High text enlargement without pretending Radar is a mobile app. |
 | `zoom-200` | 2560 × 1440 | 200% | Nightly advisory until declared blocking | Identifies severe reflow and reachability problems early. |
 
-Supported-window checks must resize the actual Electron `BrowserWindow`, not only emulate a browser viewport. The helper must wait for both Electron's resize event and stable `window.innerWidth`/`window.innerHeight`, then attach the actual inner and outer dimensions to the test result. Platform title-bar differences are expected.
+Supported-window checks must resize the actual Electron `BrowserWindow` that owns the requested surface, not only emulate a browser viewport. The helper selects workspace or `surface=ai-operator`, applies the surface-specific size, waits for Electron's resize event and stable `window.innerWidth`/`window.innerHeight`, then attaches the actual inner and outer dimensions to the test result. Platform title-bar differences are expected.
 
 Pixel baselines are platform-specific. Linux CI on the pinned `ubuntu-24.04-arm` runner is the required visual-diff platform; macOS and Windows perform structural/font smoke runs nightly and may maintain separate approved baselines later.
 
@@ -201,7 +201,7 @@ Use the existing `fixtures.ts`, production build, isolated Electron application,
 
 Add a typed helper that:
 
-1. finds the `BrowserWindow` owning the Playwright page;
+1. finds the `BrowserWindow` owning the Playwright page by its surface URL;
 2. resets zoom to 100%;
 3. calls `setSize(width, height)` with the named outer-window profile;
 4. applies `webContents.setZoomFactor(zoom)` when requested;
@@ -258,7 +258,7 @@ The suite encodes this manifest as data rather than repeating selectors across t
 
 | Surface | Controls/content that must be visible or scroll-reachable |
 | --- | --- |
-| Persistent shell | `viewSwitch`, `sessionSelector`, `browserAddress`, `openBrowser`, `openGlobalSearch`, `openProjectArtifacts`, `openAiPalette`, `openProfileSessionPanel`, `openAppearanceSettings`, `openAiSettings` |
+| Persistent workspace shell | `viewSwitch`, `sessionSelector`, `browserAddress`, `openBrowser`, `openGlobalSearch`, `openProjectArtifacts`, `openAiPalette`, `openProfileSessionPanel`, `openAppearanceSettings`, `openAiOperatorSidebar` |
 | HTTP/S | `trafficSearch`, method/type/sort controls, at least one `trafficRow-*`, `trafficDetailText`, request/response tabs, `cloneToRepeater`, annotation controls |
 | WebSocket | direction/search controls, at least one `webSocketRow-*`, `webSocketDetailText`, annotation, copy, replay, and finding actions |
 | Intercept | `interceptQueue`, rule editors, save controls, draft fields, `forwardIntercept`, `dropIntercept`, and reset action |
@@ -273,7 +273,8 @@ The suite encodes this manifest as data rather than repeating selectors across t
 | SSL | CA action/state, start/stop proxy, proxy profile fields/save action, browser/device guidance, and TLS event list |
 | Identity Lab | roster, `identityForm`, matrix, comparison state, causal ledger, snapshot warning, and activate/verify/archive actions |
 | Project Artifacts | note list/editor, saved views, bundle export/import panels, handoff panel, previews, and close action |
-| AI-First | mission dock, goal/profile/tutorial controls, start/pause/resume/continue/stop, budget chips, timeline, recovery, memory, drawer resize/close |
+| Workspace AI safety bar | status/current action/target, attention state, pause/resume/stop, and Open/Focus AI Operator without evidence-width inset |
+| AI Operator | run rail/history, feed, fixed composer, goal/profile/tutorial controls, start/pause/resume/continue/stop/Return to Manual, budget chips, timeline, inline recovery/finding/memory cards, Mission Inspector tabs, Connection settings, Focus Workspace, and responsive rail/inspector toggles |
 
 This manifest proves reachability, not merely DOM presence. The test must scroll each item into view, confirm it is not covered, focus it when interactive, and perform a harmless interaction where one exists.
 
@@ -306,10 +307,10 @@ Run layout, font, reachability, and focus assertions for:
 
 - all twelve workbench views in Bureau at `minimum`, `laptop`, and `default`;
 - shell plus Traffic, Repeater, Automate, Findings, Workflows, Advanced, Identity Lab, Scope, and SSL in all themes at `default`;
-- Traffic, Repeater, Findings, Workflows, all primary overlays, and AI-First at `zoom-125`;
-- Traffic, Findings, Project Artifacts, global search, and AI-First at `zoom-150`;
+- Traffic, Repeater, Findings, Workflows, all primary overlays, and the AI Operator at `zoom-125`;
+- Traffic, Findings, Project Artifacts, global search, and the AI Operator at `zoom-150`;
 - all twelve views in Bureau at `zoom-90`;
-- Traffic, Intercept, Repeater, Automate, Findings, Workflows, Scope, Project Artifacts, and AI-First at `zoom-80`;
+- Traffic, Intercept, Repeater, Automate, Findings, Workflows, Scope, Project Artifacts, and the AI Operator at `zoom-80`;
 - `empty` and `demo` state at `minimum`;
 - `stress-copy` for the six widest/most scroll-sensitive surfaces.
 
@@ -325,11 +326,11 @@ Commit a deliberately small baseline set:
 4. Workflows catalog/editor/graph at `laptop`;
 5. Project Artifacts overlay at `minimum`;
 6. global search overlay at `zoom-125`;
-7. AI-First mission dock and drawer at `minimum` and `zoom-125`;
+7. AI Operator feed/inspector plus the paired workspace mission bar at `minimum` and `zoom-125`;
 8. Identity Lab matrix/comparison at `default`;
 9. long request/response evidence at `zoom-150`;
 10. shell/Traffic detail in all three themes at `zoom-90`;
-11. Intercept, Findings, and AI-First at `zoom-80`;
+11. Intercept, Findings, and AI Operator at `zoom-80`;
 12. Appearance panel showing all theme choices.
 
 This is approximately 15–20 screenshots, not every Cartesian combination.
@@ -340,7 +341,7 @@ When `RADAR_REGRESSION_UI_FULL=1`:
 
 - capture all twelve views in all three themes at `minimum`, `default`, and `wide`;
 - run `dense` state at `wide` and `large`;
-- run all overlays and AI-First at `minimum`, `zoom-125`, and `zoom-150`;
+- run all overlays and AI Operator sections at `minimum`, `zoom-125`, and `zoom-150`;
 - run every view at `zoom-90`, critical workflows at `zoom-80`, and advisory hierarchy checks at `zoom-75`;
 - run advisory `zoom-200` reachability checks;
 - run platform structural/font smoke tests on supported macOS, Windows, and Linux hosts;
@@ -348,7 +349,7 @@ When `RADAR_REGRESSION_UI_FULL=1`:
 
 ## Implemented Regression Catalog
 
-These IDs are registered in the canonical 189-case catalog. The reporter continues to treat any future catalog-only ID as missing automation.
+These IDs are registered in the canonical 192-case catalog. The reporter continues to treat any future catalog-only ID as missing automation.
 
 | ID | Tags | Contract |
 | --- | --- | --- |
@@ -364,8 +365,8 @@ These IDs are registered in the canonical 189-case catalog. The reporter continu
 | `REG-UI-010` | `@ui` `@usability` | Toolbars and primary actions do not clip, overlap, or become unreachable. |
 | `REG-UI-011` | `@ui` `@usability` | Dense panels scroll internally and expose their final controls. |
 | `REG-UI-012` | `@ui` `@usability` | Primary headings/actions do not truncate; intentional truncation exposes the full value. |
-| `REG-UI-013` | `@ui` `@usability` | Search, project, appearance, AI, session, and artifact overlays fit and scroll at supported sizes. |
-| `REG-UI-014` | `@ui` `@ai` | AI drawer min/max resize, internal scrolling, mission dock, and evidence pane remain usable. |
+| `REG-UI-013` | `@ui` `@usability` | Search, project, appearance, session, and artifact overlays fit/scroll; AI Connection settings fit in the companion. |
+| `REG-UI-014` | `@ui` `@ai` | AI Operator native minimum/default/wide sizes, independent scrolling, responsive rail/inspector, composer, workspace safety bar, and full-width evidence remain usable. |
 | `REG-UI-015` | `@ui` `@usability` | Keyboard traversal never focuses hidden/offscreen controls and shows visible focus. |
 | `REG-UI-016` | `@ui` `@usability` | Escape and close actions restore focus to the correct trigger. |
 | `REG-UI-017` | `@ui` `@usability` | Theme text, state, focus, and selection token pairs meet contrast thresholds. |

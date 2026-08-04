@@ -25,6 +25,11 @@ export function useWorkbenchKeyboardShortcuts(ports: WorkbenchKeyboardShortcutPo
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const current = portsRef.current;
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        void window.radar?.openAiOperator("runs");
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         current.toggleAiPalette();

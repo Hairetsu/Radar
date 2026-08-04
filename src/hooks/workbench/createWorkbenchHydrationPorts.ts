@@ -93,7 +93,8 @@ export function createWorkbenchHydrationPorts(
       replace: (runs, memory) => {
         agent.setAgentRuns(runs);
         agent.setAgentRunMemory(memory);
-      }
+      },
+      select: agent.setSelectedAgentRunId
     },
     findings: {
       replace: (nextFindings, annotations) => {

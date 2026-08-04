@@ -56,6 +56,7 @@ export interface WorkbenchHydrationPorts {
   };
   agents: {
     replace: (runs: AgentRun[], memory: AgentRunMemoryEntry[]) => void;
+    select: (runId: string) => void;
   };
   findings: {
     replace: (findings: Finding[], annotations: EvidenceAnnotation[]) => void;

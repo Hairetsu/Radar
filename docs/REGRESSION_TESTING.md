@@ -1,10 +1,10 @@
 # Regression Testing
 
-Radar's regression suite uses Playwright's Electron support to run complete operator workflows against the production renderer, preload bridge, Electron main process, SQLite store, proxy, bounded AI runtime, and UI/font/usability matrix. The stable 189-case catalog and expected proof for every workflow are defined in [REGRESSION_SUITE_SPEC.md](REGRESSION_SUITE_SPEC.md).
+Radar's regression suite uses Playwright's Electron support to run complete operator workflows against the production workspace and AI Operator renderers, their role-specific preload bridges, Electron main process, SQLite store, proxy, bounded AI runtime, and UI/font/usability matrix. The stable 192-case catalog and expected proof for every workflow are defined in [REGRESSION_SUITE_SPEC.md](REGRESSION_SUITE_SPEC.md).
 
 The implemented viewport, typography, visual-diff, keyboard, and human-usability extension is documented in [UI_VISUAL_REGRESSION_SPEC.md](UI_VISUAL_REGRESSION_SPEC.md). `REG-UI-001` through `REG-UI-025` are part of the canonical catalog.
 
-All 189 catalog IDs have executable Playwright registrations. UI runs add two scheduled/release gates (`REG-UI-021` and `REG-UI-024`); Linux is the canonical pixel-baseline host for `REG-UI-020`, while other platforms report it as an explicit skip and still run native font/structure smoke.
+All 192 catalog IDs have executable Playwright registrations. UI runs add two scheduled/release gates (`REG-UI-021` and `REG-UI-024`); Linux is the canonical pixel-baseline host for `REG-UI-020`, while other platforms report it as an explicit skip and still run native font/structure smoke.
 
 ## Run The Suite
 
@@ -77,7 +77,11 @@ Every standard Playwright case gets a separate Electron process with:
 - A measured renderer-ready startup sample.
 - Teardown that stops the proxy, closes child windows, and removes temporary state.
 
+The harness distinguishes native surfaces by URL and immutable preload role. `openAiOperatorWindow(page, section)` opens or focuses the singleton companion and returns its Playwright `Page`; window profiles select the matching `BrowserWindow` before resizing or changing zoom. Never assume `context.pages()[0]` is the active surface after the companion opens.
+
 `fullyParallel` is enabled, so independent workflows execute in multiple Radar instances at the same time. Use `--workers=N` to control concurrency. CI defaults to two workers; local Playwright uses the host's normal worker calculation.
+
+Playwright global setup resolves and verifies the Electron executable once before any worker starts. Electron 42 downloads its binary lazily, so keeping that bootstrap single-owner prevents parallel first-run launches from racing on the executable with `ETXTBSY`.
 
 `RADAR_REGRESSION_USER_DATA_DIR`, `RADAR_REGRESSION_ARTIFACT_DIR`, `RADAR_REGRESSION_PROXY_PORT`, and `RADAR_REGRESSION_DEBUG_PORT` are harness-only startup controls. Normal application launches retain Radar's standard paths and ports.
 

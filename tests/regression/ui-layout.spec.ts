@@ -33,6 +33,27 @@ const SHELL_CONTAINERS: RequiredControl[] = [
 
 const CRITICAL_ZOOM_VIEWS: WorkbenchView[] = ["traffic", "repeater", "findings", "workflows"];
 
+async function assertAiOperatorControls(page: Page) {
+  await assertRequiredControls(page, AI_FIRST_REQUIRED_CONTROLS);
+  for (const panel of [
+    { panel: "aiRunRail", toggle: "toggleAiRunRail", label: "run history" },
+    { panel: "aiMissionInspector", toggle: "toggleAiInspector", label: "mission inspector" }
+  ]) {
+    const locator = page.getByTestId(panel.panel);
+    if (await locator.isVisible()) {
+      continue;
+    }
+    const toggle = page.getByTestId(panel.toggle);
+    await expect(toggle, `${panel.label} toggle should be visible`).toBeVisible();
+    await toggle.click();
+    await expect(locator, `${panel.label} should open from its responsive toggle`).toBeVisible();
+    await toggle.click();
+    await expect(locator, `${panel.label} should close without hiding the feed`).toBeHidden();
+  }
+  await expect(page.getByTestId("aiOperatorFeed")).toBeVisible();
+  await expect(page.getByTestId("aiOperatorComposer")).toBeVisible();
+}
+
 async function findFormControlOverlaps(page: Page) {
   return page.getByTestId("evidencePane").evaluate((pane) => {
     const controls = Array.from(pane.querySelectorAll<HTMLElement>(
@@ -127,8 +148,10 @@ test.describe("UI layout, reachability, and density contracts", () => {
     }
     await openIdentityLab(page);
     await assertRequiredControls(page, IDENTITY_REQUIRED_CONTROLS);
-    await openAiFirstConsole(page);
-    await assertRequiredControls(page, AI_FIRST_REQUIRED_CONTROLS);
+    const operator = await openAiFirstConsole(page);
+    await applyWindowProfile(electronApp, operator, "minimum", testInfo);
+    await assertAiOperatorControls(operator);
+    await assertNoGlobalHorizontalOverflow(operator);
   });
 
   test("[REG-UI-006] @ui passes every view at laptop and default layouts", async ({ electronApp, radarPage: page }, testInfo) => {
@@ -204,10 +227,10 @@ test.describe("UI layout, reachability, and density contracts", () => {
         await assertRequiredControls(page, VIEW_REQUIRED_CONTROLS[view].slice(0, 6));
         await assertNoGlobalHorizontalOverflow(page);
       }
-      await openAiFirstConsole(page);
-      await assertRequiredControls(page, AI_FIRST_REQUIRED_CONTROLS);
-      await assertNoGlobalHorizontalOverflow(page);
-      await page.getByTestId("manualFirstMode").click();
+      const operator = await openAiFirstConsole(page);
+      await applyWindowProfile(electronApp, operator, profileId, testInfo);
+      await assertAiOperatorControls(operator);
+      await assertNoGlobalHorizontalOverflow(operator);
     }
   });
 
@@ -330,7 +353,6 @@ test.describe("UI layout, reachability, and density contracts", () => {
       { trigger: "openGlobalSearch", overlay: "globalSearchOverlay", close: async () => page.getByTestId("closeGlobalSearch").click() },
       { trigger: "openProjectArtifacts", overlay: "projectArtifactsOverlay", close: async () => page.getByTestId("closeProjectArtifacts").click() },
       { trigger: "openAppearanceSettings", overlay: "appearanceSettingsPanel", close: async () => page.getByRole("button", { name: "Close appearance settings" }).click() },
-      { trigger: "openAiSettings", overlay: "aiSettingsPanel", close: async () => page.getByTestId("aiSettingsClose").click() },
       { trigger: "openProfileSessionPanel", overlay: "profileSessionPanel", close: async () => page.getByLabel("Close projects and sessions panel").click() }
     ];
     for (const profile of ["minimum", "zoom-125", "zoom-150"] as const) {
@@ -354,20 +376,17 @@ test.describe("UI layout, reachability, and density contracts", () => {
     }
   });
 
-  test("[REG-UI-014] @ui @ai keeps the AI drawer resizable, scrollable, and beside visible evidence", async ({ electronApp, radarPage: page }, testInfo) => {
+  test("[REG-UI-014] @ui @ai keeps the AI Operator resizable, scrollable, and independent of evidence", async ({ electronApp, radarPage: page }, testInfo) => {
     await loadDemo(page);
-    await applyWindowProfile(electronApp, page, "zoom-125", testInfo);
-    await openAiFirstConsole(page);
-    const drawer = page.getByTestId("aiFirstConsole");
-    const handle = page.getByTestId("resizeAiDrawer");
-    const before = await drawer.boundingBox();
-    await handle.focus();
-    await page.keyboard.press("ArrowLeft");
-    const after = await drawer.boundingBox();
-    expect((after?.width || 0) - (before?.width || 0)).toBeGreaterThan(20);
-    await page.getByTestId("agentCapabilityLedger").scrollIntoViewIfNeeded();
-    await expect(page.getByTestId("agentCapabilityLedger")).toBeVisible();
+    const evidenceWidth = await page.getByTestId("evidencePane").evaluate((element) => element.getBoundingClientRect().width);
+    const operator = await openAiFirstConsole(page);
+    await applyWindowProfile(electronApp, operator, "minimum", testInfo);
+    await expect(operator.getByTestId("aiOperatorComposer")).toBeVisible();
+    await operator.getByTestId("toggleAiInspector").click();
+    await expect(operator.getByTestId("aiMissionInspector")).toBeVisible();
+    await assertNoGlobalHorizontalOverflow(operator);
     await expect(page.getByTestId("evidencePane")).toBeVisible();
+    expect(await page.getByTestId("evidencePane").evaluate((element) => element.getBoundingClientRect().width)).toBe(evidenceWidth);
     await assertNoGlobalHorizontalOverflow(page);
   });
 
@@ -426,7 +445,24 @@ test.describe("UI layout, reachability, and density contracts", () => {
         });
         expect(blockingLayoutViolations(metrics), `${profileId}/${view}`).toEqual([]);
       }
+      const operator = await openAiFirstConsole(page);
+      await applyWindowProfile(electronApp, operator, profileId, testInfo);
+      await assertAiOperatorControls(operator);
+      await assertNoGlobalHorizontalOverflow(operator);
       if (profileId === "zoom-80") {
+        const missionGraph = operator.getByTestId("agentMissionGraph");
+        await expect(missionGraph).toBeVisible();
+        const graphLayout = await missionGraph.evaluate((element) => {
+          const coverage = element.querySelector<HTMLElement>("[data-testid='missionGraphCoverage']");
+          return {
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+            coverageClientWidth: coverage?.clientWidth || 0,
+            coverageScrollWidth: coverage?.scrollWidth || 0
+          };
+        });
+        expect(graphLayout.scrollWidth, "AI Operator Mission Graph should not overflow its inspector").toBeLessThanOrEqual(graphLayout.clientWidth + 1);
+        expect(graphLayout.coverageScrollWidth, "Mission Graph coverage labels should remain inside their grid").toBeLessThanOrEqual(graphLayout.coverageClientWidth + 1);
         for (const [trigger, overlay, close] of [
           ["openProjectArtifacts", "projectArtifactsOverlay", "closeProjectArtifacts"],
           ["openGlobalSearch", "globalSearchOverlay", "closeGlobalSearch"]
@@ -435,10 +471,6 @@ test.describe("UI layout, reachability, and density contracts", () => {
           await expect(page.getByTestId(overlay)).toBeVisible();
           await page.getByTestId(close).click();
         }
-        await openAiFirstConsole(page);
-        await assertRequiredControls(page, AI_FIRST_REQUIRED_CONTROLS);
-        await assertNoGlobalHorizontalOverflow(page);
-        await page.getByTestId("manualFirstMode").click();
         await openWorkbenchView(page, "traffic");
         const effectiveEvidenceSize = await page.getByTestId("trafficDetailText").evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize) * 0.8);
         expect(effectiveEvidenceSize).toBeGreaterThanOrEqual(9.5);

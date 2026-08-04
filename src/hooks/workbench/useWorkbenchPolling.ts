@@ -55,7 +55,11 @@ export function useWorkbenchPolling(
   useEffect(() => {
     let cancelled = false;
     let inFlight = false;
-    const load = async () => {
+    let preferredRunId = "";
+    const load = async (requestedRunId = "") => {
+      if (requestedRunId) {
+        preferredRunId = requestedRunId;
+      }
       if (!window.radar || cancelled || inFlight) {
         return;
       }
@@ -64,6 +68,10 @@ export function useWorkbenchPolling(
         const snapshot = await loadLiveWorkbenchSnapshot();
         if (!cancelled && snapshot) {
           applyLiveWorkbenchSnapshot(snapshot, portsRef.current.hydration);
+          if (preferredRunId && snapshot.agentRuns.some((run) => run.id === preferredRunId)) {
+            portsRef.current.hydration.agents.select(preferredRunId);
+            preferredRunId = "";
+          }
         }
       } finally {
         inFlight = false;
@@ -71,9 +79,13 @@ export function useWorkbenchPolling(
     };
     void load();
     const timer = setInterval(load, 1_500);
+    const unsubscribe = window.radar?.onAgentChanged((event) => {
+      void load(event.runId);
+    });
     return () => {
       cancelled = true;
       clearInterval(timer);
+      unsubscribe?.();
     };
   }, []);
 }

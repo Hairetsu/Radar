@@ -54,9 +54,19 @@ export async function applyWindowProfile(
   profileId: WindowProfileId,
   testInfo?: TestInfo
 ): Promise<AppliedWindowProfile> {
-  const profile = WINDOW_PROFILES[profileId];
+  const surface = await page.evaluate(() => window.radarSurface || "workspace");
+  const baseProfile = WINDOW_PROFILES[profileId];
+  const profile = surface === "ai-operator"
+    ? {
+        ...baseProfile,
+        width: profileId === "minimum" ? 760 : profileId === "wide" || profileId === "large" || profileId === "zoom-150" || profileId === "zoom-200" ? 1280 : 1040,
+        height: profileId === "minimum" ? 640 : profileId === "wide" || profileId === "large" || profileId === "zoom-150" || profileId === "zoom-200" ? 900 : 840
+      }
+    : baseProfile;
   const windowState = await electronApp.evaluate(async ({ BrowserWindow }, requested) => {
-    const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
+    const window = BrowserWindow.getAllWindows().find((candidate) =>
+      !candidate.isDestroyed() && candidate.webContents.getURL().includes(`surface=${requested.surface}`)
+    );
     if (!window) {
       throw new Error("Radar BrowserWindow is unavailable.");
     }
@@ -80,7 +90,7 @@ export async function applyWindowProfile(
       content: window.getContentBounds(),
       appliedZoom: window.webContents.getZoomFactor()
     };
-  }, profile);
+  }, { ...profile, surface });
 
   await page.waitForFunction(
     ({ zoom }) => Math.abs((window.visualViewport?.scale || 1) - 1) < 0.01 && document.readyState === "complete" && zoom > 0,

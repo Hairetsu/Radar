@@ -4,12 +4,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import type { AgentRun, CapturedRequest, WebSocketEvent } from "./types";
-import { applyAgentMissionPatch, applyAgentMissionSteering, createAgentMission } from "../shared/agentMission.js";
-import {
-  createAgentCapabilityState,
-  grantAgentCapabilityLease,
-  proposeAgentCapabilityLease
-} from "../shared/agentCapabilities.js";
 
 const capture = (id: string, url: string, overrides: Partial<CapturedRequest> = {}): CapturedRequest => {
   const parsed = new URL(url);
@@ -222,6 +216,9 @@ afterEach(() => {
   vi.mocked(window.radar!.listAutomateSessions).mockResolvedValue([]);
   vi.mocked(window.radar!.startAutomateSession).mockClear();
   vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([]);
+  vi.mocked(window.radar!.openAiOperator).mockClear();
+  vi.mocked(window.radar!.getAiOperatorWindowState).mockResolvedValue({ created: false, visible: false, focused: false, section: "runs" });
+  vi.mocked(window.radar!.getAppMode).mockResolvedValue("manual-first");
   vi.mocked(window.radar!.pauseAgentRun).mockClear();
   vi.mocked(window.radar!.resumeAgentRun).mockClear();
   vi.mocked(window.radar!.recoverAgentRun).mockClear();
@@ -275,6 +272,48 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("keeps the manual evidence workspace full-width and opens the companion AI Operator", async () => {
+    render(<App />);
+
+    expect(await screen.findByTestId("workspacePanel")).toBeInTheDocument();
+    expect(screen.queryByTestId("agentMissionBar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("aiDrawerBody")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("openAiOperatorSidebar"));
+    expect(window.radar!.openAiOperator).toHaveBeenCalledWith("runs");
+  });
+
+  it("keeps paused AI work visible and resumable when the companion window is hidden", async () => {
+    const pausedRun: AgentRun = {
+      id: "run-paused",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:01:00.000Z",
+      goal: "Review tenant isolation",
+      profileId: "browser-assessment",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120_000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      timeline: [{ id: "paused-entry", createdAt: "2026-05-25T00:01:00.000Z", note: "Paused at a durable checkpoint." }],
+      findings: []
+    };
+    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([pausedRun]);
+    vi.mocked(window.radar!.resumeAgentRun).mockResolvedValue({ ...pausedRun, status: "queued" });
+
+    render(<App />);
+
+    expect(await screen.findByTestId("agentMissionBar")).toHaveTextContent("Review tenant isolation");
+    fireEvent.click(screen.getByTestId("missionResumeAgentRun"));
+    await waitFor(() => expect(window.radar!.resumeAgentRun).toHaveBeenCalledWith("run-paused"));
+    expect(screen.getByTestId("openAiOperator")).toBeInTheDocument();
+  });
+
   it("opens managed Chrome from the visible address bar and surfaces Playwright readiness", async () => {
     const openBrowser = vi.mocked(window.radar!.openBrowser);
     openBrowser.mockClear();
@@ -359,621 +398,17 @@ describe("App", () => {
     expect(screen.getByTestId("trafficRow-cap-search")).toHaveAttribute("data-selected", "true");
   });
 
-  it("shows full AI-First observation history and recovery actions", async () => {
-    const recoverAgentRun = vi.mocked(window.radar!.recoverAgentRun);
-    const failedRun: AgentRun = {
-      id: "agent-observe",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:07.000Z",
-      goal: "Review security headers.",
-      profileId: "header-cookie-review",
-      status: "failed",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 1,
-        maxWorkflowRequests: 1,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      timeline: [
-        {
-          id: "step-1",
-          createdAt: "2026-05-25T00:00:00.000Z",
-          note: "Run queued from AI-First goal prompt.",
-          phase: "status"
-        },
-        ...Array.from({ length: 6 }, (_, index) => ({
-          id: `step-mid-${index}`,
-          createdAt: `2026-05-25T00:00:0${index + 1}.000Z`,
-          note: `Intermediate step ${index + 1}`,
-          phase: "status" as const
-        })),
-        {
-          id: "step-failed-tool",
-          createdAt: "2026-05-25T00:00:07.000Z",
-          note: "Tool result: analyzeSecurityHeaders",
-          phase: "failure",
-          summary: "analyzeSecurityHeaders failed",
-          target: { view: "advanced" },
-          recoveryActions: ["retry-tool", "retry-with-evidence", "skip-and-continue", "stop-run", "draft-finding"],
-          toolResult: {
-            tool: "analyzeSecurityHeaders",
-            ok: false,
-            error: "No target-origin captures for https://apexads.io"
-          }
-        }
-      ],
-      findings: [],
-      error: "No target-origin captures for https://apexads.io"
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([failedRun]);
 
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
 
-    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
-    expect(screen.getByTestId("aiFirstConsole")).toHaveAttribute("aria-label", "AI operations drawer");
-    expect(screen.getByTestId("aiDrawerBody")).toHaveClass("overflow-y-auto");
-    const timeline = await screen.findByTestId("agentTimeline");
-    expect(timeline.textContent).toContain("Run queued from AI-First goal prompt.");
-    expect(timeline).toHaveTextContent("analyzeSecurityHeaders failed");
-    expect(timeline).toHaveTextContent("No target-origin captures for https://apexads.io");
 
-    fireEvent.click(screen.getByTestId("agentRecovery-retry-tool"));
-    await waitFor(() => {
-      expect(recoverAgentRun).toHaveBeenCalledWith("agent-observe", {
-        action: "retry-tool",
-        entryId: "step-failed-tool"
-      });
-      expect(screen.getByText("Recovery queued with preserved budgets and fresh visible state.")).toBeInTheDocument();
-    });
-  });
 
-  it("groups navigation and keeps AI operations in a closable, resizable drawer", async () => {
-    render(<App />);
 
-    for (const group of ["Observe", "Test", "Report", "Configure"]) {
-      expect(await screen.findByText(group)).toBeInTheDocument();
-    }
 
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
-    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
 
-    // Run state must not be hidden behind a tab: the timeline, findings inbox,
-    // and run memory all stay reachable in one scrolling column.
-    expect(screen.getByTestId("agentTimeline")).toBeVisible();
-    expect(screen.getByTestId("agentMemoryTitle")).toBeVisible();
 
-    const resizeHandle = screen.getByTestId("resizeAiDrawer");
-    fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" });
-    expect(resizeHandle).toHaveAttribute("aria-valuenow", "652");
 
-    fireEvent.click(screen.getByTestId("closeAiDrawer"));
-    expect(screen.queryByTestId("aiFirstConsole")).not.toBeInTheDocument();
-    expect(screen.getByTestId("agentMissionDock")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("toggleAiDrawer"));
-    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
-  });
 
-  it("selects a saved AI-First run and resumes its durable checkpoint", async () => {
-    const resumeAgentRun = vi.mocked(window.radar!.resumeAgentRun);
-    const baseRun: AgentRun = {
-      id: "agent-complete",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:02.000Z",
-      goal: "Completed review",
-      profileId: "passive-map",
-      status: "completed",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 0,
-        maxWorkflowRequests: 0,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      timeline: [],
-      findings: []
-    };
-    const pausedRun: AgentRun = {
-      ...baseRun,
-      id: "agent-paused",
-      goal: "Paused auth review",
-      status: "paused",
-      checkpoint: {
-        startUrl: "https://hairetsu.com",
-        targetOrigin: "https://hairetsu.com",
-        stepCount: 3,
-        replayCount: 0,
-        workflowRequestCount: 0,
-        elapsedMs: 4000,
-        lastResumedAt: "2026-05-25T00:00:02.000Z"
-      }
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([baseRun, pausedRun]);
-    resumeAgentRun.mockResolvedValue({ ...pausedRun, status: "queued" });
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    fireEvent.change(await screen.findByTestId("agentRunSelect"), { target: { value: pausedRun.id } });
-    fireEvent.click(screen.getByTestId("resumeAgentRun"));
-
-    await waitFor(() => {
-      expect(resumeAgentRun).toHaveBeenCalledWith(pausedRun.id);
-      expect(screen.getByText("AI-First run queued from its durable checkpoint.")).toBeInTheDocument();
-    });
-  });
-
-  it("seals an exhausted checkpoint and starts an explicit continuation run", async () => {
-    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
-    startAgentRun.mockClear();
-    const exhaustedRun: AgentRun = {
-      id: "agent-exhausted",
-      sessionId: "session-test",
-      createdAt: "2026-07-19T00:00:00.000Z",
-      updatedAt: "2026-07-19T00:05:32.763Z",
-      goal: "Inspect https://www.tylerstech.net/",
-      profileId: "browser-assessment",
-      status: "failed",
-      policy: {
-        maxRuntimeMs: 300000,
-        maxSteps: 40,
-        maxReplay: 3,
-        maxWorkflowRequests: 3,
-        maxCaptureSample: 100,
-        allowRawContext: false
-      },
-      checkpoint: {
-        startUrl: "https://www.tylerstech.net/",
-        targetOrigin: "https://www.tylerstech.net",
-        stepCount: 19,
-        replayCount: 0,
-        workflowRequestCount: 0,
-        elapsedMs: 332763,
-        lastResumedAt: "2026-07-19T00:05:32.763Z"
-      },
-      timeline: [],
-      findings: [],
-      error: "Agent exceeded its runtime budget while waiting for the next planner decision."
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([exhaustedRun]);
-    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://www.tylerstech.net"]);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-
-    expect(await screen.findByTestId("agentBudgetExhausted")).toHaveTextContent("333s used / 300s allowed");
-    expect(screen.getByTestId("resumeAgentRun")).toBeDisabled();
-    fireEvent.click(screen.getByTestId("continueAgentRun"));
-
-    await waitFor(() => {
-      expect(startAgentRun).toHaveBeenCalledWith({
-        goal: exhaustedRun.goal,
-        startUrl: "https://www.tylerstech.net/",
-        profileId: "browser-assessment",
-        continuationOf: exhaustedRun.id
-      });
-      expect(window.radar!.resumeAgentRun).not.toHaveBeenCalledWith(exhaustedRun.id);
-    });
-  });
-
-  it("renders and revision-checks operator steering in the Mission Graph", async () => {
-    const baseMission = createAgentMission("Review tenant isolation", "https://target.test", "2026-05-25T00:00:00.000Z");
-    const patched = applyAgentMissionPatch(
-      baseMission,
-      {
-        baseRevision: 0,
-        updates: [
-          {
-            kind: "hypothesis",
-            id: "hyp-tenant",
-            objectiveId: "obj-primary",
-            statement: "Tenant B may read Tenant A invoices.",
-            status: "open"
-          }
-        ]
-      },
-      "2026-05-25T00:00:01.000Z"
-    );
-    if (!patched.ok) throw new Error(patched.error);
-    const run: AgentRun = {
-      id: "agent-mission",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:01.000Z",
-      goal: "Review tenant isolation",
-      profileId: "auth-review",
-      status: "paused",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 1,
-        maxWorkflowRequests: 1,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      mission: patched.mission,
-      timeline: [],
-      findings: []
-    };
-    const steerAgentMission = vi.mocked(window.radar!.steerAgentMission);
-    steerAgentMission.mockImplementation(async (_id, request) => {
-      const result = applyAgentMissionSteering(run.mission!, request, "2026-05-25T00:00:02.000Z");
-      if (!result.ok) throw new Error(result.error);
-      return { ...run, mission: result.mission, updatedAt: "2026-05-25T00:00:02.000Z" };
-    });
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-
-    expect(await screen.findByTestId("agentMissionGraph")).toHaveTextContent("Tenant B may read Tenant A invoices.");
-    fireEvent.click(screen.getByTestId("missionNode-hypothesis:hyp-tenant"));
-    fireEvent.click(screen.getByTestId("missionPinHypothesis"));
-
-    await waitFor(() => {
-      expect(steerAgentMission).toHaveBeenCalledWith("agent-mission", {
-        action: "update-item",
-        expectedRevision: 1,
-        entity: "hypothesis",
-        id: "hyp-tenant",
-        pinned: true
-      });
-      expect(screen.getByText("Mission Graph updated to revision 2.")).toBeInTheDocument();
-    });
-  });
-
-  it("requires an operator answer before a mission can resume", async () => {
-    const mission = createAgentMission("Review tenant isolation", "https://target.test", "2026-05-25T00:00:00.000Z");
-    const asked = applyAgentMissionSteering(
-      mission,
-      {
-        action: "ask-operator",
-        expectedRevision: 0,
-        prompt: "Which tenant should be the control?"
-      },
-      "2026-05-25T00:00:01.000Z"
-    );
-    if (!asked.ok) throw new Error(asked.error);
-    const run: AgentRun = {
-      id: "agent-question",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:01.000Z",
-      goal: "Review tenant isolation",
-      profileId: "auth-review",
-      status: "paused",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 1,
-        maxWorkflowRequests: 1,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      mission: asked.mission,
-      timeline: [],
-      findings: []
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
-    const steerAgentMission = vi.mocked(window.radar!.steerAgentMission);
-    steerAgentMission.mockResolvedValue(run);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    const questionId = asked.mission.operatorQuestions[0]?.id || "";
-    fireEvent.change(await screen.findByTestId(`missionAnswer-${questionId}`), {
-      target: { value: "Use Tenant A as the control." }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
-
-    await waitFor(() => {
-      expect(steerAgentMission).toHaveBeenCalledWith("agent-question", {
-        action: "answer-operator",
-        expectedRevision: 1,
-        questionId,
-        answer: "Use Tenant A as the control."
-      });
-    });
-  });
-
-  it("renders exact capability bounds and grants without automatically resuming", async () => {
-    const proposed = proposeAgentCapabilityLease(
-      createAgentCapabilityState(),
-      {
-        name: "Invoice comparison",
-        riskTier: "active",
-        tools: ["sendReplay"],
-        grants: [
-          {
-            origin: "https://api.target.test",
-            method: "GET",
-            pathPrefix: "/v1/invoices/",
-            identity: "user-b"
-          }
-        ],
-        durationMs: 120000,
-        maxUses: 1,
-        maxRequests: 1,
-        maxConcurrency: 1,
-        maxPayloadBytes: 1024,
-        reason: "Compare one invoice under the challenger identity."
-      },
-      "lease-review",
-      "2026-05-25T00:00:00.000Z"
-    );
-    if (!proposed.ok) throw new Error(proposed.error);
-    const run: AgentRun = {
-      id: "agent-capability",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:01.000Z",
-      goal: "Review tenant isolation",
-      profileId: "advanced-api-review",
-      status: "paused",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 2,
-        maxWorkflowRequests: 2,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      mission: createAgentMission("Review tenant isolation", "https://api.target.test", "2026-05-25T00:00:00.000Z"),
-      capabilities: proposed.state,
-      timeline: [],
-      findings: []
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
-    vi.mocked(window.radar!.updateAgentCapabilities).mockResolvedValue(run);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-
-    const lease = await screen.findByTestId("capabilityLease-lease-review");
-    expect(lease).toHaveTextContent("GET https://api.target.test/v1/invoices/");
-    expect(lease).toHaveTextContent("identity user-b");
-    fireEvent.click(screen.getByTestId("capabilityGrant-lease-review"));
-
-    await waitFor(() => {
-      expect(window.radar!.updateAgentCapabilities).toHaveBeenCalledWith("agent-capability", {
-        action: "grant",
-        expectedRevision: 1,
-        leaseId: "lease-review"
-      });
-      expect(window.radar!.resumeAgentRun).not.toHaveBeenCalled();
-    });
-  });
-
-  it("revokes a granted capability from the selected run only", async () => {
-    const proposed = proposeAgentCapabilityLease(
-      createAgentCapabilityState(),
-      {
-        name: "Scoped navigation",
-        riskTier: "navigate",
-        tools: ["openBrowser"],
-        grants: [{ origin: "https://target.test", method: "GET", pathPrefix: "/", identity: "current" }],
-        durationMs: 60000,
-        maxUses: 1,
-        maxRequests: 1,
-        maxConcurrency: 1,
-        maxPayloadBytes: 0,
-        reason: "Open one exact target."
-      },
-      "lease-active",
-      "2026-05-25T00:00:00.000Z"
-    );
-    if (!proposed.ok) throw new Error(proposed.error);
-    const granted = grantAgentCapabilityLease(proposed.state, "lease-active", {
-      allowlist: ["https://target.test"],
-      allowedTools: ["openBrowser"],
-      authFingerprint: "auth-fp",
-      now: "2026-05-25T00:00:01.000Z"
-    });
-    if (!granted.ok) throw new Error(granted.error);
-    const run: AgentRun = {
-      id: "agent-capability-revoke",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:01.000Z",
-      goal: "Open target",
-      profileId: "auth-review",
-      status: "paused",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 0,
-        maxWorkflowRequests: 0,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      capabilities: granted.state,
-      timeline: [],
-      findings: []
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
-    vi.mocked(window.radar!.updateAgentCapabilities).mockResolvedValue(run);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    fireEvent.click(await screen.findByTestId("capabilityRevoke-lease-active"));
-
-    await waitFor(() => {
-      expect(window.radar!.updateAgentCapabilities).toHaveBeenCalledWith("agent-capability-revoke", {
-        action: "revoke",
-        expectedRevision: 2,
-        leaseId: "lease-active",
-        reason: "Revoked by operator."
-      });
-    });
-  });
-
-  it("starts AI-First with the selected run profile", async () => {
-    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
-    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://hairetsu.com"]);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    fireEvent.change(screen.getByTestId("agentProfileSelect"), { target: { value: "header-cookie-review" } });
-    fireEvent.change(screen.getByTestId("agentGoalInput"), { target: { value: "Inspect https://hairetsu.com headers" } });
-    fireEvent.click(screen.getByTestId("startAgentRun"));
-
-    await waitFor(() => {
-      expect(startAgentRun).toHaveBeenCalledWith(
-        expect.objectContaining({
-          profileId: "header-cookie-review"
-        })
-      );
-    });
-  });
-
-  it("starts a visible, paced Tutorial Mode run", async () => {
-    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
-    vi.mocked(window.radar!.getTargets).mockResolvedValue(["https://hairetsu.com"]);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    fireEvent.click(screen.getByTestId("agentTutorialToggle"));
-    expect(screen.getByTestId("agentTutorialToggle")).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByTestId("agentTutorialGuide")).toBeInTheDocument();
-    fireEvent.change(screen.getByTestId("agentGoalInput"), {
-      target: { value: "Teach me how to inspect https://hairetsu.com safely" }
-    });
-    fireEvent.click(screen.getByTestId("startAgentRun"));
-
-    await waitFor(() => {
-      expect(startAgentRun).toHaveBeenCalledWith(
-        expect.objectContaining({
-          profileId: "browser-assessment",
-          tutorialMode: true
-        })
-      );
-    });
-  });
-
-  it("confirms proposed run memory and supports manual memory creation", async () => {
-    const saveAgentRunMemory = vi.mocked(window.radar!.saveAgentRunMemory);
-    const run: AgentRun = {
-      id: "agent-memory",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:01.000Z",
-      goal: "Remember tested leads.",
-      profileId: "passive-map",
-      status: "completed",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 0,
-        maxWorkflowRequests: 0,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      timeline: [
-        {
-          id: "memory-step",
-          createdAt: "2026-05-25T00:00:01.000Z",
-          phase: "tool-result",
-          summary: "proposeRunMemory completed",
-          toolResult: {
-            tool: "proposeRunMemory",
-            ok: true,
-            data: {
-              note: "Proposed run memory for operator confirmation.",
-              memory: {
-                id: "memory-proposed",
-                createdAt: "2026-05-25T00:00:01.000Z",
-                updatedAt: "2026-05-25T00:00:01.000Z",
-                kind: "hypothesis",
-                status: "proposed",
-                title: "Redirect reviewed",
-                notes: "Landing redirect has been reviewed.",
-                evidenceRefs: ["capture:home"]
-              }
-            }
-          }
-        }
-      ],
-      findings: []
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    fireEvent.click(await screen.findByTestId("agentMemoryConfirm-memory-step"));
-    fireEvent.change(screen.getByTestId("agentMemoryTitle"), { target: { value: "Manual hypothesis" } });
-    fireEvent.change(screen.getByTestId("agentMemoryNotes"), { target: { value: "Retest after fix." } });
-    fireEvent.click(screen.getByTestId("agentMemoryCreate"));
-
-    await waitFor(() => {
-      expect(saveAgentRunMemory).toHaveBeenCalledWith(expect.objectContaining({ id: "memory-proposed", status: "confirmed" }));
-      expect(saveAgentRunMemory).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Manual hypothesis", notes: "Retest after fix.", status: "confirmed" })
-      );
-    });
-  });
-
-  it("loads AI-prepared workflow drafts into the visible editor without running them", async () => {
-    const runWorkflow = vi.mocked(window.radar!.runWorkflow);
-    const run: AgentRun = {
-      id: "agent-workflow-draft",
-      sessionId: "session-test",
-      createdAt: "2026-05-25T00:00:00.000Z",
-      updatedAt: "2026-05-25T00:00:01.000Z",
-      goal: "Prepare a workflow draft.",
-      profileId: "api-hardening",
-      status: "completed",
-      policy: {
-        maxRuntimeMs: 120000,
-        maxSteps: 8,
-        maxReplay: 0,
-        maxWorkflowRequests: 0,
-        maxCaptureSample: 20,
-        allowRawContext: false
-      },
-      timeline: [
-        {
-          id: "workflow-draft-step",
-          createdAt: "2026-05-25T00:00:01.000Z",
-          phase: "tool-result",
-          summary: "prepareWorkflowDraft completed",
-          toolResult: {
-            tool: "prepareWorkflowDraft",
-            ok: true,
-            data: {
-              note: "Prepared workflow draft for operator review.",
-              workflow: {
-                id: "ai-header-workflow",
-                name: "AI Header Review",
-                description: "Prepared draft.",
-                mode: "passive",
-                builtIn: false,
-                inputs: [],
-                scope: { requireInScope: true, allowActive: false, maxRequests: 0, timeoutMs: 5000, delayMs: 0, maxResults: 20 },
-                steps: [{ id: "step-1", title: "Headers", kind: "security-headers", config: {} }],
-                createdAt: "2026-05-25T00:00:00.000Z",
-                updatedAt: "2026-05-25T00:00:00.000Z"
-              }
-            }
-          }
-        }
-      ],
-      findings: []
-    };
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([run]);
-
-    render(<App />);
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-
-    expect(await screen.findByTestId("aiPreparedWorkflowDraft")).toBeInTheDocument();
-    expect((screen.getByTestId("workflowDefinition") as HTMLTextAreaElement).value).toContain("AI Header Review");
-    expect(runWorkflow).not.toHaveBeenCalled();
-  });
 
   it("saves project notes and current view snapshots", async () => {
     const saveProjectNote = vi.mocked(window.radar!.saveProjectNote);
@@ -1548,131 +983,8 @@ describe("App", () => {
     }
   });
 
-  it("requires explicit scope consent before starting AI-First on a new origin", async () => {
-    const startAgentRun = vi.mocked(window.radar!.startAgentRun);
-    const setTargets = vi.mocked(window.radar!.setTargets);
-    let savedTargets = ["http://localhost:*"];
-    startAgentRun.mockClear();
-    setTargets.mockClear();
-    setTargets.mockImplementation(async (nextTargets) => {
-      savedTargets = nextTargets;
-      return nextTargets;
-    });
-    vi.mocked(window.radar!.getTargets).mockImplementation(async () => savedTargets);
 
-    render(<App />);
 
-    fireEvent.click(await screen.findByTestId("aiFirstMode"));
-    expect(screen.getByTestId("aiFirstConsole")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByTestId("agentGoalInput"), { target: { value: "Inspect hairetsu.com for auth hardening" } });
-    fireEvent.click(screen.getByTestId("startAgentRun"));
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Scope" })).toBeInTheDocument();
-      expect(screen.getByTestId("scopeTargetList")).toHaveValue("http://localhost:*\nhttps://hairetsu.com");
-      expect(screen.getByText(/Scope consent required: review https:\/\/hairetsu\.com/)).toBeInTheDocument();
-      expect(setTargets).not.toHaveBeenCalled();
-      expect(startAgentRun).not.toHaveBeenCalled();
-    });
-    expect(screen.getByTestId("agentGoalInput")).toHaveValue("Inspect hairetsu.com for auth hardening");
-
-    fireEvent.click(screen.getByTestId("commitTargets"));
-    await waitFor(() => {
-      expect(setTargets).toHaveBeenCalledWith(["http://localhost:*", "https://hairetsu.com"]);
-    });
-    expect(startAgentRun).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByTestId("startAgentRun"));
-    await waitFor(() => {
-      expect(startAgentRun).toHaveBeenCalledWith({
-        goal: "Inspect hairetsu.com for auth hardening",
-        startUrl: "https://hairetsu.com",
-        profileId: "browser-assessment"
-      });
-    });
-  });
-
-  it("follows agent view changes while AI-First is active", async () => {
-    window.localStorage.setItem("radar.appMode", "ai-first");
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([
-      {
-        id: "agent-view",
-        sessionId: "session-test",
-        createdAt: "2026-05-25T00:00:00.000Z",
-        updatedAt: "2026-05-25T00:00:01.000Z",
-        goal: "Drive the app",
-        profileId: "api-hardening",
-        status: "running",
-          policy: {
-            maxRuntimeMs: 120000,
-            maxSteps: 8,
-            maxReplay: 1,
-            maxWorkflowRequests: 1,
-            maxCaptureSample: 20,
-            allowRawContext: false
-        },
-        timeline: [
-          {
-            id: "step-repeater",
-            createdAt: "2026-05-25T00:00:01.000Z",
-            phase: "tool-call",
-            note: "Agent is moving to Repeater.",
-            toolCall: { tool: "showView", input: { view: "repeater", reason: "Replay inspection" } }
-          }
-        ],
-        findings: []
-      }
-    ]);
-
-    render(<App />);
-
-    expect(await screen.findByTestId("aiFirstConsole")).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Repeater" })).toBeInTheDocument();
-    });
-  });
-
-  it("previews a planner decision without applying its visible tool call before dispatch", async () => {
-    window.localStorage.setItem("radar.appMode", "ai-first");
-    vi.mocked(window.radar!.listAgentRuns).mockResolvedValue([
-      {
-        id: "agent-decision-preview",
-        sessionId: "session-test",
-        createdAt: "2026-05-25T00:00:00.000Z",
-        updatedAt: "2026-05-25T00:00:01.000Z",
-        goal: "Choose the next evidence view",
-        profileId: "api-hardening",
-        status: "running",
-        policy: {
-          maxRuntimeMs: 120000,
-          maxSteps: 8,
-          maxReplay: 1,
-          maxWorkflowRequests: 1,
-          maxCaptureSample: 20,
-          allowRawContext: false
-        },
-        timeline: [
-          {
-            id: "decision-repeater",
-            createdAt: "2026-05-25T00:00:01.000Z",
-            phase: "decision",
-            summary: "Move to Repeater to inspect a prepared comparison.",
-            toolCall: { tool: "showView", input: { view: "repeater", reason: "Replay inspection" } }
-          }
-        ],
-        findings: []
-      }
-    ]);
-
-    render(<App />);
-
-    expect(await screen.findByTestId("agentThoughtstreamRationale")).toHaveTextContent(
-      "Move to Repeater to inspect a prepared comparison."
-    );
-    expect(screen.getByTestId("view-traffic")).toHaveAttribute("aria-current", "page");
-    expect(screen.getByTestId("view-repeater")).not.toHaveAttribute("aria-current");
-  });
 
   it("saves active profile and session names from the profile session panel", async () => {
     const saveProfile = vi.mocked(window.radar!.saveLocalProfile);

@@ -157,11 +157,11 @@ Radar opens into a twelve-view operator console.
 Persistent areas:
 
 - **Left sidebar**: Radar lockup and grouped Observe, Test, Report, and Configure navigation. The active view shows its live count in context.
-- **Console block**: app-global controls at the foot of the sidebar — the Manual-First / AI-First mode toggle, AI connection status, Projects, Appearance, and AI settings.
+- **Console block**: app-global controls at the foot of the sidebar — current Manual-First / AI-First status, AI connection status, **Open AI Operator**, Projects, and Appearance.
 - **Top banner**: active project workspace/session and UTC clock.
 - **Header**: active project name, managed-browser address/history controls, browser and Playwright status, global Search, project Notes, and view-specific actions. The header tracks the current target; app-global controls live in the sidebar Console block.
 - **Session selector**: quick session switching under the Console block.
-- **Workspace panel**: the active evidence or tool surface. AI-First adds a compact mission dock without replacing the active view.
+- **Workspace panel**: the active evidence or tool surface. AI-First adds a compact mission safety bar without replacing or narrowing the active view; detailed prompting and run review live in the separate AI Operator window.
 - **Footer ticker**: current view, HTTP/S capture count, WebSocket frame count, TLS event count, and proxy status.
 
 Views:
@@ -1407,7 +1407,11 @@ If a selected capture includes TLS metadata, the SSL detail pane shows:
 
 Radar starts in **Manual-First** mode. In this mode, the operator drives HTTP(S), WebSocket, Intercept, Repeater, Automate, Findings, Workflows, Plugins, Advanced, Sitemap, Scope, and SSL directly. The AI command palette can prepare summaries, drafts, checklists, browser steps, plugin review notes, advanced testing review notes, and report notes, but it does not execute browser navigation, intercept actions, replay requests, Automate runs, workflow edits, plugin install/approval/execution, Advanced import/replay actions, finding review, or exports.
 
-Switch to **AI-First** from the sidebar Console toggle when you want Radar to run from a prompt. A compact mission dock stays above the active evidence pane with status and immediate Pause, Resume, Stop, and Operations controls. **Operations** opens a right-hand drawer holding goal setup, run profile, Thoughtstream, Mission Graph, capability leases, the observation timeline, draft findings, and project-local run memory in one scrolling column, so recovery prompts, memory proposals, and finding drafts are never hidden behind a tab while a run is in progress. The drawer docks beside the evidence rather than over it: the workspace reserves its width so the active view stays readable. Drag the drawer's left edge—or focus it and use the arrow keys—to resize it, and close it whenever you want the full evidence workspace. Enter a scoped goal such as:
+Open **AI Operator** from the sidebar Console block, the compact mission bar, the Command Palette settings action, or **Cmd/Ctrl+Shift+A** when you want Radar to run from a prompt. The companion is independent and non-modal, so the workspace remains full width and directly operable. Opening or focusing it does not change mode, start a run, contact a provider, or widen Scope. A successful **Start Run** changes Radar to AI-First.
+
+The AI Operator window has a run-history rail, a chronological agent feed with a fixed composer, and a Mission Inspector for the graph, budgets, capability leases, findings, memory, and Connection settings. Failed or policy-blocked calls, recovery controls, capability requests, memory proposals, finding drafts, and exhausted budgets remain inline in the feed even when the inspector also summarizes them. The companion is a singleton: repeated open requests focus the same window, closing hides it without pausing or stopping a run, and reopening restores the selected section and durable run state. At narrower sizes the inspector and run rail collapse behind explicit buttons; the feed and composer remain the default surface.
+
+The compact workspace mission bar appears while the companion is open or a run is active or needs attention. It keeps run status, current action, target, attention state, Pause, Resume, Stop, and **Open/Focus AI Operator** beside the evidence without becoming a second transcript. Enter a scoped goal in the companion such as:
 
 ```text
 Inspect https://staging.example.com for auth, session, and API hardening issues.
@@ -1436,7 +1440,7 @@ Turn on **Tutorial Mode** when you want the AI to teach the assessment rather th
 To run a guided lesson:
 
 1. Save the authorized target origin in **11 Scope**.
-2. Switch to **AI-First**, choose the profile that matches the lesson, and turn on **Tutorial Mode**.
+2. Open **AI Operator**, choose the profile that matches the lesson, and turn on **Tutorial Mode**.
 3. Enter a learning goal such as `Teach me how to inspect https://staging.example.com for authorization clues without overclaiming a finding.`
 4. Click **Start Tutorial**.
 5. At each lesson checkpoint, inspect both the **Guided Field Lesson** card and the browser or Radar evidence pane named by the timeline.
@@ -1574,7 +1578,7 @@ Available AI-First tools:
 - `analyzeSecurityHeaders`, `analyzeCookieFlags`, and `checkCorsPolicy` produce evidence observations from run-scoped captures.
 - `proposeRunMemory` creates a transcript proposal for local run memory. It does not persist until you confirm it.
 
-The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. In standard AI-First mode, successful scoped inspection steps continue automatically; **Resume** is reserved for an operator pause, safety approval, question, or recoverable failure. Tutorial Mode pauses after each meaningful successful inspection and labels that control **Continue Lesson**. Click **Pause** to preserve the selected run's durable checkpoint or **Stop** to end it. If a tool is already executing, Pause takes effect after that tool settles. Switching back to Manual-First stops an active autonomous run so it cannot continue invisibly. If the selected run has spent its runtime or tool-call budget, Radar shows the exact usage, disables Resume, and offers **Continue as New Run**. That explicit action starts the same goal and profile with a fresh bounded budget; it does not rewrite the exhausted checkpoint, and the new timeline records the source run id.
+The existing views remain visible evidence panes, so you can watch the agent use the app instead of waiting for an opaque background job. In standard AI-First mode, successful scoped inspection steps continue automatically; **Resume** is reserved for an operator pause, safety approval, question, or recoverable failure. Tutorial Mode pauses after each meaningful successful inspection and labels that control **Continue Lesson**. Click **Pause** to preserve the selected run's durable checkpoint or **Stop** to end it. If a tool is already executing, Pause takes effect after that tool settles. **Return to Manual** first pauses queued or running work and waits for its durable checkpoint, then changes mode. If checkpointing fails, Radar remains AI-First and keeps Stop available in both windows. If the selected run has spent its runtime or tool-call budget, Radar shows the exact usage, disables Resume, and offers **Continue as New Run**. That explicit action starts the same goal and profile with a fresh bounded budget; it does not rewrite the exhausted checkpoint, and the new timeline records the source run id.
 
 AI-First runs are intentionally bounded:
 
@@ -1655,7 +1659,7 @@ Task behavior:
 
 ### Connect AI
 
-Open AI settings from the header.
+Open **AI Operator**, then choose **Connection** in the Mission Inspector. The main workspace shows only the current connection summary and routes settings actions to this companion section.
 
 Supported providers:
 
@@ -1761,7 +1765,7 @@ Themes:
 
 Theme selection is stored in browser local storage for the app UI.
 
-Radar bundles all nine theme families locally, so appearance and evidence typography do not depend on a font CDN or an internet connection. The supported desktop usability contract covers the 1120 × 760 minimum window, common laptop/default/wide sizes, 80% and 90% zoom-out clarity, and 125%/150% text enlargement. The scheduled matrix also records advisory 75% and 200% boundaries. These are desktop workbench checks rather than phone/tablet support.
+Radar bundles all nine theme families locally, so appearance and evidence typography do not depend on a font CDN or an internet connection. The supported desktop usability contract covers the workspace's `1120 × 760` minimum and `1480 × 940` default, the AI Operator's `760 × 640` minimum and `1040 × 840` default, common laptop/wide sizes, 80% and 90% zoom-out clarity, and 125%/150% text enlargement in both native windows. The scheduled matrix also records advisory 75% and 200% boundaries. These are desktop workbench checks rather than phone/tablet support.
 
 ## Local Data And Privacy
 
@@ -1879,8 +1883,8 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 
 ### Run AI-First Autonomy
 
-1. Save every authorized origin in **11 Scope**, then switch the top shell toggle from **Manual-First** to **AI-First**.
-2. Choose **Browser Assessment** for live exploration and bounded verification, then confirm the visible budget chips.
+1. Save every authorized origin in **11 Scope**, then open **AI Operator** from the sidebar or with **Cmd/Ctrl+Shift+A**.
+2. Choose **Browser Assessment** for live exploration and bounded verification, then confirm the visible budget chips. Opening the companion alone keeps Radar Manual-First.
 3. Enter a goal that includes the target, such as `hairetsu.com` or `https://staging.example.com`.
 4. Click **Start Run**. If the origin is outside saved Scope, Radar only proposes it in **11 Scope** and does not start the run.
 5. For a proposed origin, review the Scope editor, click **Commit**, then click **Start Run** again.
@@ -1888,7 +1892,7 @@ For the unauthenticated access check, first select the HTTP/S capture you want t
 7. For a lease proposal, review the exact tuple and caps. Click **Grant** or **Deny**. Grant does not resume the run; click **Resume** separately to attempt the saved pending call once.
 8. To steer the plan or authority yourself, click **Pause**, wait for the current tool to settle, then edit the Mission Graph or propose/grant/revoke bounded capability leases. Click **Resume** when both are ready; the same cumulative budgets continue from the saved checkpoint.
 9. Use the offered recovery buttons for a paused failed step. Retry is available only when Radar can safely re-execute the tool without repeating a mutating browser, authentication-state, replay, or workflow action.
-10. Use **Run History** to return to saved graphs, lease ledgers, receipts, and transcripts; confirm/dismiss proposed run memory; and review prepared Repeater or Workflow drafts before execution.
+10. Use the run rail to return to saved graphs, lease ledgers, receipts, and transcripts; confirm/dismiss proposed run memory; and review prepared Repeater or Workflow drafts before execution.
 11. Review quality-gated draft findings in **06 Findings** before using them. AI drafts with unresolved or out-of-scope evidence references are rejected.
 
 ### Create A Finding And Report
@@ -2111,7 +2115,7 @@ Check:
 
 ### AI Is Not Connected
 
-Open AI settings and check:
+Open **AI Operator → Connection** and check:
 
 - Provider is correct.
 - API key is present for OpenAI, Anthropic, or non-local compatible providers.
@@ -2130,7 +2134,7 @@ Check:
 - The selected **Run History** item is the run you intend to inspect.
 - The run timeline does not show invalid planner output, a policy block, an AI provider error, or a failed tool waiting for an operator recovery choice.
 - A paused or failed run still has cumulative elapsed-time and tool-step budget available before you click **Resume**.
-- The run has not been stopped by switching back to Manual-First.
+- A queued or running run was not checkpointed by **Return to Manual**; it should now be paused and recoverable, not silently stopped.
 
 ### Codex Connect Cannot Find Codex
 

@@ -951,7 +951,18 @@ const radar: RadarApi = {
       agentRunMemory.splice(index, 1);
     }
     return { ok: true, memory: agentRunMemory };
-  }
+  },
+  openAiOperator: async (section = "runs") => ({ created: true, visible: true, focused: true, section }),
+  getAiOperatorWindowState: async () => ({ created: false, visible: false, focused: false, section: "runs" }),
+  getAppMode: async () => "manual-first",
+  setAppMode: async (mode) => mode,
+  publishWorkspaceContext: async (workspaceContext) => workspaceContext,
+  onWorkspaceIntent: () => () => undefined,
+  onAiOperatorWindowState: () => () => undefined,
+  onAppModeChanged: () => () => undefined,
+  onAgentChanged: () => () => undefined,
+  onAiConnectionChanged: () => () => undefined
 };
 
+contextBridge.exposeInMainWorld("radarSurface", "workspace");
 contextBridge.exposeInMainWorld("radar", radar);

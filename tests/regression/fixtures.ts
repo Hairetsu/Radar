@@ -130,13 +130,34 @@ export async function startProxy(page: Page, proxyPort: number) {
   throw new Error(`Radar proxy did not listen on 127.0.0.1:${proxyPort}.`);
 }
 
+export async function openAiOperatorWindow(page: Page, section: "runs" | "settings" = "runs") {
+  const context = page.context();
+  let operator = context.pages().find((candidate) => candidate.url().includes("surface=ai-operator"));
+  const launch = page.getByTestId(section === "settings" ? "openAiSettings" : "openAiOperatorSidebar");
+  if (!operator) {
+    const opened = context.waitForEvent("page");
+    await launch.click();
+    operator = await opened;
+  } else {
+    await launch.click();
+  }
+  await operator.getByTestId("aiOperatorShell").waitFor();
+  if (section === "settings") {
+    await expect(operator.getByTestId("aiOperatorConnectionPanel")).toBeVisible();
+  } else if (await operator.getByTestId("aiOperatorConnectionPanel").isVisible().catch(() => false)) {
+    await operator.getByTestId("aiOperatorSettings").click();
+  }
+  return operator;
+}
+
 export async function configureFixtureAi(page: Page, targetLab: TargetLab) {
-  await page.getByTestId("openAiSettings").click();
-  await page.getByTestId("aiProvider").selectOption("openai-compatible");
-  await page.getByTestId("aiApiKey").fill("radar-fixture-key");
-  await page.getByTestId("aiBaseUrl").fill(`${targetLab.origin}/v1`);
-  await page.getByTestId("aiSaveSettings").click();
-  await expect(page.getByTestId("aiConnectionStatus")).toContainText("Connected");
-  await expect(page.getByTestId("aiModel")).toHaveValue("radar-fixture-model");
-  await page.getByTestId("aiSettingsClose").click();
+  const operator = await openAiOperatorWindow(page, "settings");
+  await operator.getByTestId("aiProvider").selectOption("openai-compatible");
+  await operator.getByTestId("aiApiKey").fill("radar-fixture-key");
+  await operator.getByTestId("aiBaseUrl").fill(`${targetLab.origin}/v1`);
+  await operator.getByTestId("aiSaveSettings").click();
+  await expect(operator.getByTestId("aiConnectionStatus")).toContainText("Connected");
+  await expect(operator.getByTestId("aiModel")).toHaveValue("radar-fixture-model");
+  await operator.getByTestId("aiOperatorSettings").click();
+  return operator;
 }
