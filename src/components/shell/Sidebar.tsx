@@ -134,7 +134,7 @@ export function Sidebar({
 
         <nav
           ref={viewScroll.attach}
-          className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 max-[1180px]:flex-row max-[1180px]:gap-1 max-[1180px]:overflow-y-hidden max-[1180px]:overflow-x-auto max-[1180px]:scroll-smooth max-[1180px]:pr-0 motion-reduce:scroll-auto"
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 max-[1180px]:flex-row max-[1180px]:gap-1 max-[1180px]:overflow-y-hidden max-[1180px]:overflow-x-auto max-[1180px]:pr-0"
           aria-label="Workbench views"
           data-testid="viewSwitch"
           data-component="viewSwitch"
