@@ -5,6 +5,7 @@ const regressionRoot = path.join(process.cwd(), "artifacts", "regression");
 
 export default defineConfig({
   testDir: "./tests/regression",
+  globalSetup: "./tests/regression/globalSetup.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
