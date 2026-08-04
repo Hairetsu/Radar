@@ -226,6 +226,7 @@ markAutomateUrl
 matchReplaceRulesText
 missionAddItem
 missionAskOperator
+missionGraphCoverage
 missionNewItemInput
 missionNodeInspector
 missionPauseAgentRun

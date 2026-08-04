@@ -1,10 +1,10 @@
 # Radar Regression Report
 
-Generated: 2026-08-04T16:41:28.665Z
+Generated: 2026-08-04T17:20:27.298Z
 Overall result: **PASSED**
 Workers: 6
-Wall time: 117.7s
-Aggregate workflow time: 666.2s
+Wall time: 117.0s
+Aggregate workflow time: 660.4s
 
 ## Outcome
 
@@ -112,20 +112,20 @@ No failed workflows.
 
 | Rank | Workflow | Outcome | Duration | Attempts |
 | ---: | --- | --- | ---: | ---: |
-| 1 | **REG-WF-007** [REG-WF-007] @network @security blocks an active workflow with no selected capture | passed | 33.3s | 1 |
+| 1 | **REG-WF-007** [REG-WF-007] @network @security blocks an active workflow with no selected capture | passed | 33.5s | 1 |
 | 2 | **REG-WS-006** [REG-WS-006] @security shows a bounded WebSocket replay error without disturbing HTTP evidence | passed | 32.5s | 1 |
 | 3 | **REG-UI-006** [REG-UI-006] @ui passes every view at laptop and default layouts | passed | 20.6s | 1 |
-| 4 | **REG-AIF-003** [REG-AIF-003] @ai @security enforces visible tool, replay, workflow, capture-sample, and runtime budgets | passed | 12.2s | 1 |
-| 5 | **REG-UI-005** [REG-UI-005] @ui @usability reaches required controls in all twelve views at minimum size | passed | 8.6s | 1 |
-| 6 | **REG-AUTO-008** [REG-AUTO-008] @network retries only a failed Automate attempt after fixture recovery | passed | 6.8s | 1 |
-| 7 | **REG-AIF-004** [REG-AIF-004] @ai pauses a delayed planner and resumes the same durable run | passed | 6.8s | 1 |
-| 8 | **REG-WF-011** [REG-WF-011] @ai @network @security reuses the normal workflow contract after an exact capability grant | passed | 6.5s | 1 |
-| 9 | **REG-UI-008** [REG-UI-008] @ui @usability keeps critical workflows reachable at 125% and 150% zoom | passed | 6.4s | 1 |
-| 10 | **REG-AIF-012** [REG-AIF-012] @ai @persistence restores completed, stopped, and failed AI runs after restart | passed | 6.0s | 1 |
+| 4 | **REG-AIF-003** [REG-AIF-003] @ai @security enforces visible tool, replay, workflow, capture-sample, and runtime budgets | passed | 12.3s | 1 |
+| 5 | **REG-UI-005** [REG-UI-005] @ui @usability reaches required controls in all twelve views at minimum size | passed | 8.5s | 1 |
+| 6 | **REG-UI-008** [REG-UI-008] @ui @usability keeps critical workflows reachable at 125% and 150% zoom | passed | 7.4s | 1 |
+| 7 | **REG-UI-025** [REG-UI-025] @ui @visual @usability @ui-critical preserves clarity and hierarchy below 100% zoom | passed | 6.8s | 1 |
+| 8 | **REG-AIF-004** [REG-AIF-004] @ai pauses a delayed planner and resumes the same durable run | passed | 6.7s | 1 |
+| 9 | **REG-AIF-012** [REG-AIF-012] @ai @persistence restores completed, stopped, and failed AI runs after restart | passed | 5.9s | 1 |
+| 10 | **REG-AUTO-008** [REG-AUTO-008] @network retries only a failed Automate attempt after fixture recovery | passed | 5.3s | 1 |
 
 ## Application Startup Distribution
 
-Samples: 185 · min 1.0s · median 1.1s · p95 1.4s · max 2.0s.
+Samples: 185 · min 0.9s · median 1.1s · p95 1.4s · max 2.1s.
 
 ## Skipped Coverage Gaps
 
