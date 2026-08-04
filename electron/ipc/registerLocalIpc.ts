@@ -7,6 +7,7 @@ import type {
 } from "../../shared/domain.js";
 
 interface LocalIpcOperations {
+  authorizeContextRead?: (webContentsId: number) => boolean;
   context: () => LocalContext;
   listProfiles: () => LocalProfile[];
   createProfile: (name?: string) => LocalContext;
@@ -23,7 +24,12 @@ export function registerLocalIpc(
   ipcMain: IpcMain,
   operations: LocalIpcOperations
 ) {
-  ipcMain.handle("local:context", () => operations.context());
+  ipcMain.handle("local:context", (event) => {
+    if (operations.authorizeContextRead && !operations.authorizeContextRead(event.sender.id)) {
+      throw new Error("This Radar window is not authorized to read local context.");
+    }
+    return operations.context();
+  });
   ipcMain.handle("local:profiles:list", () => operations.listProfiles());
   ipcMain.handle("local:profile:create", (_event, name) =>
     operations.createProfile(typeof name === "string" ? name : undefined)

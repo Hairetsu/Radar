@@ -1,5 +1,4 @@
 import type { ComponentProps, FormEvent } from "react";
-import { AiSettingsPanel } from "../../ai/AiSettingsPanel";
 import { CommandPalette } from "../../ai/CommandPalette";
 import type { RadarWorkbench } from "../../hooks/useRadarWorkbench";
 import type { GlobalSearchResult } from "../../types";
@@ -82,27 +81,6 @@ export function WorkbenchOverlays({
         onSaveSession={workbench.saveLocalSession}
         onLoadSession={workbench.loadLocalSession}
         onSeedDemoProject={workbench.seedDemoProject}
-      />
-
-      <AiSettingsPanel
-        open={workbench.ai.settingsOpen}
-        onClose={() => workbench.ai.setSettingsOpen(false)}
-        settings={workbench.ai.settings}
-        onSettingsChange={workbench.ai.setSettings}
-        models={workbench.ai.models}
-        modelsLoading={workbench.ai.modelsLoading}
-        connected={workbench.ai.connected}
-        checking={workbench.ai.checking}
-        message={workbench.ai.message}
-        error={workbench.ai.error}
-        onSave={() => workbench.ai.saveSettings()}
-        onProbe={() => workbench.ai.probe()}
-        onConnectPreset={(presetId) => workbench.ai.connectPreset(presetId)}
-        onCursorLogin={() => workbench.ai.loginCursor()}
-        saving={workbench.ai.saving}
-        probing={workbench.ai.probing}
-        connecting={workbench.ai.connecting}
-        cursorLoggingIn={workbench.ai.cursorLoggingIn}
       />
 
       <CommandPalette

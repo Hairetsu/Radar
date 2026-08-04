@@ -4,13 +4,15 @@ import type { EvidenceExtensionsApi } from "./api/evidenceExtensionsApi.js";
 import type { IdentityApi } from "./api/identityApi.js";
 import type { LocalProjectApi } from "./api/localProjectApi.js";
 import type { TestingApi } from "./api/testingApi.js";
+import type { WindowCoordinationApi } from "./api/windowCoordinationApi.js";
 
 export type RadarApi = AiAgentApi &
   BrowserCaptureApi &
   EvidenceExtensionsApi &
   IdentityApi &
   LocalProjectApi &
-  TestingApi;
+  TestingApi &
+  WindowCoordinationApi;
 
 export type {
   AiAgentApi,
@@ -18,5 +20,6 @@ export type {
   EvidenceExtensionsApi,
   IdentityApi,
   LocalProjectApi,
-  TestingApi
+  TestingApi,
+  WindowCoordinationApi
 };

@@ -1,6 +1,6 @@
 # Radar Full-Workflow Regression Suite Specification
 
-Status: implemented coverage contract (189/189 IDs registered)
+Status: implemented coverage contract (192/192 IDs registered)
 Runner: Playwright Electron  
 Canonical product workflow: `docs/USER_GUIDE.md`  
 Canonical manual inventory: `docs/MANUAL_QA_CHECKLIST.md`
@@ -114,8 +114,8 @@ Generate fixtures in a per-test temporary directory:
 | `REG-APP-003` | `@smoke` | Load the demo from Projects. | Demo project/session names, scope, captures, frames, findings, workflows, plugin, and advanced signals appear. |
 | `REG-APP-004` | `@core` | Navigate all twelve numbered views. | Correct active marker, heading, controls, and no page/console error for every view. |
 | `REG-APP-005` | `@core` | Switch Bureau, Vellum, and Specter themes. | Theme persists after reload and selected evidence remains readable/visible. |
-| `REG-APP-006` | `@core` | Open and close Search, Notes, Projects, Appearance, and AI settings with buttons and Escape. | Only intended overlay is active; focus returns to its trigger. |
-| `REG-APP-007` | `@core` | Toggle Manual-First and AI-First without submitting a goal. | Mode changes visibly; no agent run or fixture-provider request is created. |
+| `REG-APP-006` | `@core` | Open and close Search, Notes, Projects, and Appearance with buttons and Escape; route AI settings to the companion. | Only the intended workspace overlay is active, focus returns to its trigger, and AI settings create no workspace modal. |
+| `REG-APP-007` | `@core` | Open/focus the AI Operator without submitting a goal. | One companion appears, Manual-First remains visible, no agent/provider request is created, and evidence width does not shrink. |
 | `REG-APP-008` | `@core` | Create and switch sessions from both quick selector and Projects panel. | Active session changes and prior evidence counts remain intact. |
 | `REG-APP-009` | `@core` | Exercise `Cmd/Ctrl+P` and keyboard navigation in global search. | Overlay opens, result can be selected, Escape closes it, focus behavior is stable. |
 | `REG-APP-010` | `@core` | Compare sidebar and footer telemetry after demo load and view changes. | Counts match visible scoped captures, frames, TLS events, and proxy state. |
@@ -345,7 +345,15 @@ Generate fixtures in a per-test temporary directory:
 | `REG-AIF-011` | `@ai` | Steer an active mission and grant/revoke a bounded capability lease. | Mission graph/timeline update and actions obey current lease only. |
 | `REG-AIF-012` | `@ai` `@persistence` | Restart after completed, stopped, and failed runs. | Run history/full transcripts preserve correct terminal status and findings/memory attribution. |
 
-### R. Persistence, corruption, and resilience
+### R. AI Operator window coordination
+
+| ID | Tags | Operator use case and actions | Required proof |
+| --- | --- | --- | --- |
+| `REG-AIOP-001` | `@ai` `@smoke` | Open the AI Operator repeatedly and inspect native window configuration. | Exactly one independent non-modal companion exists; minimum size is `760 x 640`; isolation is enabled; Node integration, webviews, and always-on-top are disabled. |
+| `REG-AIOP-002` | `@ai` | Start a run, close the companion, use the workspace safety bar, and reopen it. | Close hides without pausing/stopping, workspace safety controls remain, and the durable run/feed restores in the same singleton. |
+| `REG-AIOP-003` | `@ai` `@security` | Return to Manual-First while work is queued or running. | Radar checkpoints and pauses the run before both surfaces enter Manual-First; no queued work continues invisibly. |
+
+### S. Persistence, corruption, and resilience
 
 | ID | Tags | Operator use case and actions | Required proof |
 | --- | --- | --- | --- |
@@ -359,7 +367,7 @@ Generate fixtures in a per-test temporary directory:
 | `REG-RES-003` | `@soak` | Repeat demo load, view navigation, filtering, and project switching 50 times. | Stable record counts and bounded Electron renderer/main memory growth. |
 | `REG-RES-004` | `@soak` `@network` | Capture/replay a bounded high-volume fixture set. | UI remains responsive, caps hold, persistence completes, and report flags performance regressions. |
 
-### S. UI, typography, and human usability
+### T. UI, typography, and human usability
 
 | ID | Tags | Operator use case and actions | Required proof |
 | --- | --- | --- | --- |
@@ -367,7 +375,7 @@ Generate fixtures in a per-test temporary directory:
 | `REG-UI-002` | `@ui` `@font` `@security` | Load every production theme without network access. | Pinned local faces load and no external font/resource request or silent fallback occurs. |
 | `REG-UI-003` | `@ui` `@font` | Switch through Bureau, Vellum, and Specter. | Display, sans, and mono samples resolve to each theme's intended families. |
 | `REG-UI-004` | `@ui` `@usability` | Inspect editable, evidence, supporting, and control type roles. | Computed sizes and multiline line heights remain above the role contract. |
-| `REG-UI-005` | `@ui` `@usability` | Traverse all twelve views, Identity Lab, and AI-First at minimum size. | Required controls are visible or scroll-reachable and focusable where interactive. |
+| `REG-UI-005` | `@ui` `@usability` | Traverse all twelve workspace views, Identity Lab, and AI Operator at each native minimum. | Required controls are visible or scroll-reachable and focusable where interactive. |
 | `REG-UI-006` | `@ui` | Traverse every view at laptop and default profiles. | Each view avoids global overflow and preserves its primary surface. |
 | `REG-UI-007` | `@ui` | Inspect dense evidence at wide and large profiles. | Panels gain useful space without producing unbounded reading widths. |
 | `REG-UI-008` | `@ui` `@usability` | Traverse Traffic, Repeater, Findings, and Workflows at 125% and 150%. | Critical controls remain visible or scroll-reachable without document overflow. |
@@ -375,8 +383,8 @@ Generate fixtures in a per-test temporary directory:
 | `REG-UI-010` | `@ui` `@usability` | Inspect every view action bar at minimum size. | Unrelated toolbar and primary-action rectangles do not overlap. |
 | `REG-UI-011` | `@ui` `@usability` | Scroll Findings, Workflows, Plugins, and Automate to their final regions. | Dense panels expose their last controls/results through internal scrolling. |
 | `REG-UI-012` | `@ui` `@usability` | Inspect primary headings/actions at minimum size. | Clipped text is absent or exposes its full accessible/title value. |
-| `REG-UI-013` | `@ui` `@usability` | Open search, artifacts, appearance, AI settings, and project/session overlays. | Each fits the viewport and exposes an internal scroll path when needed. |
-| `REG-UI-014` | `@ui` `@ai` | Open, resize, scroll, and close the AI operations drawer. | Drawer bounds hold while the active evidence pane remains visible. |
+| `REG-UI-013` | `@ui` `@usability` | Open search, artifacts, appearance, and project/session overlays plus AI Operator Connection settings. | Workspace overlays fit/scroll, and Connection remains usable in the companion at its minimum size. |
+| `REG-UI-014` | `@ui` `@ai` | Resize the native AI Operator to minimum/default/wide profiles and scroll each region. | Companion minimum bounds hold, feed/composer and collapsed rail/inspector controls remain usable, and the workspace evidence pane retains full width. |
 | `REG-UI-015` | `@ui` `@usability` | Keyboard-tab through the minimum-window shell. | Focus remains visible, onscreen, and on rendered controls. |
 | `REG-UI-016` | `@ui` `@usability` | Open and close search/settings with keyboard and close controls. | Focus returns to the exact opener after dismissal. |
 | `REG-UI-017` | `@ui` `@usability` | Resolve theme text, state, focus, and selection tokens. | Required contrast ratios pass for all themes. |

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage, dialog, screen, type Rectangle } from "electron";
 import {
   DEFAULT_ALLOWLIST,
   isAllowedTarget,
@@ -18,6 +18,7 @@ import { normalizeAutomatePayloadSets } from "../shared/automate.js";
 import type {
   AgentRun
 } from "../shared/agent-types.js";
+import type { AiConnectProbe, AiSettings } from "../shared/ai-types.js";
 import { annotationContext } from "../shared/evidenceTags.js";
 import {
   buildFindingReport,
@@ -41,8 +42,8 @@ import {
 } from "./identityProfiles.js";
 import { createIdentityController } from "./identity/identityController.js";
 import { seedDemoProject } from "./demoProject.js";
-import { registerAgentIpc } from "./ipc/registerAgentIpc.js";
-import { registerAiIpc } from "./ipc/registerAiIpc.js";
+import { registerAgentIpc, type AgentIpcAction } from "./ipc/registerAgentIpc.js";
+import { registerAiIpc, type AiIpcAction } from "./ipc/registerAiIpc.js";
 import { registerAutomateIpc } from "./ipc/registerAutomateIpc.js";
 import { registerBrowserIpc } from "./ipc/registerBrowserIpc.js";
 import { registerCaptureIpc } from "./ipc/registerCaptureIpc.js";
@@ -54,6 +55,7 @@ import { registerProjectIpc } from "./ipc/registerProjectIpc.js";
 import { registerPluginIpc } from "./ipc/registerPluginIpc.js";
 import { registerRepeaterIpc } from "./ipc/registerRepeaterIpc.js";
 import { registerWorkflowIpc } from "./ipc/registerWorkflowIpc.js";
+import { registerWindowIpc } from "./ipc/registerWindowIpc.js";
 import {
   loadSettings as loadAiSettings,
   saveSettings as saveAiSettings,
@@ -99,6 +101,10 @@ import { createProjectArtifactController } from "./project/projectArtifactContro
 import { createReplayController } from "./replay/replayController.js";
 import { createWorkflowController } from "./workflows/workflowController.js";
 import type { CdpListEntry } from "./chromeDebugging.js";
+import {
+  createWindowCoordinator,
+  type WindowCoordinator
+} from "./windows/windowCoordinator.js";
 
 const regressionUserDataPath = process.env.RADAR_REGRESSION_USER_DATA_DIR?.trim();
 if (regressionUserDataPath) {
@@ -128,6 +134,7 @@ const sslEvents: SslEvent[] = [];
 let localStore: LocalStore | null = null;
 let localContext: LocalContext | null = null;
 let agentRuntime: AgentRuntime | null = null;
+let windowCoordinator: WindowCoordinator | null = null;
 const causalAttribution = createCausalAttribution();
 const serializeIdentityActivation = createSerializedIdentityActivator();
 
@@ -150,6 +157,66 @@ function activeAgentRuntime() {
     agentRuntime = createAgentRuntime();
   }
   return agentRuntime;
+}
+
+function activeWindowCoordinator() {
+  if (!windowCoordinator) {
+    throw new Error("Radar window coordination is not ready.");
+  }
+  return windowCoordinator;
+}
+
+function windowRole(webContentsId: number) {
+  return activeWindowCoordinator().roleForWebContents(webContentsId);
+}
+
+function authorizeAgentAction(webContentsId: number, action: AgentIpcAction) {
+  const role = windowRole(webContentsId);
+  if (role === "ai-operator") {
+    return true;
+  }
+  return role === "workspace" && [
+    "pause",
+    "resume",
+    "stop",
+    "get",
+    "list",
+    "list-memory"
+  ].includes(action);
+}
+
+function authorizeAiAction(webContentsId: number, action: AiIpcAction) {
+  const role = windowRole(webContentsId);
+  if (role === "ai-operator") {
+    return [
+      "settings-read",
+      "settings-write",
+      "connect",
+      "probe",
+      "login",
+      "models-read",
+      "models-refresh"
+    ].includes(action);
+  }
+  return role === "workspace" && [
+    "settings-read",
+    "preview",
+    "run",
+    "skills-read",
+    "skills-write",
+    "audit",
+    "models-read"
+  ].includes(action);
+}
+
+function publishAiConnection(settings: AiSettings, probe: AiConnectProbe, checking = false) {
+  return activeWindowCoordinator().publishAiConnection({
+    connected: probe.ok,
+    checking,
+    provider: settings.provider,
+    model: settings.model,
+    message: probe.message
+  });
 }
 
 function endActiveIdentityActivation() {
@@ -452,6 +519,7 @@ function createAgentRuntime() {
     saveRun: (run) => {
       activeLocalStore().upsertAgentRun(run.sessionId, run);
       syncAgentFindingsToInbox(run);
+      windowCoordinator?.publishAgentChanged(run.id);
     },
     loadRun: (runId) => activeLocalStore().getAgentRun(activeLocalContext().session.id, String(runId || "")),
     listRuns: () => activeLocalStore().listAgentRuns(activeLocalContext().session.id),
@@ -565,6 +633,17 @@ function applyAppIcon() {
   app.dock.setIcon(icon);
 }
 
+function openApprovedExternalUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      void shell.openExternal(url.toString());
+    }
+  } catch {
+    // Renderer-created external URLs fail closed.
+  }
+}
+
 function createWindow() {
   const icon = loadAppIcon();
   mainWindow = new BrowserWindow({
@@ -584,9 +663,14 @@ function createWindow() {
     }
   });
 
+  activeWindowCoordinator().attachWorkspace(mainWindow);
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
   mainWindow.removeMenu();
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openApprovedExternalUrl(url);
     return { action: "deny" };
   });
 
@@ -602,12 +686,61 @@ function createWindow() {
     }
   });
 
+  loadRendererSurface(mainWindow, "workspace");
+}
+
+function loadRendererSurface(window: BrowserWindow, surface: "workspace" | "ai-operator") {
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
-    mainWindow.loadURL(devUrl);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "..", "..", "dist", "index.html"));
+    const url = new URL(devUrl);
+    url.searchParams.set("surface", surface);
+    void window.loadURL(url.toString());
+    return;
   }
+  void window.loadFile(path.join(__dirname, "..", "..", "dist", "index.html"), {
+    query: { surface }
+  });
+}
+
+function createAiOperatorWindow(bounds: Rectangle) {
+  const icon = loadAppIcon();
+  const window = new BrowserWindow({
+    ...bounds,
+    minWidth: 760,
+    minHeight: 640,
+    show: false,
+    title: "Radar — AI Operator",
+    ...(icon ? { icon } : {}),
+    backgroundColor: "#07110f",
+    webPreferences: {
+      preload: path.join(__dirname, "aiOperatorPreload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webviewTag: false,
+      // Electron 42's packaged ESM preload does not execute in a sandboxed
+      // renderer on every supported platform. The dedicated preload remains
+      // narrow, context-isolated, Node-free, and sender-role authorized.
+      sandbox: false
+    }
+  });
+  window.removeMenu();
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    openApprovedExternalUrl(url);
+    return { action: "deny" };
+  });
+  window.webContents.on("before-input-event", (_event, input) => {
+    if (input.type !== "keyDown") return;
+    const key = input.key?.toLowerCase();
+    const toggleCombo =
+      (process.platform === "darwin" && input.meta && input.alt && key === "i") ||
+      (process.platform !== "darwin" && input.control && input.shift && key === "i") ||
+      key === "f12";
+    if (toggleCombo) {
+      window.webContents.toggleDevTools();
+    }
+  });
+  loadRendererSurface(window, "ai-operator");
+  return window;
 }
 
 function createStartupErrorWindow(error: unknown) {
@@ -642,10 +775,17 @@ app.whenReady().then(() => {
     return;
   }
   applyAppIcon();
+  windowCoordinator = createWindowCoordinator({
+    stateFile: path.join(app.getPath("userData"), "radar-window-state.json"),
+    createAiWindow: createAiOperatorWindow
+  });
+  screen.on("display-removed", () => {
+    windowCoordinator?.reclampAiOperator();
+  });
   createWindow();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
       createWindow();
     }
   });
@@ -658,6 +798,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  windowCoordinator?.destroy();
   endActiveIdentityActivation();
   stopChromeProcess();
   localStore?.close();
@@ -849,6 +990,7 @@ const pluginController = createPluginController({
 }
 
 registerLocalIpc(ipcMain, {
+  authorizeContextRead: (webContentsId) => Boolean(windowRole(webContentsId)),
   context: () => activeLocalContext(),
   listProfiles: () => activeLocalStore().listProfiles(),
   createProfile: (name) =>
@@ -1035,6 +1177,7 @@ registerProjectIpc(ipcMain, {
 });
 
 registerCaptureIpc(ipcMain, {
+  authorizeTargetsRead: (webContentsId) => Boolean(windowRole(webContentsId)),
   snapshot: () => listHttpCaptures(400),
   query: (query) => {
     const result = filterCapturesByQuery(
@@ -1232,7 +1375,12 @@ registerIdentityIpc(ipcMain, {
 });
 
 registerAgentIpc(ipcMain, {
-  start: (request) => activeAgentRuntime().start(request),
+  authorize: authorizeAgentAction,
+  start: (request) => {
+    const run = activeAgentRuntime().start(request);
+    activeWindowCoordinator().setAppMode("ai-first");
+    return run;
+  },
   pause: (id) => activeAgentRuntime().pause(id),
   resume: (id) => activeAgentRuntime().resume(id),
   recover: (id, request) => activeAgentRuntime().recover(id, request),
@@ -1253,7 +1401,15 @@ registerAgentIpc(ipcMain, {
     activeLocalStore().deleteAgentRunMemory(activeLocalContext().workspace.id, id)
 });
 
+registerWindowIpc(ipcMain, {
+  coordinator: activeWindowCoordinator,
+  executingRun: () =>
+    activeAgentRuntime().list().find((run) => run.status === "queued" || run.status === "running") || null,
+  pauseRun: (id) => activeAgentRuntime().pause(id)
+});
+
 registerAiIpc(ipcMain, {
+  authorize: authorizeAiAction,
   getSettings: () => loadAiSettings(app.getPath("userData")),
   saveSettings: (settings) => saveAiSettings(app.getPath("userData"), settings),
   previewContext: (request) =>
@@ -1289,10 +1445,19 @@ registerAiIpc(ipcMain, {
         // Keep cached models when refresh fails.
       }
     }
+    publishAiConnection(result.settings, result.probe);
     return result;
   },
-  probe: (settings) => probeAiSettings(settings),
-  cursorLogin: () => loginCursorCli(),
+  probe: async (settings) => {
+    const probe = await probeAiSettings(settings);
+    publishAiConnection(settings, probe);
+    return probe;
+  },
+  cursorLogin: async () => {
+    const probe = await loginCursorCli();
+    publishAiConnection(loadAiSettings(app.getPath("userData")), probe);
+    return probe;
+  },
   getModels: (provider) => getAiModels(provider, localStore),
   refreshModels: async (settings) => {
     const current = settings || loadAiSettings(app.getPath("userData"));

@@ -9,6 +9,19 @@ export function useTheme() {
     applyTheme(themeId);
   }, [themeId]);
 
+  useEffect(() => {
+    const onStorage = (event: unknown) => {
+      if ((event as { key?: string }).key !== "radar.theme") {
+        return;
+      }
+      const next = readStoredTheme();
+      setThemeIdState(next);
+      applyTheme(next);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const setTheme = useCallback((next: ThemeId) => {
     setThemeIdState(next);
     storeTheme(next);

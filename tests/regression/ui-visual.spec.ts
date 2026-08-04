@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { expect, loadDemo, setScope, startProxy, test } from "./fixtures";
+import { expect, loadDemo, openAiOperatorWindow, setScope, startProxy, test } from "./fixtures";
 import { sendThroughRadarProxy } from "./target-lab";
 import { setTheme, UI_THEMES } from "./ui/fontAudit";
 import { assertNoGlobalHorizontalOverflow, assertRequiredControls } from "./ui/layoutAudit";
@@ -52,7 +52,6 @@ async function capturePrimaryOverlays({
     { id: "project-artifacts", trigger: "openProjectArtifacts", close: "closeProjectArtifacts" },
     { id: "global-search", trigger: "openGlobalSearch", close: "closeGlobalSearch" },
     { id: "appearance", trigger: "openAppearanceSettings", closeLabel: "Close appearance settings" },
-    { id: "ai-settings", trigger: "openAiSettings", close: "aiSettingsClose" },
     { id: "projects-sessions", trigger: "openProfileSessionPanel", closeLabel: "Close projects and sessions panel" }
   ] as const;
   for (const overlay of overlays) {
@@ -72,15 +71,25 @@ async function capturePrimaryOverlays({
     }
   }
 
-  await openAiFirstConsole(page);
+  const operator = await openAiFirstConsole(page);
+  await applyWindowProfile(electronApp, operator, profile, testInfo);
   await captureMatrixImage({
-    page,
+    page: operator,
     theme: "bureau",
-    name: `full-ai-first-bureau-${profile}-demo`,
-    volatile,
+    name: `full-ai-operator-bureau-${profile}-demo`,
+    volatile: [],
     testInfo
   });
-  await page.getByTestId("manualFirstMode").click();
+  const settings = await openAiOperatorWindow(page, "settings");
+  await captureMatrixImage({
+    page: settings,
+    theme: "bureau",
+    name: `full-ai-operator-settings-bureau-${profile}-demo`,
+    volatile: [],
+    testInfo,
+    dense: false
+  });
+  await settings.getByTestId("aiOperatorSettings").click();
 }
 
 test.describe("UI visual baselines and release review", () => {
@@ -135,22 +144,20 @@ test.describe("UI visual baselines and release review", () => {
     await expectVisualAnchor({ page, name: "global-search-bureau-zoom-125-demo", mask: volatile, testInfo });
     await page.getByTestId("closeGlobalSearch").click();
 
-    await openAiFirstConsole(page);
-    await stabilizeVisuals(page, "bureau");
-    await expectVisualAnchor({ page, name: "ai-first-bureau-zoom-125-demo", mask: volatile, dense: true, testInfo });
-    await page.getByTestId("manualFirstMode").click();
+    let operator = await openAiFirstConsole(page);
+    await applyWindowProfile(electronApp, operator, "zoom-125", testInfo);
+    await stabilizeVisuals(operator, "bureau");
+    await expectVisualAnchor({ page: operator, name: "ai-operator-bureau-zoom-125-demo", mask: [], dense: true, testInfo });
 
-    await applyWindowProfile(electronApp, page, "minimum", testInfo);
-    await openAiFirstConsole(page);
-    await stabilizeVisuals(page, "bureau");
-    await expectVisualAnchor({ page, name: "ai-first-bureau-minimum-demo", mask: volatile, dense: true, testInfo });
-    await page.getByTestId("manualFirstMode").click();
+    operator = await openAiFirstConsole(page);
+    await applyWindowProfile(electronApp, operator, "minimum", testInfo);
+    await stabilizeVisuals(operator, "bureau");
+    await expectVisualAnchor({ page: operator, name: "ai-operator-bureau-minimum-demo", mask: [], dense: true, testInfo });
 
-    await applyWindowProfile(electronApp, page, "zoom-80", testInfo);
-    await openAiFirstConsole(page);
-    await stabilizeVisuals(page, "bureau");
-    await expectVisualAnchor({ page, name: "ai-first-bureau-zoom-80-demo", mask: volatile, dense: true, testInfo });
-    await page.getByTestId("manualFirstMode").click();
+    operator = await openAiFirstConsole(page);
+    await applyWindowProfile(electronApp, operator, "zoom-80", testInfo);
+    await stabilizeVisuals(operator, "bureau");
+    await expectVisualAnchor({ page: operator, name: "ai-operator-bureau-zoom-80-demo", mask: [], dense: true, testInfo });
 
     await applyWindowProfile(electronApp, page, "default", testInfo);
     await openIdentityLab(page);

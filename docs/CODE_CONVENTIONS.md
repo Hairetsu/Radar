@@ -27,18 +27,21 @@ Use the existing folders as ownership boundaries:
 - `electron/browser/`: Managed-browser and CDP lifecycle, Electron debugger capture, scoped Playwright actions, browser inspection, and capture adapters.
 - `electron/ai/`: AI settings, prompts, context building, provider calls, connect presets, and audit logic.
 - `electron/agent/`: AI-First autonomous run loop, policy checks, and tool orchestration. Keep scope/replay limits here and have the runtime call existing browser, capture, and replay functions instead of duplicating them. Keep the public tool registry as a facade; catalog metadata belongs in `toolRegistry/definitions.ts` and canonical untrusted-input normalization belongs in `toolRegistry/normalization.ts`.
+- `electron/windows/`: workspace/AI Operator window ownership, singleton lifecycle, bounds persistence and display clamping, renderer-role authorization, sanitized context projection, typed workspace intents, and app-mode events.
 - `src/`: React renderer code.
 - `src/hooks/`: Stateful renderer workflows. `useRadarWorkbench` is the composition root for workbench state.
 - `src/hooks/workbench/`: Domain hooks composed by `useRadarWorkbench` (shell, scope, traffic, repeater, findings, workflows, automate, plugins, intercept, websocket, ssl/proxy, and related ports). Cross-domain writes go through typed ports such as `NavigationPort` and `NoticePort`. Keep `useAgentDomain` as the AI-First composition hook; lifecycle, governance, memory, and timeline projection live in focused `agent/` hooks.
+- `src/ai-operator/`: focused companion renderer. Keep its controller centered on run/history/feed/composer/inspector/connection state and reuse the existing main-process AgentRuntime and shared contracts.
 - `src/lib/`: Renderer-facing utility re-exports and presentation helpers (including `cn()` and `presentation.ts` tone/format helpers).
 - `src/components/ui/`: shadcn-style form and action primitives (`Button`, `Input`, `Select`, `Textarea`).
 - `src/components/radar/`: Radar-specific presentation primitives (labels, status badges, pills, empty states).
-- `src/components/shell/`: App chrome (sidebar, workspace header, panel header, telemetry ticker, AI-First drawer chrome, project artifacts overlay, request context menu, layout class helpers).
+- `src/components/shell/`: App chrome (sidebar, workspace header, panel header, telemetry ticker, compact AI mission safety bar, project artifacts overlay, request context menu, layout class helpers).
 - `src/components/views/`: One view module per workbench tab (`TrafficView`, `RepeaterView`, …), with each retained header action strip in its own `*ViewActions.tsx` file.
 - `src/ai/`: AI command palette UI and renderer metadata.
 - `src/test/`: Shared renderer test setup and structural guards such as the `data-testid` inventory.
 - `shared/agentMission/`: Mission normalization, update/patch application, operator steering, and reference/evidence validation behind the `shared/agentMission.ts` compatibility barrel.
 - `shared/agentCapabilities/`: Capability risk, normalization, lease mutation, receipt accounting, and authorization behind the `shared/agentCapabilities.ts` compatibility barrel.
+- `shared/windowCoordination.ts` and `shared/api/windowCoordinationApi.ts`: serializable window roles, app mode, sanitized workspace context, typed control intents, lifecycle state, connection summaries, channel names, and strict normalizers.
 
 When adding a feature, start with the shared types and pure helpers, then wire Electron IPC, then expose the typed preload API, then update hooks/UI, then tests.
 
@@ -148,8 +151,14 @@ const selected = useMemo(
 
 - `shared/radar-api.ts` is the preload contract. Update it before adding a new `window.radar` method.
 - `electron/preload.ts` should be a thin one-to-one map from `RadarApi` methods to `ipcRenderer.invoke`.
+- `shared/api/aiOperatorApi.ts` and `electron/aiOperatorPreload.ts` define the narrower companion contract. Do not expose the full workspace API to the AI Operator renderer.
 - `electron/ipc/register*Ipc.ts` owns `ipcMain.handle` registrations. `electron/main.ts` composes registrars with explicit domain operations. IPC channel names should follow the existing `domain:action` pattern, such as `browser:open`, `proxy:start`, and `ai:run`.
 - Keep `contextIsolation: true` and `nodeIntegration: false` for renderer windows.
+- Treat the immutable preload role and `webContents.id` as authorization inputs. A query string chooses a renderer bundle but never grants a role. Reject role/query mismatches in the renderer and reject disallowed IPC actions in the main process.
+- The AI Operator window uses `sandbox: false` because Electron 42 cannot execute its ESM preload reliably under the renderer sandbox. This is a documented platform exception: the preload remains context-isolated, Node-free, narrow, and sender-authorized. Re-evaluate the exception when Electron supports the preload configuration under sandboxing.
+- Cross-window state moves only through normalized, serializable snapshots and allowlisted intents. Never inject JavaScript, query another renderer's DOM, forward raw request bodies/headers, or use renderer-to-renderer message channels for workspace control.
+- `openAiOperator` must preserve one non-modal companion per app process. Window close hides during normal app life; app quit destroys. Persist only clamped bounds and local UI preferences, never evidence or secrets.
+- Starting a run is the transition to AI-First. Returning to Manual-First must pause/checkpoint a queued or running run first and fail closed in AI-First if that pause cannot complete.
 - Main-process handlers should clamp numeric input, normalize strings, and reject unsafe actions.
 - Replay, burst replay, browser launch, proxy setup, CA generation, and AI provider calls stay in the main process.
 - Keep app-wide browser, proxy, intercept, and capture state beside focused controllers or ledgers. `electron/main.ts` should compose those boundaries rather than own feature algorithms. Expose snapshots as serializable values.
