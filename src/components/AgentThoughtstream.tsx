@@ -3,6 +3,7 @@ import type { AgentRun } from "../types";
 import { cn } from "../lib";
 import {
   activityLabel,
+  agentThoughtstreamStep,
   lastIndexMatching,
   resultText,
   targetText
@@ -28,7 +29,13 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
   }
 
   const entries = run.timeline;
-  const decisionIndex = lastIndexMatching(entries, (entry) => entry.phase !== "tool-call" && Boolean(entry.toolCall));
+  const decisionIndex = lastIndexMatching(
+    entries,
+    (entry) => Boolean(
+      entry.toolCall &&
+        (entry.phase === "decision" || (entry.phase === "policy-block" && !entry.toolResult))
+    )
+  );
   const rationaleIndex =
     decisionIndex >= 0 ? decisionIndex : lastIndexMatching(entries, (entry) => entry.phase === "decision");
   const callIndex = lastIndexMatching(entries, (entry) => entry.phase === "tool-call");
@@ -38,14 +45,17 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
   );
   const latestIndex = entries.length - 1;
   const latestEntry = entries[latestIndex];
-  const decision = rationaleIndex >= 0 ? entries[rationaleIndex] : undefined;
+  const step = agentThoughtstreamStep(entries);
+  const decision = step.rationaleEntry || (
+    step.tool === "planner" && rationaleIndex >= 0 ? entries[rationaleIndex] : undefined
+  );
   const call = callIndex >= 0 ? entries[callIndex] : undefined;
   const result = resultIndex >= 0 ? entries[resultIndex] : undefined;
-  const currentTool = decision?.toolCall?.tool || call?.toolCall?.tool || "planner";
   const waitingForResult = Math.max(decisionIndex, callIndex) > resultIndex;
   const rationale =
     decision?.summary ||
     decision?.note ||
+    (step.tool !== "planner" ? `Radar selected ${step.tool} as the next bounded step.` : undefined) ||
     (run.status === "running" || run.status === "queued"
       ? "Evaluating the mission graph, current evidence, and remaining policy budget."
       : run.mission?.stopReason || "No planner rationale has been recorded yet.");
@@ -60,8 +70,6 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
       data-testid="agentThoughtstream"
       data-component="agentThoughtstream"
       data-active={isActive ? "true" : "false"}
-      aria-live="polite"
-      aria-atomic="true"
     >
       <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(90deg,transparent_0,transparent_49%,color-mix(in_srgb,var(--color-signal)_12%,transparent)_50%,transparent_51%,transparent_100%)] [background-size:34px_100%]" />
       {isActive && (
@@ -119,14 +127,23 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
               <ScanLine size={12} strokeWidth={1.8} className="text-signal" />
               Why this step
             </div>
-            <StatusBadge tone="move">{currentTool}</StatusBadge>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <StatusBadge tone="move">{step.tool}</StatusBadge>
+              <StatusBadge
+                tone={step.status === "failed" ? "danger" : step.status === "completed" ? "good" : "ghost"}
+              >
+                <span data-testid="agentThoughtstreamStepStatus" aria-live="polite" aria-atomic="true">
+                  {step.status}
+                </span>
+              </StatusBadge>
+            </div>
           </div>
           <p className="mt-2 text-body leading-6 text-copy" data-testid="agentThoughtstreamRationale">
             {rationale}
           </p>
           <div className="mt-3 border-l-2 border-signal bg-signal/[0.055] px-3 py-2">
             <span className="rd-label-sm text-signal">Visible target</span>
-            <p className="mt-1 break-all font-mono text-label leading-4 text-bone">{targetText(decision || call || latestEntry)}</p>
+            <p className="mt-1 break-all font-mono text-label leading-4 text-bone">{targetText(step.targetEntry || decision || call || latestEntry)}</p>
           </div>
         </div>
 

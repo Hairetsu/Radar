@@ -15,6 +15,7 @@ agentProfileSelect
 agentThoughtstream
 agentThoughtstreamLive
 agentThoughtstreamRationale
+agentThoughtstreamStepStatus
 agentTimeline
 agentTutorialGuide
 agentTutorialToggle

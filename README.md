@@ -1,6 +1,8 @@
 # Radar
 
-Radar is a local-first defensive web security workbench for authorized testing. It brings traffic capture, replay, bounded active testing, evidence, reporting, and a visible AI operator into one desktop app.
+Radar is a defensive web security workbench for authorized testing across local, staging, and remote targets. It captures and inspects HTTP/S requests and WebSocket traffic routed through its managed browser or proxy, then brings replay, bounded active testing, evidence, reporting, and a visible AI operator into one desktop app.
+
+Radar is not limited to localhost. Its projects and evidence stay local by default, while saved Scope can cover any authorized HTTP/S origin or WebSocket endpoint.
 
 Use it manually when you want direct control, or give AI-First a scoped goal and watch one sequential browser operator work through the same visible tools and evidence.
 
@@ -8,7 +10,7 @@ Use it manually when you want direct control, or give AI-First a scoped goal and
 
 ## What Radar Does
 
-- **Observe:** capture HTTP/S and WebSocket traffic from a dedicated managed browser or local proxy, then explore it through filters, search, request details, and a generated sitemap.
+- **Observe:** capture HTTP/S requests and WebSocket traffic from authorized local or remote targets through the dedicated managed browser or Radar proxy, then explore it through filters, search, request details, and a generated sitemap.
 - **Test:** pause and edit traffic, replay requests, run capped payload checks, compare identity evidence, and execute repeatable workflows.
 - **Document:** turn captures and test results into evidence-backed findings, retest records, handoff packages, and Markdown or HTML reports.
 - **Extend:** install local, permissioned plugins against Radar's bounded SDK.
@@ -36,7 +38,7 @@ The AI Operator connection deck supports the installed Codex app login, Cursor C
 
 ## Safety Model
 
-- **Local first:** projects, captures, findings, workflows, run history, and agent memory are stored in local SQLite.
+- **Local data by default:** projects, captures, findings, workflows, run history, and agent memory are stored in local SQLite; this privacy model does not restrict testing to local targets.
 - **Scope is authoritative:** evidence visibility, browser actions, replay, workflows, capability grants, and AI findings all reuse the saved allowlist.
 - **Active work is bounded:** sends and workflow requests have explicit caps; burst replay and several mutation/export paths remain Manual-First.
 - **Authority is explicit:** AI side effects require the active profile, policy, exact capability lease, and remaining budget to agree.

@@ -121,20 +121,26 @@ describe("AgentThoughtstream", () => {
       "Read the root accessibility structure before following links."
     );
     expect(screen.getByText("getDomSummary", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByTestId("agentThoughtstreamStepStatus")).toHaveTextContent("completed");
     expect(screen.getByText("https://www.tylerstech.net/")).toBeInTheDocument();
     expect(screen.getByText("getDomSummary completed successfully.")).toBeInTheDocument();
     expect(screen.getByText("Autonomous loop remains active")).toBeInTheDocument();
   });
 
   it("updates live content without remounting and flashing the thoughtstream body", () => {
-    const initial = activeRun();
+    const completedTimeline = activeRun().timeline;
+    const initial = activeRun({ timeline: completedTimeline.slice(0, 2) });
     const { rerender } = render(<AgentThoughtstream run={initial} />);
     const rationale = screen.getByTestId("agentThoughtstreamRationale");
+    const status = screen.getByTestId("agentThoughtstreamStepStatus");
+
+    expect(rationale).toHaveTextContent("Read the root accessibility structure before following links.");
+    expect(status).toHaveTextContent("requested");
 
     rerender(<AgentThoughtstream run={activeRun({
       updatedAt: "2026-07-19T21:16:23.000Z",
       timeline: [
-        ...initial.timeline,
+        ...completedTimeline,
         {
           id: "status-next",
           createdAt: "2026-07-19T21:16:23.000Z",
@@ -145,6 +151,95 @@ describe("AgentThoughtstream", () => {
     })} />);
 
     expect(screen.getByTestId("agentThoughtstreamRationale")).toBe(rationale);
+    expect(rationale).toHaveTextContent("Read the root accessibility structure before following links.");
+    expect(screen.getByTestId("agentThoughtstreamStepStatus")).toBe(status);
+    expect(status).toHaveTextContent("completed");
+  });
+
+  it("keeps the lease rationale stable while a gated tool moves from requested to completed", () => {
+    const initial = activeRun({
+      status: "paused",
+      timeline: [
+        {
+          id: "lease-click",
+          createdAt: "2026-07-19T21:16:20.000Z",
+          phase: "policy-block",
+          summary: "active lease proposed for clickElement",
+          target: { control: "Saved-scope evidence surface" },
+          toolCall: { tool: "clickElement", input: { selector: "role=link[name='Docs']" } }
+        }
+      ]
+    });
+    const { rerender } = render(<AgentThoughtstream run={initial} />);
+    const rationale = screen.getByTestId("agentThoughtstreamRationale");
+
+    expect(rationale).toHaveTextContent("active lease proposed for clickElement");
+    expect(screen.getByTestId("agentThoughtstreamStepStatus")).toHaveTextContent("requested");
+
+    rerender(<AgentThoughtstream run={activeRun({
+      timeline: [
+        ...initial.timeline,
+        {
+          id: "call-click",
+          createdAt: "2026-07-19T21:16:21.000Z",
+          phase: "tool-call",
+          summary: "clickElement requested",
+          actionId: "action-click",
+          toolCall: { tool: "clickElement", input: { selector: "role=link[name='Docs']" } }
+        },
+        {
+          id: "result-click",
+          createdAt: "2026-07-19T21:16:22.000Z",
+          phase: "tool-result",
+          summary: "clickElement completed",
+          actionId: "action-click",
+          toolCall: { tool: "clickElement", input: { selector: "role=link[name='Docs']" } },
+          toolResult: {
+            tool: "clickElement",
+            ok: true,
+            data: {
+              clicked: true,
+              selector: "role=link[name='Docs']",
+              url: "https://www.tylerstech.net/docs"
+            }
+          }
+        }
+      ]
+    })} />);
+
+    expect(screen.getByTestId("agentThoughtstreamRationale")).toBe(rationale);
+    expect(rationale).toHaveTextContent("active lease proposed for clickElement");
+    expect(screen.getByTestId("agentThoughtstreamStepStatus")).toHaveTextContent("completed");
+  });
+
+  it("keeps a newly blocked repeat call paired with its own rationale", () => {
+    const prior = activeRun();
+    render(<AgentThoughtstream run={activeRun({
+      status: "paused",
+      timeline: [
+        ...prior.timeline,
+        {
+          id: "decision-dom-refresh",
+          createdAt: "2026-07-19T21:16:23.000Z",
+          phase: "decision",
+          summary: "Refresh the DOM after navigation changed the visible page.",
+          toolCall: { tool: "getDomSummary", input: {} }
+        },
+        {
+          id: "blocked-dom-refresh",
+          createdAt: "2026-07-19T21:16:24.000Z",
+          phase: "policy-block",
+          summary: "Policy blocked getDomSummary",
+          toolCall: { tool: "getDomSummary", input: {} },
+          toolResult: { tool: "getDomSummary", ok: false, error: "Tool budget exhausted." }
+        }
+      ]
+    })} />);
+
+    expect(screen.getByTestId("agentThoughtstreamRationale")).toHaveTextContent(
+      "Refresh the DOM after navigation changed the visible page."
+    );
+    expect(screen.getByTestId("agentThoughtstreamStepStatus")).toHaveTextContent("failed");
   });
 
   it("labels Tutorial Mode pauses as lesson checkpoints", () => {
