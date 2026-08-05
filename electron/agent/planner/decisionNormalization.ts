@@ -2,7 +2,6 @@ import type {
   AgentDecision,
   AgentDecisionFinding
 } from "../../../shared/agent-types.js";
-import { normalizeAgentCapabilityLeaseRequest } from "../../../shared/agentCapabilities.js";
 import { normalizeAgentMissionPatch } from "../../../shared/agentMission.js";
 import { normalizeAgentTutorialGuidance } from "../../../shared/agentTutorial.js";
 import { normalizeUnknownAgentToolCall } from "../tools.js";
@@ -50,18 +49,11 @@ function normalizeToolCall(parsed: Record<string, unknown>) {
 export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDecision {
   const action = String(parsed.action || "").toLowerCase();
   const missionPatch = normalizeAgentMissionPatch(parsed.missionPatch);
-  const leaseRequest = normalizeAgentCapabilityLeaseRequest(parsed.leaseRequest);
   const tutorial = normalizeAgentTutorialGuidance(parsed.tutorial);
   if (parsed.missionPatch !== undefined && !missionPatch) {
     throw new Error("Agent missionPatch was invalid or empty.");
   }
-  if (parsed.leaseRequest !== undefined && !leaseRequest) {
-    throw new Error("Agent leaseRequest was invalid or insufficiently bounded.");
-  }
   if (action === "finish") {
-    if (leaseRequest) {
-      throw new Error("Agent finish decisions cannot request a capability lease.");
-    }
     return {
       action: "finish",
       rationale: String(parsed.rationale || ""),
@@ -77,8 +69,7 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
       call: normalizeToolCall(parsed),
       rationale: String(parsed.rationale || ""),
       ...(tutorial ? { tutorial } : {}),
-      ...(missionPatch ? { missionPatch } : {}),
-      ...(leaseRequest ? { leaseRequest } : {})
+      ...(missionPatch ? { missionPatch } : {})
     };
   }
 

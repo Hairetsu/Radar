@@ -9,6 +9,7 @@ import {
   invalidateAgentCapabilityLease,
   revokeGrantedAgentCapabilities
 } from "../../../shared/agentCapabilities.js";
+import { isAllowedTarget } from "../../../shared/allowlist.js";
 import type {
   AgentCapabilityUse
 } from "../../../shared/agentCapabilities.js";
@@ -47,6 +48,31 @@ function identityToolChangedAuthority(
     (call.tool === "activateIdentityProfile" ||
       call.tool === "verifyIdentityProfile")
   );
+}
+
+function isExpectedScopedNavigationResult(
+  call: AgentToolCall,
+  observedUrl: string,
+  capabilityUse: AgentCapabilityUse
+) {
+  return (
+    (call.tool === "openBrowser" || call.tool === "navigateBrowser") &&
+    capabilityUse.method === "GET" &&
+    isAllowedTarget(observedUrl, capabilityUse.allowlist)
+  );
+}
+
+function browserActionMayChangeSessionState(call: AgentToolCall) {
+  return [
+    "openBrowser",
+    "navigateBrowser",
+    "clickElement",
+    "fillInput",
+    "submitForm",
+    "loadAuthState",
+    "activateIdentityProfile",
+    "verifyIdentityProfile"
+  ].includes(call.tool);
 }
 
 export async function finalizeToolCapabilities({
@@ -90,7 +116,8 @@ export async function finalizeToolCapabilities({
         observedUrl,
         capabilityUse.method,
         capabilityUse.identity
-      )
+      ) &&
+      !isExpectedScopedNavigationResult(call, observedUrl, capabilityUse)
     ) {
       revocationNote = `Observed browser target escaped lease bounds: ${observedUrl}`;
     } else if (
@@ -99,10 +126,7 @@ export async function finalizeToolCapabilities({
     ) {
       revocationNote = `Capability outcome was ${outcome.status}: ${outcome.reason}`;
     } else if (
-      call.tool !== "openBrowser" &&
-      call.tool !== "loadAuthState" &&
-      call.tool !== "activateIdentityProfile" &&
-      call.tool !== "verifyIdentityProfile"
+      !browserActionMayChangeSessionState(call)
     ) {
       const postActionAuthFingerprint = await currentAuthFingerprint();
       if (postActionAuthFingerprint !== preActionAuthFingerprint) {

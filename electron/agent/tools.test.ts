@@ -36,6 +36,9 @@ describe("agent tools", () => {
       ])
     );
     expect(toolSchemas()).toHaveProperty("getDomSummary");
+    expect(toolSchemas(["getDomSummary"])).toEqual({
+      getDomSummary: expect.objectContaining({ safety: "observe" })
+    });
     expect(availableToolNames()).not.toEqual(expect.arrayContaining(["installPlugin", "approvePlugin", "runPluginApiAction"]));
     expect(new Set(AGENT_TOOL_REGISTRY.map((descriptor) => descriptor.name)).size).toBe(
       AGENT_TOOL_REGISTRY.length

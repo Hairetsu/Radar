@@ -60,6 +60,35 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+function pendingCapabilityGrant(run: AgentRun) {
+  const capabilities = capabilityStateFromRun(run);
+  const call = normalizedCheckpoint(run).pendingCapabilityCall;
+  if (!call) {
+    const draft = capabilities.leases.find((lease) => lease.status === "draft");
+    return draft
+      ? { tool: draft.tools[0] || "pending action", draft }
+      : null;
+  }
+  const granted = capabilities.leases.some(
+    (lease) => lease.status === "granted" && lease.tools.includes(call.tool)
+  );
+  if (granted) {
+    return null;
+  }
+  return {
+    tool: call.tool,
+    draft: capabilities.leases.find(
+      (lease) => lease.status === "draft" && lease.tools.includes(call.tool)
+    )
+  };
+}
+
+function capabilityGrantError(tool: string, leaseName?: string) {
+  return leaseName
+    ? `Grant the pending capability lease "${leaseName}" before resuming ${tool}. Granting authority and resuming are separate operator actions.`
+    : `Grant a matching capability lease before retrying ${tool}. Retry cannot grant authority.`;
+}
+
 
 
 export class AgentRuntime {
@@ -126,6 +155,28 @@ export class AgentRuntime {
       }
       nextState = result.state;
       note = `Operator granted capability lease ${result.lease.id} until ${result.lease.expiresAt}.`;
+      const currentCheckpoint = normalizedCheckpoint(run);
+      if (!currentCheckpoint.pendingCapabilityCall) {
+        const blockedCall = [...run.timeline]
+          .reverse()
+          .find(
+            (entry) =>
+              entry.createdAt >= result.lease.createdAt &&
+              entry.summary === `Capability lease blocked ${entry.toolCall?.tool || ""}` &&
+              Boolean(
+                entry.toolCall &&
+                result.lease.tools.includes(entry.toolCall.tool)
+              )
+          )
+          ?.toolCall;
+        if (blockedCall) {
+          checkpoint = {
+            ...currentCheckpoint,
+            pendingCapabilityCall: blockedCall,
+            pendingRecovery: undefined
+          };
+        }
+      }
     } else {
       const result = revokeAgentCapabilityLease(
         state,
@@ -224,10 +275,6 @@ export class AgentRuntime {
           maxReplay: Math.min(sourceRun.policy.maxReplay, profilePolicy.maxReplay),
           maxWorkflowRequests: Math.min(sourceRun.policy.maxWorkflowRequests, profilePolicy.maxWorkflowRequests),
           maxCaptureSample: Math.min(sourceRun.policy.maxCaptureSample, profilePolicy.maxCaptureSample),
-          maxParallelWorkers: Math.min(
-            sourceRun.policy.maxParallelWorkers || 2,
-            profilePolicy.maxParallelWorkers || 2
-          ),
           allowRawContext: sourceRun.policy.allowRawContext && profilePolicy.allowRawContext,
           tutorialMode
         }
@@ -321,6 +368,12 @@ export class AgentRuntime {
     }
     if (missionHasOpenQuestion(missionFromRun(run))) {
       throw new Error("Answer or dismiss the open mission question before resuming this run.");
+    }
+    const pendingGrant = pendingCapabilityGrant(run);
+    if (pendingGrant) {
+      throw new Error(
+        capabilityGrantError(pendingGrant.tool, pendingGrant.draft?.name)
+      );
     }
     stopped.delete(runId);
     requestedRunStatus.delete(runId);
@@ -416,6 +469,24 @@ export class AgentRuntime {
     const capabilityBlockedBeforeDispatch = Boolean(
       capabilityReceipt && capabilityReceipt.decision !== "allowed" && capabilityReceipt.status === "decided"
     );
+    if (requestedAction === "retry-tool" && capabilityBlockedBeforeDispatch) {
+      const capabilities = capabilityStateFromRun(run);
+      const granted = call
+        ? capabilities.leases.some(
+            (lease) => lease.status === "granted" && lease.tools.includes(call.tool)
+          )
+        : false;
+      if (!granted) {
+        const draft = call
+          ? capabilities.leases.find(
+              (lease) => lease.status === "draft" && lease.tools.includes(call.tool)
+            )
+          : undefined;
+        throw new Error(
+          capabilityGrantError(call?.tool || "this action", draft?.name)
+        );
+      }
+    }
     if (call && !isRetryableAgentTool(call) && !capabilityBlockedBeforeDispatch) {
       throw new Error(`${call.tool} cannot be retried automatically because it may have side effects.`);
     }

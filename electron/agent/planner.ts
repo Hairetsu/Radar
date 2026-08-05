@@ -4,7 +4,6 @@ import { loadSettings } from "../ai/settings.js";
 import { buildAgentUserPrompt } from "./planner/contextCompaction.js";
 import { normalizeAgentDecision } from "./planner/decisionNormalization.js";
 import { AGENT_SYSTEM_PROMPT } from "./planner/prompt.js";
-export { createAiReconPlanner } from "./planner/recon.js";
 
 export { buildAgentUserPrompt } from "./planner/contextCompaction.js";
 export { normalizeAgentDecision } from "./planner/decisionNormalization.js";

@@ -126,6 +126,27 @@ describe("AgentThoughtstream", () => {
     expect(screen.getByText("Autonomous loop remains active")).toBeInTheDocument();
   });
 
+  it("updates live content without remounting and flashing the thoughtstream body", () => {
+    const initial = activeRun();
+    const { rerender } = render(<AgentThoughtstream run={initial} />);
+    const rationale = screen.getByTestId("agentThoughtstreamRationale");
+
+    rerender(<AgentThoughtstream run={activeRun({
+      updatedAt: "2026-07-19T21:16:23.000Z",
+      timeline: [
+        ...initial.timeline,
+        {
+          id: "status-next",
+          createdAt: "2026-07-19T21:16:23.000Z",
+          phase: "status",
+          summary: "Preparing the next bounded step."
+        }
+      ]
+    })} />);
+
+    expect(screen.getByTestId("agentThoughtstreamRationale")).toBe(rationale);
+  });
+
   it("labels Tutorial Mode pauses as lesson checkpoints", () => {
     const run = activeRun({
       status: "paused",

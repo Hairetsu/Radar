@@ -101,6 +101,10 @@ export async function settleToolStep({
     lastToolEntry?.phase === "failure" ||
     lastToolEntry?.phase === "policy-block"
   ) {
+    const pauseReason =
+      lastToolEntry.toolResult && !lastToolEntry.toolResult.ok
+        ? lastToolEntry.toolResult.error
+        : lastToolEntry.note || lastToolEntry.summary || "The previous step did not complete safely.";
     return {
       run: withUpdate(run, deps.saveRun, {
         status: "paused",
@@ -108,9 +112,10 @@ export async function settleToolStep({
         timeline: [
           ...run.timeline,
           timeline(
-            "Run paused after a failed or policy-blocked step. Choose a recovery action to continue.",
+            `Run paused: ${pauseReason} Choose a recovery action to continue.`,
             {
               phase: "status",
+              summary: lastToolEntry.summary || "Recovery action required",
               target: lastToolEntry.target
             }
           )

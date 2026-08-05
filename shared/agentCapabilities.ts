@@ -15,6 +15,7 @@ export {
 export { finalizeAgentCapabilityReceipt } from "./agentCapabilities/receipts.js";
 export {
   authorizeAgentCapability,
+  hasMatchingAgentCapabilityLease,
   type AgentCapabilityAuthorization
 } from "./agentCapabilities/authorization.js";
 export {

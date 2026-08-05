@@ -11,11 +11,16 @@ import {
 } from "../../shared/agentMission.js";
 import {
   grantAgentCapabilityLease,
+  hasMatchingAgentCapabilityLease,
   proposeAgentCapabilityLease,
   revokeGrantedAgentCapabilities
 } from "../../shared/agentCapabilities.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { getAgentRunProfile } from "../../shared/agentProfiles.js";
+import {
+  capabilityLeaseRequestForUse,
+  capabilityUseForCall
+} from "./capabilityRuntime.js";
 import {
   findingFromDecision,
   runtimeEvidenceCatalog
@@ -132,40 +137,47 @@ export async function applyDecisionLease({
   currentAuthFingerprint: () => Promise<string>;
   tutorial: AgentDecision["tutorial"];
 }): Promise<DecisionStepResult> {
-  if (!decision.leaseRequest) {
+  const capabilityUse = capabilityUseForCall(run, counters, decision.call, deps);
+  if (!capabilityUse) {
     return { run, paused: false };
   }
 
   const profile = getAgentRunProfile(run.profileId);
-  if (!decision.leaseRequest.tools.includes(decision.call.tool)) {
-    throw new Error("Agent leaseRequest must include the selected tool.");
-  }
+  const authFingerprint = await currentAuthFingerprint();
   if (
-    decision.leaseRequest.tools.some(
-      (tool) => !profile.allowedTools.includes(tool)
+    hasMatchingAgentCapabilityLease(
+      capabilityStateFromRun(run),
+      { ...capabilityUse, authFingerprint }
     )
   ) {
-    throw new Error("Agent leaseRequest exceeds the selected run profile.");
+    return { run, paused: false };
   }
+
+  const leaseRequest = capabilityLeaseRequestForUse(
+    capabilityUse,
+    decision.rationale
+  );
   if (
-    decision.leaseRequest.grants.some(
+    !leaseRequest ||
+    !profile.allowedTools.includes(decision.call.tool) ||
+    leaseRequest.grants.some(
       (grant) => !isAllowedTarget(grant.origin, deps.allowlist())
     )
   ) {
-    throw new Error("Agent leaseRequest contains an out-of-scope origin.");
+    return { run, paused: false };
   }
 
   const proposed = proposeAgentCapabilityLease(
     capabilityStateFromRun(run),
-    decision.leaseRequest,
+    leaseRequest,
     createId("lease"),
     nowIso()
   );
   if (!proposed.ok) {
-    throw new Error(proposed.error);
+    return { run, paused: false };
   }
 
-  if (canAutoGrantScopedNavigation(decision.leaseRequest)) {
+  if (canAutoGrantScopedNavigation(leaseRequest)) {
     const granted = grantAgentCapabilityLease(
       proposed.state,
       proposed.lease.id,
@@ -173,7 +185,7 @@ export async function applyDecisionLease({
         allowlist: deps.allowlist(),
         allowedTools: profile.allowedTools,
         ceiling: profile.capabilityCeiling,
-        authFingerprint: await currentAuthFingerprint(),
+        authFingerprint,
         now: nowIso()
       }
     );
