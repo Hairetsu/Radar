@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - develop
@@ -168,41 +169,61 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check whether master needs promotion
+        id: promotion
+        run: |
+          git fetch origin master develop
+          if git diff --quiet origin/master origin/develop; then
+            echo "required=false" >> "$GITHUB_OUTPUT"
+            echo "develop and master have identical trees; skipping promotion and release dispatch."
+          else
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "develop differs from master; promotion is required."
+          fi
+
       - name: Setup pnpm
+        if: steps.promotion.outputs.required == 'true'
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
       - name: Setup Node
+        if: steps.promotion.outputs.required == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.promotion.outputs.required == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Configure git
+        if: steps.promotion.outputs.required == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Merge develop into master
+        if: steps.promotion.outputs.required == 'true'
         run: |
           git fetch origin master develop
           git checkout -B master origin/master
           git merge --no-ff origin/develop -m "chore: merge develop into master"
 
       - name: Verify merge result
+        if: steps.promotion.outputs.required == 'true'
         run: |
           pnpm test:unit
           pnpm lint
           pnpm build
 
       - name: Push master
+        if: steps.promotion.outputs.required == 'true'
         run: git push origin HEAD:master
 
       - name: Dispatch release
+        if: steps.promotion.outputs.required == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run release.yml --ref master
