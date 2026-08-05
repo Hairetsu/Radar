@@ -14,12 +14,6 @@ Use it manually when you want direct control, or give AI-First a scoped goal and
 - **Extend:** install local, permissioned plugins against Radar's bounded SDK.
 - **Assist:** use prepare-only AI from the command palette or run a scoped assessment from the separate AI Operator window.
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-## Run
-=======
->>>>>>> Stashed changes
 The core workflow is deliberately simple:
 
 1. Create a project and save the authorized scope.
@@ -36,11 +30,7 @@ AI-First does not run as a hidden background swarm. One browser operator follows
 
 The companion window keeps the current Thoughtstream, newest-first event feed, mission state, budgets, and controls visible. Permission-gated actions use focused prompts, while Pause, Resume, Stop, and manual workspace controls remain available throughout the run.
 
-<<<<<<< Updated upstream
-![Radar AI Operator tutorial](docs/screens/radar-10-tutorial.png)
-=======
 ![Radar AI Operator live event stream](docs/screens/radar-11-ai-operator-feed.png)
->>>>>>> Stashed changes
 
 ## Safety Model
 
@@ -57,10 +47,6 @@ Radar never installs a root certificate automatically and does not introduce clo
 Pre-built installers are available on the [Releases page](https://github.com/Hairetsu/Radar/releases). See [Install and Launch](docs/USER_GUIDE.md#install-and-launch) for current macOS Gatekeeper, Windows SmartScreen, Linux, and source-build notes.
 
 To run from source:
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
 ```bash
 pnpm install
