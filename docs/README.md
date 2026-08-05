@@ -14,6 +14,7 @@ Use this page as the index for Radar's operator, engineering, roadmap, and histo
 
 ## Engineering Documentation
 
+- [Design System](DESIGN_SYSTEM.md) — themes, typography, composition, motion, accessibility, and frontend implementation boundaries.
 - [Code Conventions](CODE_CONVENTIONS.md) — repository boundaries, TypeScript practices, security rules, testing, and component conventions.
 - [Branching](BRANCHING.md) — branch and delivery workflow.
 - [Refactor Audit](REFACTOR_AUDIT.md) — historical repository complexity findings and implementation status.
