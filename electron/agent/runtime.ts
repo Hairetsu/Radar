@@ -7,6 +7,7 @@ import type {
   AgentRunRecoveryAction,
   AgentRunRecoveryRequest,
   AgentRunRequest,
+  AgentTimelineEntry,
   AgentToolCall
 } from "../../shared/agent-types.js";
 import {
@@ -42,6 +43,7 @@ import type { AgentRuntimeDeps, RunCounters } from "./runtimeTypes.js";
 import { runToolCall } from "./toolExecution/runToolCall.js";
 import {
   isRetryableAgentTool,
+  recoveryActionsForFailure,
   tutorialOrientation
 } from "./toolMetadata.js";
 
@@ -87,6 +89,35 @@ function capabilityGrantError(tool: string, leaseName?: string) {
   return leaseName
     ? `Grant the pending capability lease "${leaseName}" before resuming ${tool}. Granting authority and resuming are separate operator actions.`
     : `Grant a matching capability lease before retrying ${tool}. Retry cannot grant authority.`;
+}
+
+function correctUnavailableRetry({
+  run,
+  entry,
+  call,
+  recoveryActions,
+  note,
+  saveRun
+}: {
+  run: AgentRun;
+  entry: AgentTimelineEntry;
+  call: AgentToolCall;
+  recoveryActions: AgentRunRecoveryAction[];
+  note: string;
+  saveRun: AgentRuntimeDeps["saveRun"];
+}) {
+  return withUpdate(run, saveRun, {
+    timeline: [
+      ...run.timeline.map((item) =>
+        item.id === entry.id ? { ...item, recoveryActions } : item
+      ),
+      timeline(note, {
+        phase: "policy-block",
+        summary: `Automatic retry unavailable for ${call.tool}`,
+        target: entry.target
+      })
+    ]
+  });
 }
 
 
@@ -482,17 +513,42 @@ export class AgentRuntime {
               (lease) => lease.status === "draft" && lease.tools.includes(call.tool)
             )
           : undefined;
-        throw new Error(
-          capabilityGrantError(call?.tool || "this action", draft?.name)
-        );
+        if (call) {
+          return correctUnavailableRetry({
+            run,
+            entry,
+            call,
+            recoveryActions: ["skip-and-continue", "stop-run"],
+            note: `${capabilityGrantError(call.tool, draft?.name)} The outdated retry option was removed; choose an available recovery action instead.`,
+            saveRun: this.deps.saveRun
+          });
+        }
       }
     }
-    if (call && !isRetryableAgentTool(call) && !capabilityBlockedBeforeDispatch) {
-      throw new Error(`${call.tool} cannot be retried automatically because it may have side effects.`);
+    if (
+      requestedAction === "retry-tool" &&
+      call &&
+      !isRetryableAgentTool(call) &&
+      !capabilityBlockedBeforeDispatch
+    ) {
+      return correctUnavailableRetry({
+        run,
+        entry,
+        call,
+        recoveryActions: recoveryActionsForFailure(call) || [],
+        note: `${call.tool} was not retried because its first attempt may have produced effects. The outdated retry option was removed; choose Skip / Continue to re-plan from current evidence, or stop the run.`,
+        saveRun: this.deps.saveRun
+      });
     }
     if (requestedAction === "retry-tool" && !call) {
       throw new Error("The failed tool call could not be recovered from the transcript.");
     }
+    const recoveryCall =
+      requestedAction === "retry-with-evidence" &&
+      call &&
+      !isRetryableAgentTool(call)
+        ? undefined
+        : call;
     stopped.delete(runId);
     requestedRunStatus.delete(runId);
     const next = withUpdate(run, this.deps.saveRun, {
@@ -504,7 +560,7 @@ export class AgentRuntime {
         pendingRecovery: {
           action: requestedAction,
           entryId: entry.id,
-          call
+          call: recoveryCall
         }
       },
       timeline: [
@@ -512,7 +568,7 @@ export class AgentRuntime {
         timeline(
           requestedAction === "retry-with-evidence"
             ? "Queued recovery with a fresh scoped evidence snapshot."
-            : `Queued safe retry for ${call?.tool || "the failed planner step"}.`,
+            : `Queued safe retry for ${recoveryCall?.tool || "the failed planner step"}.`,
           { phase: "status", target: entry.target }
         )
       ]

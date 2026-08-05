@@ -404,7 +404,20 @@ export function useAiOperator() {
     }
     setPending(true);
     try {
-      replaceRun(await operatorApi().recoverAgentRun(activeRun.id, { action, entryId }));
+      const recovered = await operatorApi().recoverAgentRun(activeRun.id, { action, entryId });
+      replaceRun(recovered);
+      if (
+        action === "retry-tool" &&
+        recovered &&
+        recovered.status !== "queued" &&
+        recovered.status !== "running"
+      ) {
+        setNotice(
+          recovered.timeline.at(-1)?.summary ||
+            "Automatic retry remains paused. Choose one of the safe recovery actions shown in the feed."
+        );
+        return;
+      }
       setNotice(action === "draft-finding"
         ? "Reviewable low-confidence finding drafted from the failed step."
         : action === "skip-and-continue"

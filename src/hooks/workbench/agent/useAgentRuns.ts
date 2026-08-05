@@ -204,6 +204,18 @@ export function useAgentRuns<TPorts extends AgentRunPorts>(portsRef: MutableRefO
         if (recovered) {
           setAgentRuns((items) => [recovered, ...items.filter((item) => item.id !== recovered.id)]);
         }
+        if (
+          action === "retry-tool" &&
+          recovered &&
+          recovered.status !== "queued" &&
+          recovered.status !== "running"
+        ) {
+          portsRef.current.setNotice(
+            recovered.timeline.at(-1)?.summary ||
+              "Automatic retry remains paused. Choose one of the safe recovery actions shown in the timeline."
+          );
+          return;
+        }
         if (action === "draft-finding") {
           const tool = entry.toolCall?.tool || entry.toolResult?.tool || "failed step";
           setAgentGoal(`Create an evidence-backed draft finding from ${tool}.\n\nOriginal goal: ${run.goal}`);

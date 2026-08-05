@@ -177,9 +177,22 @@ describe("AiOperatorApp", () => {
         uncertainties: ["Requires operator validation."]
       }]
     });
+    const corrected = run({
+      status: "paused",
+      timeline: [
+        ...failed.timeline,
+        {
+          id: "retry-corrected",
+          createdAt: "2026-05-25T00:01:01.000Z",
+          phase: "policy-block",
+          summary: "Automatic retry unavailable for sendReplay"
+        }
+      ],
+      findings: failed.findings
+    });
     const api = operatorApi({
       listAgentRuns: vi.fn(async () => [failed]),
-      recoverAgentRun: vi.fn(async () => failed)
+      recoverAgentRun: vi.fn(async () => corrected)
     });
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
     render(<AiOperatorApp />);
@@ -188,6 +201,7 @@ describe("AiOperatorApp", () => {
     expect(screen.getByText("Tenant boundary requires review")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("agentRecovery-retry-tool"));
     await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "retry-tool", entryId: "failure-1" }));
+    expect(screen.getAllByText("Automatic retry unavailable for sendReplay").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByTestId("agentRecovery-draft-finding"));
     await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "draft-finding", entryId: "failure-1" }));
   });
