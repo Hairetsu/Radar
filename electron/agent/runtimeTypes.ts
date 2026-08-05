@@ -3,7 +3,6 @@ import type {
   AgentDecision,
   AgentDecisionContext,
   AgentEvidenceObservation,
-  AgentReconWorkerReport,
   AgentRun,
   AgentRunMemoryEntry,
   AgentStorageState
@@ -115,7 +114,6 @@ export type AgentRuntimeDeps = {
     url: string;
   }>;
   decideNextAction: (context: AgentDecisionContext) => Promise<AgentDecision>;
-  runReconWorkers?: (context: AgentDecisionContext, maxWorkers: number) => Promise<AgentReconWorkerReport[]>;
   setActiveRunId?: (runId: string | null) => void;
   setActiveActionContext?: (context: { actionId: string; identityId?: string } | null) => void;
   waitForSettle?: (ms: number) => Promise<void>;

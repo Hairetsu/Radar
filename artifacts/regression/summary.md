@@ -1,68 +1,39 @@
 # Radar Regression Report
 
-Generated: 2026-08-04T23:16:00.899Z
-Overall result: **PASSED**
-Workers: 2
-Wall time: 62.8s
-Aggregate workflow time: 112.5s
+Generated: 2026-08-04T23:17:52.413Z
+Overall result: **INTERRUPTED**
+Workers: 6
+Wall time: 0.0s
+Aggregate workflow time: 0.0s
 
 ## Outcome
 
 | Passed | Failed | Flaky | Skipped | Selected |
 | ---: | ---: | ---: | ---: | ---: |
-| 23 | 0 | 0 | 2 | 25 |
+| 0 | 0 | 0 | 0 | 0 |
 
 ## Release Signals
 
 - No blocking workflow failures were detected.
 - No flaky workflows were detected.
-- 2 selected workflow(s) were skipped and remain explicit coverage gaps for this run.
-- 2 workflow(s) exceeded 10 seconds; review the slowest-workflow table for startup, polling, or IPC latency.
+- No selected workflows were skipped.
+- No workflow crossed the 10-second slow-test threshold.
 - No security-tagged release blockers were detected.
 - No critical UI/font/usability release blockers were detected.
 - The scheduled full UI matrix was not selected for this invocation.
 - The installed-browser platform matrix was not selected for this invocation.
 - Catalog automation: 192/192 stable IDs (100.0%).
-- This invocation selected 25/192 catalog IDs.
+- This invocation selected 0/192 catalog IDs.
 
 ## Results By Tag
 
 | Tag | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| @ai | 1 | 0 | 0 | 0 | 1 |
-| @font | 3 | 0 | 0 | 0 | 3 |
-| @platform | 1 | 0 | 0 | 0 | 1 |
-| @security | 1 | 0 | 0 | 0 | 1 |
-| @ui | 23 | 0 | 0 | 2 | 25 |
-| @ui-critical | 3 | 0 | 0 | 0 | 3 |
-| @ui-full | 0 | 0 | 0 | 1 | 1 |
-| @usability | 14 | 0 | 0 | 1 | 15 |
-| @visual | 2 | 0 | 0 | 1 | 3 |
 
 ## Results By Product Surface
 
 | Surface | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| UI, Typography & Usability | 23 | 0 | 0 | 2 | 25 |
-
-## Results By UI Environment
-
-| Environment | Passed | Failed | Flaky | Skipped | Total |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| native/default | 3 | 0 | 0 | 2 | 5 |
-| profile: minimum · zoom: 1 | 5 | 0 | 0 | 0 | 5 |
-| profile: minimum · zoom: 1 · state: demo | 1 | 0 | 0 | 0 | 1 |
-| profile: minimum · zoom: 1 · state: empty, demo | 1 | 0 | 0 | 0 | 1 |
-| profile: minimum, default · zoom: 1 | 1 | 0 | 0 | 0 | 1 |
-| profile: minimum, zoom-125, zoom-150 · zoom: 1, 1.25, 1.5 | 1 | 0 | 0 | 0 | 1 |
-| profile: wide, large · zoom: 1 | 1 | 0 | 0 | 0 | 1 |
-| profile: zoom-125, zoom-150 · zoom: 1.25, 1.5 | 1 | 0 | 0 | 0 | 1 |
-| profile: zoom-150 · zoom: 1.5 | 1 | 0 | 0 | 0 | 1 |
-| profile: zoom-90, zoom-80 · zoom: 0.9, 0.8 · state: demo | 1 | 0 | 0 | 0 | 1 |
-| theme: bureau, vellum, specter | 4 | 0 | 0 | 0 | 4 |
-| theme: bureau, vellum, specter · profile: default, zoom-90, minimum, laptop, zoom-150, zoom-80, zoom-125 · zoom: 1, 0.9, 1.5, 0.8, 1.25 | 1 | 0 | 0 | 0 | 1 |
-| theme: bureau, vellum, specter · profile: laptop, default · zoom: 1 · state: demo | 1 | 0 | 0 | 0 | 1 |
-| theme: bureau, vellum, specter · profile: minimum, default · zoom: 1 | 1 | 0 | 0 | 0 | 1 |
 
 ## Changes From Prior Local Report
 
@@ -86,25 +57,14 @@ No failed workflows.
 
 | Rank | Workflow | Outcome | Duration | Attempts |
 | ---: | --- | --- | ---: | ---: |
-| 1 | **REG-UI-006** [REG-UI-006] @ui passes every view at laptop and default layouts | passed | 23.9s | 1 |
-| 2 | **REG-UI-020** [REG-UI-020] @ui @visual @ui-critical matches approved Linux visual anchors | passed | 15.6s | 1 |
-| 3 | **REG-UI-005** [REG-UI-005] @ui @usability reaches required controls in all twelve views at minimum size | passed | 8.5s | 1 |
-| 4 | **REG-UI-008** [REG-UI-008] @ui @usability keeps critical workflows reachable at 125% and 150% zoom | passed | 7.2s | 1 |
-| 5 | **REG-UI-025** [REG-UI-025] @ui @visual @usability @ui-critical preserves clarity and hierarchy below 100% zoom | passed | 6.9s | 1 |
-| 6 | **REG-UI-010** [REG-UI-010] @ui @usability prevents toolbar and primary-action overlap | passed | 4.2s | 1 |
-| 7 | **REG-UI-013** [REG-UI-013] @ui @usability keeps primary overlays within the viewport with internal scrolling | passed | 4.1s | 1 |
-| 8 | **REG-UI-012** [REG-UI-012] @ui @usability prevents undisclosed truncation on primary headings and actions | passed | 3.7s | 1 |
-| 9 | **REG-UI-017** [REG-UI-017] @ui @usability keeps theme text, focus, state, and selection token pairs distinguishable | passed | 3.1s | 1 |
-| 10 | **REG-UI-023** [REG-UI-023] @ui @usability keeps stress-copy content from hiding critical actions | passed | 3.0s | 1 |
 
 ## Application Startup Distribution
 
-Samples: 24 · min 0.8s · median 0.8s · p95 0.9s · max 1.0s.
+No standard fixture startup samples were recorded in this invocation.
 
 ## Skipped Coverage Gaps
 
-- **REG-UI-021** [REG-UI-021] @ui @visual @ui-full captures the full view, theme, and window matrix
-- **REG-UI-024** [REG-UI-024] @ui @usability validates the recorded human release review
+No selected catalog cases were skipped.
 
 ## Catalog Coverage
 

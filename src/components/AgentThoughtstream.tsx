@@ -59,6 +59,7 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
       className="relative overflow-hidden border border-signal/40 bg-[linear-gradient(112deg,color-mix(in_srgb,var(--color-signal)_10%,transparent),transparent_38%),color-mix(in_srgb,var(--color-surface)_88%,transparent)] shadow-[0_18px_45px_-35px_color-mix(in_srgb,var(--color-signal)_72%,transparent)] md:col-span-2"
       data-testid="agentThoughtstream"
       data-component="agentThoughtstream"
+      data-active={isActive ? "true" : "false"}
       aria-live="polite"
       aria-atomic="true"
     >
@@ -78,6 +79,12 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
+          {isActive && (
+            <span className="inline-flex items-center gap-1.5 border border-signal/35 bg-signal/[0.08] px-2 py-1 font-mono text-micro uppercase tracking-[0.16em] text-signal" data-testid="agentThoughtstreamLive">
+              <span className="h-1.5 w-1.5 rounded-full bg-signal animate-[stream-glow_1.5s_ease-in-out_infinite]" />
+              Streaming
+            </span>
+          )}
           <StatusBadge tone={run.status === "failed" ? "danger" : isActive ? "good" : "ghost"}>{state}</StatusBadge>
           <StatusBadge>step {String(entries.length).padStart(2, "0")}</StatusBadge>
           <StatusBadge>{run.mission ? `mission r${run.mission.revision}` : run.profileId}</StatusBadge>
@@ -85,8 +92,7 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
       </div>
 
       <div
-        key={latestEntry?.id || run.updatedAt}
-        className="radar-reveal relative grid gap-px bg-rule/70 opacity-0 animate-[enter_420ms_cubic-bezier(0.2,0.74,0.19,1)_forwards] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]"
+        className="relative grid gap-px bg-rule/70 transition-colors duration-300 min-[700px]:grid-cols-[minmax(0,0.92fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]"
       >
         <div className="min-w-0 bg-ink/75 p-4">
           <div className="flex items-center gap-2 rd-eyebrow text-muted">
@@ -144,6 +150,11 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
           </div>
         </div>
       </div>
+      {isActive && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px overflow-hidden">
+          <span className="block h-full w-1/3 animate-[agent-flow_1.7s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-signal to-transparent" />
+        </div>
+      )}
     </section>
   );
 }

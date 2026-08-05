@@ -291,23 +291,12 @@ export function buildAgentUserPrompt(context: AgentDecisionContext) {
         workflowRequests: Math.max(context.policy.maxWorkflowRequests - context.workflowRequestCount, 0)
       },
       availableTools: context.availableTools,
-      toolSchema: toolSchemas(),
+      toolSchema: toolSchemas(context.availableTools),
       capturedTraffic: context.capturedTraffic.map((capture) => compactCapturedTraffic(capture, includeRaw)),
       contextSummary: context.contextSummary,
       runMemory: context.runMemory,
       mission: compactMission(context.mission),
       capabilities: compactCapabilities(context.capabilities),
-      reconReports: (context.reconReports || []).map((report) => ({
-        id: report.id,
-        focus: report.focus,
-        label: report.label,
-        status: report.status,
-        summary: report.summary,
-        observations: report.observations,
-        evidenceRefs: report.evidenceRefs,
-        gaps: report.gaps,
-        error: report.error
-      })),
       timeline: context.timeline.map((entry) => ({
         id: entry.id,
         note: entry.note,

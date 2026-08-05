@@ -4,7 +4,7 @@ import type {
   AgentToolCall
 } from "../../shared/agent-types.js";
 import {
-  agentProfileAllowsTool
+  agentRunAllowsTool
 } from "../../shared/agentProfiles.js";
 import {
   fallbackAgentTutorialGuidance
@@ -52,12 +52,6 @@ export function buildDecisionContext({
     activeAllowlist,
     ""
   );
-  const reconReports = run.timeline
-    .flatMap((entry) => entry.reconReport ? [entry.reconReport] : [])
-    .slice(-8);
-  const plannerCaptureLimit = reconReports.length > 0
-    ? Math.min(run.policy.maxCaptureSample, 24)
-    : run.policy.maxCaptureSample;
   return {
     goal: run.goal,
     startUrl: counters.startUrl,
@@ -70,11 +64,11 @@ export function buildDecisionContext({
     replayCount: counters.replayCount,
     workflowRequestCount: counters.workflowRequestCount,
     availableTools: availableToolNames().filter((tool) =>
-      agentProfileAllowsTool(run.profileId, tool)
+      agentRunAllowsTool(run.profileId, run.policy, tool)
     ),
     capturedTraffic: capturedTrafficContext(
       captures,
-      plannerCaptureLimit
+      run.policy.maxCaptureSample
     ),
     contextSummary: runtimeContextSummary({
       deps,
@@ -84,7 +78,6 @@ export function buildDecisionContext({
     runMemory: deps.listRunMemory().slice(0, 16),
     mission: missionFromRun(run),
     capabilities: capabilityStateFromRun(run),
-    reconReports,
     tutorialMode: Boolean(run.policy.tutorialMode),
     timeline: run.timeline.slice(-16)
   };

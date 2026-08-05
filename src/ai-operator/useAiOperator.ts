@@ -66,7 +66,6 @@ export function useAiOperator() {
   const [composingNewMission, setComposingNewMission] = useState(false);
   const [goal, setGoalState] = useState("");
   const [profileId, setProfileId] = useState<AgentRunProfileId>("browser-assessment");
-  const [maxParallelWorkers, setMaxParallelWorkers] = useState(2);
   const [tutorialMode, setTutorialMode] = useState(false);
   const [notice, setNotice] = useState("AI Operator ready. No run starts until you submit a saved-scope goal.");
   const [pending, setPending] = useState(false);
@@ -241,7 +240,14 @@ export function useAiOperator() {
   );
   const budgetExhaustion = getAgentBudgetExhaustion(activeRun);
   const canPause = activeRun?.status === "queued" || activeRun?.status === "running";
-  const canResume = Boolean((activeRun?.status === "paused" || activeRun?.status === "failed") && !budgetExhaustion);
+  const capabilityReviewRequired = Boolean(
+    activeRun?.capabilities?.leases.some((lease) => lease.status === "draft")
+  );
+  const canResume = Boolean(
+    (activeRun?.status === "paused" || activeRun?.status === "failed") &&
+    !budgetExhaustion &&
+    !capabilityReviewRequired
+  );
   const canContinue = Boolean(
     budgetExhaustion && (activeRun?.status === "paused" || activeRun?.status === "failed") && !runningRun
   );
@@ -293,7 +299,6 @@ export function useAiOperator() {
         goal: decision.goal,
         startUrl: decision.startUrl,
         profileId,
-        policy: { maxParallelWorkers },
         ...(tutorialMode ? { tutorialMode: true } : {})
       });
       replaceRun(run);
@@ -304,7 +309,7 @@ export function useAiOperator() {
     } finally {
       setPending(false);
     }
-  }, [dispatchWorkspaceIntent, goal, maxParallelWorkers, profileId, replaceRun, runningRun, selectRun, setGoal, tutorialMode, workspaceContext]);
+  }, [dispatchWorkspaceIntent, goal, profileId, replaceRun, runningRun, selectRun, setGoal, tutorialMode, workspaceContext]);
 
   const pauseRun = useCallback(async () => {
     if (!activeRun) return;
@@ -321,6 +326,10 @@ export function useAiOperator() {
 
   const resumeRun = useCallback(async () => {
     if (!activeRun) return;
+    if (capabilityReviewRequired) {
+      setNotice("Review and grant the pending exact bounds in Leases before resuming.");
+      return;
+    }
     setPending(true);
     try {
       replaceRun(await operatorApi().resumeAgentRun(activeRun.id));
@@ -330,7 +339,7 @@ export function useAiOperator() {
     } finally {
       setPending(false);
     }
-  }, [activeRun, replaceRun]);
+  }, [activeRun, capabilityReviewRequired, replaceRun]);
 
   const continueRun = useCallback(async () => {
     if (!activeRun || runningRun) return;
@@ -570,14 +579,13 @@ export function useAiOperator() {
     setGoal,
     profileId,
     setProfileId,
-    maxParallelWorkers,
-    setMaxParallelWorkers,
     profiles: AGENT_RUN_PROFILES,
     selectedProfile,
     tutorialMode,
     setTutorialMode,
     budgetLabels,
     budgetExhaustion,
+    capabilityReviewRequired,
     canPause,
     canResume,
     canContinue,

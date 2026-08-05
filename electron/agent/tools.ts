@@ -19,9 +19,10 @@ const AGENT_TOOL_DESCRIPTORS = new Map(
   AGENT_TOOL_REGISTRY.map((descriptor) => [descriptor.name, descriptor])
 );
 
-export function toolSchemas() {
+export function toolSchemas(tools: readonly AgentToolName[] = availableToolNames()) {
+  const allowedTools = new Set(tools);
   return Object.fromEntries(
-    AGENT_TOOL_REGISTRY.map((tool) => [
+    AGENT_TOOL_REGISTRY.filter((tool) => allowedTools.has(tool.name)).map((tool) => [
       tool.name,
       {
         description: tool.description,

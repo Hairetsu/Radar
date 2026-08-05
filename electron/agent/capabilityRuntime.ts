@@ -1,12 +1,17 @@
 import { createHash } from "node:crypto";
 import type {
   AgentCapabilityLease,
+  AgentCapabilityLeaseRequest,
   AgentRun,
   AgentStorageState,
   AgentToolCall,
   AgentToolResult
 } from "../../shared/agent-types.js";
-import type { AgentCapabilityUse } from "../../shared/agentCapabilities.js";
+import {
+  AGENT_CAPABILITY_LIMITS,
+  agentCapabilityRiskForUse,
+  type AgentCapabilityUse
+} from "../../shared/agentCapabilities.js";
 import type { AgentRuntimeDeps, RunCounters } from "./runtimeTypes.js";
 
 function sortedRecord(input: Record<string, string>) {
@@ -131,6 +136,57 @@ export function capabilityUseForCall(
   }
 }
 
+export function capabilityLeaseRequestForUse(
+  use: AgentCapabilityUse,
+  rationale = ""
+): AgentCapabilityLeaseRequest | null {
+  const riskTier = agentCapabilityRiskForUse(use);
+  const maxRequests = Math.max(1, Math.round(use.requestCost));
+  const maxConcurrency = Math.max(1, Math.round(use.concurrency));
+  const maxPayloadBytes = Math.max(0, Math.round(use.payloadBytes));
+  if (
+    !riskTier ||
+    riskTier === "destructive" ||
+    maxRequests > AGENT_CAPABILITY_LIMITS.maxRequests ||
+    maxConcurrency > AGENT_CAPABILITY_LIMITS.maxConcurrency ||
+    maxPayloadBytes > AGENT_CAPABILITY_LIMITS.maxPayloadBytes
+  ) {
+    return null;
+  }
+  try {
+    const url = new URL(use.url);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    const reason = String(rationale || "").trim();
+    return {
+      name: `Authorize ${use.tool}`,
+      riskTier,
+      tools: [use.tool],
+      grants: [
+        {
+          origin: url.origin,
+          method: use.method.toUpperCase(),
+          pathPrefix: `${url.pathname}${url.search}` || "/",
+          identity: use.identity || "current"
+        }
+      ],
+      durationMs: 2 * 60_000,
+      maxUses: 1,
+      maxRequests,
+      maxConcurrency,
+      maxPayloadBytes,
+      reason: (
+        reason
+          ? `Radar bounded the selected ${use.tool} action: ${reason}`
+          : `Radar bounded the selected ${use.tool} action to this exact target.`
+      ).slice(0, 1200)
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function leaseAllowsObservedUrl(
   lease: AgentCapabilityLease,
   url: string,
@@ -185,4 +241,3 @@ export function capabilityOutcome(result: AgentToolResult): {
   }
   return { status: "succeeded", reason: `${result.tool} completed.` };
 }
-

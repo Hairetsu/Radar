@@ -43,6 +43,8 @@ function matchingLeaseReason(lease: AgentCapabilityLease, use: AgentCapabilityUs
   const { origin, path } = useParts(use);
   if (lease.status !== "granted") return "lease is not granted";
   if (!lease.expiresAt || nowMs >= Date.parse(lease.expiresAt)) return "lease is expired";
+  if (!sameStringSet(lease.scopeSnapshot, scopeSnapshot(use.allowlist))) return "saved scope changed";
+  if (lease.authFingerprint && lease.authFingerprint !== use.authFingerprint) return "auth state changed";
   if (agentRiskRank(lease.riskTier) < agentRiskRank(tier)) return "risk tier is too low";
   if (!lease.tools.includes(use.tool)) return "tool is not leased";
   const normalizedMethod = use.method.toUpperCase();
@@ -59,6 +61,20 @@ function matchingLeaseReason(lease: AgentCapabilityLease, use: AgentCapabilityUs
   if (lease.usedUses >= lease.maxUses) return "lease uses are exhausted";
   if (lease.usedRequests + use.requestCost > lease.maxRequests) return "lease request budget is exhausted";
   return "";
+}
+
+export function hasMatchingAgentCapabilityLease(
+  current: AgentCapabilityState,
+  use: AgentCapabilityUse,
+  now = new Date().toISOString()
+) {
+  const tier = agentCapabilityRiskForUse(use);
+  if (!tier) {
+    return false;
+  }
+  const state = normalizeAgentCapabilityState(current, now);
+  const nowMs = Date.parse(now);
+  return state.leases.some((lease) => !matchingLeaseReason(lease, use, tier, nowMs));
 }
 
 export function authorizeAgentCapability(

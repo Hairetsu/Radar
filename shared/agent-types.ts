@@ -656,7 +656,6 @@ export type AgentDecisionContext = {
   runMemory: AgentRunMemoryEntry[];
   mission: AgentMission;
   capabilities: AgentCapabilityState;
-  reconReports?: AgentReconWorkerReport[];
   tutorialMode: boolean;
   timeline: AgentTimelineEntry[];
 };
@@ -722,7 +721,6 @@ export type AgentPolicy = {
   maxReplay: number;
   maxWorkflowRequests: number;
   maxCaptureSample: number;
-  maxParallelWorkers?: number;
   allowRawContext: boolean;
   tutorialMode?: boolean;
 };

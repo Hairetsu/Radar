@@ -73,7 +73,7 @@ import {
   loginCursorCli
 } from "./ai/index.js";
 import { AgentRuntime } from "./agent/runtime.js";
-import { createAiAgentPlanner, createAiReconPlanner } from "./agent/planner.js";
+import { createAiAgentPlanner } from "./agent/planner.js";
 import { createAutomateController } from "./automate/automateController.js";
 import { createPageInspectionController } from "./browser/pageInspection.js";
 import { createElectronDebuggerCapture } from "./browser/electronDebuggerCapture.js";
@@ -572,7 +572,6 @@ function createAgentRuntime() {
       return { identity, url: (await getPageText()).url };
     },
     decideNextAction: createAiAgentPlanner(app.getPath("userData")),
-    runReconWorkers: createAiReconPlanner(app.getPath("userData")),
     setActiveRunId: (runId) => {
       causalAttribution.update({
         agentRunId: runId || "",
