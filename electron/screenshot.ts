@@ -202,7 +202,29 @@ async function run() {
     await capture(win, "radar-05-ai-palette.png");
     await pressEscape(win);
 
-    const aiOperator = new BrowserWindow({
+    const aiOperatorFeed = new BrowserWindow({
+      width: 1280,
+      height: 920,
+      minWidth: 760,
+      minHeight: 640,
+      show: false,
+      backgroundColor: "#07110f",
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        preload: AI_OPERATOR_SCREENSHOT_PRELOAD,
+        sandbox: false,
+        additionalArguments: ["--radar-ai-operator-variant=feed"]
+      }
+    });
+    await aiOperatorFeed.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
+    await aiOperatorFeed.webContents.executeJavaScript(`window.localStorage.setItem("radar.theme", "bureau");`);
+    await aiOperatorFeed.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
+    await waitForTestId(aiOperatorFeed, "agentTimelineEntry-feed-cookie-decision");
+    await capture(aiOperatorFeed, "radar-11-ai-operator-feed.png");
+    aiOperatorFeed.destroy();
+
+    const aiOperatorTutorial = new BrowserWindow({
       width: 1040,
       height: 840,
       minWidth: 760,
@@ -213,15 +235,16 @@ async function run() {
         contextIsolation: true,
         nodeIntegration: false,
         preload: AI_OPERATOR_SCREENSHOT_PRELOAD,
-        sandbox: false
+        sandbox: false,
+        additionalArguments: ["--radar-ai-operator-variant=tutorial"]
       }
     });
-    await aiOperator.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
-    await aiOperator.webContents.executeJavaScript(`window.localStorage.setItem("radar.theme", "bureau");`);
-    await aiOperator.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
-    await waitForTestId(aiOperator, "agentTutorialGuide");
-    await aiOperator.webContents.executeJavaScript(`document.querySelector('[data-testid="agentTutorialGuide"]')?.scrollIntoView({ block: "start" });`);
-    await capture(aiOperator, "radar-10-tutorial.png");
+    await aiOperatorTutorial.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
+    await aiOperatorTutorial.webContents.executeJavaScript(`window.localStorage.setItem("radar.theme", "bureau");`);
+    await aiOperatorTutorial.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
+    await waitForTestId(aiOperatorTutorial, "agentTutorialGuide");
+    await aiOperatorTutorial.webContents.executeJavaScript(`document.querySelector('[data-testid="agentTutorialGuide"]')?.scrollIntoView({ block: "start" });`);
+    await capture(aiOperatorTutorial, "radar-10-tutorial.png");
   } finally {
     previewProcess.kill("SIGTERM");
     app.quit();

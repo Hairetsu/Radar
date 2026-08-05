@@ -36,6 +36,7 @@ aiInspectorMemory
 aiMissionInspector
 aiModel
 aiOpenSettingsFromPalette
+aiOperatorActiveControls
 aiOperatorComposer
 aiOperatorConnectionPanel
 aiOperatorFeed
