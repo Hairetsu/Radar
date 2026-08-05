@@ -1,14 +1,7 @@
+import { isAiProviderId } from "../../shared/ai-providers";
 import type { AiProviderId } from "../ai/types";
 
-export function isAiProviderId(value: string): value is AiProviderId {
-  return (
-    value === "openai" ||
-    value === "anthropic" ||
-    value === "openai-compatible" ||
-    value === "codex-local" ||
-    value === "cursor-local"
-  );
-}
+export { isAiProviderId };
 
 export function aiProviderFromValue(value: string): AiProviderId | null {
   return isAiProviderId(value) ? value : null;

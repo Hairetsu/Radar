@@ -1621,7 +1621,7 @@ AI-First runs are intentionally bounded:
 - AI-First Advanced signal visibility is read-only. It can inspect **09 Advanced** summaries, but import preview edits, imported replay use, and active probes remain Manual-First. Identity Lab adds separately gated metadata context, activation, and verification tools; profile creation/edit/archive and recorded differential selection remain Manual-First.
 - AI-First findings are quality-gated before entering **06 Findings**. Draft findings must include evidence references, affected assets, reproduction notes, severity rationale, remediation, and uncertainty notes. Every reference must also resolve to current local evidence; network-bearing evidence must remain in saved Scope. Rejected drafts remain visible as transcript cards and do not enter the durable findings inbox.
 - A failed or policy-blocked tool pauses the run with its input/result summary, visible target, error text, and the recovery actions valid for that step. Depending on safety, those actions can include retry, retry with refreshed evidence, skip and continue, stop, or prepare a draft-finding prompt.
-- After the operator chooses a retry, Radar's recovery loop only re-executes safe, idempotent failed tools. Mutating browser and authentication-state actions, replay preparation/sends, and workflow runs are never automatically retried; choose skip, stop, or another offered operator action instead.
+- After the operator chooses a retry, Radar's recovery loop only re-executes safe, idempotent failed tools. Mutating browser and authentication-state actions, replay preparation/sends, and workflow runs are never automatically retried; choose skip, stop, or another offered operator action instead. If an older saved run still contains an outdated retry button for one of these actions, Radar removes that option without dispatching the action again and keeps the run paused with its safe recovery choices visible.
 - Run memory is local to the active project. Confirm or dismiss AI-proposed memory in the transcript, or create manual memory entries for tested hypotheses, dismissed leads, and retest notes in the Run Memory panel.
 - Burst replay is not part of the first autonomous slice.
 - Invalid planner output fails the run instead of switching to heuristics.
@@ -1679,25 +1679,31 @@ Supported providers:
 | Cursor agent | Uses the installed Cursor `agent` CLI. Sign in with Cursor or provide an optional API key. |
 | OpenAI | Uses OpenAI's chat completions API. Requires an API key. |
 | Anthropic | Uses Anthropic messages API. Requires an API key. |
+| xAI / Grok | Uses xAI's chat completions API. Requires an xAI API key. |
+| OpenRouter | Uses OpenRouter's OpenAI-compatible chat completions API and multi-provider model catalog. Requires an OpenRouter API key. |
 | OpenAI-compatible | Uses a custom base URL, for example a local OpenAI-compatible server. |
 
-Preset buttons:
+Quick Connect buttons:
 
-- **Codex Connect**: selects the local Codex provider and probes the `codex` executable bundled with ChatGPT/Codex desktop or installed on `PATH`.
-- **Cursor CLI Connect**: selects the local Cursor provider and probes the installed `agent` executable.
+- **Codex app** selects the local Codex provider and probes the `codex` executable bundled with ChatGPT/Codex desktop or installed on `PATH`.
+- **Cursor CLI** selects the local Cursor provider and probes the installed `agent` executable.
+- **OpenAI key**, **Anthropic key**, **xAI / Grok key**, and **OpenRouter key** select the provider, check `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, or `OPENROUTER_API_KEY`, and test the official models endpoint. If the environment variable is absent, paste the key into the password field and click **Save & Test**.
 
 For Cursor, use **Sign in with Cursor** if the CLI is installed but not authenticated.
+
+Switching providers clears the previous provider's key before the new connection is used, so an OpenAI key is not accidentally sent to Anthropic, xAI, or OpenRouter. Fixed first-party providers always use their official HTTPS API base URL. Only **OpenAI-compatible** exposes an editable base URL. Pasted keys are stored with Radar's Electron user data; they are not included in inspected-page traffic or the bounded connection summary shown in the main workspace.
+
+Provider and credential changes are Manual-First configuration. AI-First uses the active tested connection through the same provider contract, but it cannot read, replace, or switch API keys for you.
 
 ### Models
 
 Radar refreshes model lists where possible:
 
 - Codex and Cursor providers ask their local CLIs.
-- OpenAI and OpenAI-compatible providers call `/models`.
-- Anthropic uses a built-in model list.
+- OpenAI, Anthropic, xAI/Grok, OpenRouter, and OpenAI-compatible providers call their models APIs with the selected provider's authentication scheme.
 - Cached model lists are stored locally.
 
-If a selected model is unavailable, Radar selects a valid cached model or `auto`.
+Fresh settings start with a provider-appropriate model (`gpt-5.6-terra`, `claude-sonnet-5`, `grok-4.5`, or `openrouter/free`) and then reconcile against the models actually available to the configured key. If a selected model is unavailable, Radar selects a valid returned or cached model, or `auto` for local/custom providers.
 
 ### Preview Context
 
@@ -2128,7 +2134,8 @@ Check:
 Open **AI Operator → Connection** and check:
 
 - Provider is correct.
-- API key is present for OpenAI, Anthropic, or non-local compatible providers.
+- API key is present for OpenAI, Anthropic, xAI/Grok, OpenRouter, or a custom endpoint that requires one.
+- The matching environment variable is set before Radar launches if you are using Quick Connect: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, or `OPENROUTER_API_KEY`.
 - Base URL is correct for OpenAI-compatible providers.
 - Codex CLI is installed and authenticated for Codex Connect.
 - Cursor agent is installed and authenticated for Cursor CLI Connect.

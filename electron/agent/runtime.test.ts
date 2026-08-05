@@ -1321,6 +1321,112 @@ describe("AgentRuntime", () => {
     expect(runs.get(run.id)?.timeline.at(-1)?.note).toContain("fetch failed");
   });
 
+  it("repairs legacy retry actions for effect-bearing browser calls without dispatching them again", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "openBrowser", input: { url: "https://hairetsu.com" } } }
+    ];
+    const { runtime, runs, openBrowser } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["openBrowser"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+        "navigate"
+      ),
+      openBrowser: async () => {
+        throw new Error("fetch failed");
+      },
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Open target for passive observation.",
+      startUrl: "https://hairetsu.com"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    const paused = runs.get(run.id);
+    const failure = paused?.timeline.find((entry) => entry.summary === "openBrowser failed");
+    if (!paused || !failure) {
+      throw new Error("Expected a paused openBrowser failure.");
+    }
+    runs.set(run.id, {
+      ...paused,
+      timeline: paused.timeline.map((entry) =>
+        entry.id === failure.id
+          ? { ...entry, recoveryActions: ["retry-tool", "skip-and-continue", "stop-run"] }
+          : entry
+      )
+    });
+
+    const corrected = runtime.recover(run.id, {
+      action: "retry-tool",
+      entryId: failure.id
+    });
+
+    expect(corrected?.status).toBe("paused");
+    expect(openBrowser).toHaveBeenCalledTimes(1);
+    expect(
+      corrected?.timeline.find((entry) => entry.id === failure.id)?.recoveryActions
+    ).toEqual(["skip-and-continue", "stop-run", "draft-finding"]);
+    expect(corrected?.timeline.at(-1)?.summary).toBe(
+      "Automatic retry unavailable for openBrowser"
+    );
+    expect(corrected?.checkpoint?.pendingRecovery).toBeUndefined();
+  });
+
+  it("refreshes evidence for a legacy browser recovery without replaying the browser action", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "openBrowser", input: { url: "https://hairetsu.com" } } },
+      { action: "finish", rationale: "Recovered from fresh evidence.", findings: [] }
+    ];
+    const { runtime, runs, openBrowser } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["openBrowser"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+        "navigate"
+      ),
+      openBrowser: async () => {
+        throw new Error("fetch failed");
+      },
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Open target for passive observation.",
+      startUrl: "https://hairetsu.com"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    const paused = runs.get(run.id);
+    const failure = paused?.timeline.find((entry) => entry.summary === "openBrowser failed");
+    if (!paused || !failure) {
+      throw new Error("Expected a paused openBrowser failure.");
+    }
+    runs.set(run.id, {
+      ...paused,
+      timeline: paused.timeline.map((entry) =>
+        entry.id === failure.id
+          ? { ...entry, recoveryActions: ["retry-with-evidence", "stop-run"] }
+          : entry
+      )
+    });
+
+    const recovered = runtime.recover(run.id, {
+      action: "retry-with-evidence",
+      entryId: failure.id
+    });
+    expect(recovered?.checkpoint?.pendingRecovery?.call).toBeUndefined();
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(openBrowser).toHaveBeenCalledTimes(1);
+    expect(
+      runs.get(run.id)?.timeline.some((entry) =>
+        entry.note?.includes("Refreshed scoped captures and project context before recovery.")
+      )
+    ).toBe(true);
+  });
+
   it("lets AI read intercept queue and prepare edits without forwarding traffic", async () => {
     const queueItem: InterceptQueueItem = {
       id: "intercept-1",

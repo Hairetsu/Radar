@@ -173,6 +173,23 @@ describe("agent run lifecycle hook", () => {
     await act(async () => result.current.recoverAgentRun("failed-step", "skip-and-continue"));
     expect(portsRef.current.setNotice).toHaveBeenCalledWith(expect.stringContaining("skipped"));
 
+    const corrected = agentRun({
+      timeline: [
+        ...recoverable.timeline,
+        {
+          id: "retry-corrected",
+          createdAt: NOW,
+          phase: "policy-block",
+          summary: "Automatic retry unavailable for openBrowser"
+        }
+      ]
+    });
+    vi.mocked(window.radar.recoverAgentRun).mockResolvedValueOnce(corrected);
+    await act(async () => result.current.recoverAgentRun("failed-step", "retry-tool"));
+    expect(portsRef.current.setNotice).toHaveBeenCalledWith(
+      "Automatic retry unavailable for openBrowser"
+    );
+
     await act(async () => result.current.recoverAgentRun("failed-step", "stop-run"));
     expect(window.radar.stopAgentRun).toHaveBeenCalledWith("run-1");
   });

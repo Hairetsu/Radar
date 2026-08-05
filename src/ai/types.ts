@@ -1,4 +1,5 @@
 import type { CapturedRequest, WebSocketEvent } from "../../shared/domain";
+import { DEFAULT_AI_SETTINGS } from "../../shared/ai-providers";
 
 export type {
   AiAuditEntry,
@@ -27,7 +28,7 @@ export type {
   AiWorkView
 } from "../../shared/ai-types";
 
-import type { AiCustomSkill, AiSettings, AiTaskType, AiWorkView } from "../../shared/ai-types";
+import type { AiCustomSkill, AiTaskType, AiWorkView } from "../../shared/ai-types";
 
 export const AI_TASK_META: Record<AiTaskType, { label: string; hint: string }> = {
   capture_summary: {
@@ -95,12 +96,7 @@ export const VIEW_AI_LABELS: Record<AiWorkView, string> = {
   ssl: "TLS & proxy review"
 };
 
-export const DEFAULT_AI_SETTINGS: AiSettings = {
-  provider: "openai",
-  model: "gpt-4o-mini",
-  apiKey: "",
-  baseUrl: "http://127.0.0.1:11434/v1"
-};
+export { DEFAULT_AI_SETTINGS };
 
 export type AiPaletteContext = {
   captureIds: string[];
