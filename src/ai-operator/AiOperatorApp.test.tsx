@@ -131,7 +131,8 @@ describe("AiOperatorApp", () => {
     })));
     expect(api.startAgentRun).not.toHaveBeenCalledWith(expect.objectContaining({ policy: expect.anything() }));
     expect(screen.queryByTestId("agentWorkerLimitSelect")).not.toBeInTheDocument();
-    expect(goal).toHaveValue("");
+    expect(screen.queryByTestId("agentGoalInput")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("radar.ai-operator.draft.session-test")).toBe("");
   });
 
   it("prepares an out-of-scope origin in the visible workspace without starting", async () => {
@@ -292,6 +293,11 @@ describe("AiOperatorApp", () => {
     expect(renderedEntries[0]).not.toHaveClass("opacity-0");
     expect(renderedEntries[1]?.parentElement?.parentElement?.className).not.toContain("stream-append");
     expect(screen.getByTestId("agentThoughtstreamLive")).toHaveTextContent("Streaming");
+    expect(screen.getByTestId("aiOperatorActiveControls")).toHaveTextContent("Review tenant isolation");
+    expect(screen.getByTestId("aiOperatorActiveControls")).toHaveTextContent("Pause & Steer");
+    expect(screen.getByTestId("pauseAgentRun")).toHaveAccessibleName("Pause run and open mission steering");
+    expect(screen.queryByTestId("agentGoalInput")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("agentProfileSelect")).not.toBeInTheDocument();
 
     const scroller = screen.getByTestId("aiOperatorTranscriptScroller");
     const scrollTo = vi.fn();
@@ -302,6 +308,30 @@ describe("AiOperatorApp", () => {
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
     expect(screen.queryByTestId("agentFollowLatest")).not.toBeInTheDocument();
+  });
+
+  it("makes live mission steering explicit before revealing the paused editor", async () => {
+    const active = run({ status: "running" });
+    const pauseAgentRun = vi.fn(async () => run({ status: "paused" }));
+    const api = operatorApi({
+      listAgentRuns: vi.fn(async () => [active]),
+      pauseAgentRun
+    });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    await screen.findByTestId("aiOperatorActiveControls");
+    const pauseAndSteer = screen.getByTestId("pauseAgentRun");
+    expect(pauseAndSteer).toHaveTextContent("Pause & Steer");
+    fireEvent.click(pauseAndSteer);
+
+    await waitFor(() => expect(pauseAgentRun).toHaveBeenCalledWith("run-test"));
+    expect(await screen.findByText("Update mission direction")).toBeInTheDocument();
+    expect(screen.getByTestId("agentGoalInput")).toHaveAttribute(
+      "placeholder",
+      "Tell the agent what to prioritize, avoid, or investigate next. The original goal stays in the audit trail."
+    );
+    expect(screen.getByTestId("steerAgentRun")).toHaveTextContent("Add Direction");
   });
 
   it("opens a clean New Mission composer when paused history exists", async () => {
