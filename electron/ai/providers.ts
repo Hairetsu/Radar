@@ -1,6 +1,9 @@
 import type { AiSettings, AiTaskOutput, AiTaskType } from "../../shared/ai-types.js";
+import { providerBaseUrl } from "../../shared/ai-providers.js";
 import { runCodexCliCompletion } from "./codexCli.js";
 import { runCursorCliCompletion } from "./cursorCli.js";
+
+const DEFAULT_COMPLETION_TIMEOUT_MS = 60_000;
 
 export function extractJson(text: string) {
   const trimmed = String(text || "").trim();
@@ -20,32 +23,51 @@ async function callOpenAi({
   baseUrl,
   system,
   user,
-  timeoutMs = 4_000
+  includeJsonFormat = true,
+  includeTemperature = true,
+  reasoningEffort,
+  timeoutMs = DEFAULT_COMPLETION_TIMEOUT_MS
 }: {
   apiKey: string;
   model: string;
   baseUrl: string;
   system: string;
   user: string;
+  includeJsonFormat?: boolean;
+  includeTemperature?: boolean;
+  reasoningEffort?: "none";
   timeoutMs?: number;
 }) {
   const root = (baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
+  const body: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user }
+    ]
+  };
+  if (includeTemperature) {
+    body.temperature = 0.2;
+  }
+  if (includeJsonFormat) {
+    body.response_format = { type: "json_object" };
+  }
+  if (reasoningEffort) {
+    body.reasoning_effort = reasoningEffort;
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+  if (apiKey.trim()) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
   const response = await fetch(`${root}/chat/completions`, {
     method: "POST",
     signal: AbortSignal.timeout(timeoutMs),
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user }
-      ]
-    })
+    headers,
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {
@@ -66,17 +88,20 @@ async function callOpenAi({
 async function callAnthropic({
   apiKey,
   model,
+  baseUrl,
   system,
   user,
-  timeoutMs = 4_000
+  timeoutMs = DEFAULT_COMPLETION_TIMEOUT_MS
 }: {
   apiKey: string;
   model: string;
+  baseUrl: string;
   system: string;
   user: string;
   timeoutMs?: number;
 }) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const root = baseUrl.replace(/\/$/, "");
+  const response = await fetch(`${root}/messages`, {
     method: "POST",
     signal: AbortSignal.timeout(timeoutMs),
     headers: {
@@ -87,7 +112,6 @@ async function callAnthropic({
     body: JSON.stringify({
       model,
       max_tokens: 4096,
-      temperature: 0.2,
       system,
       messages: [{ role: "user", content: user }]
     })
@@ -141,7 +165,7 @@ export async function complete({
     return { text, parsed: extractJson(text) };
   }
 
-  if (!settings.apiKey?.trim()) {
+  if (!settings.apiKey?.trim() && settings.provider !== "openai-compatible") {
     throw new Error("AI API key is not configured.");
   }
 
@@ -149,14 +173,16 @@ export async function complete({
     return callAnthropic({
       apiKey: settings.apiKey,
       model: settings.model,
+      baseUrl: providerBaseUrl(settings),
       system,
       user,
       timeoutMs
     });
   }
 
-  const baseUrl =
-    settings.provider === "openai-compatible" ? settings.baseUrl : "https://api.openai.com/v1";
+  const baseUrl = providerBaseUrl(settings);
+  const isCurrentOpenAi = settings.provider === "openai" && settings.model.startsWith("gpt-5.6");
+  const isBroadCompatibilityRoute = settings.provider === "openrouter" || settings.provider === "xai";
 
   return callOpenAi({
     apiKey: settings.apiKey,
@@ -164,6 +190,9 @@ export async function complete({
     baseUrl,
     system,
     user,
+    includeJsonFormat: !isBroadCompatibilityRoute,
+    includeTemperature: !isBroadCompatibilityRoute && !isCurrentOpenAi,
+    reasoningEffort: isCurrentOpenAi ? "none" : undefined,
     timeoutMs
   });
 }

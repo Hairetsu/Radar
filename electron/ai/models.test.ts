@@ -25,24 +25,67 @@ describe("models", () => {
     expect(getAiModels("openai", null)).toEqual([]);
   });
 
-  it("fetches provider-specific models", async () => {
+  it("fetches local provider models", async () => {
     const cursorSettings: AiSettings = {
       provider: "cursor-local",
       model: "auto",
       apiKey: "local",
       baseUrl: "cursor://local"
     };
+    await expect(fetchAiModels(cursorSettings)).resolves.toEqual([{ id: "cursor-model", label: "cursor-model" }]);
+  });
+
+  it("fetches anthropic models with provider-specific authentication", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "claude-sonnet-5", display_name: "Claude Sonnet 5" }] })
+    } as Awaited<ReturnType<typeof fetch>>);
+
     const anthropicSettings: AiSettings = {
       provider: "anthropic",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       apiKey: "secret",
       baseUrl: ""
     };
 
-    await expect(fetchAiModels(cursorSettings)).resolves.toEqual([{ id: "cursor-model", label: "cursor-model" }]);
     await expect(fetchAiModels(anthropicSettings)).resolves.toEqual(
-      expect.arrayContaining([{ id: "claude-sonnet-4-20250514", label: "claude-sonnet-4" }])
+      [{ id: "claude-sonnet-5", label: "Claude Sonnet 5" }]
     );
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://api.anthropic.com/v1/models",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-api-key": "secret",
+          "anthropic-version": "2023-06-01"
+        })
+      })
+    );
+  });
+
+  it("fetches OpenRouter and xAI models from their fixed endpoints", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "model-id", name: "Model name" }] })
+    } as Awaited<ReturnType<typeof fetch>>);
+
+    await fetchAiModels({
+      provider: "openrouter",
+      model: "openrouter/free",
+      apiKey: "router-key",
+      baseUrl: "https://attacker.test/v1"
+    });
+    expect(globalThis.fetch).toHaveBeenLastCalledWith(
+      "https://openrouter.ai/api/v1/models",
+      expect.any(Object)
+    );
+
+    await fetchAiModels({
+      provider: "xai",
+      model: "grok-4.5",
+      apiKey: "xai-key",
+      baseUrl: "https://attacker.test/v1"
+    });
+    expect(globalThis.fetch).toHaveBeenLastCalledWith("https://api.x.ai/v1/models", expect.any(Object));
   });
 
   it("fetches openai-compatible models", async () => {
@@ -92,7 +135,7 @@ describe("models", () => {
         apiKey: "",
         baseUrl: "https://api.openai.com/v1"
       })
-    ).rejects.toThrow("API key required");
+    ).rejects.toThrow("OpenAI API key required");
   });
 
   it("persists refreshed models in sqlite", async () => {

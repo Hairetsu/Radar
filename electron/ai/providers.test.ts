@@ -161,6 +161,67 @@ describe("providers", () => {
     vi.unstubAllGlobals();
   });
 
+  it("allows a keyless local OpenAI-compatible endpoint", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '{"summary":"local"}' } }] })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await complete({
+      settings: { provider: "openai-compatible", model: "local", apiKey: "", baseUrl: "http://127.0.0.1:11434/v1" },
+      system: "sys",
+      user: "ctx"
+    });
+
+    const request = fetchMock.mock.calls[0][1] as { headers?: Record<string, string> };
+    expect(request.headers?.Authorization).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("calls OpenRouter without assuming model-specific JSON parameters", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '{"summary":"router"}' } }] })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await complete({
+      settings: {
+        provider: "openrouter",
+        model: "openrouter/free",
+        apiKey: "router-key",
+        baseUrl: "https://attacker.test/v1"
+      },
+      system: "sys",
+      user: "ctx"
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("https://openrouter.ai/api/v1/chat/completions");
+    const request = fetchMock.mock.calls[0][1] as { body?: unknown };
+    const body = JSON.parse(String(request.body)) as Record<string, unknown>;
+    expect(body.response_format).toBeUndefined();
+    expect(body.temperature).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("calls xAI's Grok endpoint", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '{"summary":"grok"}' } }] })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await complete({
+      settings: { provider: "xai", model: "grok-4.5", apiKey: "xai-key", baseUrl: "" },
+      system: "sys",
+      user: "ctx"
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.x.ai/v1/chat/completions");
+    vi.unstubAllGlobals();
+  });
+
   it("calls anthropic endpoint", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -178,6 +239,29 @@ describe("providers", () => {
 
     expect((result.parsed as { summary: string }).summary).toBe("anthropic");
     expect(fetchMock.mock.calls[0][0]).toBe("https://api.anthropic.com/v1/messages");
+    const request = fetchMock.mock.calls[0][1] as { body?: unknown };
+    const body = JSON.parse(String(request.body)) as Record<string, unknown>;
+    expect(body.temperature).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("preserves low-latency behavior for the current OpenAI default", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '{"summary":"openai"}' } }] })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await complete({
+      settings: { provider: "openai", model: "gpt-5.6-terra", apiKey: "key", baseUrl: "" },
+      system: "sys",
+      user: "ctx"
+    });
+
+    const request = fetchMock.mock.calls[0][1] as { body?: unknown };
+    const body = JSON.parse(String(request.body)) as Record<string, unknown>;
+    expect(body.reasoning_effort).toBe("none");
+    expect(body.temperature).toBeUndefined();
     vi.unstubAllGlobals();
   });
 
