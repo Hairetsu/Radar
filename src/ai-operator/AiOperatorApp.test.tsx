@@ -288,9 +288,9 @@ describe("AiOperatorApp", () => {
       "entry-latest",
       "entry-oldest"
     ]);
-    expect(renderedEntries[0]).toHaveClass("animate-[stream-append_280ms_cubic-bezier(0.2,0.74,0.19,1)]");
+    expect(renderedEntries[0]?.parentElement?.parentElement).toHaveClass("animate-[stream-append_560ms_cubic-bezier(0.22,0.72,0.18,1)_both]");
     expect(renderedEntries[0]).not.toHaveClass("opacity-0");
-    expect(renderedEntries[1]?.className).not.toContain("stream-append");
+    expect(renderedEntries[1]?.parentElement?.parentElement?.className).not.toContain("stream-append");
     expect(screen.getByTestId("agentThoughtstreamLive")).toHaveTextContent("Streaming");
 
     const scroller = screen.getByTestId("aiOperatorTranscriptScroller");

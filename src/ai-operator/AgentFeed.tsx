@@ -113,83 +113,92 @@ export function AgentFeed({ controller }: { controller: AiOperatorController }) 
                   const entryText = timelineEntryText(entry);
                   const isLatest = index === 0;
                   return (
-                    <article
+                    <div
                       key={entry.id}
                       className={cn(
-                        "group relative border bg-ink/38 p-3 pl-5 shadow-[0_14px_32px_-30px_var(--color-signal)] transition-[border-color,background-color,transform] duration-200 hover:-translate-y-px hover:bg-surface/55",
-                        isLatest && "animate-[stream-append_280ms_cubic-bezier(0.2,0.74,0.19,1)]",
-                        failure
-                          ? "border-rust/50"
-                          : isLatest
-                            ? "border-signal/50 bg-signal/[0.055]"
-                            : entry.phase === "tool-call"
-                              ? "border-signal/30"
-                              : entry.phase === "recon"
-                                ? "border-sand/35"
-                                : "border-rule"
+                        "grid [grid-template-rows:1fr]",
+                        isLatest && "animate-[stream-append_560ms_cubic-bezier(0.22,0.72,0.18,1)_both]"
                       )}
-                      data-testid={`agentTimelineEntry-${entry.id}`}
-                      data-entry-id={entry.id}
-                      data-stream-latest={isLatest ? "true" : "false"}
+                      data-stream-entry-shell={entry.id}
                     >
-                      <span className={cn("pointer-events-none absolute bottom-0 left-2 top-0 w-px", failure ? "bg-rust" : isLatest ? "bg-signal" : entry.phase === "recon" ? "bg-sand" : "bg-rule")} />
-                      <span className={cn("pointer-events-none absolute left-[5px] top-4 h-[7px] w-[7px] rounded-full border", failure ? "border-rust bg-rust" : isLatest ? "animate-[stream-glow_1.6s_ease-in-out_infinite] border-signal bg-signal" : "border-muted bg-ink")} />
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <span className="block rd-eyebrow text-muted">
-                            {isLatest && <span className="mr-2 text-signal">Latest</span>}
-                            {entry.phase || "status"} / {entry.createdAt.slice(11, 19)}Z
-                          </span>
-                          <p className="mt-1 font-display text-body uppercase tracking-data text-bone">{entryText}</p>
-                        </div>
-                        <StatusBadge tone={failure || entry.reconReport?.status === "failed" ? "danger" : entry.toolResult?.ok || entry.reconReport?.status === "completed" ? "good" : isLatest ? "move" : "ghost"}>
-                          {entry.toolResult ? (entry.toolResult.ok ? "ok" : "failed") : entry.reconReport?.status || entry.toolCall?.tool || (isLatest && isLive ? "streaming" : "note")}
-                        </StatusBadge>
-                      </div>
-                      {entry.summary && entry.summary !== entryText && <p className="mt-2 text-body leading-5 text-copy">{entry.summary}</p>}
-                      {entry.note && <p className="mt-2 text-meta leading-5 text-muted">{entry.note}</p>}
-                      {entry.target && (
-                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border border-signal/20 bg-signal/[0.045] px-2.5 py-2">
-                          <p className="min-w-0 break-all font-mono text-label text-muted">
-                            {[entry.target.view, entry.target.evidenceId, entry.target.browserUrl, entry.target.control].filter(Boolean).join(" / ")}
-                          </p>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="compact"
-                            onClick={() => void controller.dispatchWorkspaceIntent({ type: "reveal-timeline-target", runId: run.id, entryId: entry.id }, true)}
-                            data-testid={`revealTimelineTarget-${entry.id}`}
-                          >
-                            <Crosshair size={11} /> Reveal
-                          </Button>
-                        </div>
-                      )}
-                      {entry.toolResult && !entry.toolResult.ok && (
-                        <p className="mt-2 flex items-start gap-2 border-l border-rust/60 pl-2 text-body leading-5 text-rust">
-                          <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {entry.toolResult.error}
-                        </p>
-                      )}
-                      {memoryProposal && (
-                        <div className="mt-3 border border-signal/30 bg-signal/[0.06] p-3">
-                          <span className="rd-eyebrow text-signal">Memory proposal</span>
-                          <h3 className="mt-1 font-display text-body uppercase tracking-data text-bone">{memoryProposal.title}</h3>
-                          <p className="mt-1 text-meta leading-5 text-muted">{memoryProposal.notes}</p>
-                          <div className="mt-2 flex gap-2">
-                            <Button type="button" variant="outline" size="compact" onClick={() => void controller.confirmTimelineMemory(entry.id, "confirmed")} data-testid={`agentMemoryConfirm-${entry.id}`}><Check size={11} /> Confirm</Button>
-                            <Button type="button" variant="ghost" size="compact" onClick={() => void controller.confirmTimelineMemory(entry.id, "dismissed")} data-testid={`agentMemoryDismiss-${entry.id}`}><X size={11} /> Dismiss</Button>
+                      <div className="min-h-0 overflow-hidden">
+                        <article
+                          className={cn(
+                            "group relative border bg-ink/38 p-3 pl-5 shadow-[0_14px_32px_-30px_var(--color-signal)] transition-[border-color,background-color,transform] duration-500 hover:-translate-y-px hover:bg-surface/55",
+                            failure
+                              ? "border-rust/50"
+                              : isLatest
+                                ? "border-signal/50 bg-signal/[0.055]"
+                                : entry.phase === "tool-call"
+                                  ? "border-signal/30"
+                                  : entry.phase === "recon"
+                                    ? "border-sand/35"
+                                    : "border-rule"
+                          )}
+                          data-testid={`agentTimelineEntry-${entry.id}`}
+                          data-entry-id={entry.id}
+                          data-stream-latest={isLatest ? "true" : "false"}
+                        >
+                          <span className={cn("pointer-events-none absolute bottom-0 left-2 top-0 w-px", failure ? "bg-rust" : isLatest ? "bg-signal" : entry.phase === "recon" ? "bg-sand" : "bg-rule")} />
+                          <span className={cn("pointer-events-none absolute left-[5px] top-4 h-[7px] w-[7px] rounded-full border", failure ? "border-rust bg-rust" : isLatest ? "animate-[stream-glow_1.6s_ease-in-out_infinite] border-signal bg-signal" : "border-muted bg-ink")} />
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <span className="block rd-eyebrow text-muted">
+                                {isLatest && <span className="mr-2 text-signal">Latest</span>}
+                                {entry.phase || "status"} / {entry.createdAt.slice(11, 19)}Z
+                              </span>
+                              <p className="mt-1 font-display text-body uppercase tracking-data text-bone">{entryText}</p>
+                            </div>
+                            <StatusBadge tone={failure || entry.reconReport?.status === "failed" ? "danger" : entry.toolResult?.ok || entry.reconReport?.status === "completed" ? "good" : isLatest ? "move" : "ghost"}>
+                              {entry.toolResult ? (entry.toolResult.ok ? "ok" : "failed") : entry.reconReport?.status || entry.toolCall?.tool || (isLatest && isLive ? "streaming" : "note")}
+                            </StatusBadge>
                           </div>
-                        </div>
-                      )}
-                      {entry.recoveryActions?.length ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {entry.recoveryActions.map((action) => (
-                            <Button key={action} type="button" variant={action === "stop-run" ? "outline" : "ghost"} size="compact" disabled={controller.pending} onClick={() => void controller.recoverRun(entry.id, action)} data-testid={`agentRecovery-${action}`}>
-                              <RotateCw size={11} /> {recoveryActionLabel(action)}
-                            </Button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </article>
+                          {entry.summary && entry.summary !== entryText && <p className="mt-2 text-body leading-5 text-copy">{entry.summary}</p>}
+                          {entry.note && <p className="mt-2 text-meta leading-5 text-muted">{entry.note}</p>}
+                          {entry.target && (
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border border-signal/20 bg-signal/[0.045] px-2.5 py-2">
+                              <p className="min-w-0 break-all font-mono text-label text-muted">
+                                {[entry.target.view, entry.target.evidenceId, entry.target.browserUrl, entry.target.control].filter(Boolean).join(" / ")}
+                              </p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="compact"
+                                onClick={() => void controller.dispatchWorkspaceIntent({ type: "reveal-timeline-target", runId: run.id, entryId: entry.id }, true)}
+                                data-testid={`revealTimelineTarget-${entry.id}`}
+                              >
+                                <Crosshair size={11} /> Reveal
+                              </Button>
+                            </div>
+                          )}
+                          {entry.toolResult && !entry.toolResult.ok && (
+                            <p className="mt-2 flex items-start gap-2 border-l border-rust/60 pl-2 text-body leading-5 text-rust">
+                              <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {entry.toolResult.error}
+                            </p>
+                          )}
+                          {memoryProposal && (
+                            <div className="mt-3 border border-signal/30 bg-signal/[0.06] p-3">
+                              <span className="rd-eyebrow text-signal">Memory proposal</span>
+                              <h3 className="mt-1 font-display text-body uppercase tracking-data text-bone">{memoryProposal.title}</h3>
+                              <p className="mt-1 text-meta leading-5 text-muted">{memoryProposal.notes}</p>
+                              <div className="mt-2 flex gap-2">
+                                <Button type="button" variant="outline" size="compact" onClick={() => void controller.confirmTimelineMemory(entry.id, "confirmed")} data-testid={`agentMemoryConfirm-${entry.id}`}><Check size={11} /> Confirm</Button>
+                                <Button type="button" variant="ghost" size="compact" onClick={() => void controller.confirmTimelineMemory(entry.id, "dismissed")} data-testid={`agentMemoryDismiss-${entry.id}`}><X size={11} /> Dismiss</Button>
+                              </div>
+                            </div>
+                          )}
+                          {entry.recoveryActions?.length ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {entry.recoveryActions.map((action) => (
+                                <Button key={action} type="button" variant={action === "stop-run" ? "outline" : "ghost"} size="compact" disabled={controller.pending} onClick={() => void controller.recoverRun(entry.id, action)} data-testid={`agentRecovery-${action}`}>
+                                  <RotateCw size={11} /> {recoveryActionLabel(action)}
+                                </Button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </article>
+                      </div>
+                    </div>
                   );
                 })}
               </div>

@@ -824,9 +824,22 @@
 }
 
 @keyframes stream-append {
-  0% { transform: translateY(-6px); }
-  72% { transform: translateY(1px); }
-  100% { transform: translateY(0); }
+  0% {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  58% {
+    opacity: 0.82;
+  }
+  78% {
+    transform: translateY(1px);
+  }
+  100% {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes stream-glow {
