@@ -1,6 +1,6 @@
 # Radar Code Conventions
 
-This guide documents the code conventions already present in Radar and should be used for future development. It focuses on engineering patterns, module boundaries, naming, testing, and safety rules. Visual design guidance stays in `README.md`; styling implementation is covered below.
+This guide documents the code conventions already present in Radar and should be used for future development. It focuses on engineering patterns, module boundaries, naming, testing, and safety rules. Product-level visual direction lives in `docs/DESIGN_SYSTEM.md`; styling implementation boundaries are also summarized below.
 
 ## Core Principles
 
