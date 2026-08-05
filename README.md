@@ -28,7 +28,7 @@ The [User Guide](docs/USER_GUIDE.md) covers every surface and workflow in detail
 
 AI-First does not run as a hidden background swarm. One browser operator follows task-relevant in-scope paths, lets each action settle, reads the resulting evidence, and only then chooses the next step.
 
-The companion window keeps the current Thoughtstream, newest-first event feed, mission state, budgets, and controls visible. Permission-gated actions use focused prompts, while Pause, Resume, Stop, and manual workspace controls remain available throughout the run.
+The companion window keeps the current Thoughtstream, newest-first event feed, mission state, budgets, and controls visible. Permission-gated actions use focused prompts, while **Pause & Steer** makes mid-mission direction changes explicit without rewriting the original goal. Resume, Stop, and manual workspace controls remain available throughout the run.
 
 ![Radar AI Operator live event stream](docs/screens/radar-11-ai-operator-feed.png)
 
