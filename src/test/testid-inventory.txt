@@ -2,6 +2,8 @@ advancedImportPreview
 advancedImportText
 advancedWorkbench
 agentCapabilityLedger
+agentCapabilityReview
+agentFollowLatest
 agentGoalInput
 agentMemoryCreate
 agentMemoryNotes
@@ -11,11 +13,11 @@ agentMissionBar
 agentMissionGraph
 agentProfileSelect
 agentThoughtstream
+agentThoughtstreamLive
 agentThoughtstreamRationale
 agentTimeline
 agentTutorialGuide
 agentTutorialToggle
-agentWorkerLimitSelect
 aiApiKey
 aiApplyPrepared
 aiAudit
@@ -31,7 +33,6 @@ aiCursorLogin
 aiIncludeRaw
 aiInspectorFindings
 aiInspectorMemory
-aiInspectorRecon
 aiMissionInspector
 aiModel
 aiOpenSettingsFromPalette
@@ -41,6 +42,7 @@ aiOperatorFeed
 aiOperatorHeader
 aiOperatorSettings
 aiOperatorShell
+aiOperatorTranscriptScroller
 aiOperatorWorkspace
 aiPacketPicker
 aiPreparedWorkflowDraft
@@ -110,6 +112,9 @@ capabilityIdentityInput
 capabilityMethodSelect
 capabilityOriginInput
 capabilityPathInput
+capabilityPermissionBackdrop
+capabilityPermissionDeny
+capabilityPermissionGrant
 capabilityPropose
 capabilityReasonInput
 capabilityReceipts
@@ -237,6 +242,7 @@ missionPrioritySelect
 missionQuestionInput
 missionResumeAgentRun
 missionReturnToManual
+missionReviewCapability
 missionStatusSelect
 missionStopAgentRun
 newAiMission

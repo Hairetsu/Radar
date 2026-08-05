@@ -7,6 +7,7 @@ import {
   authorizeAgentCapability,
   createAgentCapabilityState,
   grantAgentCapabilityLease,
+  hasMatchingAgentCapabilityLease,
   normalizeAgentCapabilityActionRequest,
   normalizeAgentCapabilityLeaseRequest,
   normalizeAgentCapabilityState,
@@ -233,6 +234,14 @@ describe("agent capability leases", () => {
 
   it("authorizes only a matching exact tuple and atomically exhausts usage", () => {
     const state = grantedState();
+    expect(hasMatchingAgentCapabilityLease(state, use(), "2026-07-10T12:00:10.000Z")).toBe(true);
+    expect(
+      hasMatchingAgentCapabilityLease(
+        state,
+        use({ url: "https://api.target.test/v1/other/817" }),
+        "2026-07-10T12:00:10.000Z"
+      )
+    ).toBe(false);
     const first = authorizeAgentCapability(state, use(), "receipt-1", "2026-07-10T12:00:10.000Z");
     expect(first).toMatchObject({
       required: true,
@@ -301,6 +310,13 @@ describe("agent capability leases", () => {
     expect(authorizeAgentCapability(grantedState(), use({ payloadBytes: 2048 }), "receipt-payload", "2026-07-10T12:00:10.000Z")).toMatchObject({ allowed: false });
     expect(authorizeAgentCapability(grantedState(), use({ concurrency: 2 }), "receipt-concurrency", "2026-07-10T12:00:10.000Z")).toMatchObject({ allowed: false });
     expect(authorizeAgentCapability(grantedState({ maxRequests: 1 }), use({ requestCost: 2 }), "receipt-request", "2026-07-10T12:00:10.000Z")).toMatchObject({ allowed: false });
+    expect(
+      hasMatchingAgentCapabilityLease(
+        grantedState(),
+        use({ authFingerprint: "rotated" }),
+        "2026-07-10T12:00:10.000Z"
+      )
+    ).toBe(false);
   });
 
   it("passes non-gated tools and blocks destructive dispatch even with an active lease", () => {

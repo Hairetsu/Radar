@@ -450,6 +450,8 @@ test.describe("UI layout, reachability, and density contracts", () => {
       await assertAiOperatorControls(operator);
       await assertNoGlobalHorizontalOverflow(operator);
       if (profileId === "zoom-80") {
+        await operator.getByTestId("toggleAiInspector").click();
+        await expect(operator.getByTestId("aiMissionInspector")).toBeVisible();
         const missionGraph = operator.getByTestId("agentMissionGraph");
         await expect(missionGraph).toBeVisible();
         const graphLayout = await missionGraph.evaluate((element) => {

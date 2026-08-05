@@ -1,7 +1,12 @@
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import type { AgentPolicy, AgentToolCall } from "../../shared/agent-types.js";
 import type { AgentRunProfileId } from "../../shared/agent-types.js";
-import { DEFAULT_AGENT_POLICY, agentProfileAllowsTool, normalizeAgentPolicy } from "../../shared/agentProfiles.js";
+import {
+  DEFAULT_AGENT_POLICY,
+  agentProfileAllowsTool,
+  agentRunAllowsTool,
+  normalizeAgentPolicy
+} from "../../shared/agentProfiles.js";
 
 export { DEFAULT_AGENT_POLICY, normalizeAgentPolicy };
 
@@ -42,6 +47,10 @@ export function blockedToolReason({
 }) {
   if (!agentProfileAllowsTool(profileId, call.tool)) {
     return `Profile ${profileId} does not allow ${call.tool}.`;
+  }
+
+  if (!agentRunAllowsTool(profileId, policy, call.tool)) {
+    return `Run raw-context policy does not allow ${call.tool}.`;
   }
 
   if (Date.now() - startedAt > policy.maxRuntimeMs) {

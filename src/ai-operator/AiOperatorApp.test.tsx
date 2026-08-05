@@ -92,17 +92,23 @@ afterEach(() => {
 });
 
 describe("AiOperatorApp", () => {
-  it("renders a dedicated run rail, feed, composer, and connection section", async () => {
+  it("gives the live feed the window and opens run history and inspection as overlays", async () => {
     const api = operatorApi();
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
 
     render(<AiOperatorApp />);
 
     expect(await screen.findByTestId("aiOperatorShell")).toBeInTheDocument();
-    expect(screen.getByTestId("aiRunRail")).toBeInTheDocument();
     expect(screen.getByTestId("aiOperatorFeed")).toBeInTheDocument();
     expect(screen.getByTestId("aiOperatorComposer")).toBeInTheDocument();
     expect(screen.getByText("Acme Defense / Authorization Review / traffic")).toBeInTheDocument();
+    expect(screen.queryByTestId("aiRunRail")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("toggleAiRunRail"));
+    expect(screen.getByTestId("aiRunRail")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("toggleAiInspector"));
+    expect(screen.queryByTestId("aiRunRail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("aiMissionInspector")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("aiOperatorSettings"));
     expect(screen.getByTestId("aiOperatorConnectionPanel")).toBeInTheDocument();
@@ -116,15 +122,15 @@ describe("AiOperatorApp", () => {
 
     const goal = await screen.findByTestId("agentGoalInput");
     fireEvent.change(goal, { target: { value: "Inspect https://target.test/account" } });
-    fireEvent.change(screen.getByTestId("agentWorkerLimitSelect"), { target: { value: "4" } });
     fireEvent.click(screen.getByTestId("startAgentRun"));
 
     await waitFor(() => expect(api.startAgentRun).toHaveBeenCalledWith(expect.objectContaining({
       goal: "Inspect https://target.test/account",
       startUrl: "https://target.test/account",
-      profileId: "browser-assessment",
-      policy: { maxParallelWorkers: 4 }
+      profileId: "browser-assessment"
     })));
+    expect(api.startAgentRun).not.toHaveBeenCalledWith(expect.objectContaining({ policy: expect.anything() }));
+    expect(screen.queryByTestId("agentWorkerLimitSelect")).not.toBeInTheDocument();
     expect(goal).toHaveValue("");
   });
 
@@ -185,35 +191,117 @@ describe("AiOperatorApp", () => {
     await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "draft-finding", entryId: "failure-1" }));
   });
 
-  it("keeps compact recon handoffs reviewable in the mission inspector", async () => {
-    const reconRun = run({
-      timeline: [{
-        id: "recon-entry",
-        createdAt: "2026-05-25T00:00:30.000Z",
-        phase: "recon",
-        reconReport: {
-          id: "recon-report",
-          focus: "surface-map",
-          label: "Surface map",
-          status: "completed",
-          summary: "Observed one scoped account endpoint.",
-          observations: ["GET /account returned 200."],
-          evidenceRefs: ["capture:capture-1"],
-          gaps: ["Authentication coverage is unknown."],
-          startedAt: "2026-05-25T00:00:00.000Z",
-          completedAt: "2026-05-25T00:00:30.000Z"
+  it("opens pending authority as a focused permission dialog and disables resume until review", async () => {
+    const pending = run({
+      checkpoint: {
+        startUrl: "https://target.test/login",
+        targetOrigin: "https://target.test",
+        stepCount: 3,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 4_000,
+        lastResumedAt: "2026-05-25T00:00:30.000Z",
+        activeIdentity: "current",
+        pendingCapabilityCall: {
+          tool: "clickElement",
+          input: { selector: "[data-radar-agent-ref=\"pw-3\"]" }
         }
-      }]
+      },
+      capabilities: {
+        version: 1,
+        revision: 1,
+        leases: [{
+          id: "lease-click",
+          name: "Authorize clickElement",
+          riskTier: "active",
+          tools: ["clickElement"],
+          grants: [{
+            origin: "https://target.test",
+            method: "GET",
+            pathPrefix: "/login",
+            identity: "current"
+          }],
+          durationMs: 120_000,
+          maxUses: 1,
+          maxRequests: 1,
+          maxConcurrency: 1,
+          maxPayloadBytes: 0,
+          reason: "Authorize one exact visible click.",
+          status: "draft",
+          createdAt: "2026-05-25T00:01:00.000Z",
+          updatedAt: "2026-05-25T00:01:00.000Z",
+          usedUses: 0,
+          usedRequests: 0,
+          scopeSnapshot: []
+        }],
+        receipts: []
+      }
     });
-    const api = operatorApi({ listAgentRuns: vi.fn(async () => [reconRun]) });
+    const updateAgentCapabilities = vi.fn(async () => pending);
+    const api = operatorApi({
+      listAgentRuns: vi.fn(async () => [pending]),
+      updateAgentCapabilities
+    });
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
     render(<AiOperatorApp />);
 
-    fireEvent.click(await screen.findByTestId("aiInspector-recon"));
-    const inspector = await screen.findByTestId("aiInspectorRecon");
-    expect(inspector).toHaveTextContent("Observed one scoped account endpoint.");
-    expect(inspector).toHaveTextContent("Authentication coverage is unknown.");
-    expect(inspector).toHaveTextContent("capture:capture-1");
+    const permissionDialog = await screen.findByTestId("agentCapabilityReview");
+    expect(permissionDialog).toHaveAttribute("aria-modal", "true");
+    expect(permissionDialog).toHaveTextContent("Authorize clickElement");
+    expect(screen.getByTestId("capabilityPermissionDeny")).toHaveFocus();
+    expect(screen.getByTestId("resumeAgentRun")).toBeDisabled();
+    expect(screen.getByTestId("resumeAgentRun")).toHaveTextContent("Grant Lease First");
+    fireEvent.click(screen.getByTestId("capabilityPermissionGrant"));
+
+    await waitFor(() => expect(updateAgentCapabilities).toHaveBeenCalledWith("run-test", {
+      action: "grant",
+      expectedRevision: 1,
+      leaseId: "lease-click"
+    }));
+  });
+
+  it("shows newest events first and pauses live-follow while the operator reviews history", async () => {
+    const active = run({
+      status: "running",
+      timeline: [
+        {
+          id: "entry-oldest",
+          createdAt: "2026-05-25T00:00:10.000Z",
+          phase: "status",
+          summary: "Run started."
+        },
+        {
+          id: "entry-latest",
+          createdAt: "2026-05-25T00:00:20.000Z",
+          phase: "decision",
+          summary: "Inspect the visible account boundary."
+        }
+      ]
+    });
+    const api = operatorApi({ listAgentRuns: vi.fn(async () => [active]) });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    const timeline = await screen.findByTestId("agentTimeline");
+    const renderedEntries = [...timeline.querySelectorAll<HTMLElement>("[data-entry-id]")];
+    expect(renderedEntries.map((entry) => entry.dataset.entryId)).toEqual([
+      "entry-latest",
+      "entry-oldest"
+    ]);
+    expect(renderedEntries[0]?.parentElement?.parentElement).toHaveClass("animate-[stream-append_560ms_cubic-bezier(0.22,0.72,0.18,1)_both]");
+    expect(renderedEntries[0]).not.toHaveClass("opacity-0");
+    expect(renderedEntries[1]?.parentElement?.parentElement?.className).not.toContain("stream-append");
+    expect(screen.getByTestId("agentThoughtstreamLive")).toHaveTextContent("Streaming");
+
+    const scroller = screen.getByTestId("aiOperatorTranscriptScroller");
+    const scrollTo = vi.fn();
+    Object.defineProperty(scroller, "scrollTo", { value: scrollTo, configurable: true });
+    scroller.scrollTop = 120;
+    fireEvent.scroll(scroller);
+    fireEvent.click(screen.getByTestId("agentFollowLatest"));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+    expect(screen.queryByTestId("agentFollowLatest")).not.toBeInTheDocument();
   });
 
   it("opens a clean New Mission composer when paused history exists", async () => {
@@ -222,6 +310,7 @@ describe("AiOperatorApp", () => {
     render(<AiOperatorApp />);
 
     expect(await screen.findByTestId("steerAgentRun")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("toggleAiRunRail"));
     fireEvent.click(screen.getByTestId("newAiMission"));
     const goal = screen.getByTestId("agentGoalInput");
     fireEvent.change(goal, { target: { value: "Inspect https://target.test/new" } });

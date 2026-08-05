@@ -81,13 +81,13 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
   },
   {
     name: "getCookies",
-    description: "Read browser cookies for the active page context.",
+    description: "Read browser cookies for the active page context when the run explicitly allows raw context.",
     safety: "observe",
     schema: {}
   },
   {
     name: "getStorageState",
-    description: "Read cookies, localStorage, and sessionStorage for the active page.",
+    description: "Read cookies, localStorage, and sessionStorage for the active page when the run explicitly allows raw context.",
     safety: "observe",
     schema: {}
   },

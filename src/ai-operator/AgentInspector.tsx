@@ -1,5 +1,5 @@
-import { Database, FileText, GitBranch, KeyRound, Plus, ScanSearch, Trash2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { Database, FileText, GitBranch, KeyRound, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AgentCapabilityLedger } from "../components/AgentCapabilityLedger";
 import { AgentMissionGraph } from "../components/AgentMissionGraph";
 import { Button } from "../components/ui/button";
@@ -9,11 +9,10 @@ import { EmptyState, StatusBadge } from "../components/radar/primitives";
 import { cn } from "../lib";
 import type { AiOperatorController } from "./useAiOperator";
 
-type InspectorTab = "mission" | "recon" | "authority" | "findings" | "memory";
+type InspectorTab = "mission" | "authority" | "findings" | "memory";
 
 const tabs: Array<{ id: InspectorTab; label: string; icon: typeof GitBranch }> = [
   { id: "mission", label: "Graph", icon: GitBranch },
-  { id: "recon", label: "Recon", icon: ScanSearch },
   { id: "authority", label: "Leases", icon: KeyRound },
   { id: "findings", label: "Drafts", icon: FileText },
   { id: "memory", label: "Memory", icon: Database }
@@ -21,7 +20,12 @@ const tabs: Array<{ id: InspectorTab; label: string; icon: typeof GitBranch }> =
 
 export function AgentInspector({ controller, className }: { controller: AiOperatorController; className?: string }) {
   const [tab, setTab] = useState<InspectorTab>("mission");
-  const reconReports = controller.activeRun?.timeline.flatMap((entry) => entry.reconReport ? [entry.reconReport] : []) || [];
+  const pendingLeaseId = controller.activeRun?.capabilities?.leases.find((lease) => lease.status === "draft")?.id || "";
+  useEffect(() => {
+    if (pendingLeaseId) {
+      setTab("authority");
+    }
+  }, [pendingLeaseId]);
   const submitMemory = (event: FormEvent) => {
     event.preventDefault();
     void controller.createMemory();
@@ -29,7 +33,7 @@ export function AgentInspector({ controller, className }: { controller: AiOperat
 
   return (
     <aside className={cn("grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border-l border-rule bg-surface/45", className)} data-testid="aiMissionInspector">
-      <div className="grid grid-cols-5 border-b border-rule bg-ink/55">
+      <div className="grid grid-cols-4 border-b border-rule bg-ink/55">
         {tabs.map((item) => {
           const Icon = item.icon;
           return (
@@ -48,44 +52,6 @@ export function AgentInspector({ controller, className }: { controller: AiOperat
       </div>
       <div className="min-h-0 overflow-y-auto overscroll-contain p-2" data-radar-focus-inset tabIndex={0}>
         {tab === "mission" && <AgentMissionGraph run={controller.activeRun} onSteer={controller.steerMission} />}
-        {tab === "recon" && (
-          <section className="border border-rule bg-ink/28" data-testid="aiInspectorRecon">
-            <div className="flex items-center justify-between border-b border-rule px-3 py-2">
-              <span className="rd-eyebrow text-muted">Worker Handoffs</span>
-              <StatusBadge>{reconReports.length}</StatusBadge>
-            </div>
-            <div className="grid gap-2 p-2">
-              {reconReports.length === 0 && <EmptyState>Recon begins after the first scoped traffic evidence is captured.</EmptyState>}
-              {reconReports.map((report) => (
-                <article key={report.id} className="border border-rule bg-surface/45 p-3" data-testid={`agentRecon-${report.id}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-display text-body uppercase tracking-data text-bone">{report.label}</h3>
-                    <StatusBadge tone={report.status === "failed" ? "danger" : "good"}>{report.status}</StatusBadge>
-                  </div>
-                  <p className="mt-2 text-meta leading-5 text-copy">{report.summary}</p>
-                  {report.observations.length > 0 && (
-                    <div className="mt-3 border-l border-signal/45 pl-2">
-                      <span className="rd-eyebrow text-signal">Observations</span>
-                      <ul className="mt-1 grid gap-1 text-meta leading-5 text-muted">
-                        {report.observations.map((observation, index) => <li key={`${report.id}-observation-${index}`}>— {observation}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {report.gaps.length > 0 && (
-                    <div className="mt-3 border-l border-sand/45 pl-2">
-                      <span className="rd-eyebrow text-sand">Lead review gaps</span>
-                      <ul className="mt-1 grid gap-1 text-meta leading-5 text-muted">
-                        {report.gaps.map((gap, index) => <li key={`${report.id}-gap-${index}`}>— {gap}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {report.evidenceRefs.length > 0 && <p className="mt-3 select-text break-all font-mono text-micro text-muted">{report.evidenceRefs.join(" · ")}</p>}
-                  {report.error && <p className="mt-3 border-l border-rust/60 pl-2 text-meta leading-5 text-rust">{report.error}</p>}
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
         {tab === "authority" && <AgentCapabilityLedger run={controller.activeRun} onUpdate={controller.updateCapabilities} />}
         {tab === "findings" && (
           <section className="border border-rule bg-ink/28" data-testid="aiInspectorFindings">

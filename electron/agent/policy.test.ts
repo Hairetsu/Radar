@@ -18,7 +18,6 @@ describe("agent policy", () => {
       maxReplay: 0,
       maxWorkflowRequests: 100,
       maxCaptureSample: 100,
-      maxParallelWorkers: 2,
       allowRawContext: false
     });
   });
@@ -54,6 +53,21 @@ describe("agent policy", () => {
     });
 
     expect(reason).toBe("Autonomous run exceeded its replay budget.");
+  });
+
+  it("blocks raw browser-state tools when raw context is off", () => {
+    const reason = blockedToolReason({
+      call: { tool: "getStorageState", input: {} },
+      allowlist: ["https://allowed.test"],
+      policy: normalizeAgentPolicy({}, "auth-review"),
+      profileId: "auth-review",
+      replayCount: 0,
+      workflowRequestCount: 0,
+      stepCount: 0,
+      startedAt: Date.now()
+    });
+
+    expect(reason).toBe("Run raw-context policy does not allow getStorageState.");
   });
 
   it("blocks out-of-scope automate preparation", () => {

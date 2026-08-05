@@ -111,7 +111,7 @@ export async function authorizeToolCall({
           phase: "policy-block",
           summary: `Capability lease blocked ${call.tool}`,
           target: visibleTargetForTool(call),
-          recoveryActions: ["retry-tool", "skip-and-continue", "stop-run"],
+          recoveryActions: ["skip-and-continue", "stop-run"],
           capabilityReceiptId,
           toolCall: call,
           toolResult: {

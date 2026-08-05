@@ -5,10 +5,8 @@ import type {
   AgentCapabilityLeaseRequest,
   AgentDecision,
   AgentDecisionContext,
-  AgentReconWorkerReport,
   AgentRun,
   AgentRunMemoryEntry,
-  AgentRunRequest,
   AgentStorageState
 } from "../../shared/agent-types.js";
 import type {
@@ -74,7 +72,6 @@ function makeRuntime(
     navigateBrowser?: (url: string) => Promise<BrowserState>;
     getStorageState?: () => Promise<AgentStorageState>;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
-    runReconWorkers?: (context: AgentDecisionContext, maxWorkers: number) => Promise<AgentReconWorkerReport[]>;
     leaseRequest?: AgentCapabilityLeaseRequest;
   } = {}
 ) {
@@ -206,8 +203,6 @@ function makeRuntime(
     }
     return decision;
   });
-  const runReconWorkers = options.runReconWorkers ? vi.fn(options.runReconWorkers) : undefined;
-
   const runtime = new AgentRuntime({
     currentSessionId: () => "session-test",
     allowlist: () => options.allowlist || ["https://allowed.test"],
@@ -257,7 +252,6 @@ function makeRuntime(
     getIdentityLabContext,
     activateIdentityProfile,
     verifyIdentityProfile,
-    runReconWorkers,
     decideNextAction,
     setActiveRunId: (runId) => {
       activeRunId = runId || "";
@@ -279,19 +273,17 @@ function makeRuntime(
     submitForm,
     saveAuthState,
     activateIdentityProfile,
-    verifyIdentityProfile,
-    runReconWorkers
+    verifyIdentityProfile
   };
 }
 
-async function startRunWithLease(
+async function grantNextDraftAndResume(
   runtime: AgentRuntime,
-  runRequest: AgentRunRequest
+  runId: string
 ) {
-  const run = runtime.start(runRequest);
   let paused: AgentRun | undefined;
   await vi.waitFor(() => {
-    paused = runtime.get(run.id) || undefined;
+    paused = runtime.get(runId) || undefined;
     expect(paused?.status).toBe("paused");
     expect(paused?.capabilities?.leases.some((item) => item.status === "draft")).toBe(true);
   });
@@ -299,13 +291,12 @@ async function startRunWithLease(
   if (!draft) {
     throw new Error("Test capability lease draft was not created.");
   }
-  await runtime.updateCapabilities(run.id, {
+  await runtime.updateCapabilities(runId, {
     action: "grant",
     expectedRevision: paused?.capabilities?.revision || 0,
     leaseId: draft.id
   });
-  runtime.resume(run.id);
-  return run;
+  runtime.resume(runId);
 }
 
 function browserLease(
@@ -348,45 +339,59 @@ function identityProfile(id = "identity-user-a"): IdentityProfile {
 }
 
 describe("AgentRuntime", () => {
-  it("fans scoped evidence into bounded recon workers before lead review", async () => {
-    const leadContexts: AgentDecisionContext[] = [];
-    const { runtime, runs, runReconWorkers } = makeRuntime(undefined, {
+  it("uses one sequential browser operator and reviews captured path data before continuing", async () => {
+    const captures: CapturedRequest[] = [];
+    const plannerContexts: AgentDecisionContext[] = [];
+    let decisionIndex = 0;
+    const { runtime, runs, navigateBrowser, decideNextAction } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
-      captures: [capture("capture-recon", "https://hairetsu.com/api/account", { mimeType: "application/json" })],
-      runReconWorkers: async (context, maxWorkers) => [{
-        id: "recon-surface",
-        focus: "surface-map",
-        label: `Surface map (${maxWorkers})`,
-        status: "completed",
-        summary: "Observed one scoped API endpoint.",
-        observations: ["The account endpoint returned 200."],
-        evidenceRefs: [`capture:${context.capturedTraffic[0]?.id}`],
-        gaps: ["Authentication coverage is unknown."],
-        startedAt: "2026-05-25T00:00:00.000Z",
-        completedAt: "2026-05-25T00:00:01.000Z"
-      }],
+      captures,
+      browserState: {
+        open: true,
+        url: "https://hairetsu.com/",
+        title: "Home",
+        loading: false,
+        engine: "chrome"
+      },
+      navigateBrowser: async (url) => {
+        captures.push(capture("capture-account", url, { mimeType: "text/html" }));
+        return { open: true, url, title: "Account", loading: false, engine: "chrome" };
+      },
       decideNextAction: async (context) => {
-        leadContexts.push(context);
-        return { action: "finish", rationale: "Lead review complete.", findings: [] };
+        plannerContexts.push(context);
+        decisionIndex += 1;
+        if (decisionIndex === 1) {
+          return {
+            action: "tool",
+            call: { tool: "navigateBrowser", input: { url: "https://hairetsu.com/account" } },
+            rationale: "Visit one task-relevant in-scope path."
+          };
+        }
+        if (decisionIndex === 2) {
+          return {
+            action: "tool",
+            call: { tool: "waitForNetworkIdle", input: {} },
+            rationale: "Let the visited path finish collecting traffic."
+          };
+        }
+        return { action: "finish", rationale: "The sequential path evidence is available.", findings: [] };
       }
     });
 
     const run = runtime.start({
-      goal: "Inspect https://hairetsu.com",
-      startUrl: "https://hairetsu.com",
-      profileId: "browser-assessment",
-      policy: { maxParallelWorkers: 3 }
+      goal: "Inspect the account path on https://hairetsu.com",
+      startUrl: "https://hairetsu.com/",
+      profileId: "browser-assessment"
     });
 
     await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
-    expect(runReconWorkers).toHaveBeenCalledWith(expect.any(Object), 3);
-    expect(leadContexts[0]?.reconReports).toEqual([
-      expect.objectContaining({ id: "recon-surface", status: "completed" })
+    expect(navigateBrowser).toHaveBeenCalledTimes(1);
+    expect(decideNextAction).toHaveBeenCalledTimes(3);
+    expect(plannerContexts[0]?.capturedTraffic).toEqual([]);
+    expect(plannerContexts[1]?.capturedTraffic).toEqual([
+      expect.objectContaining({ id: "capture-account", url: "https://hairetsu.com/account" })
     ]);
-    expect(runs.get(run.id)?.timeline).toEqual(expect.arrayContaining([
-      expect.objectContaining({ phase: "recon", reconReport: expect.objectContaining({ id: "recon-surface" }) }),
-      expect.objectContaining({ phase: "recon", summary: "1 completed · 0 failed" })
-    ]));
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.phase === "recon")).toBe(false);
   });
 
   it("continues a standard run through scoped browser navigation without manual resume", async () => {
@@ -406,14 +411,6 @@ describe("AgentRuntime", () => {
     ];
     const { runtime, runs, openBrowser, decideNextAction } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
-      leaseRequest: {
-        ...browserLease(
-          ["openBrowser"],
-          [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
-          "navigate"
-        ),
-        maxPayloadBytes: 0
-      },
       getStorageState: async () => {
         storageReadCount += 1;
         if (storageReadCount <= 2) {
@@ -450,6 +447,130 @@ describe("AgentRuntime", () => {
     );
     expect(runs.get(run.id)?.timeline.some((entry) => entry.summary === "Lesson checkpoint — waiting for operator")).toBe(false);
     expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Auth state changed unexpectedly"))).toBe(false);
+  });
+
+  it("keeps successful in-scope navigation redirects out of recovery", async () => {
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: { tool: "openBrowser", input: { url: "https://hairetsu.com" } },
+        rationale: "Open the scoped canonical target."
+      },
+      { action: "finish", rationale: "Canonical target opened.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com", "https://www.hairetsu.com"],
+      openBrowser: async () => ({
+        open: true,
+        url: "https://www.hairetsu.com/",
+        title: "Canonical target",
+        loading: false,
+        engine: "chrome"
+      }),
+      decideNextAction: async () => decisions.shift() || { action: "finish", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Inspect https://hairetsu.com",
+      startUrl: "https://hairetsu.com",
+      profileId: "browser-assessment"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(
+      runs.get(run.id)?.timeline.some((entry) => entry.summary === "Unexpected effect revoked capability lease")
+    ).toBe(false);
+  });
+
+  it("does not treat session rotation during successful navigation as a failed step", async () => {
+    let storageReadCount = 0;
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: { tool: "navigateBrowser", input: { url: "https://hairetsu.com/next" } },
+        rationale: "Follow the scoped link."
+      },
+      { action: "finish", rationale: "Scoped navigation complete.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      browserState: {
+        open: true,
+        url: "https://hairetsu.com/",
+        title: "Target",
+        loading: false,
+        engine: "chrome"
+      },
+      getStorageState: async () => {
+        storageReadCount += 1;
+        return {
+          url: "https://hairetsu.com/",
+          origin: "https://hairetsu.com",
+          cookies: [
+            {
+              name: "session",
+              value: storageReadCount <= 2 ? "before-navigation" : "after-navigation",
+              domain: "hairetsu.com",
+              path: "/"
+            }
+          ],
+          localStorage: {},
+          sessionStorage: {}
+        };
+      },
+      decideNextAction: async () => decisions.shift() || { action: "finish", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Inspect https://hairetsu.com/next",
+      startUrl: "https://hairetsu.com/",
+      profileId: "browser-assessment"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(storageReadCount).toBe(2);
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Auth state changed unexpectedly"))).toBe(false);
+  });
+
+  it("still blocks unexpected auth drift during a replay", async () => {
+    let storageReadCount = 0;
+    const { runtime, runs, sendReplay } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      getStorageState: async () => {
+        storageReadCount += 1;
+        return {
+          url: "https://hairetsu.com/",
+          origin: "https://hairetsu.com",
+          cookies: [
+            {
+              name: "session",
+              value: storageReadCount <= 3 ? "before-replay" : "after-replay",
+              domain: "hairetsu.com",
+              path: "/"
+            }
+          ],
+          localStorage: {},
+          sessionStorage: {}
+        };
+      },
+      decideNextAction: async () => ({
+        action: "tool",
+        call: {
+          tool: "sendReplay",
+          input: { draft: { method: "GET", url: "https://hairetsu.com/account", headers: {}, body: "" } }
+        }
+      })
+    });
+    const run = runtime.start({
+      goal: "Compare account response",
+      startUrl: "https://hairetsu.com/account",
+      profileId: "advanced-api-review"
+    });
+
+    await grantNextDraftAndResume(runtime, run.id);
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    expect(sendReplay).toHaveBeenCalledTimes(1);
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Auth state changed unexpectedly"))).toBe(true);
   });
 
   it("paces Tutorial Mode at evidence checkpoints and preserves lesson guidance", async () => {
@@ -582,7 +703,7 @@ describe("AgentRuntime", () => {
     await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
     expect(sendReplay).toHaveBeenCalledTimes(1);
     expect(runs.get(run.id)?.capabilities).toMatchObject({
-      leases: [expect.objectContaining({ status: "revoked", usedUses: 1, usedRequests: 1, revocationReason: "Run completed." })],
+      leases: [expect.objectContaining({ status: "exhausted", usedUses: 1, usedRequests: 1 })],
       receipts: [expect.objectContaining({ decision: "allowed", status: "succeeded", tool: "sendReplay" })]
     });
   });
@@ -630,9 +751,15 @@ describe("AgentRuntime", () => {
       status: "decided",
       reason: expect.stringContaining("scope changed")
     });
+    expect(
+      [...(runs.get(run.id)?.timeline || [])]
+        .reverse()
+        .find((entry) => entry.summary === "Capability lease blocked sendReplay")
+        ?.recoveryActions
+    ).toEqual(["skip-and-continue", "stop-run"]);
   });
 
-  it("blocks a gated side effect with a durable receipt when no lease was requested", async () => {
+  it("derives an exact review draft when a gated action has no model-authored lease", async () => {
     const { runtime, runs, sendReplay } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
       decideNextAction: async () => ({
@@ -651,15 +778,136 @@ describe("AgentRuntime", () => {
 
     await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
     expect(sendReplay).not.toHaveBeenCalled();
-    expect(runs.get(run.id)?.capabilities?.receipts.at(-1)).toMatchObject({
-      decision: "blocked",
-      status: "decided",
-      tool: "sendReplay"
+    expect(runs.get(run.id)?.capabilities?.receipts).toEqual([]);
+    expect(runs.get(run.id)?.capabilities?.leases.at(-1)).toMatchObject({
+      name: "Authorize sendReplay",
+      status: "draft",
+      riskTier: "active",
+      tools: ["sendReplay"],
+      grants: [
+        {
+          origin: "https://hairetsu.com",
+          method: "GET",
+          pathPrefix: "/account",
+          identity: "current"
+        }
+      ],
+      maxUses: 1,
+      maxRequests: 1,
+      maxConcurrency: 1,
+      maxPayloadBytes: 0
     });
-    expect(
-      runs.get(run.id)?.timeline.find((entry) => entry.summary === "Capability lease blocked sendReplay")
-        ?.recoveryActions
-    ).toEqual(["retry-tool", "skip-and-continue", "stop-run"]);
+    expect(runs.get(run.id)?.checkpoint?.pendingCapabilityCall).toMatchObject({ tool: "sendReplay" });
+  });
+
+  it("does not resume while a browser capability lease is still a draft", async () => {
+    const { runtime, runs, clickElement } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      browserState: {
+        open: true,
+        url: "https://hairetsu.com/login",
+        title: "Sign in",
+        loading: false,
+        engine: "chrome"
+      },
+      decideNextAction: async () => ({
+        action: "tool",
+        call: { tool: "clickElement", input: { selector: "#login" } },
+        rationale: "Reveal the client-side validation state."
+      })
+    });
+    const run = runtime.start({
+      goal: "Inspect the sign-in surface",
+      startUrl: "https://hairetsu.com/login",
+      profileId: "browser-assessment"
+    });
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("paused");
+      expect(runs.get(run.id)?.capabilities?.leases.at(-1)).toMatchObject({
+        status: "draft",
+        tools: ["clickElement"]
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(() => runtime.resume(run.id)).toThrow(
+        "Grant the pending capability lease"
+      );
+    });
+    const paused = runs.get(run.id);
+    if (!paused?.checkpoint) {
+      throw new Error("Expected a durable capability checkpoint.");
+    }
+    runs.set(run.id, {
+      ...paused,
+      checkpoint: { ...paused.checkpoint, pendingCapabilityCall: undefined },
+      timeline: [
+        ...paused.timeline,
+        {
+          id: "legacy-capability-block",
+          createdAt: new Date(
+            Date.parse(paused.capabilities?.leases.at(-1)?.createdAt || paused.createdAt) + 1_000
+          ).toISOString(),
+          phase: "policy-block",
+          summary: "Capability lease blocked clickElement",
+          recoveryActions: ["retry-tool", "skip-and-continue", "stop-run"],
+          toolCall: { tool: "clickElement", input: { selector: "#login" } },
+          toolResult: {
+            tool: "clickElement",
+            ok: false,
+            error: "No granted capability lease matches this normalized action."
+          }
+        }
+      ]
+    });
+    expect(() => runtime.resume(run.id)).toThrow(
+      "Grant the pending capability lease"
+    );
+    const legacyPaused = runs.get(run.id);
+    const draft = legacyPaused?.capabilities?.leases.find(
+      (lease) => lease.status === "draft" && lease.tools.includes("clickElement")
+    );
+    const granted = await runtime.updateCapabilities(run.id, {
+      action: "grant",
+      expectedRevision: legacyPaused?.capabilities?.revision || 0,
+      leaseId: draft?.id || ""
+    });
+    expect(granted?.checkpoint?.pendingCapabilityCall).toMatchObject({
+      tool: "clickElement",
+      input: { selector: "#login" }
+    });
+    runtime.resume(run.id);
+    await vi.waitFor(() => expect(clickElement).toHaveBeenCalledTimes(1));
+    expect(runs.get(run.id)?.capabilities?.receipts).toEqual([
+      expect.objectContaining({
+        tool: "clickElement",
+        decision: "allowed",
+        status: "succeeded"
+      })
+    ]);
+  });
+
+  it("does not advertise raw browser-state tools when raw context is off", async () => {
+    const contexts: AgentDecisionContext[] = [];
+    const { runtime, runs } = makeRuntime(undefined, {
+      decideNextAction: async (context) => {
+        contexts.push(context);
+        return { action: "finish", rationale: "No raw context was requested.", findings: [] };
+      }
+    });
+
+    const run = runtime.start({
+      goal: "Review authentication state for https://allowed.test",
+      startUrl: "https://allowed.test",
+      profileId: "auth-review"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(contexts[0]?.availableTools).not.toEqual(
+      expect.arrayContaining(["getCookies", "getStorageState"])
+    );
+    expect(contexts[0]?.availableTools).toContain("getIdentityLabContext");
   });
 
   it("persists a revision-checked Mission Graph patch before the selected tool runs", async () => {
@@ -840,13 +1088,10 @@ describe("AgentRuntime", () => {
           : { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    await startRunWithLease(
-      runtime,
-      {
-        goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
-        startUrl: "http://localhost:3000"
-      }
-    );
+    runtime.start({
+      goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
+      startUrl: "http://localhost:3000"
+    });
 
     await vi.waitFor(() => {
       expect(openBrowser).toHaveBeenCalledWith("https://hairetsu.com");
@@ -978,13 +1223,10 @@ describe("AgentRuntime", () => {
       decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    const run = await startRunWithLease(
-      runtime,
-      {
-        goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
-        startUrl: "https://hairetsu.com"
-      }
-    );
+    const run = runtime.start({
+      goal: "Inspect hairetsu.com for auth, session, and API hardening issues.",
+      startUrl: "https://hairetsu.com"
+    });
 
     await vi.waitFor(() => {
       expect(runs.get(run.id)?.status).toBe("completed");
@@ -1020,10 +1262,10 @@ describe("AgentRuntime", () => {
       decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    const run = await startRunWithLease(
-      runtime,
-      { goal: "Open target for passive observation.", startUrl: "https://hairetsu.com" }
-    );
+    const run = runtime.start({
+      goal: "Open target for passive observation.",
+      startUrl: "https://hairetsu.com"
+    });
 
     await vi.waitFor(() => {
       expect(runs.get(run.id)?.status).toBe("completed");
@@ -1061,10 +1303,10 @@ describe("AgentRuntime", () => {
       decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    const run = await startRunWithLease(
-      runtime,
-      { goal: "Open target for passive observation.", startUrl: "https://hairetsu.com" }
-    );
+    const run = runtime.start({
+      goal: "Open target for passive observation.",
+      startUrl: "https://hairetsu.com"
+    });
 
     await vi.waitFor(() => {
       expect(runs.get(run.id)?.status).toBe("paused");
@@ -1076,6 +1318,7 @@ describe("AgentRuntime", () => {
     expect(
       runs.get(run.id)?.timeline.find((entry) => entry.summary === "openBrowser failed")?.recoveryActions
     ).toEqual(["skip-and-continue", "stop-run", "draft-finding"]);
+    expect(runs.get(run.id)?.timeline.at(-1)?.note).toContain("fetch failed");
   });
 
   it("lets AI read intercept queue and prepare edits without forwarding traffic", async () => {
@@ -1383,10 +1626,13 @@ describe("AgentRuntime", () => {
       decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
     });
 
-    const run = await startRunWithLease(
-      runtime,
-      { goal: "Inspect hairetsu.com", startUrl: "https://hairetsu.com" }
-    );
+    const run = runtime.start({
+      goal: "Inspect hairetsu.com",
+      startUrl: "https://hairetsu.com"
+    });
+    await grantNextDraftAndResume(runtime, run.id);
+    await grantNextDraftAndResume(runtime, run.id);
+    await grantNextDraftAndResume(runtime, run.id);
 
     await vi.waitFor(() => {
       expect(runs.get(run.id)?.status).toBe("completed");

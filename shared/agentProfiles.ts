@@ -24,7 +24,6 @@ export const DEFAULT_AGENT_POLICY: AgentPolicy = {
   maxReplay: 1,
   maxWorkflowRequests: 1,
   maxCaptureSample: 100,
-  maxParallelWorkers: 2,
   allowRawContext: false
 };
 
@@ -81,6 +80,11 @@ const activeReviewTools: AgentToolName[] = [
   "runWorkflow"
 ];
 
+const RAW_CONTEXT_TOOLS = new Set<AgentToolName>([
+  "getCookies",
+  "getStorageState"
+]);
+
 function uniqueTools(tools: AgentToolName[]) {
   return [...new Set(tools)];
 }
@@ -93,7 +97,7 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
   {
     id: "browser-assessment",
     label: "Browser Assessment",
-    description: "Explore the visible scoped site through Playwright, capture traffic, inspect evidence, and run tightly budgeted verification tools.",
+    description: "Traverse task-relevant in-scope paths sequentially through Playwright, capture each result, then inspect evidence and run tightly budgeted verification tools.",
     policy: policy({ maxRuntimeMs: 10 * 60_000, maxReplay: 3, maxWorkflowRequests: 3, maxSteps: 40, maxCaptureSample: 100 }),
     allowedTools: uniqueTools(activeReviewTools),
     capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxUses: 12, maxRequests: 20 }
@@ -199,7 +203,6 @@ export function normalizeAgentPolicy(input: Partial<AgentPolicy> = {}, profileId
     maxReplay: clampNumber(input.maxReplay, defaults.maxReplay, 0, 10),
     maxWorkflowRequests: clampNumber(input.maxWorkflowRequests, defaults.maxWorkflowRequests, 0, 100),
     maxCaptureSample: clampNumber(input.maxCaptureSample, defaults.maxCaptureSample, 1, 100),
-    maxParallelWorkers: clampNumber(input.maxParallelWorkers, defaults.maxParallelWorkers || 2, 1, 4),
     allowRawContext: Boolean(input.allowRawContext && defaults.allowRawContext),
     ...(input.tutorialMode === true ? { tutorialMode: true } : {})
   };
@@ -209,12 +212,20 @@ export function agentProfileAllowsTool(profileId: AgentRunProfileId, tool: Agent
   return getAgentRunProfile(profileId).allowedTools.includes(tool);
 }
 
+export function agentRunAllowsTool(
+  profileId: AgentRunProfileId,
+  policy: Pick<AgentPolicy, "allowRawContext">,
+  tool: AgentToolName
+) {
+  return agentProfileAllowsTool(profileId, tool) &&
+    (policy.allowRawContext || !RAW_CONTEXT_TOOLS.has(tool));
+}
+
 export function agentBudgetLabels(policy: AgentPolicy) {
   return [
     `steps ${policy.maxSteps}`,
     `replay ${policy.maxReplay}`,
     `workflow ${policy.maxWorkflowRequests}`,
-    `recon ${policy.maxParallelWorkers || 2}`,
     `captures ${policy.maxCaptureSample}`,
     `timeout ${Math.round(policy.maxRuntimeMs / 1000)}s`,
     policy.allowRawContext ? "raw context allowed" : "raw context off",

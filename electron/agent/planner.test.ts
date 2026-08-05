@@ -4,8 +4,16 @@ import { createAgentCapabilityState } from "../../shared/agentCapabilities.js";
 import { createAgentMission } from "../../shared/agentMission.js";
 import { DEFAULT_AGENT_POLICY } from "../../shared/agentProfiles.js";
 import { buildAgentUserPrompt, normalizeAgentDecision } from "./planner.js";
+import { AGENT_SYSTEM_PROMPT } from "./planner/prompt.js";
 
 describe("agent planner", () => {
+  it("keeps browser traversal sequential and single-operator", () => {
+    expect(AGENT_SYSTEM_PROMPT).toContain("the only browser operator");
+    expect(AGENT_SYSTEM_PROMPT).toContain("one browser action at a time");
+    expect(AGENT_SYSTEM_PROMPT).toContain("review the fresh capturedTraffic");
+    expect(AGENT_SYSTEM_PROMPT).not.toContain("parallel, read-only recon workers");
+  });
+
   it("builds a redacted, budgeted planner context", () => {
     const context: AgentDecisionContext = {
       goal: "Inspect the scoped target",
@@ -60,18 +68,6 @@ describe("agent planner", () => {
       runMemory: [],
       mission: createAgentMission("Inspect the scoped target", "https://target.example/"),
       capabilities: createAgentCapabilityState(),
-      reconReports: [{
-        id: "recon-1",
-        focus: "surface-map",
-        label: "Surface map",
-        status: "completed",
-        summary: "Observed one account endpoint.",
-        observations: ["GET /account returned 200."],
-        evidenceRefs: ["capture:capture-1"],
-        gaps: ["Authentication state is unknown."],
-        startedAt: "2026-07-31T00:00:00.000Z",
-        completedAt: "2026-07-31T00:00:01.000Z"
-      }],
       tutorialMode: false,
       timeline: [
         {
@@ -96,13 +92,10 @@ describe("agent planner", () => {
         }
       ],
       mission: { revision: 0 },
-      capabilities: { revision: 0 },
-      reconReports: [{
-        id: "recon-1",
-        focus: "surface-map",
-        status: "completed",
-        evidenceRefs: ["capture:capture-1"]
-      }]
+      capabilities: { revision: 0 }
+    });
+    expect(prompt.toolSchema).toEqual({
+      getCaptures: expect.objectContaining({ safety: "observe" })
     });
   });
   it("normalizes tool decisions", () => {
@@ -317,7 +310,7 @@ describe("agent planner", () => {
     });
   });
 
-  it("normalizes a bounded capability lease request without granting it", () => {
+  it("ignores provider-authored lease bounds and retains the selected tool", () => {
     expect(
       normalizeAgentDecision({
         action: "tool",
@@ -336,17 +329,20 @@ describe("agent planner", () => {
           reason: "Compare one invoice under the challenger identity."
         }
       })
-    ).toMatchObject({
+    ).toEqual({
       action: "tool",
-      call: { tool: "sendReplay" },
-      leaseRequest: {
-        name: "Invoice comparison",
-        riskTier: "active",
-        tools: ["sendReplay"],
-        grants: [
-          { origin: "https://api.target.test", method: "GET", pathPrefix: "/v1/invoices/", identity: "user-b" }
-        ]
-      }
+      call: {
+        tool: "sendReplay",
+        input: {
+          draft: {
+            method: "GET",
+            url: "https://api.target.test/v1/invoices/817",
+            headers: {},
+            body: ""
+          }
+        }
+      },
+      rationale: ""
     });
   });
 
@@ -359,17 +355,32 @@ describe("agent planner", () => {
         missionPatch: { baseRevision: 0, updates: [{ kind: "unknown" }] }
       })
     ).toThrow("missionPatch was invalid");
-    expect(() =>
+    expect(
       normalizeAgentDecision({
         action: "tool",
         tool: "sendReplay",
         input: { draft: { method: "DELETE", url: "https://api.target.test/v1/invoices/817", headers: {}, body: "" } },
         leaseRequest: { ...{}, riskTier: "destructive" }
       })
-    ).toThrow("leaseRequest was invalid");
-    expect(() =>
+    ).toEqual({
+      action: "tool",
+      call: {
+        tool: "sendReplay",
+        input: {
+          draft: {
+            method: "DELETE",
+            url: "https://api.target.test/v1/invoices/817",
+            headers: {},
+            body: ""
+          }
+        }
+      },
+      rationale: ""
+    });
+    expect(
       normalizeAgentDecision({
         action: "finish",
+        rationale: "Done without requesting authority.",
         leaseRequest: {
           name: "Invalid finish request",
           riskTier: "navigate",
@@ -383,6 +394,10 @@ describe("agent planner", () => {
           reason: "Finish decisions cannot request authority."
         }
       })
-    ).toThrow("finish decisions cannot request");
+    ).toEqual({
+      action: "finish",
+      rationale: "Done without requesting authority.",
+      findings: []
+    });
   });
 });

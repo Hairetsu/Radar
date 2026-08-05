@@ -5,10 +5,14 @@ import type { AiOperatorController } from "./useAiOperator";
 
 export function AiOperatorHeader({
   controller,
+  railOpen,
+  inspectorOpen,
   onToggleRail,
   onToggleInspector
 }: {
   controller: AiOperatorController;
+  railOpen: boolean;
+  inspectorOpen: boolean;
   onToggleRail: () => void;
   onToggleInspector: () => void;
 }) {
@@ -46,11 +50,13 @@ export function AiOperatorHeader({
             {controller.connection.connected ? controller.connection.model || "connected" : "AI offline"}
           </StatusBadge>
         </div>
-        <Button type="button" variant="ghost" size="compact" className="max-[820px]:inline-flex min-[820px]:hidden" onClick={onToggleRail} aria-label="Toggle run history" data-testid="toggleAiRunRail">
+        <Button type="button" variant={railOpen ? "solid" : "ghost"} size="compact" onClick={onToggleRail} aria-label="Toggle run history" aria-expanded={railOpen} data-testid="toggleAiRunRail">
           <ListTree size={13} />
+          <span className="max-[760px]:hidden">Runs</span>
         </Button>
-        <Button type="button" variant="ghost" size="compact" className="max-[940px]:inline-flex min-[940px]:hidden" onClick={onToggleInspector} aria-label="Toggle mission inspector" data-testid="toggleAiInspector">
+        <Button type="button" variant={inspectorOpen ? "solid" : "ghost"} size="compact" onClick={onToggleInspector} aria-label="Toggle mission inspector" aria-expanded={inspectorOpen} data-testid="toggleAiInspector">
           <PanelRight size={13} />
+          <span className="max-[760px]:hidden">Inspect</span>
         </Button>
         <Button
           type="button"
