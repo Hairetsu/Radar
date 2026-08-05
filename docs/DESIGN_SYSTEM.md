@@ -36,7 +36,11 @@ The workspace uses asymmetric, console-like composition:
 - a classification banner and project/browser controls above the active evidence surface;
 - dense grids and restrained display numerals inside tools;
 - a full-width AI mission safety bar that does not steal workspace width;
+<<<<<<< Updated upstream
 - a separate full-window AI Operator with a pinned Thoughtstream, newest-first event feed, fixed composer, and overlay drawers;
+=======
+- a separate full-window AI Operator with a pinned Thoughtstream, newest-first event feed, adaptive bottom command deck, and overlay drawers;
+>>>>>>> Stashed changes
 - a bottom telemetry ticker for live system counts.
 
 Prefer useful negative space around major regions and controlled density inside evidence regions. Decorative layers may add atmosphere, but must not obscure selection, truncate critical state, or reduce contrast.

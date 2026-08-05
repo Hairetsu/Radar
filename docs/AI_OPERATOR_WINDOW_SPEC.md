@@ -180,10 +180,11 @@ Every card that has a visible target provides **Reveal in Workspace**. The actio
 
 ### Composer
 
-The composer supports two states:
+The bottom command deck supports three states:
 
 - **No active run:** goal text, profile, Tutorial Mode, bounded-budget preview, Start Run.
-- **Active or paused run:** steering text, current mission context, Pause/Resume/Stop, and context attachment.
+- **Active run:** compact mission summary, current budgets, **Pause & Steer**, Stop, and Return to Manual. The goal editor and setup controls collapse so the feed receives the available height, while the steering affordance remains explicit.
+- **Paused or failed run:** direction editor, current mission context, Add Direction, Resume/Stop, and context attachment. Direction updates append reviewed objectives to the audit trail rather than rewriting the original goal.
 
 The composer can attach only sanitized, typed references exposed by the main workspace, such as `capture:<id>`, `finding:<id>`, or `workflow:<id>`. It must not pull raw headers, bodies, cookies, storage, or payloads from the main renderer. Raw AI context continues to use the existing explicit opt-in and Electron-side redaction path.
 

@@ -11,6 +11,7 @@ import type { AiOperatorController } from "./useAiOperator";
 export function AgentComposer({ controller }: { controller: AiOperatorController }) {
   const run = controller.activeRun;
   const canSteer = Boolean(run && (run.status === "paused" || run.status === "failed"));
+  const isLiveRun = Boolean(run && (run.status === "running" || run.status === "queued"));
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (canSteer && controller.goal.trim()) {
@@ -21,17 +22,70 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
     void controller.startRun();
   };
 
+  const lifecycleControls = (
+    <>
+      <Button
+        type="button"
+        variant={isLiveRun ? "solid" : "outline"}
+        size="compact"
+        disabled={!controller.canPause || controller.pending}
+        onClick={() => void controller.pauseRun()}
+        title={isLiveRun ? "Pause after the current tool settles, then update the mission direction." : "Pause the active mission."}
+        aria-label={isLiveRun ? "Pause run and open mission steering" : "Pause run"}
+        data-testid="pauseAgentRun"
+      >
+        <Pause size={12} /> {isLiveRun ? "Pause & Steer" : "Pause"}
+      </Button>
+      <Button type="button" variant="outline" size="compact" disabled={!controller.canResume || controller.pending} onClick={() => void controller.resumeRun()} data-testid="resumeAgentRun">
+        {controller.capabilityReviewRequired ? <KeyRound size={12} /> : <Play size={12} />}
+        {controller.capabilityReviewRequired
+          ? "Grant Lease First"
+          : run?.policy.tutorialMode
+            ? "Continue Lesson"
+            : "Resume"}
+      </Button>
+      {controller.canContinue && <Button type="button" variant="outline" size="compact" disabled={controller.pending} onClick={() => void controller.continueRun()} data-testid="continueAgentRun"><RotateCw size={12} /> Continue New</Button>}
+      <Button type="button" variant="ghost" size="compact" disabled={!controller.canStop || controller.pending} onClick={() => void controller.stopRun()} data-testid="stopAgentRun"><Square size={12} /> Stop</Button>
+      {controller.mode === "ai-first" && <Button type="button" variant="ghost" size="compact" disabled={controller.pending} onClick={() => void controller.returnToManual()} data-testid="returnToManual"><UserRound size={12} /> Manual</Button>}
+    </>
+  );
+
+  if (isLiveRun && run) {
+    return (
+      <div className="border-t border-rule bg-ink/92 px-3 py-2.5 backdrop-blur-xl" data-testid="aiOperatorComposer" data-state="live">
+        <div className="mx-auto grid max-w-[1100px] gap-2" data-testid="aiOperatorActiveControls">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="min-w-[240px] flex-1">
+              <span className="rd-eyebrow text-signal">Live bounded mission</span>
+              <p className="mt-1 truncate text-meta text-copy" title={run.goal}>{run.goal}</p>
+              <p className="mt-1 font-mono text-micro text-muted">Need to redirect it? Pause &amp; Steer adds reviewed direction without rewriting the original goal.</p>
+            </div>
+            <div className="flex max-w-full flex-wrap justify-end gap-1">{controller.budgetLabels.slice(0, 4).map((label) => <StatusBadge key={label}>{label}</StatusBadge>)}</div>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-rule/70 pt-2">
+            <div className="flex min-w-0 items-center gap-3 font-mono text-label text-muted" role="status">
+              <span className="h-1.5 w-1.5 shrink-0 animate-[stream-glow_1.5s_ease-in-out_infinite] rounded-full bg-signal" />
+              <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{controller.notice}</span>
+              <span className="shrink-0 uppercase text-signal">{run.status}</span>
+            </div>
+            <div className="flex flex-wrap justify-end gap-1.5">{lifecycleControls}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="border-t border-rule bg-ink/92 p-3 backdrop-blur-xl" data-testid="aiOperatorComposer">
+    <div className="border-t border-rule bg-ink/92 p-3 backdrop-blur-xl" data-testid="aiOperatorComposer" data-state={canSteer ? "steering" : "compose"}>
       <form className="mx-auto grid max-w-[860px] gap-2" onSubmit={submit}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="rd-eyebrow text-signal">{canSteer ? "Steer paused mission" : "Bounded mission goal"}</span>
+          <span className="rd-eyebrow text-signal">{canSteer ? "Update mission direction" : "Bounded mission goal"}</span>
           <div className="flex flex-wrap gap-1">{controller.budgetLabels.slice(0, 4).map((label) => <StatusBadge key={label}>{label}</StatusBadge>)}</div>
         </div>
         <Textarea
           value={controller.goal}
           onChange={(event) => controller.setGoal(event.target.value)}
-          placeholder={canSteer ? "Add a reviewed objective to this paused Mission Graph." : "Inspect https://target.test for authorization, session, and API hardening issues."}
+          placeholder={canSteer ? "Tell the agent what to prioritize, avoid, or investigate next. The original goal stays in the audit trail." : "Inspect https://target.test for authorization, session, and API hardening issues."}
           className="min-h-[76px] resize-none"
           autoFocus={!run}
           disabled={Boolean(controller.runningRun) && !canSteer}
@@ -54,19 +108,8 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
           </button>
           <div className="col-span-2 flex min-w-0 flex-wrap justify-start gap-1.5 min-[1200px]:col-span-1 min-[1200px]:justify-end">
             {!controller.runningRun && !canSteer && <Button type="submit" variant="solid" disabled={controller.pending} data-testid="startAgentRun"><Play size={13} /> {controller.tutorialMode ? "Start Tutorial" : "Start Run"}</Button>}
-            {canSteer && <Button type="submit" variant="solid" disabled={controller.pending || !controller.goal.trim()} data-testid="steerAgentRun"><Send size={13} /> Add Objective</Button>}
-            <Button type="button" variant="outline" size="compact" disabled={!controller.canPause || controller.pending} onClick={() => void controller.pauseRun()} data-testid="pauseAgentRun"><Pause size={12} /> Pause</Button>
-            <Button type="button" variant="outline" size="compact" disabled={!controller.canResume || controller.pending} onClick={() => void controller.resumeRun()} data-testid="resumeAgentRun">
-              {controller.capabilityReviewRequired ? <KeyRound size={12} /> : <Play size={12} />}
-              {controller.capabilityReviewRequired
-                ? "Grant Lease First"
-                : run?.policy.tutorialMode
-                  ? "Continue Lesson"
-                  : "Resume"}
-            </Button>
-            {controller.canContinue && <Button type="button" variant="outline" size="compact" disabled={controller.pending} onClick={() => void controller.continueRun()} data-testid="continueAgentRun"><RotateCw size={12} /> Continue New</Button>}
-            <Button type="button" variant="ghost" size="compact" disabled={!controller.canStop || controller.pending} onClick={() => void controller.stopRun()} data-testid="stopAgentRun"><Square size={12} /> Stop</Button>
-            {controller.mode === "ai-first" && <Button type="button" variant="ghost" size="compact" disabled={controller.pending} onClick={() => void controller.returnToManual()} data-testid="returnToManual"><UserRound size={12} /> Manual</Button>}
+            {canSteer && <Button type="submit" variant="solid" disabled={controller.pending || !controller.goal.trim()} data-testid="steerAgentRun"><Send size={13} /> Add Direction</Button>}
+            {lifecycleControls}
           </div>
         </div>
         <div className="flex min-w-0 items-center justify-between gap-3 font-mono text-label text-muted" role="status">
