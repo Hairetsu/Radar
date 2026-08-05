@@ -1,8 +1,15 @@
 import type { ReplayDraft, SslEvent } from "./domain.js";
 
-export type AiProviderId = "openai" | "anthropic" | "openai-compatible" | "codex-local" | "cursor-local";
+export type AiProviderId =
+  | "openai"
+  | "anthropic"
+  | "xai"
+  | "openrouter"
+  | "openai-compatible"
+  | "codex-local"
+  | "cursor-local";
 
-export type AiConnectPresetId = "codex" | "cursor_cli";
+export type AiConnectPresetId = "codex" | "cursor_cli" | "openai" | "anthropic" | "xai" | "openrouter";
 
 export type AiWorkView =
   | "traffic"

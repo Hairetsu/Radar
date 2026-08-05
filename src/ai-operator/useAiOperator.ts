@@ -520,14 +520,22 @@ export function useAiOperator() {
     }
   }, [settings]);
 
+  const editSettings = useCallback((nextSettings: AiSettings) => {
+    setSettings(nextSettings);
+    setConnection(connectionSummary(nextSettings, false, false, "Save & Test to verify"));
+    setConnectionError("");
+  }, []);
+
   const saveSettings = useCallback(async () => {
     setConnectionPending(true);
     try {
       const saved = await operatorApi().setAiSettings(settings);
       setSettings(saved);
-      await probeConnection(saved);
-      const nextModels = await operatorApi().refreshAiModels(saved);
-      setModels(nextModels);
+      const probe = await probeConnection(saved);
+      if (probe?.ok) {
+        const nextModels = await operatorApi().refreshAiModels(saved);
+        setModels(nextModels);
+      }
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : "AI settings could not be saved.");
     } finally {
@@ -541,8 +549,12 @@ export function useAiOperator() {
       const result = await operatorApi().connectAi(presetId);
       setSettings(result.settings);
       setConnection(connectionSummary(result.settings, result.probe.ok, false, result.probe.message));
-      setModels(await operatorApi().refreshAiModels(result.settings));
       setConnectionError(result.probe.ok ? "" : result.probe.message);
+      if (result.probe.ok) {
+        setModels(await operatorApi().refreshAiModels(result.settings));
+      } else {
+        setModels([]);
+      }
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : "AI connection failed.");
     } finally {
@@ -615,7 +627,7 @@ export function useAiOperator() {
     createMemory,
     deleteMemory,
     settings,
-    setSettings,
+    setSettings: editSettings,
     models,
     connection,
     connectionError,

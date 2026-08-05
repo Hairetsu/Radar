@@ -5,6 +5,8 @@ describe("aiProvider", () => {
   it("accepts known provider ids", () => {
     expect(isAiProviderId("openai")).toBe(true);
     expect(isAiProviderId("anthropic")).toBe(true);
+    expect(isAiProviderId("xai")).toBe(true);
+    expect(isAiProviderId("openrouter")).toBe(true);
     expect(isAiProviderId("openai-compatible")).toBe(true);
     expect(isAiProviderId("codex-local")).toBe(true);
     expect(isAiProviderId("cursor-local")).toBe(true);

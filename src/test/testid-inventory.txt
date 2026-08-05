@@ -23,8 +23,12 @@ aiApplyPrepared
 aiAudit
 aiBaseUrl
 aiClearPackets
+aiConnectAnthropic
 aiConnectCodex
 aiConnectCursorCli
+aiConnectOpenAi
+aiConnectOpenRouter
+aiConnectXai
 aiConnectionIndicator
 aiConnectionStatus
 aiContextPreview
@@ -50,6 +54,7 @@ aiPreparedWorkflowDraft
 aiPreviewContext
 aiProbeConnection
 aiProvider
+aiProviderEndpoint
 aiResult
 aiRunRail
 aiRunSearch

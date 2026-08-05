@@ -1,4 +1,9 @@
 import type { AiConnectPresetId, AiProviderId, ProbeSettingsInput } from "../../shared/ai-types.js";
+import {
+  AI_PROVIDER_PROFILES,
+  isAiProviderId,
+  providerBaseUrl
+} from "../../shared/ai-providers.js";
 import { probeCodexCli } from "./codexCli.js";
 import { probeCursorCli } from "./cursorCli.js";
 
@@ -27,6 +32,34 @@ export const PRESETS: Record<AiConnectPresetId, PresetConfig> = {
     model: "auto",
     envKeys: ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"],
     fallbackApiKey: "local"
+  },
+  openai: {
+    label: "OpenAI",
+    provider: "openai",
+    baseUrl: AI_PROVIDER_PROFILES.openai.baseUrl,
+    model: AI_PROVIDER_PROFILES.openai.defaultModel,
+    envKeys: ["OPENAI_API_KEY"]
+  },
+  anthropic: {
+    label: "Anthropic",
+    provider: "anthropic",
+    baseUrl: AI_PROVIDER_PROFILES.anthropic.baseUrl,
+    model: AI_PROVIDER_PROFILES.anthropic.defaultModel,
+    envKeys: ["ANTHROPIC_API_KEY"]
+  },
+  xai: {
+    label: "xAI / Grok",
+    provider: "xai",
+    baseUrl: AI_PROVIDER_PROFILES.xai.baseUrl,
+    model: AI_PROVIDER_PROFILES.xai.defaultModel,
+    envKeys: ["XAI_API_KEY"]
+  },
+  openrouter: {
+    label: "OpenRouter",
+    provider: "openrouter",
+    baseUrl: AI_PROVIDER_PROFILES.openrouter.baseUrl,
+    model: AI_PROVIDER_PROFILES.openrouter.defaultModel,
+    envKeys: ["OPENROUTER_API_KEY"]
   }
 };
 
@@ -40,14 +73,22 @@ function firstEnv(keys: string[]) {
   return null;
 }
 
-export function resolvePreset({ presetId, savedApiKey = "" }: { presetId: AiConnectPresetId; savedApiKey?: string }) {
+export function resolvePreset({
+  presetId,
+  savedApiKey = "",
+  savedProvider
+}: {
+  presetId: AiConnectPresetId;
+  savedApiKey?: string;
+  savedProvider?: AiProviderId;
+}) {
   const preset = PRESETS[presetId];
   if (!preset) {
     throw new Error(`Unknown connect preset: ${presetId}`);
   }
 
   const fromEnv = firstEnv(preset.envKeys);
-  const savedPresetKey = preset.provider === "codex-local" || preset.provider === "cursor-local" ? "" : savedApiKey;
+  const savedPresetKey = savedProvider === preset.provider ? savedApiKey.trim() : "";
   const apiKey = fromEnv?.value || savedPresetKey || preset.fallbackApiKey || "";
   const baseUrl = preset.baseUrl;
 
@@ -63,6 +104,10 @@ export function resolvePreset({ presetId, savedApiKey = "" }: { presetId: AiConn
 }
 
 export async function probeSettings(settings: ProbeSettingsInput) {
+  if (!isAiProviderId(settings.provider)) {
+    return { ok: false, message: "Unknown AI provider." };
+  }
+
   if (settings.provider === "codex-local") {
     return probeCodexCli();
   }
@@ -71,26 +116,33 @@ export async function probeSettings(settings: ProbeSettingsInput) {
     return probeCursorCli();
   }
 
-  const root = (settings.baseUrl || "").replace(/\/$/, "");
+  const profile = AI_PROVIDER_PROFILES[settings.provider];
+  const root = providerBaseUrl(settings).replace(/\/$/, "");
   if (!root) {
     return { ok: false, message: "Base URL is missing." };
   }
 
-  if (!settings.apiKey?.trim() && settings.provider !== "openai-compatible") {
-    return { ok: false, message: "API key is missing. Set OPENAI_API_KEY or save a key." };
+  const apiKey = settings.apiKey?.trim() || "";
+  if (!apiKey && profile.auth !== "optional-bearer") {
+    const environmentHint = profile.environmentKey ? " Set " + profile.environmentKey + " or save a key." : "";
+    return { ok: false, message: profile.shortLabel + " API key is missing." + environmentHint };
   }
 
   const headers: Record<string, string> = {
     Accept: "application/json"
   };
-  if (settings.apiKey?.trim()) {
-    headers.Authorization = `Bearer ${settings.apiKey}`;
+  if (profile.auth === "anthropic") {
+    headers["x-api-key"] = apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+  } else if (apiKey) {
+    headers.Authorization = "Bearer " + apiKey;
   }
 
   const healthUrl = root.includes("/v1") ? root.replace(/\/v1$/, "") + "/health" : `${root}/health`;
   const modelsUrl = root.endsWith("/v1") ? `${root}/models` : `${root}/v1/models`;
+  const probeUrls = settings.provider === "openai-compatible" ? [healthUrl, modelsUrl] : [modelsUrl];
 
-  for (const url of [healthUrl, modelsUrl]) {
+  for (const url of probeUrls) {
     try {
       const response = await fetch(url, {
         method: "GET",
@@ -108,12 +160,23 @@ export async function probeSettings(settings: ProbeSettingsInput) {
   return {
     ok: false,
     message:
-      "OpenAI-compatible API not reachable. Check base URL, API key, and network."
+      profile.shortLabel +
+      " API not reachable. Check the API key and network" +
+      (settings.provider === "openai-compatible" ? ", plus the base URL" : "") +
+      "."
   };
 }
 
-export function applyConnectPreset({ presetId, savedApiKey }: { presetId: AiConnectPresetId; savedApiKey: string }) {
-  const resolved = resolvePreset({ presetId, savedApiKey });
+export function applyConnectPreset({
+  presetId,
+  savedApiKey,
+  savedProvider
+}: {
+  presetId: AiConnectPresetId;
+  savedApiKey: string;
+  savedProvider?: AiProviderId;
+}) {
+  const resolved = resolvePreset({ presetId, savedApiKey, savedProvider });
   return {
     settings: {
       provider: resolved.provider,

@@ -363,4 +363,22 @@ describe("AiOperatorApp", () => {
     expect(api.probeAiConnection).toHaveBeenCalled();
     expect(api.refreshAiModels).toHaveBeenCalled();
   });
+
+  it("offers first-class cloud key providers without carrying credentials across them", async () => {
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    fireEvent.click(await screen.findByTestId("aiOperatorSettings"));
+    expect(screen.getByTestId("aiConnectOpenAi")).toBeInTheDocument();
+    expect(screen.getByTestId("aiConnectAnthropic")).toBeInTheDocument();
+    expect(screen.getByTestId("aiConnectXai")).toBeInTheDocument();
+    expect(screen.getByTestId("aiConnectOpenRouter")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("aiProvider"), { target: { value: "xai" } });
+    expect(screen.getByTestId("aiApiKey")).toHaveValue("");
+    expect(screen.getByTestId("aiModel")).toHaveValue("grok-4.5");
+    expect(screen.getByTestId("aiProviderEndpoint")).toHaveTextContent("https://api.x.ai/v1");
+    expect(screen.getByTestId("aiConnectionStatus")).toHaveTextContent("Save & Test to verify");
+  });
 });

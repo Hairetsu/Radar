@@ -228,7 +228,11 @@ export async function connectPreset({
   presetId: AiConnectPresetId;
 }) {
   const current = loadSettings(userDataPath);
-  const applied = applyConnectPreset({ presetId, savedApiKey: current.apiKey });
+  const applied = applyConnectPreset({
+    presetId,
+    savedApiKey: current.apiKey,
+    savedProvider: current.provider
+  });
   const saved = saveSettings(userDataPath, applied.settings);
   const probe = await probeSettings({ ...saved, presetId });
   return {

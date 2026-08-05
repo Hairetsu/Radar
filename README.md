@@ -30,6 +30,8 @@ AI-First does not run as a hidden background swarm. One browser operator follows
 
 The companion window keeps the current Thoughtstream, newest-first event feed, mission state, budgets, and controls visible. Permission-gated actions use focused prompts, while **Pause & Steer** makes mid-mission direction changes explicit without rewriting the original goal. Resume, Stop, and manual workspace controls remain available throughout the run.
 
+The AI Operator connection deck supports the installed Codex app login, Cursor CLI, direct OpenAI, Anthropic, and xAI/Grok API keys, OpenRouter, and custom OpenAI-compatible endpoints. Cloud presets can read provider-specific environment variables, while pasted credentials remain in Radar's local Electron settings and are never exposed to the inspected page.
+
 ![Radar AI Operator live event stream](docs/screens/radar-11-ai-operator-feed.png)
 
 ## Safety Model
