@@ -190,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      actions: write
+      actions: read
       contents: write
       pull-requests: write
 
@@ -246,17 +246,10 @@ jobs:
             --body "Sync the released ${RELEASE_TAG} history and version metadata back into develop. This PR is generated after the release is published and must not trigger another promotion.")"
           echo "url=${pr_url}" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch CI for sync commit
-        if: steps.sync.outputs.required == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run ci.yml --ref "${{ steps.sync.outputs.branch }}"
-
       - name: Wait for sync CI
         if: steps.sync.outputs.required == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ steps.pull-request.outputs.url }}
           SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
           SYNC_SHA: ${{ steps.sync.outputs.sha }}
         run: |
@@ -265,7 +258,7 @@ jobs:
             run_id="$(gh run list \
               --workflow ci.yml \
               --branch "${SYNC_BRANCH}" \
-              --event workflow_dispatch \
+              --event pull_request \
               --limit 20 \
               --json databaseId,headSha \
               --jq ".[] | select(.headSha == \"${SYNC_SHA}\") | .databaseId" \
@@ -282,7 +275,13 @@ jobs:
           fi
 
           gh run watch "${run_id}" --exit-status
-          gh pr checks "${PR_URL}" --required
+
+          ci_sha="$(gh run view "${run_id}" --json headSha --jq '.headSha')"
+          test_conclusion="$(gh run view "${run_id}" --json jobs --jq '.jobs[] | select(.name == "test") | .conclusion')"
+          if [ "${ci_sha}" != "${SYNC_SHA}" ] || [ "${test_conclusion}" != "success" ]; then
+            echo "Pull-request CI did not produce a successful test job for ${SYNC_SHA}." >&2
+            exit 1
+          fi
 
       - name: Merge released tag back into develop
         if: steps.sync.outputs.required == 'true'
