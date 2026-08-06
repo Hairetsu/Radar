@@ -35,13 +35,15 @@ export async function authorizeToolCall({
   counters,
   call,
   deps,
-  currentAuthFingerprint
+  currentAuthFingerprint,
+  operationId
 }: {
   run: AgentRun;
   counters: RunCounters;
   call: AgentToolCall;
   deps: AgentRuntimeDeps;
   currentAuthFingerprint: () => Promise<string>;
+  operationId: string;
 }): Promise<ToolAuthorizationResult> {
   const capabilityUse = capabilityUseForCall(run, counters, call, deps);
   if (!capabilityUse) {
@@ -82,6 +84,7 @@ export async function authorizeToolCall({
       timeline(
         `${authorization.allowed ? "Capability allowed" : "Capability blocked"}: ${authorization.reason}`,
         {
+          operationId,
           phase: authorization.allowed ? "decision" : "policy-block",
           summary: `${authorization.receipt.riskTier} ${call.tool} / ${authorization.receipt.decision}`,
           target: visibleTargetForTool(call),
@@ -108,6 +111,7 @@ export async function authorizeToolCall({
       timeline: [
         ...nextRun.timeline,
         timeline(authorization.reason, {
+          operationId,
           phase: "policy-block",
           summary: `Capability lease blocked ${call.tool}`,
           target: visibleTargetForTool(call),

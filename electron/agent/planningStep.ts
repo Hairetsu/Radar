@@ -21,7 +21,7 @@ import {
   normalizedCheckpoint,
   withUpdate
 } from "./runState.js";
-import { timeline } from "./runtimeClock.js";
+import { createId, timeline } from "./runtimeClock.js";
 import type {
   AgentExecutionLifecycle,
   AgentRuntimeDeps,
@@ -103,7 +103,8 @@ export async function executePlanningStep({
   callTool: (
     run: AgentRun,
     counters: RunCounters,
-    call: AgentToolCall
+    call: AgentToolCall,
+    operationId?: string
   ) => Promise<AgentRun>;
   waitForSettle: (ms: number) => Promise<void>;
   currentAuthFingerprint: () => Promise<string>;
@@ -143,6 +144,7 @@ export async function executePlanningStep({
       "Agent decision must choose either tool or finish."
     );
   }
+  const operationId = createId("operation");
 
   const tutorial = run.policy.tutorialMode
     ? decision.tutorial ||
@@ -152,7 +154,8 @@ export async function executePlanningStep({
     run,
     counters,
     decision,
-    deps
+    deps,
+    operationId
   });
   let nextRun = missionStep.run;
   if (missionStep.paused) {
@@ -165,7 +168,8 @@ export async function executePlanningStep({
         counters,
         decision,
         deps,
-        tutorial
+        tutorial,
+        operationId
       }),
       ended: true
     };
@@ -177,7 +181,8 @@ export async function executePlanningStep({
     decision,
     deps,
     currentAuthFingerprint,
-    tutorial
+    tutorial,
+    operationId
   });
   nextRun = leaseStep.run;
   if (leaseStep.paused) {
@@ -194,6 +199,7 @@ export async function executePlanningStep({
             "Next tutorial step."
           }`,
           {
+            operationId,
             phase: "decision",
             summary: decision.rationale || tutorial?.title,
             target: visibleTargetForTool(decision.call),
@@ -205,7 +211,7 @@ export async function executePlanningStep({
     });
   }
 
-  nextRun = await callTool(nextRun, counters, decision.call);
+  nextRun = await callTool(nextRun, counters, decision.call, operationId);
   return settleToolStep({
     run: nextRun,
     runId,
@@ -213,6 +219,7 @@ export async function executePlanningStep({
     decision,
     deps,
     lifecycle,
-    waitForSettle
+    waitForSettle,
+    operationId
   });
 }

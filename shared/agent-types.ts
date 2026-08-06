@@ -663,6 +663,8 @@ export type AgentDecisionContext = {
 export type AgentTimelineEntry = {
   id: string;
   createdAt: string;
+  operationId?: string;
+  durationMs?: number;
   note?: string;
   phase?: "status" | "recon" | "decision" | "tool-call" | "tool-result" | "policy-block" | "failure";
   summary?: string;

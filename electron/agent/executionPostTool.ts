@@ -38,7 +38,8 @@ export async function settleToolStep({
   decision,
   deps,
   lifecycle,
-  waitForSettle
+  waitForSettle,
+  operationId
 }: {
   run: AgentRun;
   runId: string;
@@ -47,6 +48,7 @@ export async function settleToolStep({
   deps: AgentRuntimeDeps;
   lifecycle: AgentExecutionLifecycle;
   waitForSettle: (ms: number) => Promise<void>;
+  operationId: string;
 }): Promise<PostToolResult> {
   if (toolMayEmitNetwork(decision.call)) {
     await waitForSettle(1200);
@@ -88,7 +90,7 @@ export async function settleToolStep({
             interruptedStatus === "paused"
               ? "Pause completed after the active tool settled."
               : "Stop completed after the active tool settled.",
-            { phase: "status" }
+            { operationId, phase: "status" }
           )
         ]
       }),
@@ -114,6 +116,7 @@ export async function settleToolStep({
           timeline(
             `Run paused: ${pauseReason} Choose a recovery action to continue.`,
             {
+              operationId,
               phase: "status",
               summary: lastToolEntry.summary || "Recovery action required",
               target: lastToolEntry.target
@@ -135,6 +138,7 @@ export async function settleToolStep({
           timeline(
             "Tutorial checkpoint reached. Inspect the visible result and continue when ready.",
             {
+              operationId,
               phase: "status",
               summary: "Lesson checkpoint — waiting for operator",
               target: visibleTargetForTool(decision.call)

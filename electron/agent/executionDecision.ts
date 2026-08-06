@@ -47,12 +47,14 @@ export function applyDecisionMissionPatch({
   run,
   counters,
   decision,
-  deps
+  deps,
+  operationId
 }: {
   run: AgentRun;
   counters: RunCounters;
   decision: AgentDecision;
   deps: AgentRuntimeDeps;
+  operationId: string;
 }): DecisionStepResult {
   if (!decision.missionPatch) {
     return { run, paused: false };
@@ -83,6 +85,7 @@ export function applyDecisionMissionPatch({
       timeline(
         `Mission graph advanced to revision ${missionResult.mission.revision}.`,
         {
+          operationId,
           phase: "decision",
           summary: `${decision.missionPatch.updates.length} mission update${
             decision.missionPatch.updates.length === 1 ? "" : "s"
@@ -102,6 +105,7 @@ export function applyDecisionMissionPatch({
           timeline(
             "Run paused for an operator answer recorded in the Mission Graph.",
             {
+              operationId,
               phase: "status",
               summary: "Operator input required"
             }
@@ -128,7 +132,8 @@ export async function applyDecisionLease({
   decision,
   deps,
   currentAuthFingerprint,
-  tutorial
+  tutorial,
+  operationId
 }: {
   run: AgentRun;
   counters: RunCounters;
@@ -136,6 +141,7 @@ export async function applyDecisionLease({
   deps: AgentRuntimeDeps;
   currentAuthFingerprint: () => Promise<string>;
   tutorial: AgentDecision["tutorial"];
+  operationId: string;
 }): Promise<DecisionStepResult> {
   const capabilityUse = capabilityUseForCall(run, counters, decision.call, deps);
   if (!capabilityUse) {
@@ -202,6 +208,7 @@ export async function applyDecisionLease({
               run.policy.tutorialMode ? "Start Tutorial" : "Start Run"
             }.`,
             {
+              operationId,
               phase: "decision",
               summary: `${decision.call.tool} can continue autonomously within saved Scope`,
               target: visibleTargetForTool(decision.call)
@@ -225,6 +232,7 @@ export async function applyDecisionLease({
       timeline: [
         ...run.timeline,
         timeline(`Capability lease review required: ${proposed.lease.name}`, {
+          operationId,
           phase: "policy-block",
           summary: `${proposed.lease.riskTier} lease proposed for ${decision.call.tool}`,
           target: visibleTargetForTool(decision.call),
@@ -242,13 +250,15 @@ export function completeAgentRun({
   counters,
   decision,
   deps,
-  tutorial
+  tutorial,
+  operationId
 }: {
   run: AgentRun;
   counters: RunCounters;
   decision: Extract<AgentDecision, { action: "finish" }>;
   deps: AgentRuntimeDeps;
   tutorial: AgentDecision["tutorial"];
+  operationId: string;
 }) {
   const evidenceCatalog = runtimeEvidenceCatalog(deps);
   const qualityResults = (decision.findings || []).map((finding) =>
@@ -261,6 +271,7 @@ export function completeAgentRun({
     .filter((result) => !result.ok)
     .map((result) =>
       timeline(`AI draft finding rejected: ${result.reasons.join(", ")}`, {
+        operationId,
         phase: "failure",
         summary: "Draft finding rejected by quality gate",
         target: { view: "findings" },
@@ -301,7 +312,7 @@ export function completeAgentRun({
           `Agent returned finish with ${nextFindings.length} draft finding${
             nextFindings.length === 1 ? "" : "s"
           }.`,
-        { phase: "status", ...(tutorial ? { tutorial } : {}) }
+        { operationId, phase: "status", ...(tutorial ? { tutorial } : {}) }
       )
     ]
   });

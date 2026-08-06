@@ -30,7 +30,7 @@ The [User Guide](docs/USER_GUIDE.md) covers every surface and workflow in detail
 
 AI-First does not run as a hidden background swarm. One browser operator follows task-relevant in-scope paths, lets each action settle, reads the resulting evidence, and only then chooses the next step.
 
-The companion window keeps the current Thoughtstream, newest-first event feed, mission state, budgets, and controls visible. Permission-gated actions use focused prompts, while **Pause & Steer** makes mid-mission direction changes explicit without rewriting the original goal. Resume, Stop, and manual workspace controls remain available throughout the run.
+The companion window keeps a compact **Mission Pulse** and newest-first **Operation Stream** visible. Each operation groups its auditable decision brief, bounded tool action, and persisted observation into one expandable **Decide → Act → Observe** sequence. Older successful operations collapse for density, while the live operation, newest completed operation, failures, policy blocks, and operator-required actions stay open. Permission-gated actions use focused prompts, while **Pause & Steer** makes mid-mission direction changes explicit without rewriting the original goal. Resume, Stop, and manual workspace controls remain available throughout the run.
 
 The AI Operator connection deck supports the installed Codex app login, Cursor CLI, direct OpenAI, Anthropic, and xAI/Grok API keys, OpenRouter, and custom OpenAI-compatible endpoints. Cloud presets can read provider-specific environment variables, while pasted credentials remain in Radar's local Electron settings and are never exposed to the inspected page.
 

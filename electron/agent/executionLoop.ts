@@ -26,7 +26,7 @@ type ExecuteRunLoopInput = {
   deps: AgentRuntimeDeps;
   lifecycle: AgentExecutionLifecycle;
   isStopped: (runId: string) => boolean;
-  callTool: (run: AgentRun, counters: RunCounters, call: AgentToolCall) => Promise<AgentRun>;
+  callTool: (run: AgentRun, counters: RunCounters, call: AgentToolCall, operationId?: string) => Promise<AgentRun>;
   waitForSettle: (ms: number) => Promise<void>;
   currentAuthFingerprint: () => Promise<string>;
 };
