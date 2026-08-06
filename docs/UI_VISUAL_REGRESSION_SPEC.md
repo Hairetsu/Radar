@@ -11,7 +11,7 @@ This specification extends Radar's workflow regression system so a release can a
 
 1. Is every primary operator workflow usable at the workspace and AI Operator minimum window sizes?
 2. Are text, evidence, warnings, and controls legible with the intended theme fonts rather than silent fallbacks?
-3. Do the three themes remain visually coherent and readable at common desktop sizes and zoom levels?
+3. Do the six themes remain visually coherent and readable at common desktop sizes and zoom levels?
 4. Can a keyboard or pointer user reach every critical control without clipping, overlap, or hidden scroll traps?
 5. Did a UI change alter hierarchy, density, typography, or evidence readability in a way that needs human review?
 
@@ -25,7 +25,7 @@ Radar already has a strong foundation:
 - the demo provides deterministic dense data for all twelve views;
 - failures retain screenshots, video, traces, and error context;
 - `REG-APP-004` traverses every view;
-- `REG-APP-005` switches all three themes;
+- `REG-APP-005` switches all six themes;
 - `REG-APP-006`, `REG-APP-007`, `REG-APP-009`, and `REG-AIOP-001` through `REG-AIOP-003` cover overlays, companion lifecycle, AI-First layout, Escape, focus, and pause-before-Manual safety;
 - the workspace declares `minWidth: 1120`, `minHeight: 760`, and defaults to `1480 × 940`; the AI Operator declares `minWidth: 760`, `minHeight: 640`, and defaults to `1040 × 840`;
 - the documentation screenshot runner captures a fixed `1480 × 940` fixture surface.
@@ -74,6 +74,9 @@ Pixel baselines are platform-specific. Linux CI on the pinned `ubuntu-24.04-arm`
 | Bureau | Antonio | Saira | JetBrains Mono |
 | Vellum | Instrument Serif | Hanken Grotesk | DM Mono |
 | Specter | Unbounded | Sora | Space Mono |
+| Aperture | Unbounded | Hanken Grotesk | JetBrains Mono |
+| Verdigris | Instrument Serif | Saira | DM Mono |
+| Aegis | Antonio | Sora | Space Mono |
 
 Every required role must be present as a loaded `FontFace`, used by a representative element, and available without an internet connection.
 
@@ -320,7 +323,7 @@ Reuse one application within a matrix test when only theme/view/window state cha
 
 Commit a deliberately small baseline set:
 
-1. shell plus selected Traffic detail in Bureau, Vellum, and Specter at `default`;
+1. shell plus selected Traffic detail in all six themes at `default`;
 2. Automate results at `minimum`;
 3. Findings editor/report at `minimum`;
 4. Workflows catalog/editor/graph at `laptop`;
@@ -329,23 +332,23 @@ Commit a deliberately small baseline set:
 7. AI Operator feed/inspector plus the paired workspace mission bar at `minimum` and `zoom-125`;
 8. Identity Lab matrix/comparison at `default`;
 9. long request/response evidence at `zoom-150`;
-10. shell/Traffic detail in all three themes at `zoom-90`;
+10. shell/Traffic detail in all six themes at `zoom-90`;
 11. Intercept, Findings, and AI Operator at `zoom-80`;
 12. Appearance panel showing all theme choices.
 
-This is approximately 15–20 screenshots, not every Cartesian combination.
+This is approximately 20–26 screenshots, not every Cartesian combination.
 
 ### Nightly/release matrix
 
 When `RADAR_REGRESSION_UI_FULL=1`:
 
-- capture all twelve views in all three themes at `minimum`, `default`, and `wide`;
+- capture all twelve views in all six themes at `minimum`, `default`, and `wide`;
 - run `dense` state at `wide` and `large`;
 - run all overlays and AI Operator sections at `minimum`, `zoom-125`, and `zoom-150`;
 - run every view at `zoom-90`, critical workflows at `zoom-80`, and advisory hierarchy checks at `zoom-75`;
 - run advisory `zoom-200` reachability checks;
 - run platform structural/font smoke tests on supported macOS, Windows, and Linux hosts;
-- retain all 183 actual images for the entire matrix, even when comparison is Linux-only.
+- retain every actual image for the entire matrix, even when comparison is Linux-only.
 
 ## Implemented Regression Catalog
 
@@ -447,7 +450,7 @@ Playwright's normal per-test attachments remain the source of traces, videos, an
 Automation cannot determine whether an operator can understand a dense security workbench quickly. One reviewer must perform the release-candidate pass on a normal desktop monitor and record:
 
 - reviewer, date, commit, OS, display resolution, scale factor, and Radar window profile;
-- all three themes at default size;
+- all six themes at default size;
 - Bureau at minimum size and 125% zoom;
 - all themes at 90% zoom and critical evidence/actions at 80% zoom;
 - one 150% zoom evidence-inspection flow;

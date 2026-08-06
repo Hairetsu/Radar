@@ -12,13 +12,16 @@ Radar should feel like a purpose-built defensive security workbench: dense, legi
 
 ## Themes
 
-Radar ships three deliberately different themes:
+Radar ships six deliberately different themes:
 
 - **Bureau:** Antonio, Saira, and JetBrains Mono with signal orange on warm dark slate.
 - **Vellum:** Instrument Serif, Hanken Grotesk, and DM Mono with vermillion ink on sunlit paper.
 - **Specter:** Unbounded, Sora, and Space Mono with chartreuse acid over midnight plum.
+- **Aperture:** Unbounded, Hanken Grotesk, and JetBrains Mono with survey cobalt on cool architectural porcelain.
+- **Verdigris:** Instrument Serif, Saira, and DM Mono with burnished copper over bottle green.
+- **Aegis:** Antonio, Sora, and Space Mono with glacier blue and restrained brass over command navy.
 
-Theme tokens live in `src/styles.css` as CSS variables and feed Tailwind's `@theme`. Components should use the semantic tokens instead of hard-coded theme colors so all three themes preserve the same information hierarchy.
+Theme tokens live in `src/styles.css` as CSS variables and feed Tailwind's `@theme`. Components should use the semantic tokens instead of hard-coded theme colors so all six themes preserve the same information hierarchy.
 
 ## Typography
 

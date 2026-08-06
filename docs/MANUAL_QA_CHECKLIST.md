@@ -19,7 +19,7 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] Sidebar view numbers run from **01 HTTP(S)** through **12 SSL**.
 - [ ] Project/session controls open the Local Ledger modal.
 - [ ] Session dropdown changes sessions without deleting previous evidence.
-- [ ] Theme selector switches Bureau, Vellum, and Specter without unreadable text selection.
+- [ ] Theme selector switches Bureau, Vellum, Specter, Aperture, Verdigris, and Aegis without unreadable text selection.
 - [ ] **Open Browser** opens or reports a clear browser-launch error.
 - [ ] **Search** or `Cmd/Ctrl+P` opens global search and can jump to HTTP/S, WebSocket, Repeater, Findings, Workflows, Plugins, Advanced, saved-filter, project-note, and saved-view results.
 - [ ] **Notes** opens the project artifacts panel; saving a project note and a current saved view survives project/session reload.
@@ -184,7 +184,7 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] AI-proposed run memory can be confirmed or dismissed, manual memory can be created, memory search filters entries, and memory persists after project reload.
 - [ ] Raw context stays opt-in.
 - [ ] Stopping a run prevents additional tool steps.
-- [ ] Bureau, Vellum, and Specter theme changes propagate to both windows with the intended local display/body/mono font roles.
+- [ ] All six theme changes propagate to both windows with the intended local display/body/mono font roles.
 - [ ] At 80%, 90%, 100%, 125%, 150%, and 200% zoom, both native windows preserve readable hierarchy, visible focus, internally scrollable evidence/feed, and reachable safety controls; 75% remains advisory for visual clarity.
 
 ## Local Data

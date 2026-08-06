@@ -1,4 +1,4 @@
-export const THEME_IDS = ["bureau", "vellum", "specter"] as const;
+export const THEME_IDS = ["bureau", "vellum", "specter", "aperture", "verdigris", "aegis"] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
@@ -31,6 +31,27 @@ export const THEME_OPTIONS: ThemeOption[] = [
     mood: "Midnight phosphor dark",
     description: "Chartreuse acid over plum midnight — Unbounded display, Space Mono code.",
     swatch: ["#0a0612", "#d4ff2a", "#6be3ff"]
+  },
+  {
+    id: "aperture",
+    label: "Aperture",
+    mood: "Cool analytical daylight",
+    description: "Cobalt marks on architectural porcelain — precise, quiet, and inspection-first.",
+    swatch: ["#eef2f4", "#0757a6", "#14212b"]
+  },
+  {
+    id: "verdigris",
+    label: "Verdigris",
+    mood: "Forensic archive dark",
+    description: "Burnished copper over bottle green — composed for long evidence sessions.",
+    swatch: ["#07110f", "#e5a45b", "#6aa193"]
+  },
+  {
+    id: "aegis",
+    label: "Aegis",
+    mood: "Command navy dark",
+    description: "Glacier blue on disciplined navy — high-clarity operational command.",
+    swatch: ["#07111d", "#75c8ff", "#d6a752"]
   }
 ];
 

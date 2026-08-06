@@ -46,9 +46,9 @@ pnpm test:regression:ui:update
 pnpm test:regression:ui:update:full
 ```
 
-The first update command refreshes the 19 pull-request anchors; the `:full` variant refreshes all 183 gated nightly images. Both require the explicit update guard embedded in the package scripts, and CI never updates snapshots. Complete [UI_USABILITY_REVIEW.md](UI_USABILITY_REVIEW.md), then select the release review gate with `RADAR_UI_HUMAN_REVIEW=1 pnpm test:regression:ui`.
+The first update command refreshes the reviewed pull-request anchors; the `:full` variant refreshes the complete gated nightly matrix. Both require the explicit update guard embedded in the package scripts, and CI never updates snapshots. Complete [UI_USABILITY_REVIEW.md](UI_USABILITY_REVIEW.md), then select the release review gate with `RADAR_UI_HUMAN_REVIEW=1 pnpm test:regression:ui`.
 
-GitHub Actions runs the Linux structural/font/zoom suite and approved anchors on every pull request and `develop` push. The canonical pixel runner is pinned to `ubuntu-24.04-arm` so approved snapshots and CI use the same OS and architecture. The scheduled job runs all 183 full-matrix images on Linux and native font/structure smoke on macOS and Windows; each job retains `artifacts/regression/` for 14 days.
+GitHub Actions runs the Linux structural/font/zoom suite and approved anchors on every pull request and `develop` push. The canonical pixel runner is pinned to `ubuntu-24.04-arm` so approved snapshots and CI use the same OS and architecture. The scheduled job runs the complete six-theme matrix on Linux and native font/structure smoke on macOS and Windows; each job retains `artifacts/regression/` for 14 days.
 
 Both gates can be enabled together. Standard Playwright flags remain available:
 

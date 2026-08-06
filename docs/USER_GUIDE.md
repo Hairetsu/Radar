@@ -141,7 +141,7 @@ Useful source commands:
 | `pnpm test` | Run lint, unit tests, and production build. |
 | `pnpm test:regression:build` | Build Radar and run isolated Playwright Electron workflows in parallel. |
 | `pnpm test:regression:ui:build` | Build Radar and run the blocking UI, local-font, zoom, focus, and usability matrix. |
-| `pnpm test:regression:ui:full` | Build Radar and run the scheduled 183-image view/theme/window/zoom screenshot matrix. |
+| `pnpm test:regression:ui:full` | Build Radar and run the complete scheduled view/theme/window/zoom screenshot matrix. |
 | `pnpm test:regression:report` | Open the latest interactive regression report. |
 | `pnpm screenshots` | Rebuild and refresh screenshot assets. |
 | `pnpm pack` | Build an unpacked desktop app with electron-builder. |
@@ -1782,10 +1782,13 @@ Themes:
 | Bureau | Warm operational dark with signal orange. |
 | Vellum | Sunlit editorial light with vermillion ink. |
 | Specter | Midnight phosphor dark with chartreuse and cyan accents. |
+| Aperture | Cool analytical daylight with cobalt marks on architectural porcelain. |
+| Verdigris | Forensic archive dark with burnished copper over bottle green. |
+| Aegis | Command navy dark with glacier blue and restrained brass. |
 
 Theme selection is stored in browser local storage for the app UI.
 
-Radar bundles all nine theme families locally, so appearance and evidence typography do not depend on a font CDN or an internet connection. The supported desktop usability contract covers the workspace's `1120 × 760` minimum and `1480 × 940` default, the AI Operator's `760 × 640` minimum and `1040 × 840` default, common laptop/wide sizes, 80% and 90% zoom-out clarity, and 125%/150% text enlargement in both native windows. The scheduled matrix also records advisory 75% and 200% boundaries. These are desktop workbench checks rather than phone/tablet support.
+Radar bundles all nine font families used across the six themes locally, so appearance and evidence typography do not depend on a font CDN or an internet connection. The supported desktop usability contract covers the workspace's `1120 × 760` minimum and `1480 × 940` default, the AI Operator's `760 × 640` minimum and `1040 × 840` default, common laptop/wide sizes, 80% and 90% zoom-out clarity, and 125%/150% text enlargement in both native windows. The scheduled matrix also records advisory 75% and 200% boundaries. These are desktop workbench checks rather than phone/tablet support.
 
 ## Local Data And Privacy
 

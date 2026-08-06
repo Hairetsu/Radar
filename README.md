@@ -26,6 +26,8 @@ The core workflow is deliberately simple:
 
 The [User Guide](docs/USER_GUIDE.md) covers every surface and workflow in detail.
 
+Radar includes six complete appearance systems rather than accent swaps: Bureau, Vellum, Specter, Aperture, Verdigris, and Aegis. The set spans two high-clarity light surfaces and four dark operational environments, with local display, body, and evidence typography tuned for each one.
+
 ## AI That Stays Observable
 
 AI-First does not run as a hidden background swarm. One browser operator follows task-relevant in-scope paths, lets each action settle, reads the resulting evidence, and only then chooses the next step.

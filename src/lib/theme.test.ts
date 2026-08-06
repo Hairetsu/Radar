@@ -9,8 +9,8 @@ describe("theme", () => {
     document.documentElement.dataset.theme = "";
   });
 
-  it("exposes three themes", () => {
-    expect(THEME_IDS).toEqual(["bureau", "vellum", "specter"]);
+  it("exposes six themes", () => {
+    expect(THEME_IDS).toEqual(["bureau", "vellum", "specter", "aperture", "verdigris", "aegis"]);
   });
 
   it("defaults to bureau", () => {
