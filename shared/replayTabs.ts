@@ -16,6 +16,11 @@ function cleanText(value: unknown, max: number) {
   return String(value || "").trim().slice(0, max);
 }
 
+function cleanTimestamp(value: unknown, fallback: string) {
+  const timestamp = cleanText(value, 80);
+  return timestamp && Number.isFinite(Date.parse(timestamp)) ? timestamp : fallback;
+}
+
 function normalizeHistoryEntry(input: Partial<ReplayHistoryEntry>, fallbackId: string, now: string): ReplayHistoryEntry | null {
   const result = input.result;
   if (!result || typeof result !== "object" || Array.isArray(result)) {
@@ -66,8 +71,8 @@ export function normalizeReplayTab(input: Partial<ReplayTab>, fallbackId: string
     draft: normalizeDraft(input.draft || {}),
     history,
     environmentId: cleanText(input.environmentId, 80),
-    createdAt: cleanText(input.createdAt, 80) || now,
-    updatedAt: now
+    createdAt: cleanTimestamp(input.createdAt, now),
+    updatedAt: cleanTimestamp(input.updatedAt, now)
   };
 }
 
