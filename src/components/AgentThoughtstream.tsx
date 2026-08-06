@@ -4,6 +4,7 @@ import { cn } from "../lib";
 import {
   activityLabel,
   agentThoughtstreamStep,
+  isAgentThoughtstreamRationaleEntry,
   lastIndexMatching,
   resultText,
   targetText
@@ -29,19 +30,18 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
   }
 
   const entries = run.timeline;
-  const decisionIndex = lastIndexMatching(
-    entries,
-    (entry) => Boolean(
-      entry.toolCall &&
-        (entry.phase === "decision" || (entry.phase === "policy-block" && !entry.toolResult))
-    )
-  );
+  const decisionIndex = lastIndexMatching(entries, isAgentThoughtstreamRationaleEntry);
   const rationaleIndex =
     decisionIndex >= 0 ? decisionIndex : lastIndexMatching(entries, (entry) => entry.phase === "decision");
   const callIndex = lastIndexMatching(entries, (entry) => entry.phase === "tool-call");
   const resultIndex = lastIndexMatching(
     entries,
-    (entry) => entry.phase === "tool-result" || entry.phase === "failure" || entry.phase === "policy-block"
+    (entry) => Boolean(
+      entry.toolResult ||
+        entry.phase === "tool-result" ||
+        entry.phase === "failure" ||
+        entry.phase === "policy-block"
+    )
   );
   const latestIndex = entries.length - 1;
   const latestEntry = entries[latestIndex];
@@ -122,8 +122,8 @@ export function AgentThoughtstream({ run }: { run: AgentRun | null }) {
         </div>
 
         <div className="min-w-0 bg-surface/90 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 rd-eyebrow text-muted">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+            <div className="flex shrink-0 items-center gap-2 whitespace-nowrap rd-eyebrow text-muted">
               <ScanLine size={12} strokeWidth={1.8} className="text-signal" />
               Why this step
             </div>

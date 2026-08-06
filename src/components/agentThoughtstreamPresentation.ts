@@ -30,10 +30,14 @@ function isCompletedToolEntry(entry: AgentTimelineEntry) {
   return entry.phase === "tool-result" || entry.phase === "failure" || Boolean(entry.toolResult);
 }
 
-function isStepRationaleEntry(entry: AgentTimelineEntry) {
+export function isAgentThoughtstreamRationaleEntry(entry: AgentTimelineEntry) {
   return Boolean(
     entry.toolCall &&
-      (entry.phase === "decision" || (entry.phase === "policy-block" && !entry.toolResult))
+      (
+        entry.phase === "decision" ||
+        (entry.phase === "policy-block" && !entry.toolResult) ||
+        (!entry.phase && (entry.summary || entry.note))
+      )
   );
 }
 
@@ -64,7 +68,7 @@ export function agentThoughtstreamStep(entries: AgentTimelineEntry[]): AgentThou
     if (index < activityIndex && isCompletedToolEntry(entry)) {
       break;
     }
-    if (entryTool(entry) === tool && isStepRationaleEntry(entry)) {
+    if (entryTool(entry) === tool && isAgentThoughtstreamRationaleEntry(entry)) {
       rationaleEntry = entry;
       break;
     }

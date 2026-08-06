@@ -1,32 +1,40 @@
 {
   "config": {
     "argv": [
-      "/Users/thomaswhidden/.nvm/versions/node/v22.22.0/bin/node",
-      "/Users/thomaswhidden/Documents/Radar/node_modules/@playwright/test/cli.js",
-      "test"
+      "/node22/node_modules/node/bin/node",
+      "/work/node_modules/@playwright/test/cli.js",
+      "test",
+      "tests/regression/ui-visual.spec.ts",
+      "--grep",
+      "REG-UI-020",
+      "--workers=1"
     ],
-    "configFile": "/Users/thomaswhidden/Documents/Radar/playwright.config.ts",
-    "rootDir": "/Users/thomaswhidden/Documents/Radar/tests/regression",
+    "configFile": "/work/playwright.config.ts",
+    "rootDir": "/work/tests/regression",
     "failOnFlakyTests": false,
-    "forbidOnly": false,
+    "forbidOnly": true,
     "fullyParallel": true,
-    "globalSetup": "/Users/thomaswhidden/Documents/Radar/tests/regression/globalSetup.ts",
+    "globalSetup": "/work/tests/regression/globalSetup.ts",
     "globalTeardown": null,
     "globalTimeout": 0,
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {},
+    "metadata": {
+      "actualWorkers": 1
+    },
     "preserveOutput": "always",
     "projects": [
       {
-        "outputDir": "/Users/thomaswhidden/Documents/Radar/artifacts/regression/results",
+        "outputDir": "/work/artifacts/regression/results",
         "repeatEach": 1,
-        "retries": 0,
-        "metadata": {},
+        "retries": 2,
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "",
         "name": "",
-        "testDir": "/Users/thomaswhidden/Documents/Radar/tests/regression",
+        "testDir": "/work/tests/regression",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -41,20 +49,20 @@
         null
       ],
       [
-        "/Users/thomaswhidden/Documents/Radar/tests/regression/reporters/regression-reporter.ts",
+        "/work/tests/regression/reporters/regression-reporter.ts",
         null
       ],
       [
         "html",
         {
-          "outputFolder": "/Users/thomaswhidden/Documents/Radar/artifacts/regression/html",
+          "outputFolder": "/work/artifacts/regression/html",
           "open": "never"
         }
       ],
       [
         "json",
         {
-          "outputFile": "/Users/thomaswhidden/Documents/Radar/artifacts/regression/results.json"
+          "outputFile": "/work/artifacts/regression/results.json"
         }
       ]
     ],
@@ -67,15 +75,721 @@
     "updateSnapshots": "missing",
     "updateSourceMethod": "patch",
     "version": "1.61.1",
-    "workers": 6,
+    "workers": 1,
     "webServer": null
   },
-  "suites": [],
+  "suites": [
+    {
+      "title": "ui-visual.spec.ts",
+      "file": "ui-visual.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "UI visual baselines and release review",
+          "file": "ui-visual.spec.ts",
+          "line": 95,
+          "column": 6,
+          "specs": [
+            {
+              "title": "[REG-UI-020] @ui @visual @ui-critical matches approved Linux visual anchors",
+              "ok": true,
+              "tags": [
+                "ui",
+                "visual",
+                "ui-critical"
+              ],
+              "tests": [
+                {
+                  "timeout": 1800000,
+                  "annotations": [
+                    {
+                      "type": "radar-startup-ms",
+                      "description": "843"
+                    },
+                    {
+                      "type": "ui-theme",
+                      "description": "bureau"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "default"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "traffic-bureau-default-demo"
+                    },
+                    {
+                      "type": "ui-theme",
+                      "description": "vellum"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "default"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "traffic-vellum-default-demo"
+                    },
+                    {
+                      "type": "ui-theme",
+                      "description": "specter"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "default"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "traffic-specter-default-demo"
+                    },
+                    {
+                      "type": "ui-theme",
+                      "description": "bureau"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-90"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "0.9"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1644x1044 renderer; dpr 0.8999999761581421"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "traffic-bureau-zoom-90-demo"
+                    },
+                    {
+                      "type": "ui-theme",
+                      "description": "vellum"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-90"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "0.9"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1644x1044 renderer; dpr 0.8999999761581421"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "traffic-vellum-zoom-90-demo"
+                    },
+                    {
+                      "type": "ui-theme",
+                      "description": "specter"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-90"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "0.9"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1644x1044 renderer; dpr 0.8999999761581421"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "traffic-specter-zoom-90-demo"
+                    },
+                    {
+                      "type": "ui-theme",
+                      "description": "bureau"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "minimum"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1120x760 outer; 1120x760 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "automate-bureau-minimum-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "minimum"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1120x760 outer; 1120x760 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "findings-bureau-minimum-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "laptop"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1366x768 outer; 1366x768 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "workflows-bureau-laptop-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-150"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1.5"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1920x1080 outer; 1920x1080 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "traffic-bureau-zoom-150-evidence"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-80"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "0.8"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "intercept-bureau-zoom-80-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-80"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "0.8"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1850x1175 renderer; dpr 0.800000011920929"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "findings-bureau-zoom-80-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "minimum"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1120x760 outer; 1120x760 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "project-artifacts-bureau-minimum-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-125"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1.25"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1184x752 renderer; dpr 1.25"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "global-search-bureau-zoom-125-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-125"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1.25"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1040x840 outer; 832x672 renderer; dpr 1.25"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "ai-operator-bureau-zoom-125-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "minimum"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "760x640 outer; 760x640 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "ai-operator-bureau-minimum-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "zoom-80"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "0.8"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1040x840 outer; 1300x1050 renderer; dpr 0.800000011920929"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "ai-operator-bureau-zoom-80-demo"
+                    },
+                    {
+                      "type": "ui-profile",
+                      "description": "default"
+                    },
+                    {
+                      "type": "ui-zoom",
+                      "description": "1"
+                    },
+                    {
+                      "type": "ui-dimensions",
+                      "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "identity-bureau-default-demo"
+                    },
+                    {
+                      "type": "ui-visual-anchor",
+                      "description": "appearance-bureau-default"
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 15335,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-05T20:42:29.920Z",
+                      "annotations": [
+                        {
+                          "type": "radar-startup-ms",
+                          "description": "843"
+                        },
+                        {
+                          "type": "ui-theme",
+                          "description": "bureau"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "default"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "traffic-bureau-default-demo"
+                        },
+                        {
+                          "type": "ui-theme",
+                          "description": "vellum"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "default"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "traffic-vellum-default-demo"
+                        },
+                        {
+                          "type": "ui-theme",
+                          "description": "specter"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "default"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "traffic-specter-default-demo"
+                        },
+                        {
+                          "type": "ui-theme",
+                          "description": "bureau"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-90"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "0.9"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1644x1044 renderer; dpr 0.8999999761581421"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "traffic-bureau-zoom-90-demo"
+                        },
+                        {
+                          "type": "ui-theme",
+                          "description": "vellum"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-90"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "0.9"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1644x1044 renderer; dpr 0.8999999761581421"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "traffic-vellum-zoom-90-demo"
+                        },
+                        {
+                          "type": "ui-theme",
+                          "description": "specter"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-90"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "0.9"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1644x1044 renderer; dpr 0.8999999761581421"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "traffic-specter-zoom-90-demo"
+                        },
+                        {
+                          "type": "ui-theme",
+                          "description": "bureau"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "minimum"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1120x760 outer; 1120x760 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "automate-bureau-minimum-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "minimum"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1120x760 outer; 1120x760 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "findings-bureau-minimum-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "laptop"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1366x768 outer; 1366x768 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "workflows-bureau-laptop-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-150"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1.5"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1920x1080 outer; 1920x1080 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "traffic-bureau-zoom-150-evidence"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-80"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "0.8"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "intercept-bureau-zoom-80-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-80"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "0.8"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1850x1175 renderer; dpr 0.800000011920929"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "findings-bureau-zoom-80-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "minimum"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1120x760 outer; 1120x760 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "project-artifacts-bureau-minimum-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-125"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1.25"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1184x752 renderer; dpr 1.25"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "global-search-bureau-zoom-125-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-125"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1.25"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1040x840 outer; 832x672 renderer; dpr 1.25"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "ai-operator-bureau-zoom-125-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "minimum"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "760x640 outer; 760x640 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "ai-operator-bureau-minimum-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "zoom-80"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "0.8"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1040x840 outer; 1300x1050 renderer; dpr 0.800000011920929"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "ai-operator-bureau-zoom-80-demo"
+                        },
+                        {
+                          "type": "ui-profile",
+                          "description": "default"
+                        },
+                        {
+                          "type": "ui-zoom",
+                          "description": "1"
+                        },
+                        {
+                          "type": "ui-dimensions",
+                          "description": "1480x940 outer; 1480x940 renderer; dpr 1"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "identity-bureau-default-demo"
+                        },
+                        {
+                          "type": "ui-visual-anchor",
+                          "description": "appearance-bureau-default"
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2babfd383ec87dc54970-48e070cbf724925f2de4",
+              "file": "ui-visual.spec.ts",
+              "line": 98,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "errors": [],
   "stats": {
-    "startTime": "2026-08-04T23:17:52.405Z",
-    "duration": 6.01400000000001,
-    "expected": 0,
+    "startTime": "2026-08-05T20:42:29.499Z",
+    "duration": 15790.635,
+    "expected": 1,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

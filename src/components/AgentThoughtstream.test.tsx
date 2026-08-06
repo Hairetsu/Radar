@@ -242,6 +242,34 @@ describe("AgentThoughtstream", () => {
     expect(screen.getByTestId("agentThoughtstreamStepStatus")).toHaveTextContent("failed");
   });
 
+  it("preserves rationale and result text for legacy combined tool entries", () => {
+    render(<AgentThoughtstream run={activeRun({
+      status: "completed",
+      timeline: [
+        {
+          id: "legacy-query",
+          createdAt: "2026-07-19T21:16:20.000Z",
+          note: "Prepared a visible traffic query for authenticated cache behavior.",
+          toolCall: {
+            tool: "prepareTrafficQuery",
+            input: { query: "has:auth", reason: "Review cache behavior" }
+          },
+          toolResult: {
+            tool: "prepareTrafficQuery",
+            ok: true,
+            data: { query: "has:auth", reason: "Review cache behavior" }
+          }
+        }
+      ]
+    })} />);
+
+    expect(screen.getByTestId("agentThoughtstreamRationale")).toHaveTextContent(
+      "Prepared a visible traffic query for authenticated cache behavior."
+    );
+    expect(screen.getByTestId("agentThoughtstreamStepStatus")).toHaveTextContent("completed");
+    expect(screen.getByText("prepareTrafficQuery completed successfully.")).toBeInTheDocument();
+  });
+
   it("labels Tutorial Mode pauses as lesson checkpoints", () => {
     const run = activeRun({
       status: "paused",
