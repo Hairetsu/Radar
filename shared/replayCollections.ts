@@ -10,6 +10,11 @@ function cleanText(value: unknown, max: number) {
   return String(value || "").trim().slice(0, max);
 }
 
+function cleanTimestamp(value: unknown, fallback: string) {
+  const timestamp = cleanText(value, 80);
+  return timestamp && Number.isFinite(Date.parse(timestamp)) ? timestamp : fallback;
+}
+
 function cleanTags(input: unknown) {
   if (!Array.isArray(input)) {
     return [];
@@ -31,8 +36,8 @@ export function normalizeReplayCollectionItem(
     name,
     draft: normalizeDraft(input.draft || {}),
     tags: cleanTags(input.tags),
-    createdAt: cleanText(input.createdAt, 80) || now,
-    updatedAt: now
+    createdAt: cleanTimestamp(input.createdAt, now),
+    updatedAt: cleanTimestamp(input.updatedAt, now)
   };
 }
 
@@ -56,8 +61,8 @@ export function normalizeReplayCollection(input: Partial<ReplayCollection>, fall
     id: cleanText(input.id, 80) || fallbackId,
     name,
     items,
-    createdAt: cleanText(input.createdAt, 80) || now,
-    updatedAt: now
+    createdAt: cleanTimestamp(input.createdAt, now),
+    updatedAt: cleanTimestamp(input.updatedAt, now)
   };
 }
 

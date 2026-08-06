@@ -1,13 +1,16 @@
 import type { Page, TestInfo } from "@playwright/test";
 
-export const UI_THEMES = ["bureau", "vellum", "specter"] as const;
+export const UI_THEMES = ["bureau", "vellum", "specter", "aperture", "verdigris", "aegis"] as const;
 export type UiTheme = (typeof UI_THEMES)[number];
 export type FontRole = "display" | "sans" | "mono";
 
 export const THEME_FONT_ROLES: Record<UiTheme, Record<FontRole, string>> = {
   bureau: { display: "Antonio", sans: "Saira", mono: "JetBrains Mono" },
   vellum: { display: "Instrument Serif", sans: "Hanken Grotesk", mono: "DM Mono" },
-  specter: { display: "Unbounded", sans: "Sora", mono: "Space Mono" }
+  specter: { display: "Unbounded", sans: "Sora", mono: "Space Mono" },
+  aperture: { display: "Unbounded", sans: "Hanken Grotesk", mono: "JetBrains Mono" },
+  verdigris: { display: "Instrument Serif", sans: "Saira", mono: "DM Mono" },
+  aegis: { display: "Antonio", sans: "Sora", mono: "Space Mono" }
 };
 
 export type FontAudit = {

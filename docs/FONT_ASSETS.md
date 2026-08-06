@@ -13,6 +13,15 @@ Radar's production typography is bundled locally through exact, lockfile-pinned 
 | Specter | Display | Unbounded | `@fontsource/unbounded` |
 | Specter | Sans | Sora | `@fontsource/sora` |
 | Specter | Mono | Space Mono | `@fontsource/space-mono` |
+| Aperture | Display | Unbounded | `@fontsource/unbounded` |
+| Aperture | Sans | Hanken Grotesk | `@fontsource/hanken-grotesk` |
+| Aperture | Mono | JetBrains Mono | `@fontsource/jetbrains-mono` |
+| Verdigris | Display | Instrument Serif | `@fontsource/instrument-serif` |
+| Verdigris | Sans | Saira | `@fontsource/saira` |
+| Verdigris | Mono | DM Mono | `@fontsource/dm-mono` |
+| Aegis | Display | Antonio | `@fontsource/antonio` |
+| Aegis | Sans | Sora | `@fontsource/sora` |
+| Aegis | Mono | Space Mono | `@fontsource/space-mono` |
 
 The imported `latin.css` files include the available normal weights. Italic CSS is included for JetBrains Mono, Instrument Serif, Hanken Grotesk, DM Mono, and Space Mono because those styles are part of Radar's declared typography contract.
 

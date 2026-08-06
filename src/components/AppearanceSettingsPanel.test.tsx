@@ -15,6 +15,9 @@ describe("AppearanceSettingsPanel", () => {
     expect(screen.getByTestId("themeOption-bureau")).toBeInTheDocument();
     expect(screen.getByTestId("themeOption-vellum")).toBeInTheDocument();
     expect(screen.getByTestId("themeOption-specter")).toBeInTheDocument();
+    expect(screen.getByTestId("themeOption-aperture")).toBeInTheDocument();
+    expect(screen.getByTestId("themeOption-verdigris")).toBeInTheDocument();
+    expect(screen.getByTestId("themeOption-aegis")).toBeInTheDocument();
   });
 
   it("selects a theme", async () => {
@@ -25,6 +28,16 @@ describe("AppearanceSettingsPanel", () => {
     );
     await user.click(screen.getByTestId("themeOption-vellum"));
     expect(onThemeChange).toHaveBeenCalledWith("vellum");
+  });
+
+  it("selects a newly added theme", async () => {
+    const onThemeChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppearanceSettingsPanel open themeId="bureau" onClose={vi.fn()} onThemeChange={onThemeChange} />
+    );
+    await user.click(screen.getByTestId("themeOption-verdigris"));
+    expect(onThemeChange).toHaveBeenCalledWith("verdigris");
   });
 
   it("restores focus to the control that opened it", async () => {

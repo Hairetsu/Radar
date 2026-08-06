@@ -960,6 +960,13 @@ describe("AgentRuntime", () => {
     const toolIndex = timelineEntries.findIndex((entry) => entry.phase === "tool-call");
     expect(missionIndex).toBeGreaterThan(-1);
     expect(toolIndex).toBeGreaterThan(missionIndex);
+    const operationEntries = timelineEntries.filter(
+      (entry) => entry.toolCall?.tool === "getBrowserState" || entry.toolResult?.tool === "getBrowserState" || entry.note?.includes("Mission graph advanced")
+    );
+    expect(operationEntries.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(operationEntries.map((entry) => entry.operationId)).size).toBe(1);
+    expect(operationEntries[0]?.operationId).toMatch(/^operation_/);
+    expect(operationEntries.find((entry) => entry.phase === "tool-result")?.durationMs).toBeGreaterThanOrEqual(0);
   });
 
   it("pauses before tool execution when the planner adds an operator question", async () => {

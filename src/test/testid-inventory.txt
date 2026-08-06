@@ -1,8 +1,10 @@
 advancedImportPreview
 advancedImportText
 advancedWorkbench
+agentAuditDetailToggle
 agentCapabilityLedger
 agentCapabilityReview
+agentEvidencePreview
 agentFollowLatest
 agentGoalInput
 agentMemoryCreate
@@ -11,6 +13,7 @@ agentMemorySearch
 agentMemoryTitle
 agentMissionBar
 agentMissionGraph
+agentOperationAuditDetail
 agentProfileSelect
 agentThoughtstream
 agentThoughtstreamLive
@@ -138,6 +141,7 @@ clearTrafficFilters
 clearWebSocketEvents
 clearWebSocketFilters
 cloneToRepeater
+closeAgentEvidencePreview
 closeGlobalSearch
 closeProjectArtifacts
 commandPalette
@@ -314,6 +318,7 @@ resumeAllIntercepts
 resumeAutomateSession
 retryAutomateSession
 returnToManual
+revealPreviewInWorkspace
 runBurst
 runGlobalSearch
 runPluginApi

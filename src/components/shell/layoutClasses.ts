@@ -15,7 +15,7 @@ export const monoMuted = "font-mono text-meta tracking-data text-muted";
 export const ellipsisMono = cn(monoMuted, "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap");
 
 /**
- * Tab strips scroll rather than clip: the three themes ship different mono
+ * Tab strips scroll rather than clip: the themes use different mono
  * faces, and Space Mono in particular is wide enough to overflow the pane.
  */
 const tabScrollClass = "overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";

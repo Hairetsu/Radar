@@ -113,7 +113,7 @@ Generate fixtures in a per-test temporary directory:
 | `REG-APP-002` | `@core` `@security` | Launch four Radar instances concurrently. | Unique user-data paths, databases, proxy ports, debug ports, and unchanged state across instances. |
 | `REG-APP-003` | `@smoke` | Load the demo from Projects. | Demo project/session names, scope, captures, frames, findings, workflows, plugin, and advanced signals appear. |
 | `REG-APP-004` | `@core` | Navigate all twelve numbered views. | Correct active marker, heading, controls, and no page/console error for every view. |
-| `REG-APP-005` | `@core` | Switch Bureau, Vellum, and Specter themes. | Theme persists after reload and selected evidence remains readable/visible. |
+| `REG-APP-005` | `@core` | Switch all six production themes. | Theme persists after reload and selected evidence remains readable/visible. |
 | `REG-APP-006` | `@core` | Open and close Search, Notes, Projects, and Appearance with buttons and Escape; route AI settings to the companion. | Only the intended workspace overlay is active, focus returns to its trigger, and AI settings create no workspace modal. |
 | `REG-APP-007` | `@core` | Open/focus the AI Operator without submitting a goal. | One companion appears, Manual-First remains visible, no agent/provider request is created, and evidence width does not shrink. |
 | `REG-APP-008` | `@core` | Create and switch sessions from both quick selector and Projects panel. | Active session changes and prior evidence counts remain intact. |
@@ -373,7 +373,7 @@ Generate fixtures in a per-test temporary directory:
 | --- | --- | --- | --- |
 | `REG-UI-001` | `@ui` `@ui-critical` | Resize the real Electron window to the supported minimum. | Persistent shell remains visible with no global horizontal overflow. |
 | `REG-UI-002` | `@ui` `@font` `@security` | Load every production theme without network access. | Pinned local faces load and no external font/resource request or silent fallback occurs. |
-| `REG-UI-003` | `@ui` `@font` | Switch through Bureau, Vellum, and Specter. | Display, sans, and mono samples resolve to each theme's intended families. |
+| `REG-UI-003` | `@ui` `@font` | Switch through all six production themes. | Display, sans, and mono samples resolve to each theme's intended families. |
 | `REG-UI-004` | `@ui` `@usability` | Inspect editable, evidence, supporting, and control type roles. | Computed sizes and multiline line heights remain above the role contract. |
 | `REG-UI-005` | `@ui` `@usability` | Traverse all twelve workspace views, Identity Lab, and AI Operator at each native minimum. | Required controls are visible or scroll-reachable and focusable where interactive. |
 | `REG-UI-006` | `@ui` | Traverse every view at laptop and default profiles. | Each view avoids global overflow and preserves its primary surface. |

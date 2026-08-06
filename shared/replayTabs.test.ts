@@ -45,6 +45,31 @@ describe("replayTabs", () => {
     expect(state.tabs[0].id).toBe("b");
   });
 
+  it("preserves valid persisted timestamps during normalization", () => {
+    const state = normalizeReplayTabState(
+      {
+        tabs: [
+          {
+            id: "a",
+            name: "A",
+            pinned: false,
+            draft: { method: "GET", url: "", headers: {}, body: "" },
+            history: [],
+            environmentId: "",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-02T00:00:00.000Z"
+          }
+        ],
+        activeTabId: "a"
+      },
+      "2026-02-01T00:00:00.000Z"
+    );
+    expect(state.tabs[0]).toMatchObject({
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z"
+    });
+  });
+
   it("drops invalid tabs and history entries", () => {
     const state = normalizeReplayTabState({
       tabs: [{ id: "a", name: "", draft: {}, history: [{ id: "h1" }], environmentId: "", createdAt: "", updatedAt: "" }],

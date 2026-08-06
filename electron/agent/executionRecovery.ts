@@ -19,7 +19,8 @@ type ResumeCheckpointInput = {
   callTool: (
     run: AgentRun,
     counters: RunCounters,
-    call: AgentToolCall
+    call: AgentToolCall,
+    operationId?: string
   ) => Promise<AgentRun>;
 };
 
