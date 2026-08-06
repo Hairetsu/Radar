@@ -1,39 +1,49 @@
 # Radar Regression Report
 
-Generated: 2026-08-04T23:17:52.413Z
-Overall result: **INTERRUPTED**
-Workers: 6
-Wall time: 0.0s
-Aggregate workflow time: 0.0s
+Generated: 2026-08-05T20:42:45.298Z
+Overall result: **PASSED**
+Workers: 1
+Wall time: 15.8s
+Aggregate workflow time: 15.3s
 
 ## Outcome
 
 | Passed | Failed | Flaky | Skipped | Selected |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 0 | 0 | 0 |
+| 1 | 0 | 0 | 0 | 1 |
 
 ## Release Signals
 
 - No blocking workflow failures were detected.
 - No flaky workflows were detected.
 - No selected workflows were skipped.
-- No workflow crossed the 10-second slow-test threshold.
+- 1 workflow(s) exceeded 10 seconds; review the slowest-workflow table for startup, polling, or IPC latency.
 - No security-tagged release blockers were detected.
 - No critical UI/font/usability release blockers were detected.
 - The scheduled full UI matrix was not selected for this invocation.
 - The installed-browser platform matrix was not selected for this invocation.
 - Catalog automation: 192/192 stable IDs (100.0%).
-- This invocation selected 0/192 catalog IDs.
+- This invocation selected 1/192 catalog IDs.
 
 ## Results By Tag
 
 | Tag | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| @ui | 1 | 0 | 0 | 0 | 1 |
+| @ui-critical | 1 | 0 | 0 | 0 | 1 |
+| @visual | 1 | 0 | 0 | 0 | 1 |
 
 ## Results By Product Surface
 
 | Surface | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| UI, Typography & Usability | 1 | 0 | 0 | 0 | 1 |
+
+## Results By UI Environment
+
+| Environment | Passed | Failed | Flaky | Skipped | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| theme: bureau, vellum, specter · profile: default, zoom-90, minimum, laptop, zoom-150, zoom-80, zoom-125 · zoom: 1, 0.9, 1.5, 0.8, 1.25 | 1 | 0 | 0 | 0 | 1 |
 
 ## Changes From Prior Local Report
 
@@ -57,10 +67,11 @@ No failed workflows.
 
 | Rank | Workflow | Outcome | Duration | Attempts |
 | ---: | --- | --- | ---: | ---: |
+| 1 | **REG-UI-020** [REG-UI-020] @ui @visual @ui-critical matches approved Linux visual anchors | passed | 15.3s | 1 |
 
 ## Application Startup Distribution
 
-No standard fixture startup samples were recorded in this invocation.
+Samples: 1 · min 0.8s · median 0.8s · p95 0.8s · max 0.8s.
 
 ## Skipped Coverage Gaps
 

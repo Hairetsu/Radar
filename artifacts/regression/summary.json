@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-08-04T23:17:52.414Z",
-  "status": "interrupted",
-  "wallTimeMs": 6.01400000000001,
-  "workers": 6,
+  "generatedAt": "2026-08-05T20:42:45.298Z",
+  "status": "passed",
+  "wallTimeMs": 15790.635,
+  "workers": 1,
   "counts": {
-    "passed": 0,
+    "passed": 1,
     "failed": 0,
     "flaky": 0,
     "skipped": 0
@@ -15,5 +15,54 @@
     "humanReviewSelected": false,
     "blockerIds": []
   },
-  "tests": []
+  "tests": [
+    {
+      "id": "REG-UI-020",
+      "title": "[REG-UI-020] @ui @visual @ui-critical matches approved Linux visual anchors",
+      "outcome": "passed",
+      "durationMs": 15335,
+      "attempts": 1,
+      "startupMs": 843,
+      "uiTheme": [
+        "bureau",
+        "vellum",
+        "specter"
+      ],
+      "uiProfile": [
+        "default",
+        "zoom-90",
+        "minimum",
+        "laptop",
+        "zoom-150",
+        "zoom-80",
+        "zoom-125"
+      ],
+      "uiZoom": [
+        "1",
+        "0.9",
+        "1.5",
+        "0.8",
+        "1.25"
+      ],
+      "uiState": [],
+      "uiDimensions": [
+        "1480x940 outer; 1480x940 renderer; dpr 1",
+        "1480x940 outer; 1644x1044 renderer; dpr 0.8999999761581421",
+        "1120x760 outer; 1120x760 renderer; dpr 1",
+        "1366x768 outer; 1366x768 renderer; dpr 1",
+        "1920x1080 outer; 1920x1080 renderer; dpr 1",
+        "1480x940 outer; 1850x1175 renderer; dpr 0.800000011920929",
+        "1480x940 outer; 1184x752 renderer; dpr 1.25",
+        "1040x840 outer; 832x672 renderer; dpr 1.25",
+        "760x640 outer; 760x640 renderer; dpr 1",
+        "1040x840 outer; 1300x1050 renderer; dpr 0.800000011920929"
+      ],
+      "tags": [
+        "@ui",
+        "@visual",
+        "@ui-critical"
+      ],
+      "file": "tests/regression/ui-visual.spec.ts"
+    }
+  ]
 }
