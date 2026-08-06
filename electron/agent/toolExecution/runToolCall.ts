@@ -21,6 +21,7 @@ type RunToolCallInput = {
   run: AgentRun;
   counters: RunCounters;
   call: AgentToolCall;
+  operationId?: string;
   deps: AgentRuntimeDeps;
   currentAuthFingerprint: () => Promise<string>;
 };
@@ -29,10 +30,12 @@ export async function runToolCall({
   run,
   counters,
   call,
+  operationId,
   deps,
   currentAuthFingerprint
 }: RunToolCallInput) {
     const normalizedCall = normalizeAgentToolCall(call);
+    const activeOperationId = operationId || createId("operation");
     const blocked = blockedToolReason({
       call: normalizedCall,
       allowlist: deps.allowlist(),
@@ -50,6 +53,7 @@ export async function runToolCall({
         timeline: [
           ...run.timeline,
           timeline(blocked, {
+            operationId: activeOperationId,
             phase: "policy-block",
             summary: `Policy blocked ${normalizedCall.tool}`,
             target: visibleTargetForTool(normalizedCall),
@@ -66,7 +70,8 @@ export async function runToolCall({
       counters,
       call: normalizedCall,
       deps,
-      currentAuthFingerprint
+      currentAuthFingerprint,
+      operationId: activeOperationId
     });
     run = authorization.run;
     if (authorization.blocked) {
@@ -86,6 +91,7 @@ export async function runToolCall({
       timeline: [
         ...run.timeline,
         timeline(`Tool call: ${normalizedCall.tool}`, {
+          operationId: activeOperationId,
           phase: "tool-call",
           summary: `${normalizedCall.tool} requested`,
           target: visibleTargetForTool(normalizedCall),
@@ -96,6 +102,7 @@ export async function runToolCall({
       ]
     });
 
+    const toolStartedAt = Date.now();
     const result = await executeAgentTool({
       run,
       counters,
@@ -120,6 +127,8 @@ export async function runToolCall({
       timeline: [
         ...next.timeline,
         timeline(`Tool result: ${normalizedCall.tool}`, {
+          operationId: activeOperationId,
+          durationMs: Date.now() - toolStartedAt,
           phase: result.ok ? "tool-result" : "failure",
           summary: result.ok ? `${normalizedCall.tool} completed` : `${normalizedCall.tool} failed`,
           target: visibleTargetForTool(normalizedCall),
@@ -136,6 +145,7 @@ export async function runToolCall({
               timeline(
                 `Capability lease revoked: ${finalized.revocationNote}`,
                 {
+                  operationId: activeOperationId,
                   phase: "policy-block" as const,
                   summary: "Unexpected effect revoked capability lease",
                   target: visibleTargetForTool(normalizedCall),

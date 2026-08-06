@@ -226,7 +226,7 @@ Radar uses Tailwind CSS v4 with shadcn practices. Follow these rules when adding
 
 - Use the shared type scale (`text-nano`, `text-micro`, `text-label`, `text-meta`, `text-body`, `text-lead`, `text-title`, `text-head`, `text-mark`) and tracking scale (`tracking-data`, `tracking-key`, `tracking-label`, `tracking-eyebrow`, `tracking-banner`). Do not introduce new arbitrary `text-[Npx]` or `tracking-[N.Nem]` values — add a scale step if a genuinely new size is needed.
 - Use the label roles `rd-eyebrow`, `rd-label`, `rd-label-sm`, and `rd-banner` for the repeating uppercase mono chrome instead of respelling `font-mono text-X uppercase tracking-Y`. Colour stays a utility so callers can tone them per context.
-- Because the three themes ship different mono faces with different widths, prefer ellipsis and scrollable strips over fixed widths for label-bearing chrome.
+- Because the six themes use mono faces with different widths, prefer ellipsis and scrollable strips over fixed widths for label-bearing chrome.
 
 ### Focus and motion
 

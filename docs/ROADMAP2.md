@@ -211,4 +211,4 @@ These are useful but should not outrank Phase A/B:
 - Invisible proxy mode.
 - Full active AI orchestration without operator review.
 - Cloud sync.
-- Visual theme expansion beyond the current three themes.
+- Additional visual theme expansion beyond the current six themes.

@@ -288,8 +288,11 @@ describe("AiOperatorApp", () => {
         {
           id: "entry-latest",
           createdAt: "2026-05-25T00:00:20.000Z",
+          operationId: "operation-latest",
           phase: "decision",
-          summary: "Inspect the visible account boundary."
+          summary: "Inspect the visible account boundary.",
+          target: { view: "traffic", evidenceId: "capture-1" },
+          toolCall: { tool: "getCaptures", input: {} }
         }
       ]
     });
@@ -298,20 +301,30 @@ describe("AiOperatorApp", () => {
     render(<AiOperatorApp />);
 
     const timeline = await screen.findByTestId("agentTimeline");
-    const renderedEntries = [...timeline.querySelectorAll<HTMLElement>("[data-entry-id]")];
-    expect(renderedEntries.map((entry) => entry.dataset.entryId)).toEqual([
-      "entry-latest",
+    const renderedItems = [...timeline.querySelectorAll<HTMLElement>("[data-operation-id], [data-entry-id]")];
+    expect(renderedItems.map((entry) => entry.dataset.operationId || entry.dataset.entryId)).toEqual([
+      "operation-latest",
       "entry-oldest"
     ]);
-    expect(renderedEntries[0]?.parentElement?.parentElement).toHaveClass("animate-[stream-append_560ms_cubic-bezier(0.22,0.72,0.18,1)_both]");
-    expect(renderedEntries[0]).not.toHaveClass("opacity-0");
-    expect(renderedEntries[1]?.parentElement?.parentElement?.className).not.toContain("stream-append");
+    expect(timeline.querySelector("[data-stream-operation-shell='operation-latest']")).toHaveClass("animate-[stream-append_560ms_cubic-bezier(0.22,0.72,0.18,1)_both]");
+    expect(screen.getByTestId("agentOperationBody-operation-latest")).toBeInTheDocument();
     expect(screen.getByTestId("agentThoughtstreamLive")).toHaveTextContent("Streaming");
     expect(screen.getByTestId("aiOperatorActiveControls")).toHaveTextContent("Review tenant isolation");
     expect(screen.getByTestId("aiOperatorActiveControls")).toHaveTextContent("Pause & Steer");
     expect(screen.getByTestId("pauseAgentRun")).toHaveAccessibleName("Pause run and open mission steering");
     expect(screen.queryByTestId("agentGoalInput")).not.toBeInTheDocument();
     expect(screen.queryByTestId("agentProfileSelect")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("agentAuditDetailToggle"));
+    expect(screen.getByTestId("agentOperationAuditDetail")).toHaveTextContent("entry-latest");
+    fireEvent.click(screen.getByTestId("previewOperationTarget-operation-latest"));
+    expect(screen.getByTestId("agentEvidencePreview")).toHaveTextContent("capture-1");
+    fireEvent.click(screen.getByTestId("revealPreviewInWorkspace"));
+    expect(api.dispatchWorkspaceIntent).toHaveBeenCalledWith({
+      type: "reveal-timeline-target",
+      runId: "run-test",
+      entryId: "entry-latest"
+    });
 
     const scroller = screen.getByTestId("aiOperatorTranscriptScroller");
     const scrollTo = vi.fn();

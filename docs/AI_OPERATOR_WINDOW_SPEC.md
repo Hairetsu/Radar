@@ -545,7 +545,7 @@ Exit check: no AI operations drawer or AI settings modal remains in the main wor
 ### Phase 6 - Regression, Documentation, And Release Review
 
 - Add unit, Electron, renderer, and multi-window Playwright coverage.
-- Add AI Operator visual baselines for all three themes and supported window/zoom profiles.
+- Add AI Operator visual baselines for all six themes and supported window/zoom profiles.
 - Update README, User Guide, Code Conventions, Manual QA, Regression Suite, Regression Testing, UI visual spec, and screenshots.
 - Run the standard lint, unit, build, full UI, and human review gates.
 

@@ -440,6 +440,50 @@ describe("global search", () => {
     ).toBe("collection");
   });
 
+  it("keeps tied replay drafts in deterministic source order", () => {
+    const timestamp = "2026-05-25T00:00:00.000Z";
+    const result = searchGlobal(
+      {
+        replayTabState: {
+          activeTabId: "tab-1",
+          tabs: [
+            {
+              id: "tab-1",
+              name: "Pinned draft",
+              pinned: true,
+              draft: { method: "GET", url: "https://app.test/pinned", headers: {}, body: "" },
+              history: [],
+              environmentId: "",
+              createdAt: timestamp,
+              updatedAt: timestamp
+            }
+          ]
+        },
+        replayCollections: [
+          {
+            id: "collection-1",
+            name: "Review set",
+            items: [
+              {
+                id: "item-1",
+                name: "Collection draft",
+                draft: { method: "GET", url: "https://app.test/collection", headers: {}, body: "" },
+                tags: [],
+                createdAt: timestamp,
+                updatedAt: timestamp
+              }
+            ],
+            createdAt: timestamp,
+            updatedAt: timestamp
+          }
+        ]
+      },
+      { query: "kind:replay", limit: 10 }
+    );
+
+    expect(result.results.map((item) => item.title)).toEqual(["Pinned draft", "Review set / Collection draft"]);
+  });
+
   it("reports invalid filters and paginates safe defaults", () => {
     expect(parseGlobalSearchQuery('"unterminated')).toEqual({ ok: false, error: "Unclosed quoted search term." });
     expect(searchGlobal({}, { query: "kind:not-real", limit: 10 })).toMatchObject({

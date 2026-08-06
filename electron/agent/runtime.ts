@@ -655,11 +655,12 @@ export class AgentRuntime {
     return stopped.has(runId) || persisted?.status === "stopped" || persisted?.status === "paused";
   }
 
-  private callTool(run: AgentRun, counters: RunCounters, call: AgentToolCall) {
+  private callTool(run: AgentRun, counters: RunCounters, call: AgentToolCall, operationId?: string) {
     return runToolCall({
       run,
       counters,
       call,
+      operationId,
       deps: this.deps,
       currentAuthFingerprint: () => this.currentAuthFingerprint()
     });
@@ -671,7 +672,7 @@ export class AgentRuntime {
       deps: this.deps,
       lifecycle: { running, stopped, requestedRunStatus },
       isStopped: (id) => this.isStopped(id),
-      callTool: (run, counters, call) => this.callTool(run, counters, call),
+      callTool: (run, counters, call, operationId) => this.callTool(run, counters, call, operationId),
       waitForSettle: (ms) => this.waitForSettle(ms),
       currentAuthFingerprint: () => this.currentAuthFingerprint()
     });

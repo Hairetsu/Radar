@@ -220,7 +220,7 @@ async function run() {
     await aiOperatorFeed.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
     await aiOperatorFeed.webContents.executeJavaScript(`window.localStorage.setItem("radar.theme", "bureau");`);
     await aiOperatorFeed.loadURL(`${PREVIEW_URL}/?surface=ai-operator`);
-    await waitForTestId(aiOperatorFeed, "agentTimelineEntry-feed-cookie-decision");
+    await waitForTestId(aiOperatorFeed, "agentOperation-operation-cookie");
     await capture(aiOperatorFeed, "radar-11-ai-operator-feed.png");
     aiOperatorFeed.destroy();
 

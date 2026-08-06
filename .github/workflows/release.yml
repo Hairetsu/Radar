@@ -190,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      actions: read
+      actions: write
       contents: write
       pull-requests: write
 
@@ -246,6 +246,13 @@ jobs:
             --body "Sync the released ${RELEASE_TAG} history and version metadata back into develop. This PR is generated after the release is published and must not trigger another promotion.")"
           echo "url=${pr_url}" >> "$GITHUB_OUTPUT"
 
+      - name: Dispatch trusted sync CI
+        if: steps.sync.outputs.required == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
+        run: gh workflow run ci.yml --ref "${SYNC_BRANCH}"
+
       - name: Wait for sync CI
         if: steps.sync.outputs.required == 'true'
         env:
@@ -258,7 +265,7 @@ jobs:
             run_id="$(gh run list \
               --workflow ci.yml \
               --branch "${SYNC_BRANCH}" \
-              --event pull_request \
+              --event workflow_dispatch \
               --limit 20 \
               --json databaseId,headSha \
               --jq ".[] | select(.headSha == \"${SYNC_SHA}\") | .databaseId" \
@@ -277,11 +284,19 @@ jobs:
           gh run watch "${run_id}" --exit-status
 
           ci_sha="$(gh run view "${run_id}" --json headSha --jq '.headSha')"
-          test_conclusion="$(gh run view "${run_id}" --json jobs --jq '.jobs[] | select(.name == "test") | .conclusion')"
-          if [ "${ci_sha}" != "${SYNC_SHA}" ] || [ "${test_conclusion}" != "success" ]; then
-            echo "Pull-request CI did not produce a successful test job for ${SYNC_SHA}." >&2
+          job_conclusions="$(gh run view "${run_id}" --json jobs)"
+          if [ "${ci_sha}" != "${SYNC_SHA}" ]; then
+            echo "Dispatched CI ran against ${ci_sha}, expected ${SYNC_SHA}." >&2
             exit 1
           fi
+
+          for required_job in test ui-regression; do
+            conclusion="$(jq -r --arg name "${required_job}" '.jobs[] | select(.name == $name) | .conclusion' <<<"${job_conclusions}")"
+            if [ "${conclusion}" != "success" ]; then
+              echo "Dispatched CI job ${required_job} was ${conclusion:-missing} for ${SYNC_SHA}." >&2
+              exit 1
+            fi
+          done
 
       - name: Merge released tag back into develop
         if: steps.sync.outputs.required == 'true'

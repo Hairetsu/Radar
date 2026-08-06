@@ -12,7 +12,7 @@ Radar window profile: TBD
 
 ## Required Review
 
-- [ ] Bureau, Vellum, and Specter are readable at the default window size.
+- [ ] Bureau, Vellum, Specter, Aperture, Verdigris, and Aegis are readable at the default window size.
 - [ ] Bureau remains operable at the minimum window size.
 - [ ] All themes preserve hierarchy and legibility at 90% zoom.
 - [ ] Traffic, Intercept, Repeater, Automate, Findings, Workflows, Scope, Project Artifacts, and AI-First preserve critical evidence/actions at 80% zoom.

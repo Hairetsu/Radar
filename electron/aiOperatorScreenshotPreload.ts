@@ -36,6 +36,7 @@ const tutorialTimeline: AgentTimelineEntry[] = [
   {
     id: "step-screenshot",
     createdAt: "2026-05-25T00:00:30.000Z",
+    operationId: "operation-tutorial",
     phase: "decision",
     summary: "Inspect the visible authorization boundary",
     note: "Tutorial checkpoint reached. Review the clue before continuing.",
@@ -67,6 +68,7 @@ const feedTimeline: AgentTimelineEntry[] = [
   {
     id: "feed-open-decision",
     createdAt: "2026-05-25T00:00:05.000Z",
+    operationId: "operation-open",
     phase: "decision",
     summary: "Open the authenticated dashboard before choosing a test path",
     note: "The dashboard is the smallest visible boundary that can reveal account and session routes.",
@@ -76,6 +78,7 @@ const feedTimeline: AgentTimelineEntry[] = [
   {
     id: "feed-open-call",
     createdAt: "2026-05-25T00:00:06.000Z",
+    operationId: "operation-open",
     phase: "tool-call",
     summary: "Open the scoped dashboard in Radar Browser",
     target: { browserUrl: "http://localhost:3000/dashboard" },
@@ -84,6 +87,7 @@ const feedTimeline: AgentTimelineEntry[] = [
   {
     id: "feed-open-result",
     createdAt: "2026-05-25T00:00:12.000Z",
+    operationId: "operation-open",
     phase: "tool-result",
     summary: "Dashboard loaded and produced six in-scope requests",
     note: "Navigation settled before the operator continued into page and traffic analysis.",
@@ -105,6 +109,7 @@ const feedTimeline: AgentTimelineEntry[] = [
   {
     id: "feed-text-decision",
     createdAt: "2026-05-25T00:00:18.000Z",
+    operationId: "operation-text",
     phase: "decision",
     summary: "Read the visible account controls before interacting",
     note: "Passive page evidence can identify the relevant object and session surfaces without mutating application state.",
@@ -114,6 +119,7 @@ const feedTimeline: AgentTimelineEntry[] = [
   {
     id: "feed-text-result",
     createdAt: "2026-05-25T00:00:21.000Z",
+    operationId: "operation-text",
     phase: "tool-result",
     summary: "Account, billing, and session controls identified",
     note: "The visible page exposes an account identifier and a link to active sessions.",
@@ -131,6 +137,7 @@ const feedTimeline: AgentTimelineEntry[] = [
   {
     id: "feed-captures-result",
     createdAt: "2026-05-25T00:00:27.000Z",
+    operationId: "operation-captures",
     phase: "tool-result",
     summary: "Six run-attributed captures added to the evidence stream",
     note: "The account and session endpoints are now available for scoped comparison.",
@@ -140,6 +147,7 @@ const feedTimeline: AgentTimelineEntry[] = [
   {
     id: "feed-cookie-decision",
     createdAt: "2026-05-25T00:00:32.000Z",
+    operationId: "operation-cookie",
     phase: "decision",
     summary: "Assess cookie protections before testing the account boundary",
     note: "The next passive step checks whether the observed session cookie has the expected transport and browser protections.",
