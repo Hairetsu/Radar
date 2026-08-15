@@ -328,7 +328,7 @@ export function useAiOperator() {
   const resumeRun = useCallback(async () => {
     if (!activeRun) return;
     if (capabilityReviewRequired) {
-      setNotice("Review and grant the pending exact bounds in Leases before resuming.");
+      setNotice("Review and approve the pending authority in Leases before resuming.");
       return;
     }
     setPending(true);

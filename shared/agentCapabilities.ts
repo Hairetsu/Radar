@@ -6,6 +6,7 @@ export {
   normalizeAgentCapabilityState
 } from "./agentCapabilities/normalization.js";
 export {
+  expandAgentCapabilityLeaseForMatchingActions,
   grantAgentCapabilityLease,
   invalidateAgentCapabilityLease,
   proposeAgentCapabilityLease,

@@ -39,7 +39,7 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
       <Button type="button" variant="outline" size="compact" disabled={!controller.canResume || controller.pending} onClick={() => void controller.resumeRun()} data-testid="resumeAgentRun">
         {controller.capabilityReviewRequired ? <KeyRound size={12} /> : <Play size={12} />}
         {controller.capabilityReviewRequired
-          ? "Grant Lease First"
+          ? "Approve Lease First"
           : run?.policy.tutorialMode
             ? "Continue Lesson"
             : "Resume"}
