@@ -832,7 +832,7 @@ describe("AgentRuntime", () => {
 
     await vi.waitFor(() => {
       expect(() => runtime.resume(run.id)).toThrow(
-        "Grant the pending capability lease"
+        "Approve the pending capability lease"
       );
     });
     const paused = runs.get(run.id);
@@ -862,7 +862,7 @@ describe("AgentRuntime", () => {
       ]
     });
     expect(() => runtime.resume(run.id)).toThrow(
-      "Grant the pending capability lease"
+      "Approve the pending capability lease"
     );
     const legacyPaused = runs.get(run.id);
     const draft = legacyPaused?.capabilities?.leases.find(
@@ -885,6 +885,71 @@ describe("AgentRuntime", () => {
         decision: "allowed",
         status: "succeeded"
       })
+    ]);
+  });
+
+  it("approves repeated matching clicks without widening beyond the current origin", async () => {
+    let decisions = 0;
+    const { runtime, runs, clickElement } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com", "https://api.hairetsu.com"],
+      browserState: {
+        open: true,
+        url: "https://hairetsu.com/login",
+        title: "Sign in",
+        loading: false,
+        engine: "chrome"
+      },
+      decideNextAction: async () => {
+        decisions += 1;
+        return decisions <= 2
+          ? {
+              action: "tool" as const,
+              call: {
+                tool: "clickElement" as const,
+                input: { selector: decisions === 1 ? "#login" : "#learn-more" }
+              },
+              rationale: "Inspect another visible control on this origin."
+            }
+          : { action: "finish" as const, rationale: "Visible controls reviewed.", findings: [] };
+      }
+    });
+    const run = runtime.start({
+      goal: "Inspect the sign-in surface",
+      startUrl: "https://hairetsu.com/login",
+      profileId: "browser-assessment"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    const paused = runs.get(run.id);
+    const draft = paused?.capabilities?.leases.find((lease) => lease.status === "draft");
+    const granted = await runtime.updateCapabilities(run.id, {
+      action: "grant",
+      approval: "all-matching",
+      expectedRevision: paused?.capabilities?.revision || 0,
+      leaseId: draft?.id || ""
+    });
+    expect(granted?.capabilities?.leases.at(-1)).toMatchObject({
+      status: "granted",
+      tools: ["clickElement"],
+      grants: [
+        {
+          origin: "https://hairetsu.com",
+          method: "GET",
+          pathPrefix: "/",
+          identity: "current"
+        }
+      ],
+      maxUses: 12,
+      maxRequests: 20
+    });
+
+    runtime.resume(run.id);
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(clickElement).toHaveBeenCalledTimes(2);
+    expect(runs.get(run.id)?.capabilities?.leases).toHaveLength(1);
+    expect(runs.get(run.id)?.capabilities?.receipts).toEqual([
+      expect.objectContaining({ tool: "clickElement", decision: "allowed", status: "succeeded" }),
+      expect.objectContaining({ tool: "clickElement", decision: "allowed", status: "succeeded" })
     ]);
   });
 

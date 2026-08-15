@@ -310,6 +310,23 @@ describe("agent planner", () => {
     });
   });
 
+  it("treats explicitly empty optional mission patches as no-ops", () => {
+    for (const missionPatch of [{}, { baseRevision: 4 }, { baseRevision: 4, updates: [] }, null]) {
+      expect(
+        normalizeAgentDecision({
+          action: "tool",
+          tool: "analyzeSecurityHeaders",
+          input: {},
+          missionPatch
+        })
+      ).toEqual({
+        action: "tool",
+        call: { tool: "analyzeSecurityHeaders", input: { targetOrigin: "" } },
+        rationale: ""
+      });
+    }
+  });
+
   it("ignores provider-authored lease bounds and retains the selected tool", () => {
     expect(
       normalizeAgentDecision({

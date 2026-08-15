@@ -19,6 +19,7 @@ import {
 } from "../../shared/agentMission.js";
 import {
   createAgentCapabilityState,
+  expandAgentCapabilityLeaseForMatchingActions,
   grantAgentCapabilityLease,
   normalizeAgentCapabilityActionRequest,
   proposeAgentCapabilityLease,
@@ -87,7 +88,7 @@ function pendingCapabilityGrant(run: AgentRun) {
 
 function capabilityGrantError(tool: string, leaseName?: string) {
   return leaseName
-    ? `Grant the pending capability lease "${leaseName}" before resuming ${tool}. Granting authority and resuming are separate operator actions.`
+    ? `Approve the pending capability lease "${leaseName}" before resuming ${tool}. Approving authority and resuming are separate operator actions.`
     : `Grant a matching capability lease before retrying ${tool}. Retry cannot grant authority.`;
 }
 
@@ -174,7 +175,20 @@ export class AgentRuntime {
       note = `Operator proposed capability lease ${result.lease.id}: ${result.lease.name}`;
     } else if (request.action === "grant") {
       const profile = getAgentRunProfile(run.profileId);
-      const result = grantAgentCapabilityLease(state, request.leaseId, {
+      let grantState = state;
+      if (request.approval === "all-matching") {
+        const expanded = expandAgentCapabilityLeaseForMatchingActions(
+          state,
+          request.leaseId,
+          profile.capabilityCeiling,
+          nowIso()
+        );
+        if (!expanded.ok) {
+          throw new Error(expanded.error);
+        }
+        grantState = expanded.state;
+      }
+      const result = grantAgentCapabilityLease(grantState, request.leaseId, {
         allowlist: this.deps.allowlist(),
         allowedTools: profile.allowedTools,
         ceiling: profile.capabilityCeiling,
@@ -185,7 +199,9 @@ export class AgentRuntime {
         throw new Error(result.error);
       }
       nextState = result.state;
-      note = `Operator granted capability lease ${result.lease.id} until ${result.lease.expiresAt}.`;
+      note = request.approval === "all-matching"
+        ? `Operator approved all matching ${result.lease.tools.join(" + ")} actions on the granted origin until ${result.lease.expiresAt}.`
+        : `Operator granted capability lease ${result.lease.id} until ${result.lease.expiresAt}.`;
       const currentCheckpoint = normalizedCheckpoint(run);
       if (!currentCheckpoint.pendingCapabilityCall) {
         const blockedCall = [...run.timeline]

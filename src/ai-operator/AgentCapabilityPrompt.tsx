@@ -49,7 +49,7 @@ export function AgentCapabilityPrompt({ controller }: { controller: AiOperatorCo
 
         <div className="min-h-0 overflow-y-auto px-5 py-5 sm:px-6">
           <p id="capability-permission-description" className="max-w-[62ch] text-body leading-6 text-copy">
-            The agent is paused before this action. Review the exact authority below, then grant or deny it.
+            The agent is paused before this action. Review the exact authority below, then approve or deny it.
           </p>
 
           <div className="mt-4 border border-sand/30 bg-ink/45 p-4">
@@ -89,7 +89,7 @@ export function AgentCapabilityPrompt({ controller }: { controller: AiOperatorCo
 
         <footer className="grid gap-3 border-t border-rule bg-ink/55 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
           <p className="font-mono text-micro leading-4 text-muted">
-            Grant records only these bounds. Resume remains a separate operator action.
+            Approve Once keeps the exact path above. Approve All covers this tool across paths on the same origin, method, and identity, within the current profile, Scope, auth binding, and budgets. Resume remains separate.
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             <Button
@@ -108,11 +108,24 @@ export function AgentCapabilityPrompt({ controller }: { controller: AiOperatorCo
               variant="solid"
               size="compact"
               disabled={controller.pending}
-              onClick={() => void controller.updateCapabilities({ action: "grant", leaseId: lease.id })}
+              onClick={() => void controller.updateCapabilities({ action: "grant", leaseId: lease.id, approval: "once" })}
               data-testid="capabilityPermissionGrant"
             >
-              <ShieldCheck size={12} /> Grant Exact Bounds
+              <ShieldCheck size={12} /> Approve Once
             </Button>
+            {lease.tools.length === 1 && lease.grants.length === 1 && (
+              <Button
+                type="button"
+                variant="zap"
+                size="compact"
+                disabled={controller.pending}
+                onClick={() => void controller.updateCapabilities({ action: "grant", leaseId: lease.id, approval: "all-matching" })}
+                title="Approve matching calls for this tool on the same origin, method, and identity within the run's caps"
+                data-testid="capabilityPermissionGrantAll"
+              >
+                <ShieldCheck size={12} /> Approve All
+              </Button>
+            )}
           </div>
         </footer>
       </section>
