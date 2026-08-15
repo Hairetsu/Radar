@@ -9,6 +9,10 @@ const ciWorkflow = readFileSync(
   new URL("../.github/workflows/ci.yml", import.meta.url),
   "utf8"
 );
+const codeOwners = readFileSync(
+  new URL("../.github/CODEOWNERS", import.meta.url),
+  "utf8"
+);
 
 describe("release sync workflow", () => {
   it("opens the backmerge pull request as a maintainer and waits for protected checks", () => {
@@ -26,5 +30,9 @@ describe("release sync workflow", () => {
     expect(ciWorkflow).not.toContain(
       "github.event.pull_request.user.login == 'github-actions[bot]'"
     );
+  });
+
+  it("assigns all GitHub automation configuration to the repository owner", () => {
+    expect(codeOwners).toContain("/.github/ @Hairetsu");
   });
 });

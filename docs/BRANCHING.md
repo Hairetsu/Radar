@@ -24,6 +24,7 @@ Radar uses `develop` as the integration branch and `master` as the release branc
 - Force pushes are blocked.
 - Branch deletion is blocked.
 - Pull requests are required.
+- All `.github/` configuration is owned by `@Hairetsu` through `.github/CODEOWNERS`; the `develop` ruleset requires code-owner review for changes under that directory and grants only `Hairetsu` an always-allow bypass for owner-authored maintenance.
 - Pull-request branches must be current with `develop` before merge so their successful checks cover the exact base used by the merge commit.
 - The CI `test` and `ui-regression` status checks are required before merge.
 
