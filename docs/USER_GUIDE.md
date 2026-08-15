@@ -1494,6 +1494,8 @@ Each graph mutation increments its revision. The planner receives the current gr
 
 Evidence is enforced at the graph boundary. Every graph evidence reference must resolve in the current local evidence catalog. A hypothesis cannot become **supported**, a claim cannot become **supported** or **verified**, and a coverage cell cannot become **covered** without locally resolvable evidence.
 
+When a run completes, Radar reconciles any transient graph states the planner did not close explicitly. Active or planned objectives become **completed**; testing hypotheses return to **open** unless evidence supported a stronger terminal status; running experiments become **completed**; planned experiments become **skipped**; and planned or testing coverage returns to **untested** unless evidence already marked it covered. Existing supported, rejected, failed, blocked, skipped, contradicted, verified, and covered states are preserved. This prevents a completed run from appearing to have work still executing without inventing evidence-backed conclusions.
+
 The graph is visible while a run is active, but steering is locked until the run is settled. To steer it:
 
 1. Click **Pause** and wait for the current tool to settle. A run already paused for recovery or an operator question is ready to steer.

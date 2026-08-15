@@ -4,6 +4,10 @@ export {
   normalizeAgentMission
 } from "./agentMission/normalization.js";
 export {
+  completeAgentMission,
+  reconcileCompletedAgentMission
+} from "./agentMission/lifecycle.js";
+export {
   applyAgentMissionPatch,
   applyAgentMissionUpdates,
   normalizeAgentMissionPatch,
