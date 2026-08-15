@@ -68,6 +68,24 @@ pnpm test:regression:ui:build
 
 `pnpm test` runs lint, unit tests, and the production build. The blocking UI regression command also validates Radar's desktop readability, fonts, zoom behavior, and core usability contracts.
 
+Reproducible test images are provided for Ubuntu and Windows:
+
+```bash
+docker build -f docker/Dockerfile.ubuntu -t radar-test:ubuntu .
+docker run --rm --init --shm-size=1g radar-test:ubuntu
+```
+
+The Ubuntu image runs lint, unit tests, the production build, and the complete Electron/Playwright regression suite under Xvfb. The Windows Server image runs lint, unit tests, the production build, an NSIS package build, and the complete default Electron/Playwright regression suite with GPU acceleration disabled. Build it from a Docker daemon switched to Windows containers:
+
+```powershell
+docker build -f docker/Dockerfile.windows -t radar-test:windows .
+docker run --rm radar-test:windows
+```
+
+The Windows container regression is non-interactive Playwright automation. Windows containers do not provide an interactive desktop, so the native Windows platform matrix remains a Windows-host/VM release gate. See [Regression Testing](docs/REGRESSION_TESTING.md#container-test-images) for artifact mounts, platform requirements, and the equivalent native command.
+
+The first image build needs network access to download the base image, Node, pnpm packages, Electron, and Chromium. After a successful build, those dependencies are baked into the image and the maintained test gates use local fixtures, so the containers can be run without internet access.
+
 ## Stack
 
 - Electron 42, React 18, Vite, and strict TypeScript

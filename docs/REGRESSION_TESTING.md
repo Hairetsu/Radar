@@ -67,6 +67,47 @@ Open the latest interactive report with:
 pnpm test:regression:report
 ```
 
+## Container Test Images
+
+Radar includes two test-runner images. Their source tree and dependency install are baked into the image, and their default commands run the appropriate platform gate.
+
+The initial image build requires network access for the base image and pinned tool/dependency downloads. Electron and Chromium are materialized during that build rather than on first test launch. Once the image exists locally, the maintained gates use deterministic loopback fixtures and can run offline; tests intentionally aimed at a real external service are outside these container defaults.
+
+### Ubuntu 24.04
+
+Build and run the complete lint, unit, production-build, and Electron/Playwright regression gate:
+
+```bash
+docker build --file docker/Dockerfile.ubuntu --tag radar-test:ubuntu .
+mkdir -p artifacts/regression
+docker run --rm --init --shm-size=1g \
+  --mount type=bind,source="$(pwd)/artifacts/regression",target=/workspace/artifacts/regression \
+  radar-test:ubuntu
+```
+
+The image supports `linux/amd64` and `linux/arm64`, installs the same Ubuntu runtime libraries used by CI, and launches Electron under Xvfb. Radar's approved pixel baselines are produced on Ubuntu ARM64; use `--platform linux/arm64` on both `docker build` and `docker run` when the container is being used as the canonical screenshot gate. Cross-architecture emulation is substantially slower than a native ARM64 runner.
+
+### Windows Server 2022
+
+Switch Docker Desktop or the host daemon to Windows containers, then build and run the Windows-native gate:
+
+```powershell
+docker build --file docker/Dockerfile.windows --tag radar-test:windows .
+docker run --rm radar-test:windows
+```
+
+The default command runs lint, unit regressions, the production build, a Windows x64 NSIS package build, and the complete default Electron/Playwright regression suite with one worker. It uses the full-API Windows Server 2022 base image and disables GPU acceleration for the container run. The image is `windows/amd64` and requires a compatible Windows host; use Hyper-V isolation when the host and container kernel versions require it.
+
+Playwright controls Electron non-interactively inside the container. Windows containers still do not provide an interactive desktop, so run the platform-specific native smoke on a Windows host or VM as the authoritative display and managed-browser gate:
+
+```powershell
+pnpm build
+$env:RADAR_REGRESSION_PLATFORM = "1"
+pnpm exec playwright test tests/regression/ui-fonts.spec.ts tests/regression/ui-keyboard.spec.ts tests/regression/ui-layout.spec.ts --grep "REG-UI-(001|002|003|005|015|022|025)" --workers=1
+```
+
+Linux and Windows images cannot be built by the same single-mode Docker daemon at once. Switch Docker Desktop between Linux and Windows container modes, or build each image on a matching CI runner. Override the default container command only when narrowing a diagnosis; the defaults are the maintained gates.
+
 ## Parallel Application Instances
 
 Every standard Playwright case gets a separate Electron process with:

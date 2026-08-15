@@ -1,0 +1,76 @@
+# escape=`
+
+FROM mcr.microsoft.com/windows/server:ltsc2022
+
+ARG NODE_VERSION=22.23.2
+ARG NODE_SHA256=1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99f97
+ARG PNPM_VERSION=9.15.9
+
+SHELL ["powershell", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+RUN $archive = 'C:\node.zip'; `
+    $url = "https://nodejs.org/dist/v$env:NODE_VERSION/node-v$env:NODE_VERSION-win-x64.zip"; `
+    $attempt = 1; `
+    while ($true) { `
+      try { `
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive; `
+        break `
+      } catch { `
+        if ($attempt -ge 3) { throw }; `
+        $attempt += 1; `
+        Remove-Item -Path $archive -Force -ErrorAction SilentlyContinue; `
+        Write-Host "Retrying Node.js download ($attempt/3)" `
+      } `
+    }; `
+    $actualHash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant(); `
+    if ($actualHash -ne $env:NODE_SHA256.ToLowerInvariant()) { throw "Node.js archive checksum mismatch: $actualHash" }; `
+    Expand-Archive -Path $archive -DestinationPath C:\; `
+    Move-Item -Path "C:\node-v$env:NODE_VERSION-win-x64" -Destination C:\nodejs; `
+    Remove-Item -Force $archive
+
+ENV NODE_HOME="C:\nodejs" `
+    PNPM_HOME="C:\pnpm" `
+    PLAYWRIGHT_BROWSERS_PATH="C:\ms-playwright" `
+    RADAR_REGRESSION_DISABLE_GPU=1 `
+    PATH="C:\nodejs;C:\pnpm;${PATH}" `
+    CI=1
+
+RUN npm config set prefix C:\pnpm; `
+    npm install --global "pnpm@$env:PNPM_VERSION"; `
+    npm cache clean --force; `
+    pnpm --version
+
+WORKDIR C:\workspace
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Materialize Electron and Chromium during the image build. Radar's unit tests
+# verify that an allowlisted system browser exists, while Windows containers do
+# not provide Edge or Chrome by default.
+RUN $attempt = 1; `
+    while ($true) { `
+      node -e "const executablePath = require('electron'); if (typeof executablePath !== 'string' || !executablePath.trim()) process.exit(1)"; `
+      if ($LASTEXITCODE -eq 0) { break }; `
+      if ($attempt -ge 3) { exit $LASTEXITCODE }; `
+      $attempt += 1; `
+      Write-Host "Retrying Electron binary download ($attempt/3)" `
+    }
+
+RUN $attempt = 1; `
+    while ($true) { `
+      pnpm exec playwright install chromium --no-shell; `
+      if ($LASTEXITCODE -eq 0) { break }; `
+      if ($attempt -ge 3) { exit $LASTEXITCODE }; `
+      $attempt += 1; `
+      Write-Host "Retrying Playwright browser download ($attempt/3)" `
+    }; `
+    $chromiumPath = node -e "const { chromium } = require('@playwright/test'); process.stdout.write(chromium.executablePath())"; `
+    if (!(Test-Path -Path $chromiumPath -PathType Leaf)) { throw "Chromium executable not found: $chromiumPath" }; `
+    $chromeRoot = 'C:\Program Files\Google\Chrome'; `
+    New-Item -ItemType Directory -Path $chromeRoot -Force | Out-Null; `
+    New-Item -ItemType Junction -Path "$chromeRoot\Application" -Target (Split-Path -Parent $chromiumPath) | Out-Null
+
+COPY . .
+
+CMD ["pnpm.cmd", "test:container:windows"]

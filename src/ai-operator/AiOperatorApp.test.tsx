@@ -379,7 +379,9 @@ describe("AiOperatorApp", () => {
   });
 
   it("moves provider editing into the companion and publishes through explicit probes", async () => {
-    const api = operatorApi();
+    const api = operatorApi({
+      refreshAiModels: vi.fn(async () => [{ id: "radar-fixture-model", label: "Radar fixture model" }])
+    });
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
     render(<AiOperatorApp />);
 
@@ -389,6 +391,7 @@ describe("AiOperatorApp", () => {
     await waitFor(() => expect(api.setAiSettings).toHaveBeenCalled());
     expect(api.probeAiConnection).toHaveBeenCalled();
     expect(api.refreshAiModels).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("aiModel")).toHaveValue("radar-fixture-model"));
   });
 
   it("offers first-class cloud key providers without carrying credentials across them", async () => {

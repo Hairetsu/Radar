@@ -20,6 +20,7 @@ import type {
   AppMode
 } from "../../shared/agent-types.js";
 import type { AiSettings, AiConnectPresetId, AiModelOption } from "../../shared/ai-types.js";
+import { pickValidModel } from "../../shared/ai-models.js";
 import type { LocalContext } from "../../shared/domain.js";
 import type {
   AiConnectionSummary,
@@ -548,6 +549,9 @@ export function useAiOperator() {
       if (probe?.ok) {
         const nextModels = await operatorApi().refreshAiModels(saved);
         setModels(nextModels);
+        const nextSettings = { ...saved, model: pickValidModel(saved.model, nextModels) };
+        setSettings(nextSettings);
+        setConnection((current) => ({ ...current, model: nextSettings.model }));
       }
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : "AI settings could not be saved.");
@@ -564,7 +568,11 @@ export function useAiOperator() {
       setConnection(connectionSummary(result.settings, result.probe.ok, false, result.probe.message));
       setConnectionError(result.probe.ok ? "" : result.probe.message);
       if (result.probe.ok) {
-        setModels(await operatorApi().refreshAiModels(result.settings));
+        const nextModels = await operatorApi().refreshAiModels(result.settings);
+        const nextSettings = { ...result.settings, model: pickValidModel(result.settings.model, nextModels) };
+        setModels(nextModels);
+        setSettings(nextSettings);
+        setConnection((current) => ({ ...current, model: nextSettings.model }));
       } else {
         setModels([]);
       }
