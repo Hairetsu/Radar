@@ -125,6 +125,7 @@ capabilityPathInput
 capabilityPermissionBackdrop
 capabilityPermissionDeny
 capabilityPermissionGrant
+capabilityPermissionGrantAll
 capabilityPropose
 capabilityReasonInput
 capabilityReceipts

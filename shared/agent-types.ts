@@ -802,7 +802,7 @@ export type AgentCapabilityState = {
 
 export type AgentCapabilityAction =
   | { action: "propose"; lease: AgentCapabilityLeaseRequest }
-  | { action: "grant"; leaseId: string }
+  | { action: "grant"; leaseId: string; approval?: "once" | "all-matching" }
   | { action: "revoke"; leaseId: string; reason?: string };
 
 export type AgentCapabilityActionRequest = { expectedRevision: number } & AgentCapabilityAction;

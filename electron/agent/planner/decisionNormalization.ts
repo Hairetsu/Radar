@@ -10,6 +10,23 @@ function objectValue(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+function isEmptyAgentMissionPatch(value: unknown) {
+  if (value === null) {
+    return true;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const input = value as Record<string, unknown>;
+  const keys = Object.keys(input);
+  return (
+    keys.length === 0 ||
+    (keys.every((key) => key === "baseRevision" || key === "updates") &&
+      (input.updates === undefined ||
+        (Array.isArray(input.updates) && input.updates.length === 0)))
+  );
+}
+
 function normalizeConfidence(value: unknown) {
   const confidence = String(value || "low");
   return confidence === "medium" || confidence === "high" ? confidence : "low";
@@ -50,8 +67,12 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
   const action = String(parsed.action || "").toLowerCase();
   const missionPatch = normalizeAgentMissionPatch(parsed.missionPatch);
   const tutorial = normalizeAgentTutorialGuidance(parsed.tutorial);
-  if (parsed.missionPatch !== undefined && !missionPatch) {
-    throw new Error("Agent missionPatch was invalid or empty.");
+  if (
+    parsed.missionPatch !== undefined &&
+    !missionPatch &&
+    !isEmptyAgentMissionPatch(parsed.missionPatch)
+  ) {
+    throw new Error("Agent missionPatch was invalid.");
   }
   if (action === "finish") {
     return {

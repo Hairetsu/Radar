@@ -6,6 +6,7 @@ import {
   agentToolRiskTier,
   authorizeAgentCapability,
   createAgentCapabilityState,
+  expandAgentCapabilityLeaseForMatchingActions,
   grantAgentCapabilityLease,
   hasMatchingAgentCapabilityLease,
   normalizeAgentCapabilityActionRequest,
@@ -153,6 +154,19 @@ describe("agent capability leases", () => {
       expectedRevision: 3,
       leaseId: "lease-1"
     });
+    expect(
+      normalizeAgentCapabilityActionRequest({
+        action: "grant",
+        expectedRevision: 3,
+        leaseId: "lease-1",
+        approval: "all-matching"
+      })
+    ).toEqual({
+      action: "grant",
+      expectedRevision: 3,
+      leaseId: "lease-1",
+      approval: "all-matching"
+    });
     expect(normalizeAgentCapabilityActionRequest({ action: "revoke", expectedRevision: 4, leaseId: "lease-1", reason: "Narrow scope" })).toEqual({
       action: "revoke",
       expectedRevision: 4,
@@ -160,6 +174,13 @@ describe("agent capability leases", () => {
       reason: "Narrow scope"
     });
     expect(normalizeAgentCapabilityActionRequest({ action: "grant", leaseId: "" })).toBeNull();
+    expect(
+      normalizeAgentCapabilityActionRequest({
+        action: "grant",
+        leaseId: "lease-1",
+        approval: "everything-everywhere"
+      })
+    ).toBeNull();
     expect(normalizeAgentCapabilityActionRequest({ action: "propose", lease: {} })).toBeNull();
     expect(normalizeAgentCapabilityActionRequest({ action: "unknown" })).toBeNull();
   });
@@ -230,6 +251,89 @@ describe("agent capability leases", () => {
     if (granted.ok) {
       expect(grantAgentCapabilityLease(granted.state, "lease-1", { allowlist: [], allowedTools: [], authFingerprint: "", now: NOW })).toMatchObject({ ok: false, error: expect.stringContaining("draft") });
     }
+  });
+
+  it("expands approve-all authority only across matching paths and profile caps", () => {
+    const proposed = proposeAgentCapabilityLease(
+      createAgentCapabilityState(),
+      request({
+        name: "Authorize clickElement",
+        tools: ["clickElement"],
+        grants: [
+          {
+            origin: "https://api.target.test",
+            method: "GET",
+            pathPrefix: "/v1/invoices/817?panel=activity",
+            identity: "user-b"
+          }
+        ],
+        maxUses: 1,
+        maxRequests: 1,
+        maxPayloadBytes: 0
+      }),
+      "lease-click",
+      NOW
+    );
+    expect(proposed.ok).toBe(true);
+    if (!proposed.ok) return;
+
+    const expanded = expandAgentCapabilityLeaseForMatchingActions(
+      proposed.state,
+      proposed.lease.id,
+      {
+        maxRiskTier: "active",
+        maxDurationMs: 300_000,
+        maxUses: 12,
+        maxRequests: 20,
+        maxConcurrency: 1,
+        maxPayloadBytes: 256 * 1024
+      },
+      NOW
+    );
+    expect(expanded).toMatchObject({
+      ok: true,
+      state: { revision: 1 },
+      lease: {
+        status: "draft",
+        tools: ["clickElement"],
+        grants: [
+          {
+            origin: "https://api.target.test",
+            method: "GET",
+            pathPrefix: "/",
+            identity: "user-b"
+          }
+        ],
+        durationMs: 300_000,
+        maxUses: 12,
+        maxRequests: 20,
+        maxConcurrency: 1,
+        maxPayloadBytes: 0
+      }
+    });
+    expect(
+      expandAgentCapabilityLeaseForMatchingActions(
+        {
+          ...proposed.state,
+          leases: [
+            {
+              ...proposed.lease,
+              tools: ["clickElement", "sendReplay"]
+            }
+          ]
+        },
+        proposed.lease.id,
+        {
+          maxRiskTier: "active",
+          maxDurationMs: 300_000,
+          maxUses: 12,
+          maxRequests: 20,
+          maxConcurrency: 1,
+          maxPayloadBytes: 256 * 1024
+        },
+        NOW
+      )
+    ).toMatchObject({ ok: false, error: expect.stringContaining("one tool") });
   });
 
   it("authorizes only a matching exact tuple and atomically exhausts usage", () => {

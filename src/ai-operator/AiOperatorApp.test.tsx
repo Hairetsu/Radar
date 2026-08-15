@@ -206,7 +206,7 @@ describe("AiOperatorApp", () => {
     await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "draft-finding", entryId: "failure-1" }));
   });
 
-  it("opens pending authority as a focused permission dialog and disables resume until review", async () => {
+  it("opens pending authority with once and approve-all choices and disables resume until review", async () => {
     const pending = run({
       checkpoint: {
         startUrl: "https://target.test/login",
@@ -265,11 +265,13 @@ describe("AiOperatorApp", () => {
     expect(permissionDialog).toHaveTextContent("Authorize clickElement");
     expect(screen.getByTestId("capabilityPermissionDeny")).toHaveFocus();
     expect(screen.getByTestId("resumeAgentRun")).toBeDisabled();
-    expect(screen.getByTestId("resumeAgentRun")).toHaveTextContent("Grant Lease First");
-    fireEvent.click(screen.getByTestId("capabilityPermissionGrant"));
+    expect(screen.getByTestId("resumeAgentRun")).toHaveTextContent("Approve Lease First");
+    expect(screen.getByTestId("capabilityPermissionGrant")).toHaveTextContent("Approve Once");
+    fireEvent.click(screen.getByTestId("capabilityPermissionGrantAll"));
 
     await waitFor(() => expect(updateAgentCapabilities).toHaveBeenCalledWith("run-test", {
       action: "grant",
+      approval: "all-matching",
       expectedRevision: 1,
       leaseId: "lease-click"
     }));

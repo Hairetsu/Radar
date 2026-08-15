@@ -179,7 +179,7 @@ export function AgentCapabilityLedger({
               <Plus size={11} /> Propose For Review
             </Button>
             <p className="font-mono text-micro leading-4 text-muted">
-              {canEdit ? "DRAFT ONLY · Grant is a separate operator action and never resumes the run" : "PAUSE TO CHANGE AUTHORITY"}
+              {canEdit ? "DRAFT ONLY · Approval is a separate operator action and never resumes the run" : "PAUSE TO CHANGE AUTHORITY"}
             </p>
           </form>
 
@@ -208,9 +208,16 @@ export function AgentCapabilityLedger({
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {lease.status === "draft" && (
-                      <Button type="button" variant="solid" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "grant", leaseId: lease.id })} data-testid={`capabilityGrant-${lease.id}`}>
-                        <ShieldCheck size={11} /> Grant Exact Bounds
-                      </Button>
+                      <>
+                        <Button type="button" variant="solid" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "grant", leaseId: lease.id, approval: "once" })} data-testid={`capabilityGrant-${lease.id}`}>
+                          <ShieldCheck size={11} /> Approve Once
+                        </Button>
+                        {lease.tools.length === 1 && lease.grants.length === 1 && (
+                          <Button type="button" variant="zap" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "grant", leaseId: lease.id, approval: "all-matching" })} title="Approve matching calls for this tool on the same origin, method, and identity within the run's caps" data-testid={`capabilityGrantAll-${lease.id}`}>
+                            <ShieldCheck size={11} /> Approve All
+                          </Button>
+                        )}
+                      </>
                     )}
                     {(lease.status === "draft" || lease.status === "granted") && (
                       <Button type="button" variant="ghost" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "revoke", leaseId: lease.id, reason: lease.status === "draft" ? "Denied by operator." : "Revoked by operator." })} data-testid={`capabilityRevoke-${lease.id}`}>

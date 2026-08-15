@@ -107,6 +107,46 @@ export function grantAgentCapabilityLease(
   };
 }
 
+export function expandAgentCapabilityLeaseForMatchingActions(
+  current: AgentCapabilityState,
+  leaseId: string,
+  ceiling: AgentCapabilityCeiling,
+  now = new Date().toISOString()
+): { ok: true; state: AgentCapabilityState; lease: AgentCapabilityLease } | { ok: false; error: string } {
+  const state = normalizeAgentCapabilityState(current, now);
+  const lease = state.leases.find((item) => item.id === leaseId);
+  if (!lease || lease.status !== "draft") {
+    return { ok: false, error: "Only a draft capability lease can be expanded." };
+  }
+  if (lease.tools.length !== 1 || lease.grants.length !== 1) {
+    return {
+      ok: false,
+      error: "Approve All requires one tool and one exact origin, method, path, and identity tuple."
+    };
+  }
+  const expanded: AgentCapabilityLease = {
+    ...lease,
+    name: boundedText(`Authorize all matching ${lease.tools.join(" + ")}`, 120),
+    reason: boundedText(
+      `${lease.reason} Operator approved matching actions for the same tool, origin, method, and identity across this origin, within the selected run profile and remaining budgets.`,
+      1200
+    ),
+    grants: lease.grants.map((grant) => ({ ...grant, pathPrefix: "/" })),
+    durationMs: ceiling.maxDurationMs,
+    maxUses: ceiling.maxUses,
+    maxRequests: ceiling.maxRequests,
+    updatedAt: now
+  };
+  return {
+    ok: true,
+    lease: expanded,
+    state: {
+      ...state,
+      leases: state.leases.map((item) => (item.id === leaseId ? expanded : item))
+    }
+  };
+}
+
 export function revokeAgentCapabilityLease(
   current: AgentCapabilityState,
   leaseId: string,

@@ -248,7 +248,16 @@ export function normalizeAgentCapabilityActionRequest(value: unknown): AgentCapa
   }
   const leaseId = boundedText(input.leaseId, 120);
   if (action === "grant" && leaseId) {
-    return { action, expectedRevision, leaseId };
+    const approval = boundedText(input.approval, 30);
+    if (approval && approval !== "once" && approval !== "all-matching") {
+      return null;
+    }
+    return {
+      action,
+      expectedRevision,
+      leaseId,
+      ...(approval ? { approval: approval as "once" | "all-matching" } : {})
+    };
   }
   if (action === "revoke" && leaseId) {
     const reason = boundedText(input.reason, 1200);
