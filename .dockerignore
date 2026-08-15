@@ -1,0 +1,13 @@
+.git
+.github
+.DS_Store
+.env
+.env.*
+artifacts
+coverage
+dist
+dist-electron
+node_modules
+release
+*.log
+

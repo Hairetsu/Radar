@@ -149,6 +149,7 @@ Useful source commands:
 
 Use [docs/MANUAL_QA_CHECKLIST.md](MANUAL_QA_CHECKLIST.md) for the twelve-view release, screenshot, demo, and onboarding QA pass.
 Use [docs/REGRESSION_TESTING.md](REGRESSION_TESTING.md) for multi-instance regression execution, artifacts, and the automation expansion matrix.
+That regression guide also documents the Ubuntu and Windows container test images. The Ubuntu image runs the complete Electron suite under Xvfb. The Windows image runs the default Electron/Playwright regression suite non-interactively in addition to validating the native Windows build and installer; the platform-specific display matrix remains a Windows-host/VM gate because Windows containers do not provide an interactive desktop. Building either image needs a network connection, but a completed image includes Electron and Chromium and can run the maintained local-fixture gates offline.
 
 ## Main Console Tour
 
