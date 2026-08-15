@@ -28,8 +28,11 @@ export function launchRadarApplication({
   proxyPort: number;
   debugPort: number;
 }) {
+  const containerFlags = process.env.RADAR_REGRESSION_DISABLE_GPU === "1"
+    ? ["--disable-gpu"]
+    : [];
   return electron.launch({
-    args: [path.join(process.cwd(), "dist-electron", "electron", "main.js")],
+    args: [...containerFlags, path.join(process.cwd(), "dist-electron", "electron", "main.js")],
     env: {
       ...process.env,
       RADAR_REGRESSION_USER_DATA_DIR: userDataDir,

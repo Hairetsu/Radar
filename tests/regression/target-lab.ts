@@ -103,7 +103,7 @@ async function route(request: http.IncomingMessage, response: http.ServerRespons
     if (isPlanner && goal.includes("fixture:planner-delay")) {
       await new Promise((resolve) => setTimeout(resolve, 1_500));
     }
-    if (isPlanner && goal.includes("fixture:runtime-budget")) {
+    if (isPlanner && goal.includes("fixture:planner-budget-delay")) {
       await new Promise((resolve) => setTimeout(resolve, 10_500));
     }
     const workflowCaptureId = goal.match(/capture-id:([^\s]+)/)?.[1] || "";

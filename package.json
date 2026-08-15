@@ -27,6 +27,8 @@
     "test:regression:ui:full": "pnpm build && cross-env RADAR_REGRESSION_UI_FULL=1 playwright test --grep '@ui' --workers=1",
     "test:regression:ui:update": "pnpm build && cross-env UPDATE_RADAR_UI_BASELINES=1 playwright test --grep '@visual' --update-snapshots --workers=1",
     "test:regression:ui:update:full": "pnpm build && cross-env RADAR_REGRESSION_UI_FULL=1 UPDATE_RADAR_UI_BASELINES=1 playwright test --grep '@visual' --update-snapshots --workers=1",
+    "test:container:ubuntu": "pnpm test && xvfb-run -a pnpm test:regression",
+    "test:container:windows": "pnpm test && electron-builder --win nsis --x64 --publish never && playwright test --workers=1",
     "test:watch": "vitest",
     "test": "pnpm lint && pnpm test:unit && pnpm build",
     "screenshots": "pnpm build && electron dist-electron/electron/screenshot.js",
