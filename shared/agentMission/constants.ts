@@ -22,7 +22,7 @@ export const AGENT_MISSION_LIMITS = {
 
 export const OBJECTIVE_STATUSES: AgentObjectiveStatus[] = ["planned", "active", "blocked", "completed", "dismissed"];
 export const HYPOTHESIS_STATUSES: AgentHypothesisStatus[] = ["open", "testing", "supported", "rejected", "blocked", "stale"];
-export const EXPERIMENT_STATUSES: AgentExperimentStatus[] = ["planned", "running", "passed", "failed", "blocked", "skipped"];
+export const EXPERIMENT_STATUSES: AgentExperimentStatus[] = ["planned", "running", "completed", "passed", "failed", "blocked", "skipped"];
 export const CLAIM_STATUSES: AgentClaimStatus[] = ["lead", "supported", "contradicted", "verified"];
 export const COVERAGE_STATUSES: AgentCoverageStatus[] = ["untested", "planned", "testing", "covered", "blocked"];
 export const COVERAGE_DIMENSIONS: AgentCoverageDimension[] = ["host", "endpoint", "identity", "state", "control"];
