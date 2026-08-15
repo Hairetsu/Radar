@@ -8,6 +8,7 @@
     "email": "hairetsu@hairetsu.com"
   },
   "description": "Open defensive web security workbench with an embedded Chromium browser, capture history, and controlled request repeater.",
+  "homepage": "https://github.com/Hairetsu/Radar",
   "main": "dist-electron/electron/main.js",
   "type": "module",
   "scripts": {
@@ -131,11 +132,28 @@
     "linux": {
       "icon": "resources/icon.png",
       "maintainer": "Hairetsu <hairetsu@hairetsu.com>",
+      "synopsis": "Defensive web security workbench for authorized testing",
       "target": [
         "AppImage",
-        "deb"
+        "deb",
+        "pacman"
       ],
       "category": "Development"
+    },
+    "pacman": {
+      "depends": [
+        "gtk3",
+        "libnotify",
+        "nss",
+        "libxss",
+        "libxtst",
+        "xdg-utils",
+        "at-spi2-core",
+        "libsecret"
+      ],
+      "fpm": [
+        "--pacman-compression=zstd"
+      ]
     }
   }
 }

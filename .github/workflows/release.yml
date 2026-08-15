@@ -131,6 +131,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Linux package tools
+        if: matrix.artifact == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends fakeroot libarchive-tools zstd
+
       - name: Build distributables
         run: pnpm build && pnpm exec electron-builder --publish never
         env:
@@ -162,6 +168,8 @@ jobs:
           path: |
             release/*.AppImage
             release/*.deb
+            release/*.pacman
+            release/*.pkg.tar.*
           if-no-files-found: error
           retention-days: 3
 
