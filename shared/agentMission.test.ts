@@ -5,6 +5,7 @@ import {
   applyAgentMissionPatch,
   applyAgentMissionSteering,
   applyAgentMissionUpdates,
+  completeAgentMission,
   createAgentMission,
   missionHasOpenQuestion,
   normalizeAgentMission,
@@ -97,7 +98,7 @@ describe("agent mission graph", () => {
     expect(normalized).toMatchObject({
       revision: 4,
       goal: "Fallback",
-      status: "awaiting-operator",
+      status: "completed",
       stopReason: "Stored stop reason",
       updatedAt: LATER
     });
@@ -106,6 +107,10 @@ describe("agent mission graph", () => {
     expect(normalized.experiments).toHaveLength(2);
     expect(normalized.claims).toHaveLength(2);
     expect(normalized.coverage).toHaveLength(2);
+    expect(normalized.hypotheses[0]).toMatchObject({ id: "hyp-one", status: "open" });
+    expect(normalized.experiments[0]).toMatchObject({ id: "exp-one", status: "completed" });
+    expect(normalized.coverage[0]).toMatchObject({ id: "gap-one", status: "untested" });
+    expect(normalized.operatorQuestions[0]).toMatchObject({ status: "dismissed" });
     expect(normalized.operatorQuestions[1]).toMatchObject({ status: "answered", answer: "Yes" });
   });
 
@@ -190,6 +195,75 @@ describe("agent mission graph", () => {
       operatorQuestions: [expect.objectContaining({ prompt: "Updated question?", status: "open" })]
     });
     expect(applyAgentMissionUpdates(updated, [], LATER)).toEqual(updated);
+  });
+
+  it("settles transient graph states when the run completes without overstating evidence", () => {
+    const current = applyAgentMissionUpdates(
+      createAgentMission("Review target", "https://target.test", NOW),
+      [
+        {
+          kind: "hypothesis",
+          id: "hyp-review",
+          objectiveId: "obj-primary",
+          statement: "The target may expose hardening gaps.",
+          status: "testing"
+        },
+        {
+          kind: "experiment",
+          id: "exp-running",
+          hypothesisId: "hyp-review",
+          title: "Analyze observed headers",
+          status: "running"
+        },
+        {
+          kind: "experiment",
+          id: "exp-planned",
+          hypothesisId: "hyp-review",
+          title: "Compare authenticated behavior",
+          status: "planned"
+        },
+        {
+          kind: "experiment",
+          id: "exp-failed",
+          hypothesisId: "hyp-review",
+          title: "Inspect unavailable endpoint",
+          status: "failed"
+        },
+        {
+          kind: "coverage",
+          id: "gap-control",
+          dimension: "control",
+          label: "Browser headers",
+          status: "testing"
+        },
+        { kind: "operator-question", id: "ask-report", prompt: "Include this lead?" }
+      ],
+      LATER
+    );
+
+    const completed = completeAgentMission(
+      current,
+      "Scoped review finished.",
+      "2026-07-10T12:02:00.000Z"
+    );
+
+    expect(completed).toMatchObject({
+      revision: current.revision + 1,
+      status: "completed",
+      stopReason: "Scoped review finished.",
+      objectives: [expect.objectContaining({ status: "completed" })],
+      hypotheses: [expect.objectContaining({ id: "hyp-review", status: "open" })],
+      experiments: [
+        expect.objectContaining({ id: "exp-running", status: "completed" }),
+        expect.objectContaining({ id: "exp-planned", status: "skipped" }),
+        expect.objectContaining({ id: "exp-failed", status: "failed" })
+      ],
+      coverage: [
+        expect.objectContaining({ dimension: "host", status: "untested" }),
+        expect.objectContaining({ id: "gap-control", status: "untested" })
+      ],
+      operatorQuestions: [expect.objectContaining({ id: "ask-report", status: "dismissed" })]
+    });
   });
 
   it("normalizes invalid steering shapes and covers objective, hypothesis, dismiss, and missing-item paths", () => {

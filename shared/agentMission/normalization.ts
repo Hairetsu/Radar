@@ -19,6 +19,7 @@ import {
   MISSION_STATUSES,
   OBJECTIVE_STATUSES
 } from "./constants.js";
+import { reconcileCompletedAgentMission } from "./lifecycle.js";
 
 export function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -274,11 +275,14 @@ export function normalizeAgentMission(
   const questions = normalizedList(input.operatorQuestions, AGENT_MISSION_LIMITS.operatorQuestions, (item) =>
     normalizedQuestion(item, now)
   );
+  const requestedStatus = enumValue(input.status, MISSION_STATUSES, fallback.status);
   const hasOpenQuestion = questions.some((question) => question.status === "open");
-  const status = hasOpenQuestion
-    ? "awaiting-operator"
-    : enumValue(input.status, MISSION_STATUSES, fallback.status);
-  return {
+  const status = requestedStatus === "completed"
+    ? "completed"
+    : hasOpenQuestion
+      ? "awaiting-operator"
+      : requestedStatus;
+  const mission: AgentMission = {
     version: 1,
     revision: Math.max(0, Math.round(Number(input.revision) || 0)),
     goal: boundedText(input.goal, 1600) || fallback.goal,
@@ -297,4 +301,7 @@ export function normalizeAgentMission(
     coverage: normalizedList(input.coverage, AGENT_MISSION_LIMITS.coverage, (item) => normalizedCoverage(item, now)),
     operatorQuestions: questions
   };
+  return status === "completed"
+    ? reconcileCompletedAgentMission(mission, mission.updatedAt)
+    : mission;
 }

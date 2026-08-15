@@ -1020,6 +1020,13 @@ describe("AgentRuntime", () => {
       hypotheses: [expect.objectContaining({ id: "hyp-browser" })],
       experiments: [expect.objectContaining({ id: "exp-browser-state" })]
     });
+    expect(runs.get(started.id)?.mission).toMatchObject({
+      status: "completed",
+      objectives: [expect.objectContaining({ id: "obj-primary", status: "completed" })],
+      hypotheses: [expect.objectContaining({ id: "hyp-browser", status: "open" })],
+      experiments: [expect.objectContaining({ id: "exp-browser-state", status: "completed" })],
+      coverage: [expect.objectContaining({ dimension: "host", status: "untested" })]
+    });
     const timelineEntries = runs.get(started.id)?.timeline || [];
     const missionIndex = timelineEntries.findIndex((entry) => entry.note?.includes("Mission graph advanced"));
     const toolIndex = timelineEntries.findIndex((entry) => entry.phase === "tool-call");

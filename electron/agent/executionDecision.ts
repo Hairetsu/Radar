@@ -5,7 +5,7 @@ import type {
 } from "../../shared/agent-types.js";
 import {
   applyAgentMissionPatch,
-  applyAgentMissionUpdates,
+  completeAgentMission,
   missionHasOpenQuestion,
   validateAgentMissionEvidence
 } from "../../shared/agentMission.js";
@@ -260,6 +260,7 @@ export function completeAgentRun({
   tutorial: AgentDecision["tutorial"];
   operationId: string;
 }) {
+  const completedAt = nowIso();
   const evidenceCatalog = runtimeEvidenceCatalog(deps);
   const qualityResults = (decision.findings || []).map((finding) =>
     findingFromDecision(finding, evidenceCatalog)
@@ -285,22 +286,15 @@ export function completeAgentRun({
 
   return withUpdate(run, deps.saveRun, {
     status: "completed",
-    mission: applyAgentMissionUpdates(
+    mission: completeAgentMission(
       missionFromRun(run),
-      [
-        {
-          kind: "mission-status",
-          status: "completed",
-          stopReason:
-            decision.rationale || "Agent completed the scoped mission."
-        }
-      ],
-      nowIso()
+      decision.rationale || "Agent completed the scoped mission.",
+      completedAt
     ),
     capabilities: revokeGrantedAgentCapabilities(
       capabilityStateFromRun(run),
       "Run completed.",
-      nowIso()
+      completedAt
     ),
     checkpoint: checkpointFromCounters(counters),
     findings: nextFindings,

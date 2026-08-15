@@ -31,7 +31,7 @@ export type MissionItemStatus =
 export const STATUS_OPTIONS: Record<AgentMissionEntityKind, string[]> = {
   objective: ["planned", "active", "blocked", "completed", "dismissed"],
   hypothesis: ["open", "testing", "supported", "rejected", "blocked", "stale"],
-  experiment: ["planned", "running", "passed", "failed", "blocked", "skipped"],
+  experiment: ["planned", "running", "completed", "passed", "failed", "blocked", "skipped"],
   claim: ["lead", "supported", "contradicted", "verified"],
   coverage: ["untested", "planned", "testing", "covered", "blocked"]
 };
