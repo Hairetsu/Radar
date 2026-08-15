@@ -123,6 +123,14 @@ For Debian package:
 sudo apt install ./radar_*_amd64.deb
 ```
 
+For Arch Linux and Arch-based distributions:
+
+```bash
+sudo pacman -U ./radar-*.pacman
+```
+
+The package installs a `radar` launcher. Radar still needs a local Chrome, Edge, Brave, or Chromium binary. After install, launch Radar from the application menu or by running `radar`.
+
 ### Run From Source
 
 For users testing the app from the repository:

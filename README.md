@@ -50,7 +50,7 @@ Radar never installs a root certificate automatically and does not introduce clo
 
 ## Get Started
 
-Pre-built installers are available on the [Releases page](https://github.com/Hairetsu/Radar/releases). See [Install and Launch](docs/USER_GUIDE.md#install-and-launch) for current macOS Gatekeeper, Windows SmartScreen, Linux, and source-build notes.
+Pre-built installers are available on the [Releases page](https://github.com/Hairetsu/Radar/releases). Linux releases include AppImage, Debian, and Arch `pacman` packages. See [Install and Launch](docs/USER_GUIDE.md#install-and-launch) for current macOS Gatekeeper, Windows SmartScreen, Linux, and source-build notes.
 
 To run from source:
 
