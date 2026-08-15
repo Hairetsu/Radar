@@ -190,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      actions: write
+      actions: read
       contents: write
       pull-requests: write
 
@@ -236,9 +236,17 @@ jobs:
         if: steps.sync.outputs.required == 'true'
         id: pull-request
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
         run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "RELEASE_SYNC_TOKEN is required to open the release-sync pull request without GitHub's workflow-approval gate." >&2
+            exit 1
+          fi
+
+          sync_actor="$(gh api user --jq '.login')"
+          echo "Opening the release-sync pull request as ${sync_actor}."
+
           pr_url="$(gh pr create \
             --base develop \
             --head "${{ steps.sync.outputs.branch }}" \
@@ -246,17 +254,11 @@ jobs:
             --body "Sync the released ${RELEASE_TAG} history and version metadata back into develop. This PR is generated after the release is published and must not trigger another promotion.")"
           echo "url=${pr_url}" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch trusted sync CI
-        if: steps.sync.outputs.required == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
-        run: gh workflow run ci.yml --ref "${SYNC_BRANCH}"
-
       - name: Wait for sync CI
         if: steps.sync.outputs.required == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ steps.pull-request.outputs.url }}
           SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
           SYNC_SHA: ${{ steps.sync.outputs.sha }}
         run: |
@@ -265,7 +267,7 @@ jobs:
             run_id="$(gh run list \
               --workflow ci.yml \
               --branch "${SYNC_BRANCH}" \
-              --event workflow_dispatch \
+              --event pull_request \
               --limit 20 \
               --json databaseId,headSha \
               --jq ".[] | select(.headSha == \"${SYNC_SHA}\") | .databaseId" \
@@ -277,7 +279,7 @@ jobs:
           done
 
           if [ -z "${run_id}" ]; then
-            echo "Could not find the dispatched CI run for ${SYNC_SHA}." >&2
+            echo "Could not find pull-request CI for ${SYNC_SHA}." >&2
             exit 1
           fi
 
@@ -286,17 +288,19 @@ jobs:
           ci_sha="$(gh run view "${run_id}" --json headSha --jq '.headSha')"
           job_conclusions="$(gh run view "${run_id}" --json jobs)"
           if [ "${ci_sha}" != "${SYNC_SHA}" ]; then
-            echo "Dispatched CI ran against ${ci_sha}, expected ${SYNC_SHA}." >&2
+            echo "Pull-request CI ran against ${ci_sha}, expected ${SYNC_SHA}." >&2
             exit 1
           fi
 
           for required_job in test ui-regression; do
             conclusion="$(jq -r --arg name "${required_job}" '.jobs[] | select(.name == $name) | .conclusion' <<<"${job_conclusions}")"
             if [ "${conclusion}" != "success" ]; then
-              echo "Dispatched CI job ${required_job} was ${conclusion:-missing} for ${SYNC_SHA}." >&2
+              echo "Pull-request CI job ${required_job} was ${conclusion:-missing} for ${SYNC_SHA}." >&2
               exit 1
             fi
           done
+
+          gh pr checks "${PR_URL}" --required
 
       - name: Merge released tag back into develop
         if: steps.sync.outputs.required == 'true'
