@@ -264,7 +264,9 @@ jobs:
       actions: write
       contents: write
     concurrency:
-      group: promote-master
+      # Share one repository-wide lane with the Release workflow so master
+      # cannot be promoted again while a version commit is being published.
+      group: master-release-pipeline
       cancel-in-progress: false
 
     steps:
