@@ -1,4 +1,5 @@
-import { Ban, KeyRound, RadioTower, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Ban, KeyRound, Play, RadioTower, ShieldCheck } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { StatusBadge } from "../components/radar/primitives";
 import type { AiOperatorController } from "./useAiOperator";
@@ -11,6 +12,11 @@ function durationLabel(durationMs: number): string {
 export function AgentCapabilityPrompt({ controller }: { controller: AiOperatorController }) {
   const run = controller.activeRun;
   const lease = [...(run?.capabilities?.leases || [])].reverse().find((candidate) => candidate.status === "draft") || null;
+  const [resumeAfterApproval, setResumeAfterApproval] = useState(true);
+
+  useEffect(() => {
+    setResumeAfterApproval(true);
+  }, [lease?.id]);
 
   if (!run || !lease) return null;
 
@@ -87,10 +93,23 @@ export function AgentCapabilityPrompt({ controller }: { controller: AiOperatorCo
           </div>
         </div>
 
-        <footer className="grid gap-3 border-t border-rule bg-ink/55 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
-          <p className="font-mono text-micro leading-4 text-muted">
-            Approve Once keeps the exact path above. Approve All covers this tool across paths on the same origin, method, and identity, within the current profile, Scope, auth binding, and budgets. Resume remains separate.
-          </p>
+        <footer className="grid gap-3 border-t border-rule bg-ink/55 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-6">
+          <div className="grid gap-2">
+            <label className="flex w-fit cursor-pointer items-center gap-2 border border-signal/35 bg-signal/[0.07] px-3 py-2 rd-label text-bone transition hover:border-signal/60 hover:bg-signal/10">
+              <input
+                type="checkbox"
+                checked={resumeAfterApproval}
+                onChange={(event) => setResumeAfterApproval(event.target.checked)}
+                data-testid="capabilityPermissionResumeAfterApproval"
+                data-component="capabilityPermissionResumeAfterApproval"
+              />
+              <Play size={12} className="text-signal" />
+              Resume after approval
+            </label>
+            <p className="font-mono text-micro leading-4 text-muted">
+              Approve Once keeps the exact path. Approve All covers matching paths on the same origin within the profile, Scope, auth, and budget caps. {resumeAfterApproval ? "Approval queues the saved pending call." : "The run will remain paused."}
+            </p>
+          </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button
               type="button"
@@ -108,7 +127,7 @@ export function AgentCapabilityPrompt({ controller }: { controller: AiOperatorCo
               variant="solid"
               size="compact"
               disabled={controller.pending}
-              onClick={() => void controller.updateCapabilities({ action: "grant", leaseId: lease.id, approval: "once" })}
+              onClick={() => void controller.updateCapabilities({ action: "grant", leaseId: lease.id, approval: "once", resumeAfterApproval })}
               data-testid="capabilityPermissionGrant"
             >
               <ShieldCheck size={12} /> Approve Once
@@ -119,7 +138,7 @@ export function AgentCapabilityPrompt({ controller }: { controller: AiOperatorCo
                 variant="zap"
                 size="compact"
                 disabled={controller.pending}
-                onClick={() => void controller.updateCapabilities({ action: "grant", leaseId: lease.id, approval: "all-matching" })}
+                onClick={() => void controller.updateCapabilities({ action: "grant", leaseId: lease.id, approval: "all-matching", resumeAfterApproval })}
                 title="Approve matching calls for this tool on the same origin, method, and identity within the run's caps"
                 data-testid="capabilityPermissionGrantAll"
               >

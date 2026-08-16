@@ -452,12 +452,22 @@ export function useAiOperator() {
       ...action,
       expectedRevision: activeRun.capabilities?.revision || 0
     };
+    setPending(true);
     try {
-      replaceRun(await operatorApi().updateAgentCapabilities(activeRun.id, request));
-      setNotice("Capability ledger updated.");
+      const updated = await operatorApi().updateAgentCapabilities(activeRun.id, request);
+      replaceRun(updated);
+      setNotice(
+        action.action === "grant" && action.resumeAfterApproval
+          ? updated?.status === "queued" || updated?.status === "running"
+            ? "Capability approved. The run is resuming from its durable checkpoint."
+            : updated?.timeline.at(-1)?.note || "Capability approved, but the run remains paused."
+          : "Capability ledger updated."
+      );
     } catch (error) {
       if (error instanceof Error && error.message.includes("revision")) await refreshRuns();
       setNotice(error instanceof Error ? error.message : "Capability lease action failed.");
+    } finally {
+      setPending(false);
     }
   }, [activeRun, refreshRuns, replaceRun]);
 

@@ -3,6 +3,7 @@ import type {
   AgentDecisionFinding
 } from "../../../shared/agent-types.js";
 import { normalizeAgentMissionPatch } from "../../../shared/agentMission.js";
+import { normalizeAgentDecisionReport } from "../../../shared/agentReport.js";
 import { normalizeAgentTutorialGuidance } from "../../../shared/agentTutorial.js";
 import { normalizeUnknownAgentToolCall } from "../tools.js";
 
@@ -67,20 +68,22 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
   const action = String(parsed.action || "").toLowerCase();
   const missionPatch = normalizeAgentMissionPatch(parsed.missionPatch);
   const tutorial = normalizeAgentTutorialGuidance(parsed.tutorial);
-  if (
+  const report = normalizeAgentDecisionReport(parsed.report);
+  const missionPatchWarning =
     parsed.missionPatch !== undefined &&
     !missionPatch &&
     !isEmptyAgentMissionPatch(parsed.missionPatch)
-  ) {
-    throw new Error("Agent missionPatch was invalid.");
-  }
+      ? "The planner returned an invalid mission patch."
+      : "";
   if (action === "finish") {
     return {
       action: "finish",
       rationale: String(parsed.rationale || ""),
       findings: normalizeFindings(parsed.findings),
+      ...(report ? { report } : {}),
       ...(tutorial ? { tutorial } : {}),
-      ...(missionPatch ? { missionPatch } : {})
+      ...(missionPatch ? { missionPatch } : {}),
+      ...(missionPatchWarning ? { missionPatchWarning } : {})
     };
   }
 
@@ -90,7 +93,8 @@ export function normalizeAgentDecision(parsed: Record<string, unknown>): AgentDe
       call: normalizeToolCall(parsed),
       rationale: String(parsed.rationale || ""),
       ...(tutorial ? { tutorial } : {}),
-      ...(missionPatch ? { missionPatch } : {})
+      ...(missionPatch ? { missionPatch } : {}),
+      ...(missionPatchWarning ? { missionPatchWarning } : {})
     };
   }
 

@@ -8,10 +8,18 @@ import type { CapturedRequest } from "../../shared/domain.js";
 const proxyMocks = vi.hoisted(() => {
   const callbacks = new Map<string, unknown>();
   const passThrough = vi.fn(async () => undefined);
+  let running = false;
   const server = {
-    port: 43_123,
-    start: vi.fn(async () => undefined),
-    stop: vi.fn(async () => undefined),
+    get port() {
+      if (!running) throw new Error("Cannot get port before server is started");
+      return 43_123;
+    },
+    start: vi.fn(async () => {
+      running = true;
+    }),
+    stop: vi.fn(async () => {
+      running = false;
+    }),
     on: vi.fn(async (event: string, callback: unknown) => {
       callbacks.set(event, callback);
     }),
@@ -20,7 +28,14 @@ const proxyMocks = vi.hoisted(() => {
       waitForRequestBody: () => ({ thenPassThrough: passThrough })
     }))
   };
-  return { callbacks, server, passThrough };
+  return {
+    callbacks,
+    server,
+    passThrough,
+    setRunning: (value: boolean) => {
+      running = value;
+    }
+  };
 });
 
 vi.mock("mockttp", () => ({
@@ -34,6 +49,7 @@ import { createProxyController } from "./proxyController.js";
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
+  proxyMocks.setRunning(false);
   proxyMocks.callbacks.clear();
   vi.clearAllMocks();
   for (const directory of temporaryDirectories.splice(0)) {
@@ -165,5 +181,34 @@ describe("proxy controller", () => {
     );
     expect(proxyMocks.server.start).toHaveBeenNthCalledWith(1, 8_088);
     expect(proxyMocks.server.start).toHaveBeenNthCalledWith(2, 8_089);
+  });
+
+  it("repairs running state and restarts after the underlying listener disappears", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "radar-proxy-controller-"));
+    temporaryDirectories.push(userDataPath);
+    const controller = createProxyController({
+      userDataPath,
+      regressionMode: true,
+      defaultPort: 8_088,
+      currentSessionId: () => "session-1",
+      allowlist: () => ["https://target.example"],
+      captureById: () => undefined,
+      bindCaptureToCurrentSession: vi.fn(),
+      bindCaptureToSession: (capture) => capture,
+      rememberCapture: vi.fn(),
+      rememberSslEvent: vi.fn(),
+      rememberWebSocketRequest: vi.fn(),
+      rememberWebSocketAccepted: vi.fn(),
+      rememberWebSocketMessage: vi.fn(),
+      rememberWebSocketClose: vi.fn(),
+      queueInterceptRequest: vi.fn(async () => undefined),
+      queueInterceptResponse: vi.fn(async () => undefined)
+    });
+
+    await controller.start();
+    proxyMocks.setRunning(false);
+    expect(controller.state().running).toBe(false);
+    await expect(controller.start()).resolves.toMatchObject({ running: true, port: 43_123 });
+    expect(proxyMocks.server.start).toHaveBeenCalledTimes(2);
   });
 });

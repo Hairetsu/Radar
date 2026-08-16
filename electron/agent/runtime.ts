@@ -88,7 +88,7 @@ function pendingCapabilityGrant(run: AgentRun) {
 
 function capabilityGrantError(tool: string, leaseName?: string) {
   return leaseName
-    ? `Approve the pending capability lease "${leaseName}" before resuming ${tool}. Approving authority and resuming are separate operator actions.`
+    ? `Approve the pending capability lease "${leaseName}" before resuming ${tool}.`
     : `Grant a matching capability lease before retrying ${tool}. Retry cannot grant authority.`;
 }
 
@@ -139,6 +139,27 @@ export class AgentRuntime {
         .update(JSON.stringify({ open: browser.open, url: browser.url || "", engine: browser.engine }))
         .digest("hex");
     }
+  }
+
+  private resumeBlockReason(run: AgentRun) {
+    if (running.has(run.id)) {
+      return "Agent run is still pausing. Retry resume after the active step settles.";
+    }
+    const checkpoint = elapsedCheckpoint(run);
+    if (checkpoint.elapsedMs >= run.policy.maxRuntimeMs) {
+      return `Agent runtime budget exhausted (${Math.ceil(checkpoint.elapsedMs / 1000)}s used / ${Math.ceil(run.policy.maxRuntimeMs / 1000)}s allowed). Resume never resets safety budgets; start a continuation run with a fresh bounded budget.`;
+    }
+    if (checkpoint.stepCount >= run.policy.maxSteps) {
+      return `Agent tool-call budget exhausted (${checkpoint.stepCount} used / ${run.policy.maxSteps} allowed). Resume never resets safety budgets; start a continuation run with a fresh bounded budget.`;
+    }
+    if (missionHasOpenQuestion(missionFromRun(run))) {
+      return "Answer or dismiss the open mission question before resuming this run.";
+    }
+    const pendingGrant = pendingCapabilityGrant(run);
+    if (pendingGrant) {
+      return capabilityGrantError(pendingGrant.tool, pendingGrant.draft?.name);
+    }
+    return null;
   }
 
   async updateCapabilities(runId: string, rawRequest: AgentCapabilityActionRequest) {
@@ -241,7 +262,7 @@ export class AgentRuntime {
         checkpoint = { ...normalizedCheckpoint(run), pendingCapabilityCall: undefined };
       }
     }
-    return withUpdate(run, this.deps.saveRun, {
+    const updated = withUpdate(run, this.deps.saveRun, {
       capabilities: nextState,
       checkpoint,
       timeline: [
@@ -252,6 +273,22 @@ export class AgentRuntime {
         })
       ]
     });
+    if (request.action !== "grant" || !request.resumeAfterApproval) {
+      return updated;
+    }
+    const blockReason = this.resumeBlockReason(updated);
+    if (blockReason) {
+      return withUpdate(updated, this.deps.saveRun, {
+        timeline: [
+          ...updated.timeline,
+          timeline(`Capability approved, but automatic resume stayed paused: ${blockReason}`, {
+            phase: "status",
+            summary: "Approval saved; automatic resume unavailable"
+          })
+        ]
+      });
+    }
+    return this.resume(runId);
   }
 
   revokeAllGrantedLeases(reason: string) {
@@ -399,29 +436,11 @@ export class AgentRuntime {
     if (run.status !== "paused" && run.status !== "failed") {
       return run;
     }
-    if (running.has(runId)) {
-      throw new Error("Agent run is still pausing. Retry resume after the active step settles.");
+    const blockReason = this.resumeBlockReason(run);
+    if (blockReason) {
+      throw new Error(blockReason);
     }
     const checkpoint = elapsedCheckpoint(run);
-    if (checkpoint.elapsedMs >= run.policy.maxRuntimeMs) {
-      throw new Error(
-        `Agent runtime budget exhausted (${Math.ceil(checkpoint.elapsedMs / 1000)}s used / ${Math.ceil(run.policy.maxRuntimeMs / 1000)}s allowed). Resume never resets safety budgets; start a continuation run with a fresh bounded budget.`
-      );
-    }
-    if (checkpoint.stepCount >= run.policy.maxSteps) {
-      throw new Error(
-        `Agent tool-call budget exhausted (${checkpoint.stepCount} used / ${run.policy.maxSteps} allowed). Resume never resets safety budgets; start a continuation run with a fresh bounded budget.`
-      );
-    }
-    if (missionHasOpenQuestion(missionFromRun(run))) {
-      throw new Error("Answer or dismiss the open mission question before resuming this run.");
-    }
-    const pendingGrant = pendingCapabilityGrant(run);
-    if (pendingGrant) {
-      throw new Error(
-        capabilityGrantError(pendingGrant.tool, pendingGrant.draft?.name)
-      );
-    }
     stopped.delete(runId);
     requestedRunStatus.delete(runId);
     const next = withUpdate(run, this.deps.saveRun, {

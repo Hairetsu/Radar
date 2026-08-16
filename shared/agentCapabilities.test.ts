@@ -159,13 +159,28 @@ describe("agent capability leases", () => {
         action: "grant",
         expectedRevision: 3,
         leaseId: "lease-1",
-        approval: "all-matching"
+        approval: "all-matching",
+        resumeAfterApproval: true
       })
     ).toEqual({
       action: "grant",
       expectedRevision: 3,
       leaseId: "lease-1",
-      approval: "all-matching"
+      approval: "all-matching",
+      resumeAfterApproval: true
+    });
+    expect(
+      normalizeAgentCapabilityActionRequest({
+        action: "grant",
+        expectedRevision: 3,
+        leaseId: "lease-1",
+        resumeAfterApproval: false
+      })
+    ).toEqual({
+      action: "grant",
+      expectedRevision: 3,
+      leaseId: "lease-1",
+      resumeAfterApproval: false
     });
     expect(normalizeAgentCapabilityActionRequest({ action: "revoke", expectedRevision: 4, leaseId: "lease-1", reason: "Narrow scope" })).toEqual({
       action: "revoke",
@@ -179,6 +194,13 @@ describe("agent capability leases", () => {
         action: "grant",
         leaseId: "lease-1",
         approval: "everything-everywhere"
+      })
+    ).toBeNull();
+    expect(
+      normalizeAgentCapabilityActionRequest({
+        action: "grant",
+        leaseId: "lease-1",
+        resumeAfterApproval: "yes"
       })
     ).toBeNull();
     expect(normalizeAgentCapabilityActionRequest({ action: "propose", lease: {} })).toBeNull();

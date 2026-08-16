@@ -68,7 +68,13 @@ export function useAgentGovernance({
         if (updated) {
           setAgentRuns((items) => [updated, ...items.filter((item) => item.id !== updated.id)]);
           setSelectedAgentRunId(updated.id);
-          portsRef.current.setNotice(`Capability ledger updated to revision ${updated.capabilities?.revision ?? expectedRevision}.`);
+          portsRef.current.setNotice(
+            action.action === "grant" && action.resumeAfterApproval
+              ? updated.status === "queued" || updated.status === "running"
+                ? `Capability ledger advanced to revision ${updated.capabilities?.revision ?? expectedRevision}; the run is resuming.`
+                : updated.timeline.at(-1)?.note || "Capability approved, but the run remains paused."
+              : `Capability ledger updated to revision ${updated.capabilities?.revision ?? expectedRevision}.`
+          );
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Capability lease action failed.";

@@ -17,6 +17,7 @@ import {
 } from "../../shared/agentCapabilities.js";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { getAgentRunProfile } from "../../shared/agentProfiles.js";
+import { buildAgentCompletionReport } from "../../shared/agentReport.js";
 import {
   capabilityLeaseRequestForUse,
   capabilityUseForCall
@@ -43,6 +44,52 @@ type DecisionStepResult = {
   paused: boolean;
 };
 
+function mergeCompletionFindings(existing: AgentFinding[], generated: AgentFinding[]) {
+  const keys = new Set(
+    existing.map((finding) =>
+      `${finding.title.trim().toLowerCase()}|${[...finding.evidenceRefs].sort().join("|")}`
+    )
+  );
+  const merged = [...existing];
+  for (const finding of generated) {
+    const key = `${finding.title.trim().toLowerCase()}|${[...finding.evidenceRefs].sort().join("|")}`;
+    if (keys.has(key)) continue;
+    keys.add(key);
+    merged.push(finding);
+  }
+  return merged;
+}
+
+function ignorePlannerMissionPatch({
+  run,
+  deps,
+  operationId,
+  reason
+}: {
+  run: AgentRun;
+  deps: AgentRuntimeDeps;
+  operationId: string;
+  reason: string;
+}): DecisionStepResult {
+  const boundedReason = String(reason || "The patch was invalid.").trim().slice(0, 1200);
+  return {
+    run: withUpdate(run, deps.saveRun, {
+      timeline: [
+        ...run.timeline,
+        timeline(
+          `Planner mission update ignored: ${boundedReason} The selected action will continue without changing the Mission Graph.`,
+          {
+            operationId,
+            phase: "decision",
+            summary: "Mission update ignored; action continues"
+          }
+        )
+      ]
+    }),
+    paused: false
+  };
+}
+
 export function applyDecisionMissionPatch({
   run,
   counters,
@@ -56,6 +103,14 @@ export function applyDecisionMissionPatch({
   deps: AgentRuntimeDeps;
   operationId: string;
 }): DecisionStepResult {
+  if (decision.missionPatchWarning) {
+    return ignorePlannerMissionPatch({
+      run,
+      deps,
+      operationId,
+      reason: decision.missionPatchWarning
+    });
+  }
   if (!decision.missionPatch) {
     return { run, paused: false };
   }
@@ -66,16 +121,36 @@ export function applyDecisionMissionPatch({
     nowIso()
   );
   if (!missionResult.ok) {
-    throw new Error(missionResult.error);
+    return ignorePlannerMissionPatch({
+      run,
+      deps,
+      operationId,
+      reason: missionResult.error
+    });
   }
   const evidenceErrors = validateAgentMissionEvidence(
     missionResult.mission,
     runtimeEvidenceCatalog(deps)
   );
   if (evidenceErrors.length > 0) {
-    throw new Error(
-      `Mission patch failed evidence validation: ${evidenceErrors.join(", ")}`
-    );
+    return ignorePlannerMissionPatch({
+      run,
+      deps,
+      operationId,
+      reason: `Mission patch failed evidence validation: ${evidenceErrors.join(", ")}`
+    });
+  }
+  if (
+    decision.action === "tool" &&
+    missionResult.mission.status !== "active" &&
+    !missionHasOpenQuestion(missionResult.mission)
+  ) {
+    return ignorePlannerMissionPatch({
+      run,
+      deps,
+      operationId,
+      reason: `A tool decision cannot set mission status to ${missionResult.mission.status}.`
+    });
   }
 
   const nextRun = withUpdate(run, deps.saveRun, {
@@ -114,14 +189,6 @@ export function applyDecisionMissionPatch({
       }),
       paused: true
     };
-  }
-  if (
-    decision.action === "tool" &&
-    missionResult.mission.status !== "active"
-  ) {
-    throw new Error(
-      `Agent cannot call a tool while mission status is ${missionResult.mission.status}.`
-    );
   }
   return { run: nextRun, paused: false };
 }
@@ -268,6 +335,7 @@ export function completeAgentRun({
   const nextFindings = qualityResults
     .map((result) => result.finding)
     .filter((finding): finding is AgentFinding => Boolean(finding));
+  const retainedFindings = mergeCompletionFindings(run.findings, nextFindings);
   const rejectedEntries = qualityResults
     .filter((result) => !result.ok)
     .map((result) =>
@@ -283,30 +351,50 @@ export function completeAgentRun({
         ]
       })
     );
+  const completedMission = completeAgentMission(
+    missionFromRun(run),
+    decision.rationale || "Agent completed the scoped mission.",
+    completedAt
+  );
+  const completionReport = buildAgentCompletionReport({
+    decisionReport: decision.report,
+    rationale: decision.rationale || "Agent completed the scoped mission.",
+    goal: run.goal,
+    allowlist: deps.allowlist(),
+    mission: completedMission,
+    findings: retainedFindings,
+    rejectedFindingCount: rejectedEntries.length,
+    generatedAt: completedAt,
+    timeline: [...run.timeline, ...rejectedEntries],
+    currentOperationId: operationId,
+    evidenceCatalog
+  });
 
   return withUpdate(run, deps.saveRun, {
     status: "completed",
-    mission: completeAgentMission(
-      missionFromRun(run),
-      decision.rationale || "Agent completed the scoped mission.",
-      completedAt
-    ),
+    mission: completedMission,
     capabilities: revokeGrantedAgentCapabilities(
       capabilityStateFromRun(run),
       "Run completed.",
       completedAt
     ),
     checkpoint: checkpointFromCounters(counters),
-    findings: nextFindings,
+    findings: retainedFindings,
     timeline: [
       ...run.timeline,
       ...rejectedEntries,
       timeline(
         decision.rationale ||
-          `Agent returned finish with ${nextFindings.length} draft finding${
-            nextFindings.length === 1 ? "" : "s"
+          `Agent returned finish with ${retainedFindings.length} retained draft finding${
+            retainedFindings.length === 1 ? "" : "s"
           }.`,
-        { operationId, phase: "status", ...(tutorial ? { tutorial } : {}) }
+        {
+          operationId,
+          phase: "status",
+          summary: "Completion report ready",
+          completionReport,
+          ...(tutorial ? { tutorial } : {})
+        }
       )
     ]
   });

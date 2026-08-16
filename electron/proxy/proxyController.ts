@@ -179,7 +179,8 @@ export function createProxyController({
   }
 
   async function start(port = defaultPort) {
-    if (server) return state;
+    const current = currentState();
+    if (server && current.running) return current;
     if (starting) return starting;
     const pending = startNewServer(port);
     starting = pending;
@@ -204,5 +205,27 @@ export function createProxyController({
     return state;
   }
 
-  return { ensureCa, start, stop, state: () => state };
+  function currentState() {
+    if (!server) {
+      if (state.running) state = { ...state, running: false };
+      return state;
+    }
+    try {
+      const port = server.port;
+      if (!state.running || state.port !== port) {
+        state = {
+          ...state,
+          running: true,
+          port,
+          proxyUrl: `http://127.0.0.1:${port}`
+        };
+      }
+    } catch {
+      server = undefined;
+      state = { ...state, running: false };
+    }
+    return state;
+  }
+
+  return { ensureCa, start, stop, state: currentState };
 }

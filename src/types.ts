@@ -139,6 +139,8 @@ export type {
 } from "../shared/identityProfiles";
 
 export type {
+  AgentCompletionReport,
+  AgentDecisionReport,
   AgentFinding,
   AgentMission,
   AgentMissionEntityKind,
@@ -165,6 +167,7 @@ export type {
   AgentRunRecoveryAction,
   AgentRunRecoveryRequest,
   AgentRun,
+  AgentReportObservation,
   AgentRunRequest,
   AgentRunStatus,
   AgentTimelineEntry,

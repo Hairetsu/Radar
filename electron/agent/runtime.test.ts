@@ -658,7 +658,7 @@ describe("AgentRuntime", () => {
     ]);
   });
 
-  it("pauses a capability request before dispatch, then grants and executes the pending call exactly once", async () => {
+  it("pauses a capability request before dispatch, then grants, resumes, and executes the pending call exactly once", async () => {
     const lease = browserLease(
       ["sendReplay"],
       [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/account", identity: "current" }]
@@ -694,11 +694,11 @@ describe("AgentRuntime", () => {
     const granted = await runtime.updateCapabilities(run.id, {
       action: "grant",
       expectedRevision: paused?.capabilities?.revision || 0,
-      leaseId: draft?.id || ""
+      leaseId: draft?.id || "",
+      resumeAfterApproval: true
     });
-    expect(granted?.status).toBe("paused");
-    expect(sendReplay).not.toHaveBeenCalled();
-    runtime.resume(run.id);
+    expect(granted?.status).toBe("queued");
+    expect(granted?.timeline.at(-1)?.note).toContain("queued to resume");
 
     await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
     expect(sendReplay).toHaveBeenCalledTimes(1);
@@ -706,6 +706,54 @@ describe("AgentRuntime", () => {
       leases: [expect.objectContaining({ status: "exhausted", usedUses: 1, usedRequests: 1 })],
       receipts: [expect.objectContaining({ decision: "allowed", status: "succeeded", tool: "sendReplay" })]
     });
+  });
+
+  it("saves approval but stays paused when a normal resume guard blocks continuation", async () => {
+    const lease = browserLease(
+      ["sendReplay"],
+      [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/account", identity: "current" }]
+    );
+    const { runtime, runs, sendReplay } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: lease,
+      decideNextAction: async () => ({
+        action: "tool",
+        call: {
+          tool: "sendReplay",
+          input: { draft: { method: "GET", url: "https://hairetsu.com/account", headers: {}, body: "" } }
+        }
+      })
+    });
+    const run = runtime.start({
+      goal: "Compare account response",
+      startUrl: "https://hairetsu.com/account",
+      profileId: "advanced-api-review"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("paused"));
+    const paused = runs.get(run.id);
+    if (!paused?.checkpoint) {
+      throw new Error("Expected a durable capability checkpoint.");
+    }
+    runs.set(run.id, {
+      ...paused,
+      checkpoint: { ...paused.checkpoint, stepCount: paused.policy.maxSteps }
+    });
+    const draft = paused.capabilities?.leases.find((item) => item.status === "draft");
+    const granted = await runtime.updateCapabilities(run.id, {
+      action: "grant",
+      expectedRevision: paused.capabilities?.revision || 0,
+      leaseId: draft?.id || "",
+      resumeAfterApproval: true
+    });
+
+    expect(granted?.status).toBe("paused");
+    expect(granted?.capabilities?.leases.at(-1)?.status).toBe("granted");
+    expect(granted?.timeline.at(-1)).toMatchObject({
+      summary: "Approval saved; automatic resume unavailable",
+      note: expect.stringContaining("tool-call budget exhausted")
+    });
+    expect(sendReplay).not.toHaveBeenCalled();
   });
 
   it("revalidates saved scope after grant and revokes before pending dispatch", async () => {
@@ -1066,6 +1114,73 @@ describe("AgentRuntime", () => {
     expect(() => runtime.resume(started.id)).toThrow("Answer or dismiss the open mission question");
   });
 
+  it("continues valid actions when planner mission patches are malformed, unsupported, or stale", async () => {
+    let decisionCount = 0;
+    const { runtime, runs } = makeRuntime(undefined, {
+      decideNextAction: async () => {
+        decisionCount += 1;
+        if (decisionCount === 1) {
+          return {
+            action: "tool" as const,
+            call: { tool: "getBrowserState" as const, input: {} },
+            rationale: "Observe the visible browser state.",
+            missionPatchWarning: "The planner returned an invalid mission patch."
+          };
+        }
+        if (decisionCount === 2) {
+          return {
+            action: "tool" as const,
+            call: { tool: "getBrowserState" as const, input: {} },
+            rationale: "Recheck the visible browser state.",
+            missionPatch: {
+              baseRevision: 0,
+              updates: [{
+                kind: "claim" as const,
+                id: "clm-unsupported",
+                statement: "An unsupported security claim.",
+                status: "supported" as const,
+                confidence: "high" as const,
+                evidenceRefs: ["capture:missing"]
+              }]
+            }
+          };
+        }
+        return {
+          action: "finish" as const,
+          rationale: "The visible state was observed.",
+          findings: [],
+          missionPatch: {
+            baseRevision: 99,
+            updates: [{
+              kind: "experiment" as const,
+              id: "exp-stale",
+              title: "Stale experiment update",
+              status: "completed" as const
+            }]
+          }
+        };
+      }
+    });
+
+    const started = runtime.start({
+      goal: "Inspect https://allowed.test",
+      startUrl: "https://allowed.test"
+    });
+    await vi.waitFor(() => expect(runs.get(started.id)?.status).toBe("completed"));
+
+    const completed = runs.get(started.id);
+    expect(completed?.error).toBeUndefined();
+    expect(completed?.timeline.filter(
+      (entry) => entry.summary === "Mission update ignored; action continues"
+    )).toHaveLength(3);
+    expect(completed?.timeline.filter(
+      (entry) => entry.phase === "tool-result" && entry.toolResult?.tool === "getBrowserState"
+    )).toHaveLength(2);
+    expect(completed?.timeline.some((entry) => entry.phase === "failure")).toBe(false);
+    expect(completed?.mission?.experiments.some((experiment) => experiment.id === "exp-stale")).toBe(false);
+    expect(completed?.mission?.claims.some((claim) => claim.id === "clm-unsupported")).toBe(false);
+  });
+
   it("accepts settled revision-checked steering and rejects live or stale mutations", () => {
     const mission = createAgentMission("Inspect target", "https://allowed.test", "2026-05-25T00:00:00.000Z");
     const pausedRun: AgentRun = {
@@ -1265,6 +1380,20 @@ describe("AgentRuntime", () => {
       {
         action: "finish",
         rationale: "Agent deemed the run complete.",
+        report: {
+          executiveSummary: "The public surface exposed one low-confidence hardening lead.",
+          scopeSummary: "Reviewed the public Hairetsu origin and login path.",
+          methodology: ["Navigated the visible public surface.", "Reviewed captured HTTP evidence."],
+          observations: [{
+            title: "Document hardening requires review",
+            detail: "The captured document response should be checked for the expected browser hardening policy.",
+            status: "supported",
+            confidence: "medium",
+            evidenceRefs: ["capture:home"]
+          }],
+          limitations: ["No authenticated identity was available."],
+          recommendations: ["Confirm the expected header policy on every canonical document response."]
+        },
         findings: [
           {
             title: "Draft",
@@ -1314,6 +1443,20 @@ describe("AgentRuntime", () => {
     expect(navigateBrowser).toHaveBeenCalledWith("https://hairetsu.com/login");
     expect(navigateBrowser).not.toHaveBeenCalledWith("https://hairetsu.com/api");
     expect(runs.get(run.id)?.findings[0]?.title).toBe("Draft");
+    const completionReport = runs.get(run.id)?.timeline.find(
+      (entry) => entry.summary === "Completion report ready"
+    )?.completionReport;
+    expect(completionReport).toMatchObject({
+      outcome: "draft-findings",
+      findingCount: 1,
+      rejectedFindingCount: 0,
+      executiveSummary: "The public surface exposed one low-confidence hardening lead.",
+      observations: [expect.objectContaining({
+        title: "Document hardening requires review",
+        evidenceRefs: ["capture:home"]
+      })]
+    });
+    expect(completionReport?.evidenceRefs).toEqual(["capture:home"]);
   });
 
   it("records browser open as successful when the requested page is visible after a readiness failure", async () => {
@@ -1451,6 +1594,49 @@ describe("AgentRuntime", () => {
       "Automatic retry unavailable for openBrowser"
     );
     expect(corrected?.checkpoint?.pendingRecovery).toBeUndefined();
+  });
+
+  it("retains operator-created draft findings in the final completion report", async () => {
+    const decisions: AgentDecision[] = [
+      { action: "tool", call: { tool: "openBrowser", input: { url: "https://hairetsu.com" } } },
+      { action: "finish", rationale: "Completed after recording the failed browser step.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["https://hairetsu.com"],
+      leaseRequest: browserLease(
+        ["openBrowser"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/", identity: "current" }],
+        "navigate"
+      ),
+      openBrowser: async () => {
+        throw new Error("browser readiness failed");
+      },
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const started = runtime.start({
+      goal: "Inspect the public Hairetsu surface.",
+      startUrl: "https://hairetsu.com"
+    });
+    await vi.waitFor(() => expect(runs.get(started.id)?.status).toBe("paused"));
+    const failure = runs.get(started.id)?.timeline.find((entry) => entry.summary === "openBrowser failed");
+    if (!failure) throw new Error("Expected the failed browser operation.");
+
+    const drafted = runtime.recover(started.id, {
+      action: "draft-finding",
+      entryId: failure.id
+    });
+    expect(drafted?.findings).toHaveLength(1);
+    runtime.recover(started.id, { action: "skip-and-continue", entryId: failure.id });
+
+    await vi.waitFor(() => expect(runs.get(started.id)?.status).toBe("completed"));
+    const completed = runs.get(started.id);
+    expect(completed?.findings).toHaveLength(1);
+    expect(completed?.findings[0]?.title).toBe("Review failed openBrowser step");
+    expect(completed?.timeline.at(-1)?.completionReport).toMatchObject({
+      outcome: "draft-findings",
+      findingCount: 1
+    });
   });
 
   it("refreshes evidence for a legacy browser recovery without replaying the browser action", async () => {
