@@ -252,11 +252,20 @@ export function normalizeAgentCapabilityActionRequest(value: unknown): AgentCapa
     if (approval && approval !== "once" && approval !== "all-matching") {
       return null;
     }
+    if (
+      input.resumeAfterApproval !== undefined &&
+      typeof input.resumeAfterApproval !== "boolean"
+    ) {
+      return null;
+    }
     return {
       action,
       expectedRevision,
       leaseId,
-      ...(approval ? { approval: approval as "once" | "all-matching" } : {})
+      ...(approval ? { approval: approval as "once" | "all-matching" } : {}),
+      ...(typeof input.resumeAfterApproval === "boolean"
+        ? { resumeAfterApproval: input.resumeAfterApproval }
+        : {})
     };
   }
   if (action === "revoke" && leaseId) {

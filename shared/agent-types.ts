@@ -437,6 +437,32 @@ export type AgentDecisionFinding = {
   uncertainties?: string[];
 };
 
+export type AgentReportObservation = {
+  title: string;
+  detail: string;
+  status: "lead" | "supported" | "contradicted" | "verified";
+  confidence: "low" | "medium" | "high";
+  evidenceRefs: string[];
+};
+
+export type AgentDecisionReport = {
+  executiveSummary: string;
+  scopeSummary: string;
+  methodology: string[];
+  observations: AgentReportObservation[];
+  limitations: string[];
+  recommendations: string[];
+};
+
+export type AgentCompletionReport = AgentDecisionReport & {
+  generatedAt: string;
+  outcome: "draft-findings" | "observations-only" | "no-evidence-backed-findings";
+  findingCount: number;
+  rejectedFindingCount: number;
+  operationCount: number;
+  evidenceRefs: string[];
+};
+
 export type AgentMissionStatus = "active" | "awaiting-operator" | "completed" | "stopped";
 export type AgentMissionPriority = 1 | 2 | 3 | 4 | 5;
 export type AgentObjectiveStatus = "planned" | "active" | "blocked" | "completed" | "dismissed";
@@ -613,14 +639,17 @@ export type AgentDecision =
       rationale?: string;
       tutorial?: AgentTutorialGuidance;
       missionPatch?: AgentMissionPatch;
+      missionPatchWarning?: string;
       leaseRequest?: AgentCapabilityLeaseRequest;
     }
   | {
       action: "finish";
       rationale?: string;
       findings?: AgentDecisionFinding[];
+      report?: AgentDecisionReport;
       tutorial?: AgentTutorialGuidance;
       missionPatch?: AgentMissionPatch;
+      missionPatchWarning?: string;
     };
 
 export type AgentReconWorkerStatus = "completed" | "failed";
@@ -679,6 +708,7 @@ export type AgentTimelineEntry = {
   actionId?: string;
   identityId?: string;
   tutorial?: AgentTutorialGuidance;
+  completionReport?: AgentCompletionReport;
   reconReport?: AgentReconWorkerReport;
   toolCall?: AgentToolCall;
   toolResult?: AgentToolResult;
@@ -802,7 +832,12 @@ export type AgentCapabilityState = {
 
 export type AgentCapabilityAction =
   | { action: "propose"; lease: AgentCapabilityLeaseRequest }
-  | { action: "grant"; leaseId: string; approval?: "once" | "all-matching" }
+  | {
+      action: "grant";
+      leaseId: string;
+      approval?: "once" | "all-matching";
+      resumeAfterApproval?: boolean;
+    }
   | { action: "revoke"; leaseId: string; reason?: string };
 
 export type AgentCapabilityActionRequest = { expectedRevision: number } & AgentCapabilityAction;

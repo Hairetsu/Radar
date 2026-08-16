@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Ban, KeyRound, Plus, RadioTower, ShieldCheck, TimerReset } from "lucide-react";
+import { Ban, KeyRound, Play, Plus, RadioTower, ShieldCheck, TimerReset } from "lucide-react";
 import { getAgentRunProfile } from "../../shared/agentProfiles.js";
 import type {
   AgentCapabilityAction,
@@ -75,6 +75,7 @@ export function AgentCapabilityLedger({
   const [maxUses, setMaxUses] = useState(1);
   const [maxRequests, setMaxRequests] = useState(1);
   const [reason, setReason] = useState("Authorize one exact, reviewable mission experiment.");
+  const [resumeAfterApproval, setResumeAfterApproval] = useState(true);
 
   const selectedTemplate =
     templates.find((template) => template.id === templateId) || templates[0] || LEASE_TEMPLATES[0];
@@ -90,6 +91,10 @@ export function AgentCapabilityLedger({
   useEffect(() => {
     setMethod(selectedTemplate.method);
   }, [selectedTemplate.method]);
+
+  useEffect(() => {
+    setResumeAfterApproval(true);
+  }, [run?.id]);
 
   const submitLease = (event: FormEvent) => {
     event.preventDefault();
@@ -179,11 +184,25 @@ export function AgentCapabilityLedger({
               <Plus size={11} /> Propose For Review
             </Button>
             <p className="font-mono text-micro leading-4 text-muted">
-              {canEdit ? "DRAFT ONLY · Approval is a separate operator action and never resumes the run" : "PAUSE TO CHANGE AUTHORITY"}
+              {canEdit ? "DRAFT ONLY · Review exact authority before approval" : "PAUSE TO CHANGE AUTHORITY"}
             </p>
           </form>
 
           <div className="grid min-w-0 gap-3 p-3">
+            {reviewCount > 0 && (
+              <label className="flex cursor-pointer items-center gap-2 border border-signal/30 bg-signal/[0.06] px-3 py-2 rd-label text-bone transition hover:border-signal/55 hover:bg-signal/10">
+                <input
+                  type="checkbox"
+                  checked={resumeAfterApproval}
+                  onChange={(event) => setResumeAfterApproval(event.target.checked)}
+                  data-testid="agentCapabilityResumeAfterApproval"
+                  data-component="agentCapabilityResumeAfterApproval"
+                />
+                <Play size={12} className="text-signal" />
+                <span>Resume after approval</span>
+                <span className="ml-auto font-mono text-micro text-muted">{resumeAfterApproval ? "DEFAULT ON" : "STAY PAUSED"}</span>
+              </label>
+            )}
             <div className="max-h-[220px] overflow-auto">
               {!state?.leases.length && <EmptyState>No capability leases proposed for this run.</EmptyState>}
               {state?.leases.map((lease) => (
@@ -209,11 +228,11 @@ export function AgentCapabilityLedger({
                   <div className="mt-3 flex flex-wrap gap-2">
                     {lease.status === "draft" && (
                       <>
-                        <Button type="button" variant="solid" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "grant", leaseId: lease.id, approval: "once" })} data-testid={`capabilityGrant-${lease.id}`}>
+                        <Button type="button" variant="solid" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "grant", leaseId: lease.id, approval: "once", resumeAfterApproval })} data-testid={`capabilityGrant-${lease.id}`}>
                           <ShieldCheck size={11} /> Approve Once
                         </Button>
                         {lease.tools.length === 1 && lease.grants.length === 1 && (
-                          <Button type="button" variant="zap" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "grant", leaseId: lease.id, approval: "all-matching" })} title="Approve matching calls for this tool on the same origin, method, and identity within the run's caps" data-testid={`capabilityGrantAll-${lease.id}`}>
+                          <Button type="button" variant="zap" size="compact" disabled={!canEdit} onClick={() => void onUpdate({ action: "grant", leaseId: lease.id, approval: "all-matching", resumeAfterApproval })} title="Approve matching calls for this tool on the same origin, method, and identity within the run's caps" data-testid={`capabilityGrantAll-${lease.id}`}>
                             <ShieldCheck size={11} /> Approve All
                           </Button>
                         )}

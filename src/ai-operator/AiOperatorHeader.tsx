@@ -1,4 +1,4 @@
-import { Bot, Focus, ListTree, PanelRight, Settings2 } from "lucide-react";
+import { Bot, Focus, PanelLeft, PanelRight, Settings2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { StatusBadge, StatusDot } from "../components/radar/primitives";
 import type { AiOperatorController } from "./useAiOperator";
@@ -50,9 +50,10 @@ export function AiOperatorHeader({
             {controller.connection.connected ? controller.connection.model || "connected" : "AI offline"}
           </StatusBadge>
         </div>
-        <Button type="button" variant={railOpen ? "solid" : "ghost"} size="compact" onClick={onToggleRail} aria-label="Toggle run history" aria-expanded={railOpen} data-testid="toggleAiRunRail">
-          <ListTree size={13} />
-          <span className="max-[760px]:hidden">Runs</span>
+        <Button type="button" variant={railOpen ? "solid" : "ghost"} size="compact" onClick={onToggleRail} aria-label="Toggle task history" aria-expanded={railOpen} data-testid="toggleAiRunRail">
+          <PanelLeft size={13} />
+          <span className="max-[760px]:hidden">Tasks</span>
+          {controller.runs.length > 0 && <span className="grid h-4 min-w-4 place-items-center border border-current/25 px-0.5 font-mono text-[8px]">{controller.runs.length}</span>}
         </Button>
         <Button type="button" variant={inspectorOpen ? "solid" : "ghost"} size="compact" onClick={onToggleInspector} aria-label="Toggle mission inspector" aria-expanded={inspectorOpen} data-testid="toggleAiInspector">
           <PanelRight size={13} />
