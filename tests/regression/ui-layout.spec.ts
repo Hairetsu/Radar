@@ -380,6 +380,29 @@ test.describe("UI layout, reachability, and density contracts", () => {
     await loadDemo(page);
     const evidenceWidth = await page.getByTestId("evidencePane").evaluate((element) => element.getBoundingClientRect().width);
     const operator = await openAiFirstConsole(page);
+    await applyWindowProfile(electronApp, operator, "default", testInfo);
+    const taskRail = operator.getByTestId("aiRunRail");
+    await expect(taskRail).toBeVisible();
+    if (await taskRail.getAttribute("data-collapsed") === "true") {
+      await operator.getByTestId("expandAiRunRail").click();
+    }
+    await expect(taskRail).toHaveAttribute("data-collapsed", "false");
+    await operator.getByTestId("toggleAiRunRail").click();
+    await expect(taskRail).toHaveAttribute("data-collapsed", "true");
+    const railFit = await operator.getByTestId("aiOperatorWorkspace").evaluate((workspace) => {
+      const rail = workspace.querySelector<HTMLElement>("[data-testid='aiRunRail']");
+      if (!rail) throw new Error("Task History rail is unavailable.");
+      const workspaceRect = workspace.getBoundingClientRect();
+      const railRect = rail.getBoundingClientRect();
+      return {
+        top: railRect.top,
+        bottom: railRect.bottom,
+        workspaceTop: workspaceRect.top,
+        workspaceBottom: workspaceRect.bottom
+      };
+    });
+    expect(railFit.top).toBeCloseTo(railFit.workspaceTop, 0);
+    expect(railFit.bottom).toBeCloseTo(railFit.workspaceBottom, 0);
     await applyWindowProfile(electronApp, operator, "minimum", testInfo);
     await expect(operator.getByTestId("aiOperatorComposer")).toBeVisible();
     await operator.getByTestId("toggleAiInspector").click();

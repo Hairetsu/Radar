@@ -3,7 +3,14 @@ advancedImportText
 advancedWorkbench
 agentAuditDetailToggle
 agentCapabilityLedger
+agentCapabilityResumeAfterApproval
 agentCapabilityReview
+agentCompletionExecutiveSummary
+agentCompletionFindings
+agentCompletionLimitations
+agentCompletionObservations
+agentCompletionRecommendations
+agentCompletionReport
 agentEvidencePreview
 agentFollowLatest
 agentGoalInput
@@ -126,6 +133,7 @@ capabilityPermissionBackdrop
 capabilityPermissionDeny
 capabilityPermissionGrant
 capabilityPermissionGrantAll
+capabilityPermissionResumeAfterApproval
 capabilityPropose
 capabilityReasonInput
 capabilityReceipts
@@ -145,6 +153,7 @@ cloneToRepeater
 closeAgentEvidencePreview
 closeGlobalSearch
 closeProjectArtifacts
+collapseAiRunRail
 commandPalette
 commandPaletteBackdrop
 commandPaletteClose
@@ -172,6 +181,7 @@ downloadFindingReport
 draftAdvancedImportWorkflow
 dropIntercept
 evidencePane
+expandAiRunRail
 findingAssets
 findingAssignee
 findingComponent

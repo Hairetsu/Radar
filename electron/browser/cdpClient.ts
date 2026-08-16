@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { CdpListEntry } from "../chromeDebugging.js";
 import type { CdpSocket } from "./chromeCaptureObserver.js";
 
@@ -25,6 +27,22 @@ export async function fetchCdpTargets(endpoint: string) {
   const response = await fetch(`${endpoint.replace(/\/$/, "")}/json/list`);
   if (!response.ok) throw new Error(`Chrome debugging endpoint returned ${response.status}.`);
   return (await response.json()) as CdpListEntry[];
+}
+
+type CdpBrowserVersion = {
+  webSocketDebuggerUrl?: string;
+};
+
+export const MANAGED_BROWSER_OWNER_FILE = ".radar-managed-browser.json";
+
+async function fetchCdpBrowserVersion(endpoint: string): Promise<CdpBrowserVersion> {
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/json/version`, {
+    signal: AbortSignal.timeout(750)
+  });
+  if (!response.ok) {
+    throw new Error(`Chrome browser endpoint returned ${response.status}.`);
+  }
+  return (await response.json()) as CdpBrowserVersion;
 }
 
 export async function waitForChromeDebugger(endpoint: string, timeoutMs = 8_000) {
@@ -134,4 +152,77 @@ export function createCdpPageClient({
   }
 
   return { withPage, evaluate };
+}
+
+function endpointPort(endpoint: string) {
+  try {
+    return Number(new URL(endpoint).port) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function profileOwnerProcessIds(profileDir: string, endpoint: string) {
+  const processIds = new Set<number>();
+  try {
+    const owner = JSON.parse(
+      fs.readFileSync(path.join(profileDir, MANAGED_BROWSER_OWNER_FILE), "utf8")
+    ) as { pid?: unknown; remoteDebuggingPort?: unknown };
+    const pid = Math.round(Number(owner.pid));
+    const port = Math.round(Number(owner.remoteDebuggingPort));
+    if (Number.isInteger(pid) && pid > 0 && port === endpointPort(endpoint)) {
+      processIds.add(pid);
+    }
+  } catch {
+    /* A pre-owner-record browser can still be verified through Chrome's profile singleton. */
+  }
+  try {
+    const singleton = fs.readlinkSync(path.join(profileDir, "SingletonLock"));
+    const pid = Number(singleton.match(/-(\d+)$/)?.[1] || 0);
+    if (Number.isInteger(pid) && pid > 0) {
+      processIds.add(pid);
+    }
+  } catch {
+    /* SingletonLock is platform-specific and may be unavailable after a clean exit. */
+  }
+  return [...processIds];
+}
+
+export async function closeCdpBrowserForProfile({
+  endpoint,
+  profileDir,
+  fetchVersion = fetchCdpBrowserVersion,
+  ownerProcessIds = profileOwnerProcessIds,
+  createSocket
+}: {
+  endpoint: string;
+  profileDir: string;
+  fetchVersion?: (endpoint: string) => Promise<CdpBrowserVersion>;
+  ownerProcessIds?: (profileDir: string, endpoint: string) => number[];
+  createSocket?: (url: string) => CdpSocket;
+}) {
+  const expectedProcessIds = new Set(ownerProcessIds(profileDir, endpoint));
+  if (expectedProcessIds.size === 0) {
+    return false;
+  }
+  const version = await fetchVersion(endpoint);
+  if (!version.webSocketDebuggerUrl) {
+    return false;
+  }
+  const client = createCdpPageClient({
+    resolveTarget: async () => ({ webSocketDebuggerUrl: version.webSocketDebuggerUrl }),
+    ...(createSocket ? { createSocket } : {})
+  });
+  return client.withPage(async (sendCommand) => {
+    const processInfo = (await sendCommand("SystemInfo.getProcessInfo")) as {
+      processInfo?: Array<{ type?: unknown; id?: unknown }>;
+    };
+    const browserProcess = processInfo.processInfo?.find((process) => process.type === "browser");
+    const ownsProfile = expectedProcessIds.has(Math.round(Number(browserProcess?.id)));
+    if (!ownsProfile) {
+      return false;
+    }
+    await sendCommand("Browser.close");
+    return true;
+  });
 }

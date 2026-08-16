@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CdpSocket } from "./chromeCaptureObserver.js";
-import { createCdpPageClient } from "./cdpClient.js";
+import { closeCdpBrowserForProfile, createCdpPageClient } from "./cdpClient.js";
 
 type SocketEvent = { data?: unknown };
 
@@ -85,5 +85,42 @@ describe("CDP page client", () => {
     await expect(client.withPage(async () => undefined)).rejects.toThrow(
       "No Chrome debugger WebSocket URL"
     );
+  });
+
+  it("closes only a browser that owns the exact Radar profile directory", async () => {
+    const ownedSocket = new FakeCdpSocket((command) =>
+      command.method === "SystemInfo.getProcessInfo"
+        ? { result: { processInfo: [{ type: "browser", id: 4_242 }] } }
+        : { result: {} }
+    );
+    await expect(
+      closeCdpBrowserForProfile({
+        endpoint: "http://127.0.0.1:9223",
+        profileDir: "/tmp/radar-profile",
+        fetchVersion: async () => ({ webSocketDebuggerUrl: "ws://debug/browser" }),
+        ownerProcessIds: () => [4_242],
+        createSocket: () => ownedSocket
+      })
+    ).resolves.toBe(true);
+    expect(ownedSocket.commands.map((command) => command.method)).toEqual([
+      "SystemInfo.getProcessInfo",
+      "Browser.close"
+    ]);
+
+    const unrelatedSocket = new FakeCdpSocket(() => ({
+      result: { processInfo: [{ type: "browser", id: 8_888 }] }
+    }));
+    await expect(
+      closeCdpBrowserForProfile({
+        endpoint: "http://127.0.0.1:9224",
+        profileDir: "/tmp/radar-profile",
+        fetchVersion: async () => ({ webSocketDebuggerUrl: "ws://debug/unrelated" }),
+        ownerProcessIds: () => [4_242],
+        createSocket: () => unrelatedSocket
+      })
+    ).resolves.toBe(false);
+    expect(unrelatedSocket.commands.map((command) => command.method)).toEqual([
+      "SystemInfo.getProcessInfo"
+    ]);
   });
 });

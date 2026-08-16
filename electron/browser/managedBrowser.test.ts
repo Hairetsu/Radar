@@ -7,6 +7,7 @@ import type { BrowserState } from "../../shared/domain.js";
 const browserMocks = vi.hoisted(() => {
   const processListeners = new Map<string, (...args: unknown[]) => void>();
   const child = {
+    pid: 4_242,
     killed: false,
     kill: vi.fn(),
     unref: vi.fn(),
@@ -61,14 +62,16 @@ vi.mock("../trustCa.js", () => ({
   ensureRadarKeychainInSearchList: vi.fn()
 }));
 vi.mock("./cdpClient.js", () => ({
+  closeCdpBrowserForProfile: vi.fn(async () => false),
   fetchCdpTargets: vi.fn(async () => []),
+  MANAGED_BROWSER_OWNER_FILE: ".radar-managed-browser.json",
   waitForChromeDebugger: vi.fn(async () => [])
 }));
 vi.mock("../chromeDebugging.js", () => ({
   findCdpEndpointForUrl: vi.fn(async () => "")
 }));
 
-import { createManagedBrowser } from "./managedBrowser.js";
+import { closeStaleManagedBrowsers, createManagedBrowser } from "./managedBrowser.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -118,6 +121,49 @@ function createBrowser(
 }
 
 describe("managed browser", () => {
+  it("closes stale Chrome only after proving ownership of the Radar profile", async () => {
+    const occupied = new Set([9_223, 9_224]);
+    const closeBrowserForProfile = vi.fn(async ({ endpoint }: { endpoint: string }) => {
+      if (endpoint.endsWith(":9223")) {
+        occupied.delete(9_223);
+        return true;
+      }
+      return false;
+    });
+
+    await closeStaleManagedBrowsers({
+      profileDir: "/tmp/radar-profile",
+      startPort: 9_223,
+      portCount: 2,
+      portIsAvailable: async (port) => !occupied.has(port),
+      closeBrowserForProfile,
+      wait: async () => undefined
+    });
+
+    expect(closeBrowserForProfile).toHaveBeenCalledWith({
+      endpoint: "http://127.0.0.1:9223",
+      profileDir: "/tmp/radar-profile"
+    });
+    expect(closeBrowserForProfile).toHaveBeenCalledWith({
+      endpoint: "http://127.0.0.1:9224",
+      profileDir: "/tmp/radar-profile"
+    });
+    expect(occupied.has(9_224)).toBe(true);
+  });
+
+  it("fails before relaunch when an owned stale Chrome does not release its debugger", async () => {
+    await expect(
+      closeStaleManagedBrowsers({
+        profileDir: "/tmp/radar-profile",
+        startPort: 9_223,
+        portCount: 1,
+        portIsAvailable: async () => false,
+        closeBrowserForProfile: async () => true,
+        wait: async () => undefined
+      })
+    ).rejects.toThrow("stale Radar managed Chrome");
+  });
+
   it("projects an Electron browser surface through the shared browser state contract", () => {
     const { browser } = createBrowser(() => ({
       open: true,
@@ -146,7 +192,8 @@ describe("managed browser", () => {
 
   it("launches, navigates, observes, and stops the managed Chrome lifecycle", async () => {
     const { browser, captureObserver, onProcessExit, userDataPath } = createBrowser();
-    browser.setDedicatedProfileDir(path.join(userDataPath, "identity-profile"));
+    const profileDir = path.join(userDataPath, "identity-profile");
+    browser.setDedicatedProfileDir(profileDir);
 
     await expect(browser.open("https://target.example/start")).resolves.toEqual(
       expect.objectContaining({ open: true, engine: "chrome", channel: "test" })
@@ -154,6 +201,10 @@ describe("managed browser", () => {
     expect(captureObserver.start).toHaveBeenCalledWith(expect.stringMatching(/^http:\/\/127\.0\.0\.1:/));
     expect(browserMocks.automation.connect).toHaveBeenCalledOnce();
     expect(browserMocks.automation.reload).toHaveBeenCalledOnce();
+    expect(JSON.parse(fs.readFileSync(path.join(profileDir, ".radar-managed-browser.json"), "utf8"))).toEqual({
+      pid: 4_242,
+      remoteDebuggingPort: 9_223
+    });
 
     await browser.navigate("https://target.example/next");
     expect(browserMocks.automation.navigate).toHaveBeenCalledWith("https://target.example/next");
@@ -166,6 +217,27 @@ describe("managed browser", () => {
     browserMocks.processListeners.get("exit")?.(0, null);
     expect(onProcessExit).toHaveBeenCalledOnce();
     expect(browser.rawState().open).toBe(false);
+    expect(fs.existsSync(path.join(profileDir, ".radar-managed-browser.json"))).toBe(false);
+  });
+
+  it("rebuilds the managed browser after navigation loses its proxy connection", async () => {
+    const { browser, startProxy } = createBrowser();
+
+    await browser.open("https://target.example/start");
+    browserMocks.automation.navigate.mockRejectedValueOnce(
+      new Error("page.goto: net::ERR_PROXY_CONNECTION_FAILED at https://target.example/next")
+    );
+
+    await expect(browser.navigate("https://target.example/next")).resolves.toEqual(
+      expect.objectContaining({
+        open: true,
+        engine: "chrome",
+        url: "https://target.example/next"
+      })
+    );
+    expect(browserMocks.child.kill).toHaveBeenCalledOnce();
+    expect(startProxy).toHaveBeenCalledTimes(2);
+    expect(browserMocks.automation.reload).toHaveBeenCalledTimes(2);
   });
 
   it("uses the next local proxy port when the preferred port is occupied", async () => {

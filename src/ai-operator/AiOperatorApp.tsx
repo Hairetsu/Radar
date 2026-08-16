@@ -12,14 +12,33 @@ import { useTheme } from "../hooks/useTheme";
 export function AiOperatorApp() {
   useTheme();
   const controller = useAiOperator();
-  const [railOpen, setRailOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(() => {
+    if (typeof window === "undefined" || window.innerWidth < 960) return false;
+    try {
+      return window.localStorage.getItem("radar.ai-operator.task-rail") !== "collapsed";
+    } catch {
+      return true;
+    }
+  });
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
   useEffect(() => {
     if (controller.section !== "settings") return;
-    setRailOpen(false);
     setInspectorOpen(false);
   }, [controller.section]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth < 960) return;
+    try {
+      window.localStorage.setItem("radar.ai-operator.task-rail", railOpen ? "expanded" : "collapsed");
+    } catch {
+      // Sidebar preference is best effort and contains no assessment data.
+    }
+  }, [railOpen]);
+
+  const closeMobileRail = () => {
+    if (window.innerWidth < 960) setRailOpen(false);
+  };
 
   return (
     <main className="radar-shell relative grid h-full min-h-0 overflow-hidden bg-ink text-copy [grid-template-rows:auto_minmax(0,1fr)]" data-testid="aiOperatorShell" data-component="aiOperatorShell">
@@ -27,42 +46,57 @@ export function AiOperatorApp() {
       <div className="relative z-[2] contents">
         <AiOperatorHeader
           controller={controller}
-          railOpen={railOpen}
+          railOpen={controller.section !== "settings" && railOpen}
           inspectorOpen={inspectorOpen}
           onToggleRail={() => {
+            if (controller.section === "settings") {
+              controller.setSection("runs");
+              setRailOpen(true);
+              setInspectorOpen(false);
+              return;
+            }
             setRailOpen((open) => !open);
             setInspectorOpen(false);
           }}
           onToggleInspector={() => {
+            if (controller.section === "settings") {
+              controller.setSection("runs");
+              setInspectorOpen(true);
+              if (window.innerWidth < 960) setRailOpen(false);
+              return;
+            }
             setInspectorOpen((open) => !open);
-            setRailOpen(false);
+            if (window.innerWidth < 960) setRailOpen(false);
           }}
         />
         {controller.section === "settings" ? (
           <AiConnectionPanel controller={controller} />
         ) : (
-          <section className="relative grid min-h-0 min-w-0 [grid-template-columns:minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_auto]" data-testid="aiOperatorWorkspace">
-            <div className="grid min-h-0 min-w-0 [grid-column:1/2] [grid-row:1/2]">
+          <section className="relative grid min-h-0 min-w-0 [grid-template-columns:auto_minmax(0,1fr)] [grid-template-rows:minmax(0,1fr)_auto]" data-testid="aiOperatorWorkspace">
+            <AgentRunRail
+              controller={controller}
+              collapsed={!railOpen}
+              onToggle={() => setRailOpen((open) => !open)}
+              onNavigate={closeMobileRail}
+              className={railOpen ? "[grid-column:1/2] [grid-row:1/3] transition-[width] duration-300 max-[959px]:fixed max-[959px]:bottom-0 max-[959px]:left-0 max-[959px]:top-[65px] max-[959px]:z-30 max-[959px]:w-[min(320px,88vw)] max-[959px]:shadow-bureau" : "[grid-column:1/2] [grid-row:1/3] transition-[width] duration-300 max-[959px]:hidden"}
+            />
+            <div className="grid min-h-0 min-w-0 [grid-column:2/3] [grid-row:1/2]">
               <AgentFeed controller={controller} />
             </div>
-            <div className="min-w-0 [grid-column:1/2] [grid-row:2/3]">
+            <div className="min-w-0 [grid-column:2/3] [grid-row:2/3]">
               <AgentComposer controller={controller} />
             </div>
-            {(railOpen || inspectorOpen) && (
+            {railOpen && (
+              <button type="button" className="fixed inset-x-0 bottom-0 top-[65px] z-20 bg-ink/65 backdrop-blur-[2px] min-[960px]:hidden" aria-label="Close task history" onClick={() => setRailOpen(false)} />
+            )}
+            {inspectorOpen && (
               <button
                 type="button"
                 className="fixed inset-x-0 bottom-0 top-[65px] z-20 bg-ink/65 backdrop-blur-[2px]"
                 aria-label="Close AI Operator panels"
                 onClick={() => {
-                  setRailOpen(false);
                   setInspectorOpen(false);
                 }}
-              />
-            )}
-            {railOpen && (
-              <AgentRunRail
-                controller={controller}
-                className="radar-reveal fixed bottom-0 left-0 top-[65px] z-30 w-[min(340px,88vw)] opacity-0 shadow-bureau animate-[panel-enter-left_260ms_cubic-bezier(0.2,0.74,0.19,1)_forwards]"
               />
             )}
             {inspectorOpen && (

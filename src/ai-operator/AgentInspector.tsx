@@ -1,6 +1,7 @@
 import { Database, FileText, GitBranch, KeyRound, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AgentCapabilityLedger } from "../components/AgentCapabilityLedger";
+import { AgentCompletionReport } from "../components/AgentCompletionReport";
 import { AgentMissionGraph } from "../components/AgentMissionGraph";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -14,7 +15,7 @@ type InspectorTab = "mission" | "authority" | "findings" | "memory";
 const tabs: Array<{ id: InspectorTab; label: string; icon: typeof GitBranch }> = [
   { id: "mission", label: "Graph", icon: GitBranch },
   { id: "authority", label: "Leases", icon: KeyRound },
-  { id: "findings", label: "Drafts", icon: FileText },
+  { id: "findings", label: "Report", icon: FileText },
   { id: "memory", label: "Memory", icon: Database }
 ];
 
@@ -54,7 +55,9 @@ export function AgentInspector({ controller, className }: { controller: AiOperat
         {tab === "mission" && <AgentMissionGraph run={controller.activeRun} onSteer={controller.steerMission} />}
         {tab === "authority" && <AgentCapabilityLedger run={controller.activeRun} onUpdate={controller.updateCapabilities} />}
         {tab === "findings" && (
-          <section className="border border-rule bg-ink/28" data-testid="aiInspectorFindings">
+          controller.activeRun?.status === "completed" ? (
+            <AgentCompletionReport run={controller.activeRun} />
+          ) : <section className="border border-rule bg-ink/28" data-testid="aiInspectorFindings">
             <div className="flex items-center justify-between border-b border-rule px-3 py-2">
               <span className="rd-eyebrow text-muted">Draft Findings</span>
               <StatusBadge>{controller.activeRun?.findings.length || 0}</StatusBadge>

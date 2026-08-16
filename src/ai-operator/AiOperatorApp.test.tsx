@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RadarAiOperatorApi } from "../../shared/api/aiOperatorApi.js";
 import type { AgentRun } from "../../shared/agent-types.js";
@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe("AiOperatorApp", () => {
-  it("gives the live feed the window and opens run history and inspection as overlays", async () => {
+  it("keeps task history available as a collapsible sidebar while inspection remains an overlay", async () => {
     const api = operatorApi();
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
 
@@ -102,17 +102,44 @@ describe("AiOperatorApp", () => {
     expect(screen.getByTestId("aiOperatorFeed")).toBeInTheDocument();
     expect(screen.getByTestId("aiOperatorComposer")).toBeInTheDocument();
     expect(screen.getByText("Acme Defense / Authorization Review / traffic")).toBeInTheDocument();
-    expect(screen.queryByTestId("aiRunRail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("aiRunRail")).toHaveAttribute("data-collapsed", "false");
+    expect(screen.getByTestId("toggleAiRunRail")).toHaveTextContent("Tasks");
 
     fireEvent.click(screen.getByTestId("toggleAiRunRail"));
-    expect(screen.getByTestId("aiRunRail")).toBeInTheDocument();
+    expect(screen.getByTestId("aiRunRail")).toHaveAttribute("data-collapsed", "true");
+    fireEvent.click(screen.getByTestId("expandAiRunRail"));
+    expect(screen.getByTestId("aiRunRail")).toHaveAttribute("data-collapsed", "false");
     fireEvent.click(screen.getByTestId("toggleAiInspector"));
-    expect(screen.queryByTestId("aiRunRail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("aiRunRail")).toBeInTheDocument();
     expect(screen.getByTestId("aiMissionInspector")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("aiOperatorSettings"));
     expect(screen.getByTestId("aiOperatorConnectionPanel")).toBeInTheDocument();
     expect(api.probeAiConnection).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("toggleAiRunRail"));
+    expect(screen.getByTestId("aiRunRail")).toHaveAttribute("data-collapsed", "false");
+  });
+
+  it("shows task status and selection clearly in persistent history", async () => {
+    const active = run({ id: "run-active", goal: "Inspect the public surface", status: "running" });
+    const completed = run({ id: "run-complete", goal: "Review CORS behavior", status: "completed" });
+    const api = operatorApi({ listAgentRuns: vi.fn(async () => [active, completed]) });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+
+    render(<AiOperatorApp />);
+
+    const taskRail = await screen.findByTestId("aiRunRail");
+    expect(within(taskRail).getByText("Inspect the public surface")).toBeInTheDocument();
+    expect(within(taskRail).getByText("Review CORS behavior")).toBeInTheDocument();
+    expect(within(taskRail).getByText("Active")).toBeInTheDocument();
+    expect(within(taskRail).getByText("Complete")).toBeInTheDocument();
+    expect(screen.getByTestId("toggleAiRunRail")).toHaveTextContent("2");
+    expect(screen.getByTestId("aiRun-run-active")).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(screen.getByTestId("aiRun-run-complete"));
+    expect(screen.getByTestId("aiRun-run-complete")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("aiRun-run-active")).not.toHaveAttribute("aria-current");
   });
 
   it("starts a saved-scope mission and clears its session-scoped draft", async () => {
@@ -206,6 +233,69 @@ describe("AiOperatorApp", () => {
     await waitFor(() => expect(api.recoverAgentRun).toHaveBeenCalledWith("run-test", { action: "draft-finding", entryId: "failure-1" }));
   });
 
+  it("shows a detailed durable write-up when an assessment completes", async () => {
+    const finding = {
+      id: "finding-complete",
+      title: "Credentialed CORS response lacks cache variance",
+      notes: "A specific credentialed allowed origin was observed without Vary: Origin.",
+      evidenceRefs: ["capture:capture-cors"],
+      confidence: "medium" as const,
+      createdAt: "2026-05-25T00:01:00.000Z",
+      affectedAssets: ["https://analytics.target.test/ingest"],
+      reproductionNotes: "Inspect capture:capture-cors and compare Origin-specific responses.",
+      severityRationale: "Shared caching could serve an origin-specific response incorrectly.",
+      remediation: "Add Vary: Origin whenever the response depends on Origin.",
+      uncertainties: ["Exploitability was not established from the single observed origin."]
+    };
+    const completed = run({
+      status: "completed",
+      findings: [finding],
+      timeline: [{
+        id: "completion-1",
+        operationId: "operation-finish",
+        createdAt: "2026-05-25T00:01:00.000Z",
+        phase: "status",
+        summary: "Completion report ready",
+        note: "Public assessment complete.",
+        completionReport: {
+          generatedAt: "2026-05-25T00:01:00.000Z",
+          outcome: "draft-findings",
+          findingCount: 1,
+          rejectedFindingCount: 0,
+          operationCount: 7,
+          evidenceRefs: ["capture:capture-cors", "capture:capture-home"],
+          executiveSummary: "The public assessment found one cache-hardening concern and no observed cookie-setting responses.",
+          scopeSummary: "Reviewed the public document and analytics origins without an authenticated identity.",
+          methodology: ["Mapped public paths.", "Reviewed captured response headers and CORS behavior."],
+          observations: [{
+            title: "No Set-Cookie observed",
+            detail: "No Set-Cookie response was present in the retained public browsing traffic.",
+            status: "supported",
+            confidence: "medium",
+            evidenceRefs: ["capture:capture-home"]
+          }],
+          limitations: ["Authenticated and stateful application paths were not available."],
+          recommendations: ["Retest with an authorized authenticated identity."]
+        }
+      }]
+    });
+    const api = operatorApi({ listAgentRuns: vi.fn(async () => [completed]) });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+
+    render(<AiOperatorApp />);
+
+    const report = await screen.findByTestId("agentCompletionReport");
+    expect(report).toHaveTextContent("Completion Report");
+    expect(report).toHaveTextContent("The public assessment found one cache-hardening concern");
+    expect(report).toHaveTextContent("No Set-Cookie observed");
+    expect(report).toHaveTextContent("Credentialed CORS response lacks cache variance");
+    expect(report).toHaveTextContent("Shared caching could serve an origin-specific response incorrectly.");
+    expect(report).toHaveTextContent("Inspect capture:capture-cors and compare Origin-specific responses.");
+    expect(report).toHaveTextContent("Add Vary: Origin whenever the response depends on Origin.");
+    expect(report).toHaveTextContent("Authenticated and stateful application paths were not available.");
+    expect(report).toHaveTextContent("Retest with an authorized authenticated identity.");
+  });
+
   it("opens pending authority with once and approve-all choices and disables resume until review", async () => {
     const pending = run({
       checkpoint: {
@@ -267,13 +357,27 @@ describe("AiOperatorApp", () => {
     expect(screen.getByTestId("resumeAgentRun")).toBeDisabled();
     expect(screen.getByTestId("resumeAgentRun")).toHaveTextContent("Approve Lease First");
     expect(screen.getByTestId("capabilityPermissionGrant")).toHaveTextContent("Approve Once");
+    expect(screen.getByTestId("capabilityPermissionResumeAfterApproval")).toBeChecked();
     fireEvent.click(screen.getByTestId("capabilityPermissionGrantAll"));
 
     await waitFor(() => expect(updateAgentCapabilities).toHaveBeenCalledWith("run-test", {
       action: "grant",
       approval: "all-matching",
       expectedRevision: 1,
-      leaseId: "lease-click"
+      leaseId: "lease-click",
+      resumeAfterApproval: true
+    }));
+
+    await waitFor(() => expect(screen.getByTestId("capabilityPermissionGrant")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("capabilityPermissionResumeAfterApproval"));
+    expect(screen.getByTestId("capabilityPermissionResumeAfterApproval")).not.toBeChecked();
+    fireEvent.click(screen.getByTestId("capabilityPermissionGrant"));
+    await waitFor(() => expect(updateAgentCapabilities).toHaveBeenLastCalledWith("run-test", {
+      action: "grant",
+      approval: "once",
+      expectedRevision: 1,
+      leaseId: "lease-click",
+      resumeAfterApproval: false
     }));
   });
 
@@ -369,7 +473,6 @@ describe("AiOperatorApp", () => {
     render(<AiOperatorApp />);
 
     expect(await screen.findByTestId("steerAgentRun")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("toggleAiRunRail"));
     fireEvent.click(screen.getByTestId("newAiMission"));
     const goal = screen.getByTestId("agentGoalInput");
     fireEvent.change(goal, { target: { value: "Inspect https://target.test/new" } });

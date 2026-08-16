@@ -1,6 +1,7 @@
 import { Activity, ArrowUp, Eye, FileText, RadioTower } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentThoughtstream } from "../components/AgentThoughtstream";
+import { AgentCompletionReport } from "../components/AgentCompletionReport";
 import { AgentTutorialGuide } from "../components/AgentTutorialGuide";
 import { Button } from "../components/ui/button";
 import { EmptyState, StatusBadge } from "../components/radar/primitives";
@@ -143,6 +144,8 @@ export function AgentFeed({ controller }: { controller: AiOperatorController }) 
           <div className="grid min-h-full w-full content-start gap-3 p-3 min-[1120px]:p-4">
             {run?.policy.tutorialMode && <AgentTutorialGuide run={run} />}
 
+            {run?.status === "completed" && <AgentCompletionReport run={run} />}
+
             {!run && (
               <div className="min-h-[260px] border border-rule bg-surface/45 p-6">
                 <EmptyState className="min-h-[220px]"><RadioTower size={24} strokeWidth={1.4} />Open a saved run or compose a bounded, saved-scope mission below.</EmptyState>
@@ -175,7 +178,7 @@ export function AgentFeed({ controller }: { controller: AiOperatorController }) 
               </div>
             )}
 
-            {[...(run?.findings || [])].reverse().map((finding) => (
+            {run?.status !== "completed" && [...(run?.findings || [])].reverse().map((finding) => (
               <article key={finding.id} className="border border-sand/35 bg-sand/[0.055] p-3" data-testid={`agentFeedFinding-${finding.id}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2"><span className="flex items-center gap-2 rd-eyebrow text-sand"><FileText size={12} /> Draft Finding</span><StatusBadge>{finding.confidence}</StatusBadge></div>
                 <h3 className="mt-2 font-display text-lead uppercase tracking-data text-bone">{finding.title}</h3>

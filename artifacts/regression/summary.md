@@ -1,100 +1,54 @@
 # Radar Regression Report
 
-Generated: 2026-08-15T17:41:22.631Z
+Generated: 2026-08-16T04:11:48.004Z
 Overall result: **PASSED**
-Workers: 6
-Wall time: 133.2s
-Aggregate workflow time: 727.2s
+Workers: 1
+Wall time: 4.1s
+Aggregate workflow time: 3.5s
 
 ## Outcome
 
 | Passed | Failed | Flaky | Skipped | Selected |
 | ---: | ---: | ---: | ---: | ---: |
-| 182 | 0 | 0 | 10 | 192 |
+| 1 | 0 | 0 | 0 | 1 |
 
 ## Release Signals
 
 - No blocking workflow failures were detected.
 - No flaky workflows were detected.
-- 10 selected workflow(s) were skipped and remain explicit coverage gaps for this run.
-- 5 workflow(s) exceeded 10 seconds; review the slowest-workflow table for startup, polling, or IPC latency.
+- No selected workflows were skipped.
+- No workflow crossed the 10-second slow-test threshold.
 - No security-tagged release blockers were detected.
 - No critical UI/font/usability release blockers were detected.
 - The scheduled full UI matrix was not selected for this invocation.
 - The installed-browser platform matrix was not selected for this invocation.
 - Catalog automation: 192/192 stable IDs (100.0%).
-- This invocation selected 192/192 catalog IDs.
+- This invocation selected 1/192 catalog IDs.
 
 ## Results By Tag
 
 | Tag | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| @ai | 31 | 0 | 0 | 0 | 31 |
-| @core | 65 | 0 | 0 | 0 | 65 |
-| @files | 17 | 0 | 0 | 0 | 17 |
-| @font | 3 | 0 | 0 | 0 | 3 |
-| @network | 29 | 0 | 0 | 3 | 32 |
-| @persistence | 24 | 0 | 0 | 0 | 24 |
-| @platform | 1 | 0 | 0 | 5 | 6 |
-| @security | 60 | 0 | 0 | 1 | 61 |
-| @smoke | 8 | 0 | 0 | 0 | 8 |
-| @soak | 0 | 0 | 0 | 2 | 2 |
-| @ui | 22 | 0 | 0 | 3 | 25 |
-| @ui-critical | 2 | 0 | 0 | 1 | 3 |
-| @ui-full | 0 | 0 | 0 | 1 | 1 |
-| @usability | 14 | 0 | 0 | 1 | 15 |
-| @visual | 1 | 0 | 0 | 2 | 3 |
+| @ai | 1 | 0 | 0 | 0 | 1 |
+| @ui | 1 | 0 | 0 | 0 | 1 |
 
 ## Results By Product Surface
 
 | Surface | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Advanced Testing | 8 | 0 | 0 | 0 | 8 |
-| AI Manual-First | 8 | 0 | 0 | 0 | 8 |
-| AI-First | 12 | 0 | 0 | 0 | 12 |
-| AIOP | 3 | 0 | 0 | 0 | 3 |
-| Application Shell | 10 | 0 | 0 | 0 | 10 |
-| Automate | 9 | 0 | 0 | 0 | 9 |
-| Data & Persistence | 5 | 0 | 0 | 0 | 5 |
-| Files & Reports | 9 | 0 | 0 | 0 | 9 |
-| Findings | 9 | 0 | 0 | 0 | 9 |
-| HTTP/S Traffic | 12 | 0 | 0 | 0 | 12 |
-| Identity Lab | 5 | 0 | 0 | 2 | 7 |
-| Intercept | 8 | 0 | 0 | 0 | 8 |
-| Plugins | 10 | 0 | 0 | 0 | 10 |
-| Projects & Sessions | 8 | 0 | 0 | 0 | 8 |
-| Repeater | 10 | 0 | 0 | 0 | 10 |
-| Resilience | 2 | 0 | 0 | 2 | 4 |
-| Scope | 7 | 0 | 0 | 0 | 7 |
-| Sitemap | 3 | 0 | 0 | 0 | 3 |
-| SSL & Proxy | 4 | 0 | 0 | 3 | 7 |
-| UI, Typography & Usability | 22 | 0 | 0 | 3 | 25 |
-| WebSocket | 7 | 0 | 0 | 0 | 7 |
-| Workflows | 11 | 0 | 0 | 0 | 11 |
+| UI, Typography & Usability | 1 | 0 | 0 | 0 | 1 |
 
 ## Results By UI Environment
 
 | Environment | Passed | Failed | Flaky | Skipped | Total |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| native/default | 3 | 0 | 0 | 3 | 6 |
-| profile: minimum · zoom: 1 | 5 | 0 | 0 | 0 | 5 |
-| profile: minimum · zoom: 1 · state: demo | 1 | 0 | 0 | 0 | 1 |
-| profile: minimum · zoom: 1 · state: empty, demo | 1 | 0 | 0 | 0 | 1 |
-| profile: minimum, default · zoom: 1 | 1 | 0 | 0 | 0 | 1 |
-| profile: minimum, zoom-125, zoom-150 · zoom: 1, 1.25, 1.5 | 1 | 0 | 0 | 0 | 1 |
-| profile: wide, large · zoom: 1 | 1 | 0 | 0 | 0 | 1 |
-| profile: zoom-125, zoom-150 · zoom: 1.25, 1.5 | 1 | 0 | 0 | 0 | 1 |
-| profile: zoom-150 · zoom: 1.5 | 1 | 0 | 0 | 0 | 1 |
-| profile: zoom-90, zoom-80 · zoom: 0.9, 0.8 · state: demo | 1 | 0 | 0 | 0 | 1 |
-| theme: bureau, vellum, specter, aperture, verdigris, aegis | 4 | 0 | 0 | 0 | 4 |
-| theme: bureau, vellum, specter, aperture, verdigris, aegis · profile: laptop, default · zoom: 1 · state: demo | 1 | 0 | 0 | 0 | 1 |
-| theme: bureau, vellum, specter, aperture, verdigris, aegis · profile: minimum, default · zoom: 1 | 1 | 0 | 0 | 0 | 1 |
+| profile: default, minimum · zoom: 1 | 1 | 0 | 0 | 0 | 1 |
 
 ## Changes From Prior Local Report
 
 No newly failing selected IDs.
 
-Newly fixed: REG-AIF-011.
+No newly fixed selected IDs.
 
 ## Security Release Blockers
 
@@ -112,33 +66,15 @@ No failed workflows.
 
 | Rank | Workflow | Outcome | Duration | Attempts |
 | ---: | --- | --- | ---: | ---: |
-| 1 | **REG-WF-007** [REG-WF-007] @network @security blocks an active workflow with no selected capture | passed | 34.9s | 1 |
-| 2 | **REG-WS-006** [REG-WS-006] @security shows a bounded WebSocket replay error without disturbing HTTP evidence | passed | 32.5s | 1 |
-| 3 | **REG-UI-006** [REG-UI-006] @ui passes every view at laptop and default layouts | passed | 29.0s | 1 |
-| 4 | **REG-AIF-003** [REG-AIF-003] @ai @security enforces visible tool, replay, workflow, and capture-sample budgets without charging planner wait time | passed | 22.8s | 1 |
-| 5 | **REG-AIF-006** [REG-AIF-006] @ai records retry, retry-with-evidence, skip, and stop recovery choices | passed | 10.8s | 1 |
-| 6 | **REG-AIF-009** [REG-AIF-009] @ai @persistence confirms, dismisses, searches, and restores project run memory | passed | 9.3s | 1 |
-| 7 | **REG-AUTO-008** [REG-AUTO-008] @network retries only a failed Automate attempt after fixture recovery | passed | 8.9s | 1 |
-| 8 | **REG-UI-005** [REG-UI-005] @ui @usability reaches required controls in all twelve views at minimum size | passed | 8.6s | 1 |
-| 9 | **REG-AIF-004** [REG-AIF-004] @ai pauses a delayed planner and resumes the same durable run | passed | 7.9s | 1 |
-| 10 | **REG-UI-008** [REG-UI-008] @ui @usability keeps critical workflows reachable at 125% and 150% zoom | passed | 7.6s | 1 |
+| 1 | **REG-UI-014** [REG-UI-014] @ui @ai keeps the AI Operator resizable, scrollable, and independent of evidence | passed | 3.5s | 1 |
 
 ## Application Startup Distribution
 
-Samples: 185 · min 1.0s · median 1.1s · p95 1.4s · max 4.2s.
+Samples: 1 · min 1.2s · median 1.2s · p95 1.2s · max 1.2s.
 
 ## Skipped Coverage Gaps
 
-- **REG-SSL-005** [REG-SSL-005] @platform launches the supported isolated browser through Radar to the local lab
-- **REG-SSL-006** [REG-SSL-006] @platform @security detaches an active browser identity when the project changes
-- **REG-SSL-007** [REG-SSL-007] @platform handles occupied preferred proxy and debugging ports and remains usable
-- **REG-ID-003** [REG-ID-003] @platform @network activates a scoped dedicated identity and attributes its real captures
-- **REG-ID-004** [REG-ID-004] @platform @network records healthy and failed dedicated identity verification semantics
-- **REG-RES-003** [REG-RES-003] @soak repeats demo load, navigation, filtering, and project state checks fifty times
-- **REG-RES-004** [REG-RES-004] @soak @network sustains a bounded high-volume capture and replay set
-- **REG-UI-020** [REG-UI-020] @ui @visual @ui-critical matches approved Linux visual anchors
-- **REG-UI-021** [REG-UI-021] @ui @visual @ui-full captures the full view, theme, and window matrix
-- **REG-UI-024** [REG-UI-024] @ui @usability validates the recorded human release review
+No selected catalog cases were skipped.
 
 ## Catalog Coverage
 

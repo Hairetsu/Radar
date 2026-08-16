@@ -222,12 +222,40 @@ describe("agent planner", () => {
         {
           action: "finish",
           rationale: "Done",
+          report: {
+            executiveSummary: "One hardening lead requires review.",
+            scopeSummary: "Reviewed the public document response.",
+            methodology: ["Inspected captured response headers."],
+            observations: [{
+              title: "HSTS not observed",
+              detail: "The captured document response did not include Strict-Transport-Security.",
+              status: "supported",
+              confidence: "medium",
+              evidenceRefs: ["capture:1"]
+            }],
+            limitations: ["Only the public unauthenticated state was observed."],
+            recommendations: ["Confirm HSTS behavior across canonical hosts."]
+          },
           findings: [{ title: "Missing HSTS", confidence: "medium", evidenceRefs: ["capture:1"], notes: "Review manually." }]
         }
       )
     ).toEqual({
       action: "finish",
       rationale: "Done",
+      report: {
+        executiveSummary: "One hardening lead requires review.",
+        scopeSummary: "Reviewed the public document response.",
+        methodology: ["Inspected captured response headers."],
+        observations: [{
+          title: "HSTS not observed",
+          detail: "The captured document response did not include Strict-Transport-Security.",
+          status: "supported",
+          confidence: "medium",
+          evidenceRefs: ["capture:1"]
+        }],
+        limitations: ["Only the public unauthenticated state was observed."],
+        recommendations: ["Confirm HSTS behavior across canonical hosts."]
+      },
       findings: [
         {
           title: "Missing HSTS",
@@ -327,6 +355,34 @@ describe("agent planner", () => {
     }
   });
 
+  it("preserves the selected action and marks malformed mission patches for audit", () => {
+    expect(
+      normalizeAgentDecision({
+        action: "tool",
+        tool: "analyzeSecurityHeaders",
+        input: {},
+        rationale: "Inspect the captured document responses.",
+        missionPatch: { baseRevision: 4, updates: [{ kind: "unknown" }] }
+      })
+    ).toEqual({
+      action: "tool",
+      call: { tool: "analyzeSecurityHeaders", input: { targetOrigin: "" } },
+      rationale: "Inspect the captured document responses.",
+      missionPatchWarning: "The planner returned an invalid mission patch."
+    });
+    expect(
+      normalizeAgentDecision({
+        action: "finish",
+        missionPatch: { baseRevision: 4, updates: [{ kind: "unknown" }] }
+      })
+    ).toEqual({
+      action: "finish",
+      rationale: "",
+      findings: [],
+      missionPatchWarning: "The planner returned an invalid mission patch."
+    });
+  });
+
   it("ignores provider-authored lease bounds and retains the selected tool", () => {
     expect(
       normalizeAgentDecision({
@@ -366,12 +422,6 @@ describe("agent planner", () => {
   it("rejects invalid decisions", () => {
     expect(() => normalizeAgentDecision({ action: "tool", tool: "deleteEverything" })).toThrow("Invalid agent tool");
     expect(() => normalizeAgentDecision({ action: "wait" })).toThrow("action=tool or action=finish");
-    expect(() =>
-      normalizeAgentDecision({
-        action: "finish",
-        missionPatch: { baseRevision: 0, updates: [{ kind: "unknown" }] }
-      })
-    ).toThrow("missionPatch was invalid");
     expect(
       normalizeAgentDecision({
         action: "tool",
