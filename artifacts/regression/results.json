@@ -105,7 +105,7 @@
                   "annotations": [
                     {
                       "type": "radar-startup-ms",
-                      "description": "1158"
+                      "description": "1385"
                     },
                     {
                       "type": "ui-profile",
@@ -140,16 +140,16 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 3550,
+                      "duration": 3841,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-08-16T04:11:44.414Z",
+                      "startTime": "2026-08-16T04:25:05.392Z",
                       "annotations": [
                         {
                           "type": "radar-startup-ms",
-                          "description": "1158"
+                          "description": "1385"
                         },
                         {
                           "type": "ui-profile",
@@ -194,8 +194,8 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-08-16T04:11:43.910Z",
-    "duration": 4086.948,
+    "startTime": "2026-08-16T04:25:04.959Z",
+    "duration": 4306.202,
     "expected": 1,
     "skipped": 0,
     "unexpected": 0,

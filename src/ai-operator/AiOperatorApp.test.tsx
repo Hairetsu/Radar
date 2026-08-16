@@ -88,6 +88,7 @@ function operatorApi(overrides: Partial<RadarAiOperatorApi> = {}): RadarAiOperat
 
 afterEach(() => {
   window.localStorage.clear();
+  Object.defineProperty(window, "innerWidth", { value: 1024, writable: true, configurable: true });
   Object.defineProperty(window, "radarOperator", { value: undefined, writable: true, configurable: true });
 });
 
@@ -119,6 +120,27 @@ describe("AiOperatorApp", () => {
 
     fireEvent.click(screen.getByTestId("toggleAiRunRail"));
     expect(screen.getByTestId("aiRunRail")).toHaveAttribute("data-collapsed", "false");
+  });
+
+  it("closes task history at the compact breakpoint and restores the desktop preference", async () => {
+    Object.defineProperty(window, "innerWidth", { value: 1040, writable: true, configurable: true });
+    window.localStorage.setItem("radar.ai-operator.task-rail", "expanded");
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+
+    render(<AiOperatorApp />);
+
+    const taskRail = await screen.findByTestId("aiRunRail");
+    expect(taskRail).toHaveAttribute("data-collapsed", "false");
+
+    window.innerWidth = 800;
+    fireEvent(window, new Event("resize"));
+    expect(taskRail).toHaveAttribute("data-collapsed", "true");
+    expect(window.localStorage.getItem("radar.ai-operator.task-rail")).toBe("expanded");
+
+    window.innerWidth = 1040;
+    fireEvent(window, new Event("resize"));
+    expect(taskRail).toHaveAttribute("data-collapsed", "false");
   });
 
   it("shows task status and selection clearly in persistent history", async () => {

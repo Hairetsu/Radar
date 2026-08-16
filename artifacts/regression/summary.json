@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-08-16T04:11:48.005Z",
+  "generatedAt": "2026-08-16T04:25:09.273Z",
   "status": "passed",
-  "wallTimeMs": 4086.948,
+  "wallTimeMs": 4306.202,
   "workers": 1,
   "counts": {
     "passed": 1,
@@ -20,9 +20,9 @@
       "id": "REG-UI-014",
       "title": "[REG-UI-014] @ui @ai keeps the AI Operator resizable, scrollable, and independent of evidence",
       "outcome": "passed",
-      "durationMs": 3550,
+      "durationMs": 3841,
       "attempts": 1,
-      "startupMs": 1158,
+      "startupMs": 1385,
       "uiTheme": [],
       "uiProfile": [
         "default",

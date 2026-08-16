@@ -9,16 +9,26 @@ import { AgentRunRail } from "./AgentRunRail";
 import { useAiOperator } from "./useAiOperator";
 import { useTheme } from "../hooks/useTheme";
 
+const TASK_RAIL_COMPACT_WIDTH = 960;
+
+function compactTaskRailViewport() {
+  return typeof window === "undefined" || window.innerWidth < TASK_RAIL_COMPACT_WIDTH;
+}
+
+function savedDesktopTaskRailOpen() {
+  try {
+    return window.localStorage.getItem("radar.ai-operator.task-rail") !== "collapsed";
+  } catch {
+    return true;
+  }
+}
+
 export function AiOperatorApp() {
   useTheme();
   const controller = useAiOperator();
   const [railOpen, setRailOpen] = useState(() => {
-    if (typeof window === "undefined" || window.innerWidth < 960) return false;
-    try {
-      return window.localStorage.getItem("radar.ai-operator.task-rail") !== "collapsed";
-    } catch {
-      return true;
-    }
+    if (compactTaskRailViewport()) return false;
+    return savedDesktopTaskRailOpen();
   });
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
@@ -28,7 +38,7 @@ export function AiOperatorApp() {
   }, [controller.section]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || window.innerWidth < 960) return;
+    if (compactTaskRailViewport()) return;
     try {
       window.localStorage.setItem("radar.ai-operator.task-rail", railOpen ? "expanded" : "collapsed");
     } catch {
@@ -36,8 +46,20 @@ export function AiOperatorApp() {
     }
   }, [railOpen]);
 
+  useEffect(() => {
+    let compact = compactTaskRailViewport();
+    const syncTaskRailToViewport = () => {
+      const nextCompact = compactTaskRailViewport();
+      if (nextCompact === compact) return;
+      compact = nextCompact;
+      setRailOpen(nextCompact ? false : savedDesktopTaskRailOpen());
+    };
+    window.addEventListener("resize", syncTaskRailToViewport);
+    return () => window.removeEventListener("resize", syncTaskRailToViewport);
+  }, []);
+
   const closeMobileRail = () => {
-    if (window.innerWidth < 960) setRailOpen(false);
+    if (compactTaskRailViewport()) setRailOpen(false);
   };
 
   return (
@@ -62,11 +84,11 @@ export function AiOperatorApp() {
             if (controller.section === "settings") {
               controller.setSection("runs");
               setInspectorOpen(true);
-              if (window.innerWidth < 960) setRailOpen(false);
+              if (compactTaskRailViewport()) setRailOpen(false);
               return;
             }
             setInspectorOpen((open) => !open);
-            if (window.innerWidth < 960) setRailOpen(false);
+            if (compactTaskRailViewport()) setRailOpen(false);
           }}
         />
         {controller.section === "settings" ? (

@@ -1,10 +1,10 @@
 # Radar Regression Report
 
-Generated: 2026-08-16T04:11:48.004Z
+Generated: 2026-08-16T04:25:09.272Z
 Overall result: **PASSED**
 Workers: 1
-Wall time: 4.1s
-Aggregate workflow time: 3.5s
+Wall time: 4.3s
+Aggregate workflow time: 3.8s
 
 ## Outcome
 
@@ -66,11 +66,11 @@ No failed workflows.
 
 | Rank | Workflow | Outcome | Duration | Attempts |
 | ---: | --- | --- | ---: | ---: |
-| 1 | **REG-UI-014** [REG-UI-014] @ui @ai keeps the AI Operator resizable, scrollable, and independent of evidence | passed | 3.5s | 1 |
+| 1 | **REG-UI-014** [REG-UI-014] @ui @ai keeps the AI Operator resizable, scrollable, and independent of evidence | passed | 3.8s | 1 |
 
 ## Application Startup Distribution
 
-Samples: 1 · min 1.2s · median 1.2s · p95 1.2s · max 1.2s.
+Samples: 1 · min 1.4s · median 1.4s · p95 1.4s · max 1.4s.
 
 ## Skipped Coverage Gaps
 
