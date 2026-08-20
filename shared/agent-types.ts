@@ -77,6 +77,7 @@ export type AgentRunRecoveryAction =
 
 export type AgentRunProfileId =
   | "browser-assessment"
+  | "goal-driven-assessment"
   | "passive-map"
   | "auth-review"
   | "api-hardening"

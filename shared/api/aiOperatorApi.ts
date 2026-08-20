@@ -19,7 +19,7 @@ import type { AiOperatorWindowApi } from "./windowCoordinationApi.js";
 export type RadarAiOperatorApi = AiOperatorWindowApi & {
   getLocalContext: () => Promise<LocalContext>;
   getTargets: () => Promise<string[]>;
-  getAiSettings: () => Promise<AiSettings>;
+  getAiSettings: (provider?: AiSettings["provider"]) => Promise<AiSettings>;
   setAiSettings: (settings: AiSettings) => Promise<AiSettings>;
   connectAi: (presetId: AiConnectPresetId) => Promise<AiConnectResult>;
   probeAiConnection: (settings: AiSettings) => Promise<AiConnectProbe>;
@@ -39,4 +39,3 @@ export type RadarAiOperatorApi = AiOperatorWindowApi & {
   saveAgentRunMemory: (entry: AgentRunMemoryEntry) => Promise<AgentRunMemoryEntry>;
   deleteAgentRunMemory: (id: string) => Promise<{ ok: boolean; memory: AgentRunMemoryEntry[] }>;
 };
-

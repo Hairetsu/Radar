@@ -1,5 +1,5 @@
 import { Braces, KeyRound, Loader2, LogIn, PlugZap, RadioTower, SquareTerminal } from "lucide-react";
-import { AI_PROVIDER_PROFILES, selectAiProvider } from "../../shared/ai-providers";
+import { AI_PROVIDER_PROFILES } from "../../shared/ai-providers";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
@@ -38,7 +38,7 @@ export function AiConnectionPanel({ controller }: { controller: AiOperatorContro
           <div className="grid gap-2 sm:grid-cols-2">
             <Select value={settings.provider} onChange={(event) => {
               const provider = aiProviderFromValue(event.target.value);
-              if (provider) controller.setSettings(selectAiProvider(settings, provider));
+              if (provider) void controller.selectProvider(provider);
             }} data-testid="aiProvider">
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic</option>

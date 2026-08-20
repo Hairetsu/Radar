@@ -79,6 +79,9 @@ The main repository commands are:
 | Command | Result |
 | --- | --- |
 | `pnpm dev` | Build Electron, start Vite, and open Radar. |
+| `pnpm demo:dev` | Start the Harborline training target on `127.0.0.1:3000`. |
+| `pnpm demo:build` | Type-check and build the Harborline frontend. |
+| `pnpm demo:test` | Run the Harborline API fixture tests. |
 | `pnpm build` | Build the renderer and Electron processes. |
 | `pnpm test` | Run ESLint, both unit coverage gates, and the production build. |
 | `pnpm test:regression:build` | Build and run the Electron workflow suite. |
@@ -105,6 +108,34 @@ The fastest safe walkthrough uses a local application:
 10. Create a finding only after you have evidence that supports it.
 
 For a walkthrough without a live target, open **Local Ledger** and click **Load Demo**. Radar creates or refreshes **Radar Demo Project** and its **Seeded Walkthrough** session. The demo contains synthetic traffic, frames, findings, workflows, plugin records, Advanced signals, TLS events, and AI run history. It does not send traffic.
+
+### Use the Harborline live target
+
+Harborline is a fake freight-operations portal that lets Radar capture real application traffic. The target binds only to `127.0.0.1:3000`. The portal does not identify its security weaknesses or provide payloads.
+
+1. Start Harborline in one terminal:
+
+```bash
+pnpm demo:dev
+```
+
+2. Start Radar in a second terminal:
+
+```bash
+pnpm dev
+```
+
+3. Keep the default local rules in **11 Scope**.
+4. Open `http://127.0.0.1:3000` in the Radar Browser.
+5. Sign in with operator ID `operator` and password `harbor-2026`.
+6. Use the shipment, billing, document, integration, support, and account workflows.
+7. Inspect the captured requests in **01 HTTP(S)**.
+8. Move a request to **04 Repeater** when you have a testable hypothesis.
+9. Compare the normal response with your controlled replay.
+
+Harborline validates every browser form before it sends a request. Submit a normal value first, then edit the captured request in Repeater. The forms reject test strings, unlisted record IDs, unknown document paths, unapproved feed URLs, and markup.
+
+Harborline uses fixed in-memory data. It does not read host files or make outbound requests, even when a request contains a file path or URL.
 
 ## Know the workspace
 
@@ -476,7 +507,9 @@ Open **AI Operator**, then open **Connection** in the Mission Inspector.
 
 Radar tests the connection and refreshes the model list where the provider supports it. Fixed cloud providers use their official API base URL. Only the OpenAI-compatible provider accepts a custom URL.
 
-Pasted keys are saved as plain text in `ai-settings.json`. Radar requests owner-only file permissions where the operating system supports them, but the file is not encrypted. Prefer a local CLI login or an environment variable when plain local storage does not meet your requirements.
+After **Save & Test**, Radar keeps a separate saved configuration for each provider. Switching providers restores the selected provider's key, model, and base URL without reusing another provider's credential.
+
+Pasted keys are saved as plain text in provider-specific entries in `ai-settings.json`. Radar requests owner-only file permissions where the operating system supports them, but the file is not encrypted. Prefer a local CLI login or an environment variable when plain local storage does not meet your requirements.
 
 ### Use the Manual-First command palette
 
@@ -507,12 +540,15 @@ Run profiles:
 | Profile | Intended work |
 | --- | --- |
 | **Browser Assessment** | Explore task-relevant in-scope pages and use tightly bounded verification. |
+| **Goal-Driven Assessment** | Pursue the goal with the largest bounded budget: 10 minutes, 40 steps, 10 replays, 10 active workflow requests, and 100 captures. |
 | **Passive Map** | Read captures, sitemap coverage, findings, and local context without sends. |
 | **Auth Review** | Inspect permitted browser and identity context. Raw cookie or storage tools require raw-context opt-in. |
 | **API Hardening** | Review API evidence and prepare Repeater, Automate, or workflow drafts. |
 | **Header/Cookie Review** | Review headers, cookies, CORS, and affected evidence. |
 | **Advanced API Review** | Review Advanced summaries and run allowed saved workflows. |
 | **Report From Evidence** | Turn local evidence into quality-gated draft findings and run memory. |
+
+No profile is unlimited. Goal-Driven Assessment has the widest non-destructive tool set, but raw context stays off, saved Scope applies, and active actions still need capability approval. If the run exhausts its runtime or step budget before it meets the goal, click **Continue New** to start a new bounded segment with the same goal and profile.
 
 During the run, the AI Operator shows:
 
@@ -579,7 +615,7 @@ Important items:
 | `proxy-ca/radar-ca-key.pem` | Local proxy CA private key. Treat it as sensitive. |
 | `profiles/<project-id>/proxy-browser-profile` | Managed browser state for the project. |
 | `profiles/<project-id>/identities/<identity-id>/browser-profile` | Dedicated Identity Lab browser state. |
-| `ai-settings.json` | Provider, model, base URL, and any pasted API key. The key is not encrypted. |
+| `ai-settings.json` | Active provider plus provider-specific models, base URLs, and pasted API keys. Keys are not encrypted. |
 | `ai-skills.json` | Manual-First custom AI skills. |
 
 Radar applies ordered SQLite migrations when it opens. If the database was created by a newer unsupported build, Radar opens a fail-closed error window and does not modify the file. Back up `radar-local.sqlite` before opening active engagement data with an older build.

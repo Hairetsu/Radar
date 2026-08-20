@@ -7,11 +7,11 @@ export default [
   {
     // `artifacts/` holds generated regression output, including Playwright's
     // bundled trace viewer, which is not ours to lint.
-    ignores: ["dist/**", "dist-electron/**", "node_modules/**", "artifacts/**"]
+    ignores: ["dist/**", "dist-electron/**", "demo-target/dist/**", "node_modules/**", "artifacts/**"]
   },
   js.configs.recommended,
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}", "demo-target/src/**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -27,9 +27,14 @@ export default [
         HTMLElement: "readonly",
         HTMLTextAreaElement: "readonly",
         HTMLInputElement: "readonly",
+        HTMLFormElement: "readonly",
         KeyboardEvent: "readonly",
+        RequestInit: "readonly",
         ResizeObserver: "readonly",
+        Response: "readonly",
         URL: "readonly",
+        fetch: "readonly",
+        performance: "readonly",
         WheelEvent: "readonly",
         setInterval: "readonly",
         clearInterval: "readonly",
@@ -46,7 +51,12 @@ export default [
     }
   },
   {
-    files: ["shared/**/*.ts", "electron/**/*.ts"],
+    files: [
+      "shared/**/*.ts",
+      "electron/**/*.ts",
+      "demo-target/server/**/*.ts",
+      "demo-target/vite.config.ts"
+    ],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -65,7 +75,8 @@ export default [
         process: "readonly",
         setInterval: "readonly",
         setTimeout: "readonly",
-        URL: "readonly"
+        URL: "readonly",
+        URLSearchParams: "readonly"
       }
     },
     plugins: {

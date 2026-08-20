@@ -20,7 +20,7 @@ import type {
 } from "../agent-types.js";
 
 export type AiAgentApi = {
-  getAiSettings: () => Promise<AiSettings>;
+  getAiSettings: (provider?: AiSettings["provider"]) => Promise<AiSettings>;
   setAiSettings: (settings: AiSettings) => Promise<AiSettings>;
   previewAiContext: (
     payload: AiRunRequest

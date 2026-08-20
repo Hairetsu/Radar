@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_PROFILES,
-  DEFAULT_AI_SETTINGS,
   isAiProviderId,
-  providerBaseUrl,
-  selectAiProvider
+  providerBaseUrl
 } from "./ai-providers.js";
 
 describe("ai-providers", () => {
@@ -21,17 +19,6 @@ describe("ai-providers", () => {
     expect(isAiProviderId("openrouter")).toBe(true);
     expect(isAiProviderId("xai")).toBe(true);
     expect(isAiProviderId("azure")).toBe(false);
-  });
-
-  it("resets credentials and model when switching providers", () => {
-    expect(
-      selectAiProvider({ ...DEFAULT_AI_SETTINGS, apiKey: "openai-secret" }, "anthropic")
-    ).toEqual({
-      provider: "anthropic",
-      model: "claude-sonnet-5",
-      apiKey: "",
-      baseUrl: "https://api.anthropic.com/v1"
-    });
   });
 
   it("keeps custom endpoints but pins first-party providers", () => {

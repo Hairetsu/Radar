@@ -13,6 +13,9 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm build:electron && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron dist-electron/electron/main.js\"",
+    "demo:dev": "vite --config demo-target/vite.config.ts",
+    "demo:build": "tsc -p demo-target/tsconfig.json && vite build --config demo-target/vite.config.ts",
+    "demo:test": "vitest run demo-target/server/demoApi.test.ts demo-target/src/formValidation.test.ts",
     "build:app": "tsc -p tsconfig.app.json",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "pnpm build:app && pnpm build:electron && vite build",
