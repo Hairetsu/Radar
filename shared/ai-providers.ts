@@ -93,17 +93,3 @@ export function providerBaseUrl(settings: Pick<AiSettings, "provider" | "baseUrl
   }
   return AI_PROVIDER_PROFILES[settings.provider].baseUrl;
 }
-
-export function selectAiProvider(settings: AiSettings, provider: AiProviderId): AiSettings {
-  if (provider === settings.provider) {
-    return settings;
-  }
-
-  const profile = AI_PROVIDER_PROFILES[provider];
-  return {
-    provider,
-    model: profile.defaultModel,
-    apiKey: profile.auth === "local" ? "local" : "",
-    baseUrl: profile.baseUrl
-  };
-}

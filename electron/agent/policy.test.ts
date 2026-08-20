@@ -55,6 +55,24 @@ describe("agent policy", () => {
     expect(reason).toBe("Autonomous run exceeded its replay budget.");
   });
 
+  it("allows goal-driven replay until its tenth request", () => {
+    const common: Omit<Parameters<typeof blockedToolReason>[0], "replayCount"> = {
+      call: {
+        tool: "sendReplay",
+        input: { draft: { method: "GET", url: "https://allowed.test/api", headers: {}, body: "" } }
+      },
+      allowlist: ["https://allowed.test"],
+      policy: normalizeAgentPolicy({}, "goal-driven-assessment"),
+      profileId: "goal-driven-assessment",
+      workflowRequestCount: 0,
+      stepCount: 0,
+      startedAt: Date.now()
+    };
+
+    expect(blockedToolReason({ ...common, replayCount: 9 })).toBe("");
+    expect(blockedToolReason({ ...common, replayCount: 10 })).toBe("Autonomous run exceeded its replay budget.");
+  });
+
   it("blocks raw browser-state tools when raw context is off", () => {
     const reason = blockedToolReason({
       call: { tool: "getStorageState", input: {} },

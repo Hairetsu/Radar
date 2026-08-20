@@ -35,6 +35,10 @@ Manual-First is the normal operator-driven mode. You click every action that sen
 
 AI-First runs in a separate AI Operator window. One sequential browser operator chooses an in-scope step, waits for it to settle, records the result, and then chooses the next step. The workspace stays visible while the companion shows the Mission Pulse, Operation Stream, Task History, Mission Graph, permission requests, and Completion Report.
 
+The AI Operator Connection Deck keeps saved credentials isolated by provider. Switching away from a provider and back restores only that provider's saved key and connection settings.
+
+The Goal-Driven Assessment profile gives the agent Radar's largest run budgets and widest non-destructive tool set. It remains inside saved Scope and pauses for capability approval before replay, form submission, identity changes, or active workflows. Raw context stays off. No profile removes these limits.
+
 Actions with side effects need the selected profile, saved Scope, a matching capability grant, and remaining run budget. Radar never grants destructive actions or `DELETE` requests to AI-First.
 
 ![Radar AI Operator](docs/screens/radar-11-ai-operator-feed.png)
@@ -73,6 +77,22 @@ Build a production renderer and Electron bundle with:
 ```bash
 pnpm build
 ```
+
+## Run the Harborline demo target
+
+Harborline is a fake freight-operations portal for live Radar demos. It listens only on `127.0.0.1:3000`. The site presents ordinary dispatch workflows and does not label its security weaknesses or provide test payloads.
+
+Start the target in a separate terminal:
+
+```bash
+pnpm demo:dev
+```
+
+Open `http://127.0.0.1:3000` in the Radar Browser. Sign in with operator ID `operator` and password `harbor-2026`. Use Harborline as a black-box target: browse the freight workflows, inspect the captured requests, and decide which requests merit controlled replay.
+
+Harborline's forms accept only normal business values. To test a changed parameter, capture a valid request and edit the copy in Radar Repeater. The browser does not send test strings, unlisted record IDs, unknown document paths, unapproved feed URLs, or markup.
+
+Harborline uses fixed in-memory data. It does not read host files or make outbound requests, even when a request contains a file path or URL.
 
 ## Test the app
 

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RadarAiOperatorApi } from "../../shared/api/aiOperatorApi.js";
 import type { AgentRun } from "../../shared/agent-types.js";
+import type { AiSettings } from "../../shared/ai-types.js";
 import type { WorkspaceContextSnapshot } from "../../shared/windowCoordination.js";
 import { AiOperatorApp } from "./AiOperatorApp";
 
@@ -182,6 +183,27 @@ describe("AiOperatorApp", () => {
     expect(screen.queryByTestId("agentWorkerLimitSelect")).not.toBeInTheDocument();
     expect(screen.queryByTestId("agentGoalInput")).not.toBeInTheDocument();
     expect(window.localStorage.getItem("radar.ai-operator.draft.session-test")).toBe("");
+  });
+
+  it("offers the maximum-budget goal-driven profile", async () => {
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    const profileSelect = await screen.findByTestId("agentProfileSelect");
+    expect(within(profileSelect).getByRole("option", { name: "Goal-Driven Assessment" })).toBeInTheDocument();
+    fireEvent.change(profileSelect, { target: { value: "goal-driven-assessment" } });
+    expect(screen.getByText("replay 10")).toBeInTheDocument();
+    expect(screen.getByText("workflow 10")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("agentGoalInput"), {
+      target: { value: "Inspect https://target.test until the bounded segment completes" }
+    });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => expect(api.startAgentRun).toHaveBeenCalledWith(expect.objectContaining({
+      profileId: "goal-driven-assessment"
+    })));
   });
 
   it("prepares an out-of-scope origin in the visible workspace without starting", async () => {
@@ -521,8 +543,11 @@ describe("AiOperatorApp", () => {
     await waitFor(() => expect(screen.getByTestId("aiModel")).toHaveValue("radar-fixture-model"));
   });
 
-  it("offers first-class cloud key providers without carrying credentials across them", async () => {
-    const api = operatorApi();
+  it("restores a saved key when returning to a cloud provider", async () => {
+    const getAiSettings = vi.fn(async (provider?: AiSettings["provider"]) => provider === "xai"
+      ? { provider, model: "grok-4.5", apiKey: "xai-saved-secret", baseUrl: "https://api.x.ai/v1" }
+      : { provider: "openai" as const, model: "gpt-4o-mini", apiKey: "openai-saved-secret", baseUrl: "" });
+    const api = operatorApi({ getAiSettings });
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
     render(<AiOperatorApp />);
 
@@ -533,7 +558,8 @@ describe("AiOperatorApp", () => {
     expect(screen.getByTestId("aiConnectOpenRouter")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("aiProvider"), { target: { value: "xai" } });
-    expect(screen.getByTestId("aiApiKey")).toHaveValue("");
+    await waitFor(() => expect(getAiSettings).toHaveBeenCalledWith("xai"));
+    expect(screen.getByTestId("aiApiKey")).toHaveValue("xai-saved-secret");
     expect(screen.getByTestId("aiModel")).toHaveValue("grok-4.5");
     expect(screen.getByTestId("aiProviderEndpoint")).toHaveTextContent("https://api.x.ai/v1");
     expect(screen.getByTestId("aiConnectionStatus")).toHaveTextContent("Save & Test to verify");

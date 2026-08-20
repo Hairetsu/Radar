@@ -1410,7 +1410,7 @@ registerWindowIpc(ipcMain, {
 
 registerAiIpc(ipcMain, {
   authorize: authorizeAiAction,
-  getSettings: () => loadAiSettings(app.getPath("userData")),
+  getSettings: (provider) => loadAiSettings(app.getPath("userData"), provider),
   saveSettings: (settings) => saveAiSettings(app.getPath("userData"), settings),
   previewContext: (request) =>
     previewAiContext({

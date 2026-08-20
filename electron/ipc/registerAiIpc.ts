@@ -6,10 +6,11 @@ import type {
   AiRunRequest,
   AiSettings
 } from "../../shared/ai-types.js";
+import { isAiProviderId } from "../../shared/ai-providers.js";
 
 interface AiIpcOperations {
   authorize: (webContentsId: number, action: AiIpcAction) => boolean;
-  getSettings: () => unknown;
+  getSettings: (provider?: AiProviderId) => unknown;
   saveSettings: (settings: Partial<AiSettings>) => unknown;
   previewContext: (request: Partial<AiRunRequest>) => unknown;
   run: (request: Partial<AiRunRequest>) => Promise<unknown>;
@@ -48,9 +49,15 @@ export function registerAiIpc(
   ipcMain: IpcMain,
   operations: AiIpcOperations
 ) {
-  ipcMain.handle("ai:settings:get", (event) => {
+  ipcMain.handle("ai:settings:get", (event, provider: unknown) => {
     requireAuthorized(operations, event.sender.id, "settings-read");
-    return operations.getSettings();
+    if (provider === undefined) {
+      return operations.getSettings();
+    }
+    if (!isAiProviderId(provider)) {
+      throw new Error("Unknown AI provider.");
+    }
+    return operations.getSettings(provider);
   });
   ipcMain.handle("ai:settings:set", (event, settings: Partial<AiSettings>) => {
     requireAuthorized(operations, event.sender.id, "settings-write");

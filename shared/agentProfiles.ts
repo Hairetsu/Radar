@@ -80,6 +80,14 @@ const activeReviewTools: AgentToolName[] = [
   "runWorkflow"
 ];
 
+const goalDrivenTools: AgentToolName[] = [
+  ...activeReviewTools,
+  "saveAuthState",
+  "loadAuthState",
+  "listAuthStates",
+  "compareAuthStates"
+];
+
 const RAW_CONTEXT_TOOLS = new Set<AgentToolName>([
   "getCookies",
   "getStorageState"
@@ -101,6 +109,24 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
     policy: policy({ maxRuntimeMs: 10 * 60_000, maxReplay: 3, maxWorkflowRequests: 3, maxSteps: 40, maxCaptureSample: 100 }),
     allowedTools: uniqueTools(activeReviewTools),
     capabilityCeiling: { ...DEFAULT_AGENT_CAPABILITY_CEILING, maxUses: 12, maxRequests: 20 }
+  },
+  {
+    id: "goal-driven-assessment",
+    label: "Goal-Driven Assessment",
+    description: "Pursue the stated goal with the largest bounded runtime, replay, workflow, and evidence budgets while preserving Scope and capability approval.",
+    policy: policy({
+      maxRuntimeMs: 10 * 60_000,
+      maxReplay: 10,
+      maxWorkflowRequests: 10,
+      maxSteps: 40,
+      maxCaptureSample: 100
+    }),
+    allowedTools: uniqueTools(goalDrivenTools),
+    capabilityCeiling: {
+      ...DEFAULT_AGENT_CAPABILITY_CEILING,
+      maxUses: 40,
+      maxRequests: 10
+    }
   },
   {
     id: "passive-map",
