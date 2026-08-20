@@ -1,81 +1,158 @@
-# Regression Testing
+# Regression testing
 
-Radar's regression suite uses Playwright's Electron support to run complete operator workflows against the production workspace and AI Operator renderers, their role-specific preload bridges, Electron main process, SQLite store, proxy, bounded AI runtime, and UI/font/usability matrix. The stable 192-case catalog and expected proof for every workflow are defined in [REGRESSION_SUITE_SPEC.md](REGRESSION_SUITE_SPEC.md).
+Radar's regression suite drives production Electron code through Playwright. Each case owns an isolated application process, SQLite database, proxy, browser ports, AI settings, and artifact directory.
 
-The implemented viewport, typography, visual-diff, keyboard, and human-usability extension is documented in [UI_VISUAL_REGRESSION_SPEC.md](UI_VISUAL_REGRESSION_SPEC.md). `REG-UI-001` through `REG-UI-025` are part of the canonical catalog.
+The executable files under `tests/regression/` are the coverage catalog. Stable IDs such as `REG-REP-001` and `REG-UI-025` identify workflows in reports. Do not maintain a second hand-written catalog of cases.
 
-All 192 catalog IDs have executable Playwright registrations. UI runs add two scheduled/release gates (`REG-UI-021` and `REG-UI-024`); Linux is the canonical pixel-baseline host for `REG-UI-020`, while other platforms report it as an explicit skip and still run native font/structure smoke.
+## Run the suite
 
-## Run The Suite
-
-Build and execute the normal suite:
+Build and run the default Electron workflows:
 
 ```bash
 pnpm test:regression:build
 ```
 
-After the first build, iterate without rebuilding:
+After a successful build, iterate without rebuilding:
 
 ```bash
 pnpm test:regression
 ```
 
-Run the installed-browser/platform matrix on a suitable host:
+Run the installed-browser and native platform cases on a suitable host:
 
 ```bash
 RADAR_REGRESSION_PLATFORM=1 pnpm test:regression:build
 ```
 
-Run the scheduled longevity and high-volume cases:
+Run scheduled longevity and high-volume cases:
 
 ```bash
 RADAR_REGRESSION_SOAK=1 pnpm test:regression:build
 ```
 
-Build and run the blocking UI/font/zoom/usability cases with bounded local concurrency:
-
-```bash
-pnpm test:regression:ui:build
-```
-
-Run the scheduled full screenshot matrix, or explicitly update Linux baselines after reviewing expected/actual/diff evidence:
-
-```bash
-pnpm test:regression:ui:full
-pnpm test:regression:ui:update
-pnpm test:regression:ui:update:full
-```
-
-The first update command refreshes the reviewed pull-request anchors; the `:full` variant refreshes the complete gated nightly matrix. Both require the explicit update guard embedded in the package scripts, and CI never updates snapshots. Complete [UI_USABILITY_REVIEW.md](UI_USABILITY_REVIEW.md), then select the release review gate with `RADAR_UI_HUMAN_REVIEW=1 pnpm test:regression:ui`.
-
-GitHub Actions runs the Linux structural/font/zoom suite and approved anchors on every pull request and `develop` push. The canonical pixel runner is pinned to `ubuntu-24.04-arm` so approved snapshots and CI use the same OS and architecture. The scheduled job runs the complete six-theme matrix on Linux and native font/structure smoke on macOS and Windows; each job retains `artifacts/regression/` for 14 days.
-
-Both gates can be enabled together. Standard Playwright flags remain available:
+Standard Playwright filters still work:
 
 ```bash
 pnpm test:regression --grep "@security"
 pnpm test:regression --grep "REG-REP"
 pnpm test:regression --workers=4
-pnpm test:regression:build --workers=4
 pnpm test:regression --repeat-each=5
 pnpm test:regression --trace=on
 ```
 
-Open the latest interactive report with:
+Open the latest HTML report with:
 
 ```bash
 pnpm test:regression:report
 ```
 
-## Container Test Images
+## Run the UI gate
 
-Radar includes two test-runner images. Their source tree and dependency install are baked into the image, and their default commands run the appropriate platform gate.
+Build and run the blocking font, layout, focus, zoom, and usability cases:
 
-The initial image build requires network access for the base image and pinned tool/dependency downloads. Electron and Chromium are materialized during that build rather than on first test launch. Once the image exists locally, the maintained gates use deterministic loopback fixtures and can run offline; tests intentionally aimed at a real external service are outside these container defaults.
+```bash
+pnpm test:regression:ui:build
+```
 
-### Ubuntu 24.04
+Run the scheduled full theme, window, and screenshot matrix:
 
-Build and run the complete lint, unit, production-build, and Electron/Playwright regression gate:
+```bash
+pnpm test:regression:ui:full
+```
+
+Update reviewed pull-request baselines only after you inspect expected, actual, and diff images:
+
+```bash
+pnpm test:regression:ui:update
+```
+
+Update the complete scheduled matrix with:
+
+```bash
+pnpm test:regression:ui:update:full
+```
+
+Both update commands set the repository's explicit update guard. CI never writes baselines.
+
+Complete [UI usability release review](UI_USABILITY_REVIEW.md), then run its gate:
+
+```bash
+RADAR_UI_HUMAN_REVIEW=1 pnpm test:regression:ui
+```
+
+## UI contract
+
+The main workspace defaults to `1480 x 940` and cannot resize below `1120 x 760`. The AI Operator defaults to `1040 x 840` and cannot resize below `760 x 640`.
+
+The blocking matrix proves:
+
+- Every required local font loads and resolves on its declared role.
+- Bureau, Vellum, Specter, Aperture, Verdigris, and Aegis preserve hierarchy and selection contrast.
+- Critical controls remain reachable at the minimum window sizes.
+- The main workspace and AI Operator retain internal scroll paths instead of clipping evidence or safety controls.
+- Keyboard search, settings, view navigation, menus, and focus restoration work.
+- Primary workflows remain usable at 80 and 90 percent zoom.
+- Evidence review remains usable at 125 and 150 percent text enlargement.
+- The scheduled matrix records the advisory 75 and 200 percent boundaries.
+- Empty, demo, dense, and stress-copy states do not hide or overlap critical work.
+
+Structural and semantic assertions are the main gate. Pixel comparisons detect changes in hierarchy, spacing, typography, and clipping. The human review covers fatigue, ambiguity, balance, and any other judgment that a screenshot threshold cannot settle.
+
+## Baseline policy
+
+Linux ARM64 on the pinned `ubuntu-24.04-arm` runner is the canonical pixel host. Other platforms run native font and structural checks and report canonical pixel cases as explicit skips.
+
+When a baseline changes:
+
+1. Run the failing case without updating snapshots.
+2. Inspect the expected, actual, and diff image.
+3. Confirm that the underlying layout and font metrics are intentional.
+4. Run the matching workflow manually when the change affects interaction.
+5. Update only the needed baseline.
+6. Review the new image in Git before commit.
+
+Do not update a baseline to silence clipping, fallback fonts, hidden focus, unreadable contrast, or a stale screenshot seed.
+
+## Parallel application instances
+
+Every standard case gets:
+
+- A temporary Electron `userData` directory and SQLite database.
+- Worker-specific proxy and Chrome debugging ports.
+- An isolated project, session, browser profile, AI settings file, and artifact folder.
+- A measured renderer-ready startup sample.
+- Teardown that stops the proxy, closes child windows, and removes temporary state.
+
+The harness identifies native windows by renderer URL and immutable preload role. `openAiOperatorWindow(page, section)` opens or focuses the singleton companion and returns its Playwright `Page`. Select the matching native `BrowserWindow` before changing bounds or zoom. Do not assume `context.pages()[0]` is still the workspace after the companion opens.
+
+Playwright runs independent cases in parallel. Use `--workers=N` to limit concurrency. CI uses two workers by default.
+
+Global setup resolves the Electron executable once before workers start. Electron downloads its binary lazily, so a single owner prevents first-run executable races.
+
+Harness-only environment variables include:
+
+- `RADAR_REGRESSION_USER_DATA_DIR`
+- `RADAR_REGRESSION_ARTIFACT_DIR`
+- `RADAR_REGRESSION_PROXY_PORT`
+- `RADAR_REGRESSION_DEBUG_PORT`
+
+Normal Radar launches ignore these controls.
+
+## Deterministic fixtures
+
+The default suite does not need an external target or a live AI account. It owns loopback fixtures for:
+
+- HTTP authentication, redirects, queries, forms, JSON, delays, status classes, large bodies, GraphQL, and API definitions.
+- HTTPS with a short-lived certificate signed by the isolated test CA.
+- WebSocket handshake, greeting, echo, replay, close, and failure behavior.
+- An OpenAI-compatible provider with a request ledger for redaction and scripted AI decisions.
+- Valid, malformed, oversized, migrated, bundled, reported, wordlist, and plugin files.
+
+Any case that sends traffic must use a suite-owned `127.0.0.1` target in saved Scope. Fixture ledgers prove expected sends, missing sends, duplicates, and caps.
+
+## Ubuntu container
+
+Build and run the complete lint, unit, production, and Electron gate:
 
 ```bash
 docker build --file docker/Dockerfile.ubuntu --tag radar-test:ubuntu .
@@ -85,20 +162,22 @@ docker run --rm --init --shm-size=1g \
   radar-test:ubuntu
 ```
 
-The image supports `linux/amd64` and `linux/arm64`, installs the same Ubuntu runtime libraries used by CI, and launches Electron under Xvfb. Radar's approved pixel baselines are produced on Ubuntu ARM64; use `--platform linux/arm64` on both `docker build` and `docker run` when the container is being used as the canonical screenshot gate. Cross-architecture emulation is substantially slower than a native ARM64 runner.
+The image supports `linux/amd64` and `linux/arm64` and runs Electron under Xvfb. To reproduce the canonical screenshot host, build and run with `--platform linux/arm64`. Emulation is slower than a native ARM64 runner.
 
-### Windows Server 2022
+The first image build needs network access for the base image, Node, pnpm dependencies, Electron, and Chromium. The maintained loopback gates can run offline after those inputs are baked into the image.
 
-Switch Docker Desktop or the host daemon to Windows containers, then build and run the Windows-native gate:
+## Windows container
+
+Switch Docker to Windows containers, then run:
 
 ```powershell
 docker build --file docker/Dockerfile.windows --tag radar-test:windows .
 docker run --rm radar-test:windows
 ```
 
-The default command runs lint, unit regressions, the production build, a Windows x64 NSIS package build, and the complete default Electron/Playwright regression suite with one worker. It uses the full-API Windows Server 2022 base image and disables GPU acceleration for the container run. The image is `windows/amd64` and requires a compatible Windows host; use Hyper-V isolation when the host and container kernel versions require it.
+The default command runs lint, unit tests, the production build, a Windows x64 NSIS package build, and the Electron workflow suite with one worker. The image requires a compatible Windows host and may need Hyper-V isolation.
 
-Playwright controls Electron non-interactively inside the container. Windows containers still do not provide an interactive desktop, so run the platform-specific native smoke on a Windows host or VM as the authoritative display and managed-browser gate:
+Windows containers do not provide an interactive desktop. Run the native display and managed-browser smoke on a Windows host or VM:
 
 ```powershell
 pnpm build
@@ -106,58 +185,35 @@ $env:RADAR_REGRESSION_PLATFORM = "1"
 pnpm exec playwright test tests/regression/ui-fonts.spec.ts tests/regression/ui-keyboard.spec.ts tests/regression/ui-layout.spec.ts --grep "REG-UI-(001|002|003|005|015|022|025)" --workers=1
 ```
 
-Linux and Windows images cannot be built by the same single-mode Docker daemon at once. Switch Docker Desktop between Linux and Windows container modes, or build each image on a matching CI runner. Override the default container command only when narrowing a diagnosis; the defaults are the maintained gates.
+One Docker daemon cannot build Linux and Windows images at the same time. Switch modes or use separate matching runners.
 
-## Parallel Application Instances
+## Read the artifacts
 
-Every standard Playwright case gets a separate Electron process with:
+Every run writes under `artifacts/regression/`:
 
-- A temporary Electron `userData` directory and independent SQLite database.
-- Worker-specific proxy and Chrome remote-debugging ports.
-- An isolated project, session, browser profile, AI settings store, and artifact directory.
-- A measured renderer-ready startup sample.
-- Teardown that stops the proxy, closes child windows, and removes temporary state.
-
-The harness distinguishes native surfaces by URL and immutable preload role. `openAiOperatorWindow(page, section)` opens or focuses the singleton companion and returns its Playwright `Page`; window profiles select the matching `BrowserWindow` before resizing or changing zoom. Never assume `context.pages()[0]` is the active surface after the companion opens.
-
-`fullyParallel` is enabled, so independent workflows execute in multiple Radar instances at the same time. Use `--workers=N` to control concurrency. CI defaults to two workers; local Playwright uses the host's normal worker calculation.
-
-Playwright global setup resolves and verifies the Electron executable once before any worker starts. Electron 42 downloads its binary lazily, so keeping that bootstrap single-owner prevents parallel first-run launches from racing on the executable with `ETXTBSY`.
-
-`RADAR_REGRESSION_USER_DATA_DIR`, `RADAR_REGRESSION_ARTIFACT_DIR`, `RADAR_REGRESSION_PROXY_PORT`, and `RADAR_REGRESSION_DEBUG_PORT` are harness-only startup controls. Normal application launches retain Radar's standard paths and ports.
-
-## Real-Use Fixtures
-
-The suite does not depend on external targets or a real AI account. It owns deterministic loopback fixtures for:
-
-- HTTP routes covering authentication, redirects, queries, JSON/forms, status classes, delays, empty bodies, large bodies, GraphQL, and API definitions.
-- HTTPS using a short-lived server certificate signed by the isolated regression proxy CA, without changing the system trust store.
-- WebSocket handshake, server greeting, echo, close, replay, and failure behavior.
-- An OpenAI-compatible provider whose request ledger proves redacted/raw context and scripted AI-First tool decisions.
-- Valid, invalid, over-limit, migration, bundle, report, wordlist, and plugin file workflows.
-
-Any test that transmits traffic must use a suite-owned `127.0.0.1` fixture and the saved Radar scope contract. Fixture ledgers assert expected sends, missing sends, duplicates, and caps.
-
-## Reports And Failure Evidence
-
-Every invocation writes to `artifacts/regression/`:
-
-| Artifact | Purpose |
+| Artifact | Contents |
 | --- | --- |
-| `summary.md` | Release report with totals, tag/surface matrices, security blockers, prior-run changes, slowest workflows, startup distribution, skipped gaps, catalog coverage, and failure links. |
-| `summary.json` | Compact stable-ID, outcome, duration, tag, file, and startup data for CI ingestion. |
-| `html/index.html` | Interactive workflow report with attempts, steps, and retained attachments. |
-| `results.json` | Complete Playwright machine-readable result data. |
-| `results/` | Screenshots, videos, traces, and concise error context retained on failure. |
-| `ui-summary.md` / `ui-summary.json` | UI environment selection, blockers, full/platform/human gate state, and evidence counts. |
-| `font-audit.json` | Aggregated expected, resolved, loaded, fallback, and external-resource font evidence. |
-| `layout-metrics.json` | Aggregated renderer/window dimensions, zoom, effective type sizes, scroll paths, and violations. |
-| `visual/` | Expected, actual, and diff images copied from Playwright attachments when emitted. |
+| `summary.md` | Totals, matrices, blockers, changes, slow cases, startup data, skips, and failure links. |
+| `summary.json` | Stable IDs, outcomes, durations, tags, files, and startup samples. |
+| `html/index.html` | Interactive Playwright report. |
+| `results.json` | Complete machine-readable result data. |
+| `results/` | Retained screenshots, video, traces, and error context. |
+| `ui-summary.md` and `ui-summary.json` | UI environment, blockers, selected gates, and evidence counts. |
+| `font-audit.json` | Expected, resolved, loaded, fallback, and external-resource font evidence. |
+| `layout-metrics.json` | Window, renderer, zoom, type-size, scroll, and violation data. |
+| `visual/` | Expected, actual, and diff images from visual cases. |
 
-A failing or flaky `@security` workflow is listed as a release blocker. Failed/flaky `@ui-critical`, `@font`, and blocking `@usability` cases are UI release blockers. Platform, full-matrix, human-review, and soak skips remain visible rather than being counted as implemented success. Catalog coverage is scanned from all `tests/regression/*.spec.ts` files, so a narrowed `--grep` run does not incorrectly report unselected tests as unimplemented.
+A failed or flaky `@security` case blocks release. Failed or flaky `@ui-critical`, `@font`, or blocking `@usability` cases also block release. Platform, full-matrix, human-review, and soak skips stay visible instead of counting as success.
 
-## Coverage Areas
+The reporter scans stable IDs from every `tests/regression/*.spec.ts` file. A narrowed `--grep` run therefore reports unselected cases honestly.
 
-The catalog exercises application startup, projects/sessions, HTTP/S capture, WebSockets, scope, proxy/TLS, intercept, Repeater, Automate, Findings, Workflows, Plugins, Sitemap, Advanced Testing, file/report flows, Manual-First AI, AI-First planning/recovery/authority, Identity Lab, deterministic local fonts, window/zoom layouts, keyboard focus, visual baselines, stress copy, human usability review, database migrations, corruption resistance, multi-instance isolation, resilience, installed-browser behavior, and soak/high-volume behavior.
+## Add a regression case
 
-Add or update a stable catalog case whenever a user-facing workflow or safety boundary changes. Prefer visible controls and visible/durable outcomes. Direct Electron evaluation is reserved for process-level invariants that cannot be proven through the operator surface.
+Add or update a stable case when a user workflow or safety boundary changes.
+
+- Drive visible controls and assert a visible or durable result.
+- Use direct Electron evaluation only for process invariants that cannot be proved through the operator surface.
+- Keep network traffic on an owned loopback fixture.
+- Give the case a stable ID and the right security, UI, platform, or soak tags.
+- Save evidence that tells a maintainer what failed without exposing secrets.
+- Update the manual QA checklist when the release walkthrough changes.

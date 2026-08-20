@@ -1,6 +1,6 @@
-# Radar Font Assets
+# Radar font assets
 
-Radar's production typography is bundled locally through exact, lockfile-pinned Fontsource `5.3.0` packages. Vite resolves the package CSS during the production build and emits the referenced WOFF2 files under `dist/assets/`; Radar does not contact Google Fonts or another font CDN at runtime.
+Radar bundles its production typography through lockfile-pinned Fontsource `5.3.0` packages. Vite resolves the package CSS during the production build and emits the WOFF2 files under `dist/assets/`. Radar does not contact Google Fonts or another font CDN at runtime.
 
 | Theme | Role | Family | Package |
 | --- | --- | --- | --- |

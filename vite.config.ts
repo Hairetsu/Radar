@@ -37,7 +37,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}", "shared/**/*.test.ts", "electron/**/*.test.ts"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "shared/**/*.test.ts",
+      "electron/**/*.test.ts",
+      "tests/regression/reporters/**/*.test.ts"
+    ],
     environmentMatchGlobs: [["src/**/*.test.{ts,tsx}", "jsdom"]],
     setupFiles: ["src/test/setup.ts"],
     coverage: {

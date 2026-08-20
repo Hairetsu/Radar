@@ -85,16 +85,23 @@ function matrixRows(groups: Array<[string, TestCase[]]>) {
   });
 }
 
-function registeredSpecIds(root: string) {
+export function registeredSpecCatalog(root: string) {
   const regressionDirectory = path.join(root, "tests", "regression");
-  return new Set(
-    fs
-      .readdirSync(regressionDirectory)
-      .filter((name) => name.endsWith(".spec.ts"))
-      .flatMap((name) => [
-        ...fs.readFileSync(path.join(regressionDirectory, name), "utf8").matchAll(/REG-[A-Z]+-\d{3}/g)
-      ].map((match) => match[0]))
-  );
+  const filesById = new Map<string, Set<string>>();
+  for (const name of fs.readdirSync(regressionDirectory).filter((entry) => entry.endsWith(".spec.ts"))) {
+    const source = fs.readFileSync(path.join(regressionDirectory, name), "utf8");
+    const fileIds = new Set([...source.matchAll(/REG-[A-Z]+-\d{3}/g)].map((match) => match[0]));
+    for (const id of fileIds) {
+      filesById.set(id, new Set([...(filesById.get(id) || []), name]));
+    }
+  }
+  return {
+    ids: [...filesById.keys()].sort(),
+    duplicateIds: [...filesById.entries()]
+      .filter(([, files]) => files.size > 1)
+      .map(([id]) => id)
+      .sort()
+  };
 }
 
 function artifactLinks(test: TestCase, reportDirectory: string) {
@@ -246,7 +253,7 @@ export default class RegressionReporter implements Reporter {
     fs.writeFileSync(path.join(outputDir, "font-audit.json"), `${JSON.stringify(fontAudits, null, 2)}\n`);
     fs.writeFileSync(path.join(outputDir, "layout-metrics.json"), `${JSON.stringify(layoutMetrics, null, 2)}\n`);
     fs.writeFileSync(path.join(outputDir, "ui-summary.md"), [
-      "# Radar UI Regression Summary",
+      "# Radar UI regression summary",
       "",
       `Generated: ${structured.generatedAt}`,
       `Platform: ${structured.platform}`,
@@ -256,13 +263,13 @@ export default class RegressionReporter implements Reporter {
       `Cross-platform matrix: ${structured.platformMatrixSelected ? "selected" : "skipped"}`,
       `Human review gate: ${structured.humanReviewSelected ? "selected" : "skipped"}`,
       "",
-      "## UI Environments",
+      "## UI environments",
       "",
       "| Environment | Passed | Failed | Flaky | Skipped | Total |",
       "| --- | ---: | ---: | ---: | ---: | ---: |",
       ...matrixRows(environments),
       "",
-      "## Release Blockers",
+      "## Release blockers",
       "",
       blockers.length === 0 ? "None." : blockers.map((test) => `- **${stableId(test)}** ${escaped(test.title)}`).join("\n"),
       "",
@@ -323,12 +330,9 @@ export default class RegressionReporter implements Reporter {
   private render(result: FullResult, tests: TestCase[], outputDir: string, priorSummary: PriorSummary | null) {
     const counts = countTests(tests);
     const root = process.cwd();
-    const specification = fs.readFileSync(path.join(root, "docs", "REGRESSION_SUITE_SPEC.md"), "utf8");
-    const catalogIds = [...new Set([...specification.matchAll(/^\| `(REG-[A-Z]+-\d{3})`/gm)].map((match) => match[1]))];
-    const registeredIds = registeredSpecIds(root);
+    const catalog = registeredSpecCatalog(root);
+    const catalogIds = catalog.ids;
     const selectedIds = new Set(tests.map(stableId).filter((id) => id !== "UNTRACKED"));
-    const missingIds = catalogIds.filter((id) => !registeredIds.has(id));
-    const unregisteredIds = [...registeredIds].filter((id) => !catalogIds.includes(id)).sort();
     const skippedTests = tests.filter((test) => outcomeFor(test) === "skipped");
     const securityBlockers = tests.filter(
       (test) => test.title.includes("@security") && ["failed", "flaky"].includes(outcomeFor(test))
@@ -392,7 +396,7 @@ export default class RegressionReporter implements Reporter {
     ];
 
     return [
-      "# Radar Regression Report",
+      "# Radar regression report",
       "",
       `Generated: ${new Date().toISOString()}`,
       `Overall result: **${result.status.toUpperCase()}**`,
@@ -406,33 +410,36 @@ export default class RegressionReporter implements Reporter {
       "| ---: | ---: | ---: | ---: | ---: |",
       `| ${counts.passed} | ${counts.failed} | ${counts.flaky} | ${counts.skipped} | ${tests.length} |`,
       "",
-      "## Release Signals",
+      "## Release signals",
       "",
       ...recommendations.map((item) => `- ${item}`),
-      `- Catalog automation: ${registeredIds.size}/${catalogIds.length} stable IDs (${catalogIds.length ? ((registeredIds.size / catalogIds.length) * 100).toFixed(1) : "0.0"}%).`,
+      `- Catalog registrations: ${catalogIds.length} stable IDs from executable regression specs.`,
       `- This invocation selected ${selectedIds.size}/${catalogIds.length} catalog IDs.`,
+      catalog.duplicateIds.length > 0
+        ? `- Duplicate stable IDs need correction: ${catalog.duplicateIds.join(", ")}.`
+        : "- No duplicate stable IDs were detected.",
       "",
-      "## Results By Tag",
+      "## Results by tag",
       "",
       "| Tag | Passed | Failed | Flaky | Skipped | Total |",
       "| --- | ---: | ---: | ---: | ---: | ---: |",
       ...matrixRows(tagGroups),
       "",
-      "## Results By Product Surface",
+      "## Results by product surface",
       "",
       "| Surface | Passed | Failed | Flaky | Skipped | Total |",
       "| --- | ---: | ---: | ---: | ---: | ---: |",
       ...matrixRows(viewGroups),
       ...(uiTests.length > 0 ? [
         "",
-        "## Results By UI Environment",
+        "## Results by UI environment",
         "",
         "| Environment | Passed | Failed | Flaky | Skipped | Total |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
         ...matrixRows(uiEnvironmentGroups)
       ] : []),
       "",
-      "## Changes From Prior Local Report",
+      "## Changes from prior local report",
       "",
       priorSummary
         ? [
@@ -441,19 +448,19 @@ export default class RegressionReporter implements Reporter {
           ].join("\n\n")
         : "No prior `summary.json` was available for comparison.",
       "",
-      "## Security Release Blockers",
+      "## Security release blockers",
       "",
       securityBlockers.length === 0
         ? "None."
-        : securityBlockers.map((test) => `- **${stableId(test)}** ${escaped(test.title)} — ${outcomeFor(test)}`).join("\n"),
+        : securityBlockers.map((test) => `- **${stableId(test)}** ${escaped(test.title)}: ${outcomeFor(test)}`).join("\n"),
       "",
-      "## UI, Font, And Usability Release Blockers",
+      "## UI, font, and usability release blockers",
       "",
       uiBlockers.length === 0
         ? "None."
-        : uiBlockers.map((test) => `- **${stableId(test)}** ${escaped(test.title)} — ${outcomeFor(test)}`).join("\n"),
+        : uiBlockers.map((test) => `- **${stableId(test)}** ${escaped(test.title)}: ${outcomeFor(test)}`).join("\n"),
       "",
-      "## Failures And Artifacts",
+      "## Failures and artifacts",
       "",
       failures.length === 0
         ? "No failed workflows."
@@ -465,7 +472,7 @@ export default class RegressionReporter implements Reporter {
             )
           ].join("\n"),
       "",
-      "## Slowest Workflows",
+      "## Slowest workflows",
       "",
       "| Rank | Workflow | Outcome | Duration | Attempts |",
       "| ---: | --- | --- | ---: | ---: |",
@@ -473,28 +480,26 @@ export default class RegressionReporter implements Reporter {
         `| ${index + 1} | **${stableId(test)}** ${escaped(test.title)} | ${outcomeFor(test)} | ${seconds(durationFor(test))} | ${test.results.length} |`
       ),
       "",
-      "## Application Startup Distribution",
+      "## Application startup distribution",
       "",
       startupValues.length === 0
         ? "No standard fixture startup samples were recorded in this invocation."
         : `Samples: ${startupValues.length} · min ${seconds(Math.min(...startupValues))} · median ${seconds(percentile(startupValues, 0.5))} · p95 ${seconds(percentile(startupValues, 0.95))} · max ${seconds(Math.max(...startupValues))}.`,
       "",
-      "## Skipped Coverage Gaps",
+      "## Skipped coverage gaps",
       "",
       skippedTests.length === 0
         ? "No selected catalog cases were skipped."
         : skippedTests.map((test) => `- **${stableId(test)}** ${escaped(test.title)}`).join("\n"),
       "",
-      "## Catalog Coverage",
+      "## Catalog coverage",
       "",
-      missingIds.length === 0
-        ? `All ${catalogIds.length} specified catalog cases have executable Playwright registrations.`
-        : `${missingIds.length} catalog case(s) are not registered:\n\n${missingIds.map((id) => `- \`${id}\``).join("\n")}`,
-      unregisteredIds.length === 0
-        ? "No registered test IDs fall outside the specification."
-        : `Registered IDs not found in the specification:\n\n${unregisteredIds.map((id) => `- \`${id}\``).join("\n")}`,
+      `${catalogIds.length} stable catalog IDs are registered in \`tests/regression/*.spec.ts\`. The executable files are the catalog source of truth.`,
+      catalog.duplicateIds.length === 0
+        ? "Every stable ID is unique."
+        : `Duplicate stable IDs:\n\n${catalog.duplicateIds.map((id) => `- \`${id}\``).join("\n")}`,
       "",
-      "## Artifact Guide",
+      "## Artifact guide",
       "",
       "- [`html/index.html`](html/index.html): interactive report with steps and attachments.",
       "- [`results.json`](results.json): complete Playwright machine-readable output.",
@@ -504,7 +509,7 @@ export default class RegressionReporter implements Reporter {
       "- `visual/`: copied expected, actual, and diff evidence when Playwright emits it.",
       "- `results/`: retained screenshots, traces, videos, and error context for failures.",
       "",
-      "## Tested Architecture",
+      "## Tested architecture",
       "",
       "Each test launches a real Electron main process and renderer with an isolated user-data directory, SQLite store, proxy port, browser-debug port, and cleanup lifecycle. Playwright workers therefore run separate Radar use cases concurrently without sharing project evidence or browser profiles. Suite-owned loopback HTTP/S, WebSocket, deterministic AI, and file fixtures exercise real IPC and persistence boundaries without transmitting to external targets.",
       ""
