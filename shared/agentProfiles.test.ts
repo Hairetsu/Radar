@@ -41,6 +41,34 @@ describe("agentProfiles", () => {
     expect(getAgentRunProfile("passive-map").capabilityCeiling.maxRiskTier).toBe("navigate");
   });
 
+  it("gives goal-driven assessment the largest bounded active budget", () => {
+    const profile = getAgentRunProfile("goal-driven-assessment");
+
+    expect(normalizeAgentRunProfileId("goal-driven-assessment")).toBe("goal-driven-assessment");
+    expect(profile.policy).toMatchObject({
+      maxRuntimeMs: 600_000,
+      maxSteps: 40,
+      maxReplay: 10,
+      maxWorkflowRequests: 10,
+      maxCaptureSample: 100
+    });
+    expect(profile.allowedTools).toEqual(expect.arrayContaining([
+      "submitForm",
+      "sendReplay",
+      "runWorkflow",
+      "saveAuthState",
+      "loadAuthState",
+      "listAuthStates",
+      "compareAuthStates"
+    ]));
+    expect(profile.capabilityCeiling).toMatchObject({
+      maxRiskTier: "active",
+      maxUses: 40,
+      maxRequests: 10,
+      maxConcurrency: 1
+    });
+  });
+
   it("hides raw browser-state tools unless the run explicitly allows raw context", () => {
     expect(agentRunAllowsTool("auth-review", { allowRawContext: false }, "getStorageState")).toBe(false);
     expect(agentRunAllowsTool("auth-review", { allowRawContext: false }, "getCookies")).toBe(false);

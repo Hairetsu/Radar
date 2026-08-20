@@ -19,7 +19,7 @@ import type {
   AgentRunRecoveryAction,
   AppMode
 } from "../../shared/agent-types.js";
-import type { AiSettings, AiConnectPresetId, AiModelOption } from "../../shared/ai-types.js";
+import type { AiSettings, AiConnectPresetId, AiModelOption, AiProviderId } from "../../shared/ai-types.js";
 import { pickValidModel } from "../../shared/ai-models.js";
 import type { LocalContext } from "../../shared/domain.js";
 import type {
@@ -550,6 +550,22 @@ export function useAiOperator() {
     setConnectionError("");
   }, []);
 
+  const selectProvider = useCallback(async (provider: AiProviderId) => {
+    setConnectionError("");
+    try {
+      const api = operatorApi();
+      const [nextSettings, cachedModels] = await Promise.all([
+        api.getAiSettings(provider),
+        api.getAiModels(provider)
+      ]);
+      setSettings(nextSettings);
+      setModels(cachedModels);
+      setConnection(connectionSummary(nextSettings, false, false, "Save & Test to verify"));
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : "Provider settings could not be loaded.");
+    }
+  }, []);
+
   const saveSettings = useCallback(async () => {
     setConnectionPending(true);
     try {
@@ -659,6 +675,7 @@ export function useAiOperator() {
     deleteMemory,
     settings,
     setSettings: editSettings,
+    selectProvider,
     models,
     connection,
     connectionError,

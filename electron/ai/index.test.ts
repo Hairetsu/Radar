@@ -205,6 +205,24 @@ describe("ai index", () => {
     expect(result.settings.provider).toBe("cursor-local");
   });
 
+  it("quick connects with the key saved for the preset provider", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-ai-"));
+    const originalOpenAiKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true })));
+    saveSettings(tmpDir, { provider: "openai", apiKey: "openai-secret" });
+    saveSettings(tmpDir, { provider: "anthropic", apiKey: "anthropic-secret" });
+
+    try {
+      const result = await connectPreset({ userDataPath: tmpDir, presetId: "openai" });
+      expect(result.settings.apiKey).toBe("openai-secret");
+      expect(result.meta.apiKeySource).toBe("saved");
+    } finally {
+      if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = originalOpenAiKey;
+    }
+  });
+
   it("requires capture ids for runAiTask", async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-ai-"));
     await expect(

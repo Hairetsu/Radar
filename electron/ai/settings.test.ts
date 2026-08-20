@@ -27,6 +27,41 @@ describe("settings", () => {
     expect(loadSettings(tmpDir).provider).toBe(DEFAULT_SETTINGS.provider);
   });
 
+  it("restores the saved key for each provider", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
+    saveSettings(tmpDir, { provider: "openai", apiKey: "openai-secret" });
+    saveSettings(tmpDir, { provider: "anthropic", apiKey: "anthropic-secret" });
+
+    expect(loadSettings(tmpDir, "openai").apiKey).toBe("openai-secret");
+    expect(loadSettings(tmpDir, "anthropic").apiKey).toBe("anthropic-secret");
+  });
+
+  it("restores the saved model and base URL for a custom provider", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
+    saveSettings(tmpDir, {
+      provider: "openai-compatible",
+      model: "radar-local-model",
+      apiKey: "local-secret",
+      baseUrl: "http://127.0.0.1:8765/v1"
+    });
+    saveSettings(tmpDir, { provider: "anthropic", apiKey: "anthropic-secret" });
+
+    expect(loadSettings(tmpDir, "openai-compatible")).toEqual({
+      provider: "openai-compatible",
+      model: "radar-local-model",
+      apiKey: "local-secret",
+      baseUrl: "http://127.0.0.1:8765/v1"
+    });
+  });
+
+  it("allows a saved provider key to be cleared", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
+    saveSettings(tmpDir, { provider: "openai", apiKey: "openai-secret" });
+    saveSettings(tmpDir, { provider: "openai", apiKey: "" });
+
+    expect(loadSettings(tmpDir, "openai").apiKey).toBe("");
+  });
+
   it("strips ansi codes from saved and loaded models", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-settings-"));
     saveSettings(tmpDir, { model: "[36mgpt-5.3-codex[39m" });

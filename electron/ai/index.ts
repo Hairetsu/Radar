@@ -2,7 +2,7 @@ import type { CapturedRequest, WebSocketEvent } from "../../shared/domain.js";
 import type { AiConnectPresetId, AiRunRequest, AiRunResult } from "../../shared/ai-types.js";
 import { pushAudit, snapshotAudit } from "./audit.js";
 import { buildContextPayload } from "./context.js";
-import { applyConnectPreset, probeSettings } from "./connect.js";
+import { applyConnectPreset, PRESETS, probeSettings } from "./connect.js";
 import { complete, normalizeOutput } from "./providers.js";
 import { findSkill, loadSkills, upsertSkill, deleteSkill } from "./skills.js";
 import { loadSettings, saveSettings } from "./settings.js";
@@ -227,7 +227,11 @@ export async function connectPreset({
   userDataPath: string;
   presetId: AiConnectPresetId;
 }) {
-  const current = loadSettings(userDataPath);
+  const preset = PRESETS[presetId];
+  if (!preset) {
+    throw new Error(`Unknown connect preset: ${presetId}`);
+  }
+  const current = loadSettings(userDataPath, preset.provider);
   const applied = applyConnectPreset({
     presetId,
     savedApiKey: current.apiKey,

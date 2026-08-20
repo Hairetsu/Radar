@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AiSettings } from "../../shared/ai-types.js";
+import type { AiProviderId, AiSettings } from "../../shared/ai-types.js";
 import { sanitizeModelId } from "../../shared/ai-models.js";
 import {
+  AI_PROVIDER_IDS,
   AI_PROVIDER_PROFILES,
   DEFAULT_AI_SETTINGS,
   isAiProviderId,
@@ -11,26 +12,84 @@ import {
 
 export const DEFAULT_SETTINGS: AiSettings = DEFAULT_AI_SETTINGS;
 
+type ProviderSettings = Omit<AiSettings, "provider">;
+type ProviderSettingsById = Partial<Record<AiProviderId, ProviderSettings>>;
+
+type StoredSettings = AiSettings & {
+  providerSettings: ProviderSettingsById;
+};
+
 function settingsPath(userDataPath: string) {
   return path.join(userDataPath, "ai-settings.json");
 }
 
-export function loadSettings(userDataPath: string): AiSettings {
-  const file = settingsPath(userDataPath);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function defaultSettingsFor(provider: AiProviderId): AiSettings {
+  const profile = AI_PROVIDER_PROFILES[provider];
+  return {
+    provider,
+    model: profile.defaultModel,
+    apiKey: profile.auth === "local" ? "local" : "",
+    baseUrl: profile.baseUrl
+  };
+}
+
+function normalizeProviderSettings(provider: AiProviderId, value: unknown): AiSettings {
+  const defaults = defaultSettingsFor(provider);
+  const candidate = isRecord(value) ? value : {};
+  const model = sanitizeModelId(String(candidate.model || defaults.model)) || defaults.model;
+  const apiKey = typeof candidate.apiKey === "string" ? candidate.apiKey : defaults.apiKey;
+  const baseUrl = providerBaseUrl({
+    provider,
+    baseUrl: typeof candidate.baseUrl === "string" ? candidate.baseUrl : defaults.baseUrl
+  });
+  return { provider, model, apiKey, baseUrl };
+}
+
+function readStoredSettings(userDataPath: string): StoredSettings | null {
   try {
-    const raw = fs.readFileSync(file, "utf8");
-    const parsed = JSON.parse(raw) as Partial<AiSettings>;
-    if (!isAiProviderId(parsed.provider)) {
-      return { ...DEFAULT_SETTINGS };
+    const parsed: unknown = JSON.parse(fs.readFileSync(settingsPath(userDataPath), "utf8"));
+    if (!isRecord(parsed) || !isAiProviderId(parsed.provider)) {
+      return null;
     }
-    const provider = parsed.provider;
-    const profile = AI_PROVIDER_PROFILES[provider];
-    const model = sanitizeModelId(String(parsed.model || profile.defaultModel)) || profile.defaultModel;
-    const baseUrl = providerBaseUrl({ provider, baseUrl: String(parsed.baseUrl || profile.baseUrl) });
-    return { provider, model, apiKey: String(parsed.apiKey || ""), baseUrl };
+
+    const providerSettings: ProviderSettingsById = {};
+    if (isRecord(parsed.providerSettings)) {
+      for (const provider of AI_PROVIDER_IDS) {
+        if (isRecord(parsed.providerSettings[provider])) {
+          const normalized = normalizeProviderSettings(provider, parsed.providerSettings[provider]);
+          providerSettings[provider] = {
+            model: normalized.model,
+            apiKey: normalized.apiKey,
+            baseUrl: normalized.baseUrl
+          };
+        }
+      }
+    }
+
+    const active = normalizeProviderSettings(parsed.provider, parsed);
+    providerSettings[active.provider] = {
+      model: active.model,
+      apiKey: active.apiKey,
+      baseUrl: active.baseUrl
+    };
+    return { ...active, providerSettings };
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return null;
   }
+}
+
+export function loadSettings(userDataPath: string, requestedProvider?: AiProviderId): AiSettings {
+  if (requestedProvider !== undefined && !isAiProviderId(requestedProvider)) {
+    throw new Error("Unknown AI provider.");
+  }
+
+  const stored = readStoredSettings(userDataPath);
+  const provider = requestedProvider || stored?.provider || DEFAULT_SETTINGS.provider;
+  return normalizeProviderSettings(provider, stored?.providerSettings[provider]);
 }
 
 export function saveSettings(userDataPath: string, settings: Partial<AiSettings>): AiSettings {
@@ -38,16 +97,33 @@ export function saveSettings(userDataPath: string, settings: Partial<AiSettings>
   if (settings.provider !== undefined && !isAiProviderId(settings.provider)) {
     throw new Error("Unknown AI provider.");
   }
-  const provider = isAiProviderId(settings.provider) ? settings.provider : DEFAULT_SETTINGS.provider;
-  const profile = AI_PROVIDER_PROFILES[provider];
+
+  const stored = readStoredSettings(userDataPath);
+  const provider = isAiProviderId(settings.provider)
+    ? settings.provider
+    : stored?.provider || DEFAULT_SETTINGS.provider;
+  const current = normalizeProviderSettings(provider, stored?.providerSettings[provider]);
   const next: AiSettings = {
     provider,
-    model: sanitizeModelId(String(settings.model || profile.defaultModel)) || profile.defaultModel,
-    apiKey: String(settings.apiKey || ""),
-    baseUrl: providerBaseUrl({ provider, baseUrl: String(settings.baseUrl || profile.baseUrl) })
+    model: settings.model === undefined
+      ? current.model
+      : sanitizeModelId(String(settings.model)) || AI_PROVIDER_PROFILES[provider].defaultModel,
+    apiKey: settings.apiKey === undefined ? current.apiKey : String(settings.apiKey),
+    baseUrl: settings.baseUrl === undefined
+      ? current.baseUrl
+      : providerBaseUrl({ provider, baseUrl: String(settings.baseUrl) })
   };
+  const providerSettings: ProviderSettingsById = {
+    ...stored?.providerSettings,
+    [provider]: {
+      model: next.model,
+      apiKey: next.apiKey,
+      baseUrl: next.baseUrl
+    }
+  };
+  const persisted: StoredSettings = { ...next, providerSettings };
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(next, null, 2), { encoding: "utf8", mode: 0o600 });
+  fs.writeFileSync(file, JSON.stringify(persisted, null, 2), { encoding: "utf8", mode: 0o600 });
   try {
     fs.chmodSync(file, 0o600);
   } catch {
