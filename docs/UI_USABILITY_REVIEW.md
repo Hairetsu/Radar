@@ -1,4 +1,4 @@
-# Radar UI Usability Release Review
+# Radar UI usability release review
 
 This is the release-candidate review record consumed by `REG-UI-024`. Complete it on a normal desktop monitor, replace every `TBD`, check every item, and set `Decision: PASS` only when the UI is fit to release. Run the gate with `RADAR_UI_HUMAN_REVIEW=1 pnpm test:regression:ui`.
 
@@ -10,7 +10,7 @@ Display: TBD
 Scale factor: TBD  
 Radar window profile: TBD  
 
-## Required Review
+## Required review
 
 - [ ] Bureau, Vellum, Specter, Aperture, Verdigris, and Aegis are readable at the default window size.
 - [ ] Bureau remains operable at the minimum window size.

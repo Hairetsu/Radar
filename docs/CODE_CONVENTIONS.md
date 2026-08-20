@@ -1,280 +1,199 @@
-# Radar Code Conventions
+# Radar code conventions
 
-This guide documents the code conventions already present in Radar and should be used for future development. It focuses on engineering patterns, module boundaries, naming, testing, and safety rules. Product-level visual direction lives in `docs/DESIGN_SYSTEM.md`; styling implementation boundaries are also summarized below.
+These rules describe the architecture that Radar uses now. Keep the trust boundary obvious, keep domain logic runnable without Electron or React, and make every user-facing action visible in both Manual-First and AI-First where that makes sense.
 
-## Core Principles
+## Runtime ownership
 
-- Keep the renderer, Electron main process, and shared runtime contracts separate.
-- Put cross-runtime domain logic in `shared/`; keep renderer-only convenience exports in `src/lib/` and `src/types.ts`.
-- Treat the Electron IPC boundary as the security boundary. The renderer asks; the main process performs filesystem, browser, proxy, replay, and AI work.
-- Normalize untrusted input at boundaries, then pass typed values through the rest of the code.
-- Prefer small named functions, pure helpers, and explicit data objects over classes, hidden mutation, or broad abstractions.
-- Treat tests as part of the implementation. New behavior should ship with focused tests for the main path and the likely failure path.
-- Keep local-first behavior intact. Radar should work without cloud services except where the user explicitly configures AI.
-- Scope and allowlist checks are authoritative. Never add a shortcut that bypasses them.
+Do not blur the renderer, Electron main process, and shared code.
 
-## Project Structure
+| Location | Owns |
+| --- | --- |
+| `shared/` | Serializable types, limits, normalization, Scope rules, and pure domain helpers used by more than one runtime. |
+| `electron/` | Files, SQLite, proxying, browser control, replay, Automate, workflows, plugins, AI providers, and AI-First execution. |
+| `src/` | React renderers, operator controls, visible state, and presentation helpers. |
 
-Use the existing folders as ownership boundaries:
+Important owners inside those boundaries:
 
-- `shared/`: TypeScript modules that can run in both renderer and Electron. Domain types, allowlist logic, capture shaping, draft normalization, text truncation, and API contracts belong here.
-- `electron/`: Main-process code, filesystem access, proxy/browser orchestration, and AI provider calls.
-- `electron/ipc/`: One boundary registrar per domain. Registrars own IPC input normalization and delegate to explicit operation objects.
-- `electron/store/`: SQLite schema, migrations, transactions, row mappers, and feature repositories composed by `electron/localStore.ts`.
-- `electron/capture/`: Session-bound HTTP and WebSocket ledgers, hot-cache limits, owned causal-attribution state, and persistence ports.
-- `electron/intercept/`: Scoped request/response queueing, match/replace application, and explicit operator resolution.
-- `electron/proxy/`: Local CA and MITM proxy lifecycle. Keep proxy event wiring behind the controller instead of in `electron/main.ts`.
-- `electron/browser/`: Managed-browser and CDP lifecycle, Electron debugger capture, scoped Playwright actions, browser inspection, and capture adapters.
-- `electron/ai/`: AI settings, prompts, context building, provider calls, connect presets, and audit logic.
-- `electron/agent/`: AI-First autonomous run loop, policy checks, and tool orchestration. Keep scope/replay limits here and have the runtime call existing browser, capture, and replay functions instead of duplicating them. Keep the public tool registry as a facade; catalog metadata belongs in `toolRegistry/definitions.ts` and canonical untrusted-input normalization belongs in `toolRegistry/normalization.ts`.
-- `electron/agent/executionLoop.ts` and `electron/agent/planner/prompt.ts`: one sequential browser operator owns AI-First traversal. It chooses one in-scope browser action, lets the action settle and capture evidence, then receives that fresh evidence before choosing the next path or continuing into analysis. Do not add planner fan-out or concurrent browser operators; provider deliberation remains outside the effect-bearing runtime budget while each call keeps its own timeout.
-- `electron/windows/`: workspace/AI Operator window ownership, singleton lifecycle, bounds persistence and display clamping, renderer-role authorization, sanitized context projection, typed workspace intents, and app-mode events.
-- `src/`: React renderer code.
-- `src/hooks/`: Stateful renderer workflows. `useRadarWorkbench` is the composition root for workbench state.
-- `src/hooks/workbench/`: Domain hooks composed by `useRadarWorkbench` (shell, scope, traffic, repeater, findings, workflows, automate, plugins, intercept, websocket, ssl/proxy, and related ports). Cross-domain writes go through typed ports such as `NavigationPort` and `NoticePort`. Keep `useAgentDomain` as the AI-First composition hook; lifecycle, governance, memory, and timeline projection live in focused `agent/` hooks.
-- `src/ai-operator/`: focused companion renderer. Keep its controller centered on run/history/feed/composer/inspector/connection state and reuse the existing main-process AgentRuntime and shared contracts.
-- `src/lib/`: Renderer-facing utility re-exports and presentation helpers (including `cn()` and `presentation.ts` tone/format helpers).
-- `src/components/ui/`: shadcn-style form and action primitives (`Button`, `Input`, `Select`, `Textarea`).
-- `src/components/radar/`: Radar-specific presentation primitives (labels, status badges, pills, empty states).
-- `src/components/shell/`: App chrome (sidebar, workspace header, panel header, telemetry ticker, compact AI mission safety bar, project artifacts overlay, request context menu, layout class helpers).
-- `src/components/views/`: One view module per workbench tab (`TrafficView`, `RepeaterView`, …), with each retained header action strip in its own `*ViewActions.tsx` file.
-- `src/ai/`: AI command palette UI and renderer metadata.
-- `src/test/`: Shared renderer test setup and structural guards such as the `data-testid` inventory.
-- `shared/agentMission/`: Mission normalization, update/patch application, operator steering, and reference/evidence validation behind the `shared/agentMission.ts` compatibility barrel.
-- `shared/agentCapabilities/`: Capability risk, normalization, lease mutation, receipt accounting, and authorization behind the `shared/agentCapabilities.ts` compatibility barrel.
-- `shared/windowCoordination.ts` and `shared/api/windowCoordinationApi.ts`: serializable window roles, app mode, sanitized workspace context, typed control intents, lifecycle state, connection summaries, channel names, and strict normalizers.
+- `shared/radar-api.ts` defines the workspace preload contract.
+- `shared/api/aiOperatorApi.ts` defines the narrower AI Operator contract.
+- `shared/agentMission/` owns Mission Graph normalization, patches, steering, and evidence validation.
+- `shared/agentCapabilities/` owns risk, leases, receipts, and authorization.
+- `electron/ipc/` owns IPC registration and boundary normalization by domain.
+- `electron/store/` owns the SQLite schema, migration ledger, row mapping, transactions, and repositories.
+- `electron/capture/` owns session-bound HTTP and WebSocket ledgers and causal attribution.
+- `electron/proxy/` owns the local CA and proxy lifecycle.
+- `electron/intercept/` owns scoped queueing, resolution, and match/replace.
+- `electron/browser/` owns the managed browser, CDP, Playwright, inspection, and capture adapters.
+- `electron/ai/` owns provider settings, prompts, model calls, context, and Manual-First AI tasks.
+- `electron/agent/` owns the AI-First runtime, policy, planner, tool registry, and execution loop.
+- `electron/windows/` owns native-window roles, lifecycle, bounds, normalized cross-window state, and workspace intents.
+- `src/hooks/workbench/` owns Manual-First domain state and actions.
+- `src/hooks/workbench/agent/` owns AI run lifecycle, governance, memory, and timeline projection.
+- `src/ai-operator/` owns the companion renderer and its local controller state.
+- `src/components/views/` owns the twelve workbench views.
+- `src/components/shell/` owns shared app chrome and overlays.
+- `src/components/ui/` and `src/components/radar/` own reusable controls and Radar-specific presentation primitives.
 
-When adding a feature, start with the shared types and pure helpers, then wire Electron IPC, then expose the typed preload API, then update hooks/UI, then tests.
+`electron/main.ts`, `src/App.tsx`, and `useRadarWorkbench` are composition roots. Do not move feature algorithms into them.
 
-## Feature Mode Contract
+## Build one vertical feature path
 
-Every user-facing feature should be designed for both Radar operating modes:
+For behavior that crosses runtimes, work in this order:
 
-- **Manual-First** is the human-operated path. It should expose the complete feature through direct controls, visible state, and operator-confirmed actions.
-- **AI-First** is the agent-operated path. It should interact with features through bounded tool calls, typed inputs, normalized outputs, visible timeline entries, and the same policy checks as manual workflows.
+1. Add the shared type, limit, and pure normalization helper.
+2. Add main-process behavior behind an explicit operation.
+3. Register the IPC handler and validate untrusted input there.
+4. Add the typed preload method.
+5. Add the domain hook and visible Manual-First control.
+6. Reuse the same operation for AI-First, or document why no AI path is appropriate.
+7. Add focused tests and update operator documentation.
 
-When adding or changing a feature:
+This order is a dependency rule, not a request for placeholder layers. Keep each change as small as the feature permits.
 
-- Decide whether AI-First needs a new tool, a new tool parameter, or additional read-only context.
-- Reuse the same shared helpers, IPC contracts, Electron operations, validation, scope checks, replay caps, and persistence paths that Manual-First uses.
-- Keep AI-First behavior observable in the live app: tool calls should switch visible tabs when relevant, inspect visible evidence panes, load drafts into visible controls, record timeline entries, and persist run history in the local session.
-- Avoid invisible background AI workflows for user-facing actions. If a background step is unavoidable, surface its status, result, and next user-visible effect in the AI-First console.
-- Do not create separate AI-only shortcuts that bypass the renderer/main/shared architecture or the user's visible app state.
-- If AI-First support is intentionally out of scope for a feature, document the reason in the change notes and keep the Manual-First path complete.
+## Keep Manual-First and AI-First aligned
 
-## TypeScript And Modules
+Manual-First is the complete human-operated path. AI-First uses bounded tool calls against the same contracts, Scope checks, replay and workflow caps, persistence, and audit model.
 
-- Write strict TypeScript. Do not use `: any`; use `unknown`, `Record<string, unknown>`, explicit unions, and type guards instead.
-- Treat `unknown` as the default for untrusted external data: IPC payloads, JSON parsing, provider responses, filesystem data, and network data.
-- Narrow `unknown` at the boundary with validation, type guards, or normalization before passing values deeper into the app.
-- If a dependency forces an unsafe type escape, keep it local, document why, and convert back to a safe typed shape immediately.
-- Use named exports for app code. Default exports are only used where framework config expects them.
+For every user-facing change, decide whether AI-First needs:
+
+- A new tool.
+- A parameter on an existing tool.
+- More read-only context.
+- No AI access because the action must remain Manual-First.
+
+An AI action should change the app in front of the operator. Switch the visible view, select the evidence, load the draft into the existing editor, record the operation, and show the result. Do not add an AI-only shortcut that bypasses normal state or authority.
+
+Radar uses one sequential effect-bearing browser operator. `electron/agent/executionLoop.ts` performs one allowed tool call, lets it settle, captures the result, and then asks the planner for the next step. Do not add concurrent browser operators or planner fan-out to this path.
+
+## Write strict TypeScript
+
+- Do not add `: any`. Treat external values as `unknown` until parsed.
+- Use discriminated unions for state and result variants.
+- Make illegal combinations unrepresentable instead of documenting optional-field rules in comments.
+- Use branded primitives when two IDs or other semantic strings can be mixed up.
+- Validate at the boundary, then trust the typed value inside the system.
+- Prefer `satisfies` to an `as` cast. Keep an unavoidable cast local and earn it with validation.
+- Make variant switches exhaustive with a `never` binding.
+- Derive types with `Pick`, `Omit`, `Parameters`, `ReturnType`, `Awaited`, or `typeof` before duplicating an existing schema.
+- Keep IPC values serializable. Use plain objects, arrays, strings, numbers, booleans, and `null`.
+- Use named exports for application code. Framework configuration may use a required default export.
 - Use `import type` for type-only imports.
-- Keep domain types serializable. IPC payloads and return values should be plain objects, arrays, strings, numbers, booleans, and nulls.
-- Use discriminated unions for task/result shapes, matching `AiTaskOutput`.
-- Keep constants near their domain. Use uppercase names for limits and defaults such as `MAX_REPLAY_BODY`, `DEFAULT_ALLOWLIST`, and `DEFAULT_SETTINGS`.
-- In `electron/` and `shared/`, use NodeNext-compatible `.js` import specifiers for local TypeScript modules.
-- In `src/`, keep extensionless imports.
-- Keep compatibility shims and global declarations in `src/global.d.ts`.
+- In `electron/` and `shared/`, use NodeNext-compatible `.js` specifiers for local modules.
+- In `src/`, keep extensionless local imports.
+- Keep constants near the owning domain and use uppercase names for hard limits and defaults.
 
-Example:
+## Prefer a functional core
 
-```ts
-import type { CapturedRequest } from "../../shared/domain.js";
-import { buildContextPayload } from "./context.js";
-```
+- Put business rules in small pure functions.
+- Pass immutable inputs and return explicit data.
+- Keep side effects at the edges: React handlers and subscriptions, IPC handlers, SQLite repositories, filesystem calls, provider calls, proxy and browser controllers.
+- Use dependency parameters for code that needs a clock, network client, store, or process boundary.
+- Avoid class hierarchies, decorators, and service containers. Wrap a platform-required class behind a small functional API.
+- Use early returns for invalid or empty cases.
+- Remove a one-caller pass-through when it makes a reader cross another file without hiding useful complexity.
 
-## Functional Code First
+## Treat IPC as the security boundary
 
-- Default to functional code: pure functions, immutable inputs, explicit return values, and dependency injection through parameters.
-- Keep business rules in small helpers that are easy to test without React, Electron, filesystem access, or network calls.
-- Use plain objects and discriminated unions for state and results. Avoid class instances in domain models and IPC payloads.
-- Do not introduce class hierarchies, inheritance, decorators, or service containers for normal app behavior.
-- Use classes only when a platform API or dependency genuinely requires them, and keep that class behind a small functional wrapper.
-- Prefer data transformation pipelines over methods that mutate internal state.
-- Keep side effects at the edges: React event handlers/hooks, Electron IPC handlers, provider calls, filesystem reads/writes, browser/proxy orchestration.
-- When a function has a side effect, make it obvious from the name and isolate the effect from pure validation/normalization logic.
-- Make hard-to-test code thinner by extracting pure parsing, normalization, formatting, and authorization decisions into `shared/` or focused module helpers.
+The renderer asks. Electron validates and performs the action.
 
-## Formatting
-
-- Use 2-space indentation.
-- Use double quotes for strings.
-- Use semicolons.
-- Keep object and function parameters readable. Break long parameter objects over multiple lines.
-- Prefer early returns for guards and invalid states.
-- Keep comments rare and useful. Explain why a security or platform choice exists, not what the next line does.
-- Keep files ASCII unless the file already contains a specific character set or the UI copy requires otherwise.
-- Do not introduce formatting-only churn in unrelated files.
-
-## React Renderer Patterns
-
-- Use function components and hooks only.
-- Keep `App.tsx` as a thin composition root: shell chrome, overlays/dialogs, and view switching. Put each workbench tab in `src/components/views/` and shared chrome in `src/components/shell/`.
-- Move workflow state into hooks. `useRadarWorkbench` composes domain hooks from `src/hooks/workbench/` and remains the public workbench API (`RadarWorkbench`).
-- Use local component state for isolated UI surfaces, as `CommandPalette` and view-local filters/editors do.
-- Wrap async workflows in `useCallback` and `useAsyncAction` when the UI needs pending state.
-- Use `useMemo` for derived values that are reused by render.
-- Use `useEffect` sparingly: subscriptions, polling, keyboard shortcuts, and startup loads. Prefer derived state, event handlers, and render-time ref assignment over effects for keeping callbacks in sync. Always return cleanup functions for timers and listeners.
-- Read layout and other mutable DOM state through `useSyncExternalStore` with a cached snapshot rather than mirroring it into state from an effect, as `useHorizontalOverflow` does for scroll travel. Use a ref callback for one-shot DOM work tied to which element is rendered, and register listeners natively when React's synthetic event would be passive (`wheel`, `touchmove`).
-- Keep form controls controlled: `value`, `onChange`, and explicit state setters.
-- Electron-dependent calls must go through `window.radar`. The renderer should degrade with a notice when `window.radar` is unavailable.
-- Do not import Electron, Node built-ins, filesystem APIs, or process APIs into `src/`.
-- Add `data-testid` and `data-component` to interactive or test-relevant UI elements.
-- Use `lucide-react` icons for actions and status markers.
-- Style with Tailwind utilities and `src/components/ui/` / `src/components/radar/` primitives — not new selector blocks in `styles.css`.
-
-## Hook And State Conventions
-
-- Hooks should expose plain state values plus explicit action functions.
-- Name async action functions with the user-facing operation: `openBrowser`, `saveTargets`, `sendReplay`, `runBurst`.
-- Keep mutation wrappers local to the hook:
-
-```ts
-const sendReplayMutation = useAsyncAction(sendReplayAction);
-```
-
-- Keep derived state close to its source:
-
-```ts
-const selected = useMemo(
-  () =>
-    captures.find((capture) => capture.id === selectedId) ||
-    captures[0] ||
-    null,
-  [captures, selectedId],
-);
-```
-
-- Domain hooks under `src/hooks/workbench/` own their state exclusively. `useRadarWorkbench` composes them and must not keep a second copy of the same `useState`. Cross-domain writes use typed ports (`NavigationPort`, `NoticePort`, `RepeaterPort`) instead of importing sibling setters.
-- Polling is acceptable for local Electron state snapshots. Keep intervals modest and clean them up.
-
-## Electron And IPC
-
-- `shared/radar-api.ts` is the preload contract. Update it before adding a new `window.radar` method.
-- `electron/preload.ts` should be a thin one-to-one map from `RadarApi` methods to `ipcRenderer.invoke`.
-- `shared/api/aiOperatorApi.ts` and `electron/aiOperatorPreload.ts` define the narrower companion contract. Do not expose the full workspace API to the AI Operator renderer.
-- `electron/ipc/register*Ipc.ts` owns `ipcMain.handle` registrations. `electron/main.ts` composes registrars with explicit domain operations. IPC channel names should follow the existing `domain:action` pattern, such as `browser:open`, `proxy:start`, and `ai:run`.
+- Main-process handlers clamp numbers, normalize strings, reject malformed structured data, and fail closed.
+- Never import Electron, Node built-ins, filesystem APIs, or process APIs into `src/`.
 - Keep `contextIsolation: true` and `nodeIntegration: false` for renderer windows.
-- Treat the immutable preload role and `webContents.id` as authorization inputs. A query string chooses a renderer bundle but never grants a role. Reject role/query mismatches in the renderer and reject disallowed IPC actions in the main process.
-- The AI Operator window uses `sandbox: false` because Electron 42 cannot execute its ESM preload reliably under the renderer sandbox. This is a documented platform exception: the preload remains context-isolated, Node-free, narrow, and sender-authorized. Re-evaluate the exception when Electron supports the preload configuration under sandboxing.
-- Cross-window state moves only through normalized, serializable snapshots and allowlisted intents. Never inject JavaScript, query another renderer's DOM, forward raw request bodies/headers, or use renderer-to-renderer message channels for workspace control.
-- `openAiOperator` must preserve one non-modal companion per app process. Window close hides during normal app life; app quit destroys. Persist only clamped bounds and local UI preferences, never evidence or secrets.
-- Starting a run is the transition to AI-First. Returning to Manual-First must pause/checkpoint a queued or running run first and fail closed in AI-First if that pause cannot complete.
-- Main-process handlers should clamp numeric input, normalize strings, and reject unsafe actions.
-- Replay, burst replay, browser launch, proxy setup, CA generation, and AI provider calls stay in the main process.
-- Keep app-wide browser, proxy, intercept, and capture state beside focused controllers or ledgers. `electron/main.ts` should compose those boundaries rather than own feature algorithms. Expose snapshots as serializable values.
-- Catch platform/API failures at the boundary and return useful error messages or result objects.
-- Do not log secrets, API keys, request bodies, or raw headers.
+- Authorize native-window requests with both the immutable preload role and `webContents.id`.
+- A query string can select a renderer bundle. It cannot grant a role.
+- Cross-window state must be normalized, serializable, and allowlisted.
+- Do not inject JavaScript into another renderer, query another renderer's DOM, or forward raw evidence through a renderer-to-renderer channel.
+- Do not log API keys, cookies, request bodies, raw headers, or storage values.
 
-## SQLite Local Store Migrations
+The AI Operator uses a dedicated Node-free preload and a narrower API. Electron 42 cannot execute the packaged ESM preload reliably with `sandbox: true`, so the companion currently uses `sandbox: false` with context isolation, no Node integration, no webview, immutable role registration, and sender authorization. The workspace also uses `sandbox: false` and currently enables `webviewTag`. Treat both settings as known security debt and re-evaluate them during Electron or renderer-security work.
 
-- `electron/store/schema.ts` owns the current SQLite DDL. `electron/store/migrations.ts` owns `LOCAL_STORE_SCHEMA_VERSION` and the ordered migration ledger. `electron/localStore.ts` composes repositories and owns profile/workspace/session context compatibility.
-- Each schema change must add an idempotent migration entry, update `LOCAL_STORE_SCHEMA_VERSION`, record the migration in `schema_migrations`, and keep the legacy `meta.schema_version` value current for compatibility.
-- Migrations should create missing tables/indexes with `IF NOT EXISTS`, add columns only after checking `PRAGMA table_info`, and preserve existing rows unless the change explicitly documents a safe data transform.
-- Opening a store with a newer migration version must fail closed instead of attempting to downgrade or mutate unknown data.
-- Multi-statement local-store writes that update a child record and then touch parent session/workspace metadata must run inside `runImmediateTransaction`; tests should prove rollback when the parent update fails.
-- Local store tests should cover fresh database creation, migration from a simulated older database, repeat-open idempotency, and the likely failure path for incompatible schema versions.
-- User-facing local data changes should update `docs/USER_GUIDE.md`; internal-only schema maintenance can note that no workflow change was introduced.
+Opening the AI Operator creates or focuses one non-modal companion. Closing it hides the window during normal app life. Starting a run changes app mode. Returning to Manual-First must checkpoint queued or running work first and remain AI-First if checkpointing fails.
 
-## Shared Utility Patterns
+## Enforce Scope, authority, and caps
 
-- Shared functions should be deterministic and side-effect free unless their name clearly indicates otherwise.
-- Shared utility modules should be mostly pure functions plus constants. Avoid module-level mutable state in `shared/`.
-- URL and parsing helpers should fail closed: return `false`, `""`, `null`, or a safe default instead of throwing when the caller is rendering UI.
-- Boundary functions that parse user-authored structured text, such as JSON headers, may throw clear validation errors.
-- Normalize network data into strings before crossing layers. Header values should end up as `Record<string, string>`.
-- Keep truncation and safety caps central. Use existing limits such as `MAX_CAPTURED_BODY` and `MAX_REPLAY_BODY`.
-- Strip hop-by-hop or unsafe headers during replay draft normalization.
+- `shared/allowlist.ts` is the evidence and AI Scope contract.
+- New projects default to local development targets.
+- Manual Repeater is normalized and capped but is not blocked by Scope.
+- Automate, active workflows, plugins, and AI-First use their domain-specific Scope and authority checks.
+- Raw AI context is off by default.
+- Radar never installs a root certificate automatically.
+- Treat model and plugin output as untrusted input.
 
-## Security And Scope Rules
+AI-First authority is the intersection of the selected profile, saved Scope, an exact granted capability tuple, and remaining budget. Destructive actions and `DELETE` requests are not grantable. A receipt reserves action and known request cost before dispatch.
 
-- The allowlist in `shared/allowlist.ts` defines Traffic visibility and AI scope. Repeater replay stays normalized and capped, but is not blocked by scope.
-- The default allowlist is local development only.
-- Raw AI context must remain explicit opt-in. Redacted context is the default.
-- Manual-First AI output is prepare-only. In AI-First, **Start Run** or **Start Tutorial** is user confirmation only for bounded, saved-scope, `GET`-only browser opening and navigation; form interaction, identity changes, replay, workflows, and other active requests retain their existing capability confirmation.
-- Radar must not install root certificates automatically.
-- Keep proxy CA files and AI settings in Electron user data, not in the repository.
-- Treat model responses as untrusted. Normalize every AI task output before using it.
-- Keep AI-First mission and capability barrels thin. New integrity rules belong in the focused `shared/agentMission/` or `shared/agentCapabilities/` owner and must retain direct tests through the public barrel.
+Keep tool metadata, schemas, safety labels, and canonical normalization together under `electron/agent/toolRegistry/`. The runtime must not maintain a second interpretation of a public tool input.
 
-## AI Feature Conventions
+## Keep SQLite changes recoverable
 
-When adding or changing an AI task, update all of these surfaces together:
+- `electron/store/schema.ts` owns current DDL.
+- `electron/store/migrations.ts` owns `LOCAL_STORE_SCHEMA_VERSION` and the ordered ledger.
+- Every schema change needs an idempotent migration and tests from an older supported schema.
+- Use `IF NOT EXISTS` for tables and indexes. Check `PRAGMA table_info` before adding a column.
+- Preserve existing rows unless the change describes and tests a safe transform.
+- Record each migration in `schema_migrations` and keep legacy `meta.schema_version` current.
+- Fail closed when a database comes from a newer unsupported version.
+- Use `runImmediateTransaction` when a write changes a child row and then touches parent project or session metadata.
+- Test fresh creation, migration, repeat-open idempotency, rollback, and incompatible versions.
 
-- `shared/ai-types.ts`: task union, request/result shape, and output data type.
-- `src/ai/types.ts`: renderer metadata and ordered task list.
-- `electron/ai/tasks.ts`: JSON-only system instructions.
-- `electron/ai/providers.ts`: output normalization.
-- `electron/ai/index.ts`: run/preview behavior if needed.
-- `src/lib/resultPreview.ts`: display formatting.
-- Tests for type metadata, provider normalization, preview/run behavior, and result preview.
+User-visible local data changes need a user-guide update. Internal migration maintenance can state that no workflow changed.
 
-Keep prompts concise, defensive, and operational. They should emphasize authorized scope, uncertainty, and user-confirmed actions.
+## Build React surfaces around domain hooks
 
-## Styling Implementation
+- Use function components and hooks.
+- Keep `App.tsx` focused on shell composition, overlays, and view switching.
+- Let one domain hook own each piece of state. Do not copy the same `useState` into `useRadarWorkbench` and a child hook.
+- Use typed ports such as navigation, notice, and Repeater ports for cross-domain writes.
+- Name actions after the operator action, such as `openBrowser`, `saveTargets`, or `runBurst`.
+- Use `useAsyncAction` when a visible operation needs pending state.
+- Use `useMemo` for reused derived values and `useCallback` for asynchronous workflows passed through the tree.
+- Use effects for subscriptions, timers, shortcuts, and startup loads. Clean every listener and timer up.
+- Use `useSyncExternalStore` for live DOM layout state instead of copying it into React state from an effect.
+- Keep forms controlled.
+- Add `data-testid` and `data-component` to interactive or regression-relevant elements.
+- If `window.radar` is unavailable, show a useful notice instead of throwing.
 
-Radar uses Tailwind CSS v4 with shadcn practices. Follow these rules when adding or changing UI:
+## Preserve Radar's visual system
 
-### Theme and global CSS
+The product direction is in [Design system](DESIGN_SYSTEM.md).
 
-- Keep design tokens in `@theme` inside `src/styles.css` (colors, fonts, shadows). Reference them as Tailwind utilities (`bg-surface`, `text-signal`, `font-mono`, etc.).
-- Reserve `src/styles.css` for tokens, base element styles, the bureau shell texture (`.radar-shell`), scrollbars, shared keyframes, the global focus and reduced-motion policy, and the shared label roles. Do not add page-level or per-component selector blocks there — those belong in the component's Tailwind utilities.
-- Use `@layer base` and `@layer components` sparingly — only for truly global concerns that cannot live in a component.
+- Keep theme tokens, font definitions, base rules, shared keyframes, selection, focus, and reduced-motion policy in `src/styles.css`.
+- Style components with Tailwind utilities. Do not add view-specific selector blocks to the global stylesheet.
+- Use `cn()` from `src/lib/utils.ts` for class merging.
+- Use `cva` for reusable variants.
+- Use the shared text and tracking scales. Add a token instead of a new arbitrary pixel value when a new role is real.
+- Use `rd-eyebrow`, `rd-label`, `rd-label-sm`, and `rd-banner` for repeated chrome labels.
+- Use the existing Button, Input, Select, Textarea, status, and empty-state primitives before writing a copy.
+- Keep the global `:focus-visible` affordance. A control that removes it must replace it with an equivalent visible state.
+- Add `radar-reveal` through the shared helper for page-load reveals so reduced motion can disable them safely.
+- Use `lucide-react` for actions and status icons when an appropriate icon exists.
 
-### Type and label scale
+Evidence must remain readable, selectable, and more prominent than decoration.
 
-- Use the shared type scale (`text-nano`, `text-micro`, `text-label`, `text-meta`, `text-body`, `text-lead`, `text-title`, `text-head`, `text-mark`) and tracking scale (`tracking-data`, `tracking-key`, `tracking-label`, `tracking-eyebrow`, `tracking-banner`). Do not introduce new arbitrary `text-[Npx]` or `tracking-[N.Nem]` values — add a scale step if a genuinely new size is needed.
-- Use the label roles `rd-eyebrow`, `rd-label`, `rd-label-sm`, and `rd-banner` for the repeating uppercase mono chrome instead of respelling `font-mono text-X uppercase tracking-Y`. Colour stays a utility so callers can tone them per context.
-- Because the six themes use mono faces with different widths, prefer ellipsis and scrollable strips over fixed widths for label-bearing chrome.
+## Change AI tasks as one unit
 
-### Focus and motion
+For a Manual-First AI task, update the type, metadata, prompt, provider normalization, preview/run behavior, renderer formatting, and tests together. The primary owners are:
 
-- There is one focus idiom: a theme-aware `:focus-visible` outline declared in `@layer base`, driven by `--theme-focus`. Do not add `focus-visible:outline-none` to a control without replacing the affordance.
-- Text fields are the documented exception: they opt out of the outline and use a border shift plus a `--theme-focus-glow` ring, which never clips inside dense panes.
-- Full-bleed rows, tabs, and menu items live inside `overflow-hidden` panes, so they use the inset focus offset from `layoutClasses.ts` rather than the default outward offset.
-- Page-load reveals must carry the `radar-reveal` class (via `revealClass`) so `prefers-reduced-motion` can drop the animation without leaving the element stuck at `opacity-0`.
+- `shared/ai-types.ts`
+- `src/ai/types.ts`
+- `electron/ai/tasks.ts`
+- `electron/ai/providers.ts`
+- `electron/ai/index.ts`
+- `src/lib/resultPreview.ts`
 
-### shadcn-style components
+Prompts should name authorization, Scope, uncertainty, evidence, and user-confirmed actions. Keep model output behind strict JSON normalization before it affects the app.
 
-- Use `cn()` from `src/lib/utils.ts` (`clsx` + `tailwind-merge`) to merge class names. `cn` is an `extendTailwindMerge` instance that registers the custom font-size and tracking scales as their own conflict groups; without that registration `tailwind-merge` reads `text-meta` as a colour and silently drops it when a real colour is merged in. Add any new scale step to those class groups in `src/lib/utils.ts` and cover it in `src/lib/utils.test.ts`.
-- Use `class-variance-authority` (`cva`) for variant-driven components. Export both the component and its `*Variants` helper when variants may be reused.
-- Put generic, reusable controls in `src/components/ui/` following shadcn patterns: `forwardRef`, `VariantProps`, typed props extending native element props, and `displayName`.
-- Put Radar-specific presentation pieces in `src/components/radar/` (for example `FieldLabel`, `StatusBadge`, `StatusPill`, `EmptyState`).
-- Prefer importing `Button`, `Input`, `Select`, and `Textarea` from `src/components/ui/` over raw elements with duplicated utility strings.
-- Map existing interaction families to `Button` variants: `solid`, `outline`, `icon`, `zap`, and `ghost`.
+## Test the behavior that matters
 
-Example:
-
-```tsx
-import { cn } from "../../lib";
-import { Button } from "./components/ui/button";
-import { StatusBadge } from "./components/radar/primitives";
-
-<Button variant="solid" size="compact">Transmit</Button>
-<StatusBadge tone="good">200</StatusBadge>
-```
-
-### Layout and composition
-
-- Style views and panels with Tailwind utilities directly in JSX. Compose layout with flex/grid, spacing, borders, and typography classes — not bespoke CSS classes.
-- Avoid inline styles except for values that must be computed at runtime.
-- Preserve the operational console layout patterns when adding UI: dense, readable, keyboard-aware, and testable.
-- When adding a new shadcn primitive, copy the shadcn structure (cva variants, `cn` merge, ref forwarding) and adapt tokens/colors to the bureau theme rather than importing default shadcn CSS variables wholesale.
-
-## Testing Standards
-
-- Use Vitest for all tests.
-- Keep tests next to the code they validate with `*.test.ts` or `*.test.tsx`.
-- Prefer testing pure helpers directly. Extract logic from UI or IPC handlers when that makes behavior easier to test.
-- Renderer tests use Testing Library and jsdom. Prefer user-visible queries and `userEvent`.
-- Shared utility tests should cover valid inputs, invalid inputs, boundary cases, and fail-closed behavior.
-- Electron/AI tests should stub globals such as `fetch`, use temp directories for filesystem state, and clean up in `afterEach`.
-- Add or update tests in the same change as behavior changes. At minimum, cover the happy path, an invalid input path, and any security/scope boundary touched.
-- Maintain the configured broad-domain coverage thresholds in `vite.config.ts` and the staged
-  high-risk-surface thresholds in `vitest.critical.config.ts`. The critical gate must expand with
-  extracted agent, browser, store, controller, and renderer-intent logic; do not lower the primary
-  90% line/function/statement gate to absorb newly instrumented files.
+- Use Vitest for unit and renderer tests.
+- Keep tests beside their owner as `*.test.ts` or `*.test.tsx`.
+- Test pure helpers directly.
+- Renderer tests should use Testing Library, visible queries, and `userEvent`.
+- Boundary tests should cover valid input, malformed input, caps, and fail-closed behavior.
+- Electron tests should use temporary directories and restore stubbed globals in `afterEach`.
+- Prefer real framework behavior over mocks when it runs cheaply and deterministically.
+- Add one main-path test, one likely failure, and every changed security or Scope boundary.
+- Do not lower the broad 90 percent line, function, and statement gate to absorb new files.
+- Expand the staged critical gate when agent, browser, store, controller, or renderer-intent logic moves into a new owner.
 
 Useful commands:
 
@@ -283,37 +202,39 @@ pnpm lint
 pnpm test:unit
 pnpm build
 pnpm test
+pnpm test:regression:build
+pnpm test:regression:ui:build
 ```
 
-## Error Handling
+## Use clear errors and stable names
 
-- Throw `Error` with clear operator-facing messages when a command cannot proceed.
-- Use result objects for operations that need to display success/failure inside the UI without crashing the flow.
-- Convert unknown caught values with `error instanceof Error ? error.message : "Fallback message"`.
-- Keep catch blocks narrow. Do not swallow failures unless the best fallback is obvious and safe.
+- Throw `Error` with an operator-readable message when an operation cannot continue.
+- Return a result object when the UI needs to show failure without breaking the workflow.
+- Convert an unknown caught value with `error instanceof Error ? error.message : "Fallback message"`.
+- Keep catch blocks narrow. Do not swallow a failure without an obvious safe fallback.
+- Call the user-facing engagement container a **Project**, the internal storage scope a **Workspace**, and an evidence ledger a **Session**.
+- Keep existing domain words in file names: `allowlist`, `capture`, `draft`, `settings`, `providers`, and `context`.
+- Use PascalCase for components and types, `use` for hooks, and lowercase `domain:action` for IPC channels.
+- Name a test after observable behavior, such as `blocks preview without captures`.
 
-## Naming
+## Keep documentation current
 
-- Files use existing domain names: `allowlist`, `capture`, `draft`, `settings`, `providers`, `context`.
-- User-facing copy should call the top-level engagement container a **Project**. Existing internal contracts may keep `LocalProfile` and `LocalWorkspace`; use **Workspace** for the internal local storage scope and **Session** for the evidence ledger under a project.
-- React components use PascalCase.
-- Hooks start with `use`.
-- Types use PascalCase and describe the domain object, not implementation details.
-- IPC channels use lowercase `domain:action`.
-- Test names should describe behavior: `blocks preview without captures`, `normalizes method and strips hop-by-hop headers`.
+- Update the repository README when the product surface, installation, stack, design, screenshots, or high-level workflow changes.
+- Update the user guide when an operator changes how they install, launch, configure, navigate, capture, replay, test, scope, analyze, export, or troubleshoot.
+- Update this file only when an engineering convention changes.
+- Update the design system for visual rules and the roadmap for future direction.
+- Run `pnpm screenshots` when checked-in screenshots no longer match the app.
+- Delete completed plans instead of leaving a second description of shipped behavior.
 
-## Future Development Checklist
+## Completion check
 
-Before considering a change complete:
+Before calling a change done:
 
-- Shared contracts are updated first if data crosses renderer/main boundaries.
-- Core behavior is expressed as small, functional helpers instead of class-based abstractions.
-- Manual-First usage is complete, and AI-First tool-calling impact has been implemented or explicitly ruled out.
-- No new `: any` annotations are introduced; untrusted values use `unknown` and are narrowed before use.
-- Electron handlers validate, clamp, and normalize untrusted inputs.
-- Renderer code remains Electron-free except for `window.radar`.
-- User actions are explicit and reversible where practical.
-- Security-sensitive defaults fail closed.
-- Tests cover new behavior and the most likely failure path.
-- New UI uses Tailwind utilities and shadcn-style components; theme tokens stay in `@theme`, not ad-hoc CSS classes.
-- `pnpm lint`, `pnpm test:unit`, and `pnpm build` pass, or any inability to run them is documented.
+- Shared contracts, Electron behavior, preload APIs, hooks, UI, and tests agree.
+- Manual-First is complete.
+- AI-First reuses the normal operation, or the change explains why no AI path belongs.
+- IPC input is normalized and the security boundary fails closed.
+- No new `: any` enters the codebase.
+- Tests cover the main path and likely failure.
+- Operator documentation matches the visible app.
+- `pnpm lint`, `pnpm test:unit`, and `pnpm build` pass, or the handoff names the exact command that could not run and why.

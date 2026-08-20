@@ -1,80 +1,93 @@
-# Radar Design System
+# Radar design system
 
-Radar should feel like a purpose-built defensive security workbench: dense, legible, alert, and unmistakably operator-facing. Visual decisions should improve evidence review and control clarity before they add decoration.
+Radar should look like the tool it is: a defensive workbench used to inspect dense, sometimes hostile evidence. The interface can have character, but the evidence wins every argument.
 
-## Design Principles
+## Design rules
 
-- **Evidence first:** request, response, frame, replay, and finding content must remain readable, selectable, and visually dominant over surrounding chrome.
-- **Controlled density:** compact navigation and data-rich panels are appropriate, but hierarchy, spacing, and contrast must keep the interface scannable.
-- **Visible state:** scope, capture, proxy, browser, AI mode, permissions, and active operations should never depend on hidden state or color alone.
-- **Specific character:** Radar is not a generic SaaS dashboard. Typography, telemetry, borders, texture, and motion should reinforce the defensive workbench context.
-- **Shared manual and AI surfaces:** AI-First operates the same visible workspace, evidence model, controls, and status language used in Manual-First.
+- Keep requests, responses, frames, replay results, findings, and audit records selectable and visually dominant.
+- Use controlled density inside evidence panes and more space around major regions.
+- Show Scope, capture, proxy, browser, AI authority, errors, and active work with text or icons as well as color.
+- Keep Manual-First and AI-First on the same visual language and visible workspace state.
+- Add texture, shadow, motion, or asymmetry only when the result remains legible under real data.
+- Avoid generic dashboard cards, timid palettes, purple gradients on white, and interchangeable marketing layouts.
 
 ## Themes
 
-Radar ships six deliberately different themes:
+Radar ships six complete themes:
 
-- **Bureau:** Antonio, Saira, and JetBrains Mono with signal orange on warm dark slate.
-- **Vellum:** Instrument Serif, Hanken Grotesk, and DM Mono with vermillion ink on sunlit paper.
-- **Specter:** Unbounded, Sora, and Space Mono with chartreuse acid over midnight plum.
-- **Aperture:** Unbounded, Hanken Grotesk, and JetBrains Mono with survey cobalt on cool architectural porcelain.
-- **Verdigris:** Instrument Serif, Saira, and DM Mono with burnished copper over bottle green.
-- **Aegis:** Antonio, Sora, and Space Mono with glacier blue and restrained brass over command navy.
+| Theme | Type | Color |
+| --- | --- | --- |
+| Bureau | Antonio, Saira, JetBrains Mono | Signal orange on warm dark slate. |
+| Vellum | Instrument Serif, Hanken Grotesk, DM Mono | Vermillion on sunlit paper. |
+| Specter | Unbounded, Sora, Space Mono | Chartreuse and cyan over midnight plum. |
+| Aperture | Unbounded, Hanken Grotesk, JetBrains Mono | Cobalt on cool architectural porcelain. |
+| Verdigris | Instrument Serif, Saira, DM Mono | Burnished copper over bottle green. |
+| Aegis | Antonio, Sora, Space Mono | Glacier blue and brass over command navy. |
 
-Theme tokens live in `src/styles.css` as CSS variables and feed Tailwind's `@theme`. Components should use the semantic tokens instead of hard-coded theme colors so all six themes preserve the same information hierarchy.
+`src/styles.css` owns semantic color variables for every theme and maps them into Tailwind's `@theme`. Components use semantic utilities such as `bg-surface`, `text-signal`, and `border-rule`. Do not hard-code a color that only works in one theme.
 
 ## Typography
 
-Each theme pairs a characterful display face with a refined body face and a dedicated monospace face. Avoid introducing generic UI stacks such as Arial, Inter, Roboto, or system defaults.
+Each theme has a display face, a body face, and a monospace face. Do not introduce Arial, Inter, Roboto, or a system stack into a normal Radar surface.
 
-Radar's shared type and tracking scale runs from `text-nano` through `text-mark` and from `tracking-data` through `tracking-banner`. Use `rd-eyebrow`, `rd-label`, and `rd-banner` for recurring chrome roles instead of recreating letter spacing ad hoc.
+Use the shared text scale from `text-nano` through `text-mark` and the tracking scale from `tracking-data` through `tracking-banner`. Repeated console labels use `rd-eyebrow`, `rd-label`, `rd-label-sm`, or `rd-banner`.
 
-Editable fields and evidence text start at 13px. Dense supporting labels must remain at least 9px before desktop zoom. Monospace is for data, identifiers, code, timing, and telemetry—not every sentence in the application.
+Editable fields and evidence text start at 13px. Supporting labels stay at least 9px before desktop zoom. Monospace is for data, identifiers, code, timings, and telemetry. Body copy stays in the theme's reading face.
+
+The exact packages, weights, and licenses are listed in [Font assets](FONT_ASSETS.md).
 
 ## Composition
 
-The workspace uses asymmetric, console-like composition:
+The main workspace uses an asymmetric console frame:
 
-- grouped navigation with a compact app-global Console block;
-- a classification banner and project/browser controls above the active evidence surface;
-- dense grids and restrained display numerals inside tools;
-- a full-width AI mission safety bar that does not steal workspace width;
-- a separate full-window AI Operator with a compact Mission Pulse, newest-first grouped Operation Stream, adaptive bottom command deck, audit-detail layer, and overlay drawers;
-- a bottom telemetry ticker for live system counts.
+- Grouped navigation and a compact Console block.
+- Project, browser, and view controls above one active evidence pane.
+- Dense grids inside the tool views.
+- A full-width mission safety bar when AI-First needs workspace presence.
+- A bottom ticker for live system counts.
 
-Prefer useful negative space around major regions and controlled density inside evidence regions. Decorative layers may add atmosphere, but must not obscure selection, truncate critical state, or reduce contrast.
+The AI Operator uses a compact Mission Pulse, a newest-first Operation Stream, an adaptive command deck, Task History, and overlay inspectors. It should feel like an instrument beside the main workbench, not another copy of the workbench.
 
-## Color And Surface
+At narrow desktop widths, controls may become strips, drawers, or overlays. The active evidence and the action needed to continue must remain reachable.
 
-Commit to each theme's dominant field and sharp signal color. Status colors must preserve meaning across themes and include text or icon support when state matters.
+## Surface and color
 
-Use borders, shadows, subtle texture, and layered transparency to separate operational zones. Avoid generic purple-on-white gradients, interchangeable card grids, and effects that compete with captured evidence.
+Each theme commits to one dominant field and one sharp signal color. Status colors keep the same meaning across themes and include text or an icon when the state matters.
+
+Use borders, shadow, subtle grain, and layered transparency to separate operational zones. Do not put decoration over selectable evidence or reduce contrast to make a theme look quieter.
+
+Text selection needs strong contrast in every theme. Warning, permission, and failure surfaces should be identifiable in grayscale.
 
 ## Motion
 
-Shared keyframes belong in `src/styles.css`; component-specific state transitions should primarily use Tailwind utilities. Motion should explain arrival, focus, hierarchy, or state change.
+Motion explains arrival, focus, hierarchy, or state change. It does not reward every click.
 
-Current patterns include staggered page-load reveal, the dual-ring radar pulse, live-status pulses, and the burst-control signal fill. Streaming feeds append and introduce new entries without remounting or flashing the existing surface.
+Shared keyframes live in `src/styles.css`. Page-load reveals use the `radar-reveal` class through the shared helper. Existing high-signal patterns include the radar pulse, live-state pulse, staggered reveal, and burst-control fill.
 
-Respect `prefers-reduced-motion`: remove travel, ambient loops, and nonessential transforms while keeping state changes immediately legible. Avoid applying broad transitions to large evidence containers because frequent data updates can produce distracting full-panel flashes.
+Streaming views append new records without remounting or flashing old content. Avoid broad transitions on large evidence containers.
 
-## Interaction And Accessibility
+Under `prefers-reduced-motion`, remove travel, ambient loops, and decorative transforms. State changes still need an immediate visible result.
 
-- Use the theme-aware `:focus-visible` outline for controls and rows.
-- Text fields combine the shared focus outline with a restrained border shift and glow.
-- Text selection must remain high contrast in every theme.
-- Keyboard reachability, scroll reachability, desktop zoom, and minimum text sizes are release contracts.
-- Use `lucide-react` icons for recognizable actions and status markers when an appropriate icon exists.
-- Never encode permission, failure, scope, or run state through animation or color alone.
+## Interaction and accessibility
 
-The automated visual and human-usability requirements are documented in [UI, Typography, and Human-Usability Regression Specification](UI_VISUAL_REGRESSION_SPEC.md), [Font Assets](FONT_ASSETS.md), and [UI Usability Release Review](UI_USABILITY_REVIEW.md).
+- Keep the shared theme-aware `:focus-visible` outline.
+- Text fields may use their documented border and glow focus state.
+- Full-bleed rows and menu items inside clipped panes use the shared inset focus offset.
+- Every critical action must be reachable by keyboard and pointer.
+- Avoid scroll traps between the shell, view, evidence panes, and AI companion.
+- Never encode Scope, permission, failure, or run state through animation or color alone.
+- Use `lucide-react` when an icon already expresses the action.
+- Keep control labels visible when an icon could be ambiguous.
 
-## Implementation Boundaries
+The automated window, zoom, font, focus, and baseline rules live in [Regression testing](REGRESSION_TESTING.md). The human release record is [UI usability release review](UI_USABILITY_REVIEW.md).
 
-- Keep global tokens, font faces, selection rules, accessibility media queries, and reusable keyframes in `src/styles.css`.
-- Style components primarily with Tailwind utilities and existing primitives in `src/components/ui/` and `src/components/radar/`.
-- Keep shell composition in `src/components/shell/`; do not duplicate app chrome inside views.
-- Keep renderer presentation separate from Electron main-process behavior and shared contracts.
-- Add or update focused visual, reachability, or structural tests when a design change affects operator interaction.
+## Implementation boundary
 
-For engineering patterns and repository ownership boundaries, see [Code Conventions](CODE_CONVENTIONS.md). For the complete operator workflow, see the [User Guide](USER_GUIDE.md).
+- Keep global tokens, font imports, selection, focus, reduced motion, scrollbars, and reusable keyframes in `src/styles.css`.
+- Keep component layout and state styling in Tailwind utilities.
+- Use `cn()` and the existing UI or Radar primitives before copying a utility string family.
+- Keep shell composition under `src/components/shell/` and view content under `src/components/views/`.
+- Add a focused structural, reachability, visual, or font test when a design change affects the operator contract.
+- Refresh screenshots when the checked-in image no longer represents the default product state.
+
+See [Code conventions](CODE_CONVENTIONS.md) for component and runtime ownership.
