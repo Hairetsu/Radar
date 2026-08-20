@@ -7,7 +7,7 @@
     "name": "Hairetsu",
     "email": "hairetsu@hairetsu.com"
   },
-  "description": "Open defensive web security workbench with an embedded Chromium browser, capture history, and controlled request repeater.",
+  "description": "Local-first desktop workbench for authorized web security testing, evidence review, bounded replay, and visible AI operation.",
   "homepage": "https://github.com/Hairetsu/Radar",
   "main": "dist-electron/electron/main.js",
   "type": "module",

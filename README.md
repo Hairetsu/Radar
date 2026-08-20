@@ -1,110 +1,128 @@
 # Radar
 
-Radar is a defensive web security workbench for authorized testing across local, staging, and remote targets. It captures and inspects HTTP/S requests and WebSocket traffic routed through its managed browser or proxy, then brings replay, bounded active testing, evidence, reporting, and a visible AI operator into one desktop app.
+Radar is a local-first desktop workbench for authorized web security testing. It records HTTP/S and WebSocket traffic, gives you controlled ways to replay and mutate requests, and keeps the evidence, scope, findings, and reports in one project.
 
-Radar is not limited to localhost. Its projects and evidence stay local by default, while saved Scope can cover any authorized HTTP/S origin or WebSocket endpoint.
-
-Use it manually when you want direct control, or give AI-First a scoped goal and watch one sequential browser operator work through the same visible tools and evidence.
+You can drive Radar by hand or give the AI Operator a scoped goal. Both modes use the same browser, proxy, evidence store, replay limits, workflow engine, and safety checks. There is no separate hidden automation path.
 
 ![Radar HTTP/S workspace](docs/screens/radar-01-traffic.png)
 
-## What Radar Does
+## The working loop
 
-- **Observe:** capture HTTP/S requests and WebSocket traffic from authorized local or remote targets through the dedicated managed browser or Radar proxy, then explore it through filters, search, request details, and a generated sitemap.
-- **Test:** pause and edit traffic, replay requests, run capped payload checks, compare identity evidence, and execute repeatable workflows.
-- **Document:** turn captures and test results into evidence-backed findings, retest records, handoff packages, and Markdown or HTML reports.
-- **Extend:** install local, permissioned plugins against Radar's bounded SDK.
-- **Assist:** use prepare-only AI from the command palette or run a scoped assessment from the separate AI Operator window.
+1. Create a project and save the authorized origins in **Scope**.
+2. Open the Radar Browser or route an external client through Radar's proxy.
+3. Inspect the recorded HTTP/S requests, WebSocket frames, and sitemap.
+4. Move useful evidence into Intercept, Repeater, Automate, or a saved workflow.
+5. Turn confirmed observations into findings, retest them, and export the report or a redacted handoff package.
 
-The core workflow is deliberately simple:
+Radar is built for remote targets as well as local development. The default scope is local-only, but a project can contain any HTTP/S or WebSocket origin that you are authorized to test.
 
-1. Create a project and save the authorized scope.
-2. Open Radar Browser or connect an external client to the proxy.
-3. Capture and inspect the application traffic.
-4. Reproduce or test interesting behavior in Repeater, Automate, Identity Lab, or Workflows.
-5. Promote resolved evidence into findings and a report.
+## What is in the app
 
-The [User Guide](docs/USER_GUIDE.md) covers every surface and workflow in detail.
+The main workbench has twelve views:
 
-Radar includes six complete appearance systems rather than accent swaps: Bureau, Vellum, Specter, Aperture, Verdigris, and Aegis. The set spans two high-clarity light surfaces and four dark operational environments, with local display, body, and evidence typography tuned for each one.
+| Group | Views | Job |
+| --- | --- | --- |
+| Observe | HTTP(S), WebSocket, Sitemap | Capture, search, inspect, tag, and map evidence. |
+| Test | Intercept, Repeater, Automate, Workflows | Pause traffic, edit requests, replay variants, and run bounded checks. |
+| Report | Findings, Advanced | Review API and identity signals, write findings, retest, and export reports. |
+| Configure | Plugins, Scope, SSL | Control local extensions, the engagement boundary, the proxy, and certificate handling. |
 
-## AI That Stays Observable
+Projects also contain sessions, notes, saved views, local run memory, bundle export/import, and focused handoff packages.
 
-AI-First does not run as a hidden background swarm. One browser operator follows task-relevant in-scope paths, lets each action settle, reads the resulting evidence, and only then chooses the next step.
+## Two operating modes
 
-The companion window keeps a compact **Mission Pulse** and newest-first **Operation Stream** visible. A full-height **Task History** sidebar stays expanded on desktop, collapses to a compact status rail, and becomes an overlay on smaller windows; it provides **New Task**, search, current-task selection, and clear Active, Paused, Needs review, Complete, or Stopped state. Each operation groups its auditable decision brief, bounded tool action, and persisted observation into one expandable **Decide → Act → Observe** sequence. Older successful operations collapse for density, while the live operation, newest completed operation, failures, policy blocks, and operator-required actions stay open. Permission-gated actions use focused prompts with **Approve Once** and profile-capped **Approve All** choices for matching calls on the same origin. **Resume after approval** is selected by default, so an approved pending call continues from its durable checkpoint without another operator step; clear it when you want to inspect the saved grant before resuming manually. **Pause & Steer** makes mid-mission direction changes explicit without rewriting the original goal. Invalid or stale planner-authored Mission Graph patches are ignored with a visible audit entry while the valid selected action continues; operator-authored graph changes remain strict and revision-checked. On completion, Radar reconciles transient Mission Graph states and places a durable **Completion Report** above the audit stream with the executive summary, assessed scope, methodology, evidence-backed observations, full draft-finding details, limitations, and recommendations. Older completed runs receive a conservative report reconstructed from their saved Mission Graph, findings, and transcript. Resume, Stop, and manual workspace controls remain available throughout the run.
+Manual-First is the normal operator-driven mode. You click every action that sends, mutates, exports, installs, or approves something. The command palette can summarize evidence and prepare drafts, but it does not transmit them.
 
-The AI Operator connection deck supports the installed Codex app login, Cursor CLI, direct OpenAI, Anthropic, and xAI/Grok API keys, OpenRouter, and custom OpenAI-compatible endpoints. Cloud presets can read provider-specific environment variables, while pasted credentials remain in Radar's local Electron settings and are never exposed to the inspected page.
+AI-First runs in a separate AI Operator window. One sequential browser operator chooses an in-scope step, waits for it to settle, records the result, and then chooses the next step. The workspace stays visible while the companion shows the Mission Pulse, Operation Stream, Task History, Mission Graph, permission requests, and Completion Report.
 
-![Radar AI Operator live event stream](docs/screens/radar-11-ai-operator-feed.png)
+Actions with side effects need the selected profile, saved Scope, a matching capability grant, and remaining run budget. Radar never grants destructive actions or `DELETE` requests to AI-First.
 
-## Safety Model
+![Radar AI Operator](docs/screens/radar-11-ai-operator-feed.png)
 
-- **Local data by default:** projects, captures, findings, workflows, run history, and agent memory are stored in local SQLite; this privacy model does not restrict testing to local targets.
-- **Scope is authoritative:** evidence visibility, browser actions, replay, workflows, capability grants, and AI findings all reuse the saved allowlist.
-- **Active work is bounded:** sends and workflow requests have explicit caps; burst replay and several mutation/export paths remain Manual-First.
-- **Authority is explicit:** AI side effects require the active profile, policy, exact capability lease, and remaining budget to agree.
-- **Raw context is opt-in:** headers, bodies, cookies, WebSocket payloads, and storage values are not sent to AI by default.
+## Safety rules
 
-Radar never installs a root certificate automatically and does not introduce cloud behavior unless you explicitly configure an AI provider.
+- Projects, captures, findings, workflows, plugins, and AI run history stay in local SQLite unless you export them.
+- Scope filters visible evidence and bounds AI-First. Manual Repeater remains an explicit operator tool, so verify its URL before every send.
+- Automate, workflows, replay bursts, and AI-First runs have hard request, concurrency, delay, timeout, or step limits.
+- Raw headers, bodies, cookies, WebSocket payloads, and browser storage are excluded from AI context unless you opt in.
+- AI findings remain drafts until a person reviews them, and every saved AI finding must resolve to local in-scope evidence.
+- Radar generates a local proxy CA but never installs a root certificate automatically.
+- Plugin install, approval, permission changes, and execution remain visible Manual-First actions.
 
-## Get Started
+Use Radar only on systems where you have permission to test.
 
-Pre-built installers are available on the [Releases page](https://github.com/Hairetsu/Radar/releases). Linux releases include AppImage, Debian, and Arch `pacman` packages. See [Install and Launch](docs/USER_GUIDE.md#install-and-launch) for current macOS Gatekeeper, Windows SmartScreen, Linux, and source-build notes.
+## Install Radar
 
-To run from source:
+Installers are published on [GitHub Releases](https://github.com/Hairetsu/Radar/releases) for macOS, Windows, and Linux. Linux releases include AppImage, Debian, and Arch packages.
+
+Radar is still pre-1.0. The macOS app is not notarized and the Windows installer is not signed yet, so the operating system may show a warning. The [installation guide](docs/USER_GUIDE.md#install-radar) has the current launch steps and the exact local data paths.
+
+Radar uses a locally installed Chrome, Edge, Brave, or Chromium build. It does not download another browser at runtime.
+
+## Run from source
+
+You need Node.js, pnpm, and a supported browser.
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Common development checks:
+Build a production renderer and Electron bundle with:
+
+```bash
+pnpm build
+```
+
+## Test the app
+
+Run the main gate:
 
 ```bash
 pnpm test
+```
+
+`pnpm test` runs ESLint, both Vitest coverage gates, and the production build. The Electron regression suite uses deterministic loopback targets and isolated local data:
+
+```bash
+pnpm test:regression:build
 pnpm test:regression:ui:build
 ```
 
-`pnpm test` runs lint, unit tests, and the production build. The blocking UI regression command also validates Radar's desktop readability, fonts, zoom behavior, and core usability contracts.
+The repository also contains Ubuntu and Windows container gates. See [Regression testing](docs/REGRESSION_TESTING.md) for commands, artifacts, screenshot baselines, and native platform checks.
 
-Reproducible test images are provided for Ubuntu and Windows:
+## Design
 
-```bash
-docker build -f docker/Dockerfile.ubuntu -t radar-test:ubuntu .
-docker run --rm --init --shm-size=1g radar-test:ubuntu
-```
+Radar is a dense defensive console, not a generic dashboard. Evidence stays selectable and visually dominant. Scope, browser state, proxy state, AI authority, failures, and active work remain visible without relying on color alone.
 
-The Ubuntu image runs lint, unit tests, the production build, and the complete Electron/Playwright regression suite under Xvfb. The Windows Server image runs lint, unit tests, the production build, an NSIS package build, and the complete default Electron/Playwright regression suite with GPU acceleration disabled. Build it from a Docker daemon switched to Windows containers:
+Six complete appearance systems ship with local fonts:
 
-```powershell
-docker build -f docker/Dockerfile.windows -t radar-test:windows .
-docker run --rm radar-test:windows
-```
+- Bureau uses Antonio, Saira, and JetBrains Mono on warm slate with signal orange.
+- Vellum uses Instrument Serif, Hanken Grotesk, and DM Mono on paper with vermillion ink.
+- Specter uses Unbounded, Sora, and Space Mono over midnight plum with chartreuse and cyan.
+- Aperture uses Unbounded, Hanken Grotesk, and JetBrains Mono on cool porcelain with cobalt.
+- Verdigris uses Instrument Serif, Saira, and DM Mono over bottle green with copper.
+- Aegis uses Antonio, Sora, and Space Mono over command navy with glacier blue and brass.
 
-The Windows container regression is non-interactive Playwright automation. Windows containers do not provide an interactive desktop, so the native Windows platform matrix remains a Windows-host/VM release gate. See [Regression Testing](docs/REGRESSION_TESTING.md#container-test-images) for artifact mounts, platform requirements, and the equivalent native command.
+Theme tokens and shared motion live in `src/styles.css`. Components use Tailwind utilities and the existing UI primitives. The [design system](docs/DESIGN_SYSTEM.md) records the visual and accessibility rules.
 
-The first image build needs network access to download the base image, Node, pnpm packages, Electron, and Chromium. After a successful build, those dependencies are baked into the image and the maintained test gates use local fixtures, so the containers can be run without internet access.
+## Architecture
 
-## Stack
+- `shared/` owns serializable contracts, limits, normalization, scope rules, and pure domain logic.
+- `electron/` owns SQLite, files, proxying, browser control, replay, plugins, AI providers, and the AI-First runtime.
+- `src/` owns the React workbench and AI Operator renderers.
+- Electron IPC is the trust boundary. The renderer asks; the main process validates and performs the action.
 
-- Electron 42, React 18, Vite, and strict TypeScript
-- Tailwind CSS v4 with CSS-variable themes and local font assets
-- SQLite for project, evidence, and run persistence
-- Mockttp for local HTTP/S and WebSocket proxying
-- Playwright Core over the operator-visible managed Chromium session
-
-Radar uses an installed Chrome, Edge, Brave, or Chromium binary instead of downloading a second browser build.
+The stack is Electron 42, React 18, Vite, strict TypeScript, Tailwind CSS v4, SQLite, Mockttp, and Playwright Core.
 
 ## Documentation
 
-- [Documentation index](docs/README.md) — operator, engineering, roadmap, and historical references
-- [User Guide](docs/USER_GUIDE.md) — installation, navigation, workflows, AI-First, privacy, and troubleshooting
-- [Design System](docs/DESIGN_SYSTEM.md) — themes, typography, composition, motion, and accessibility
-- [Code Conventions](docs/CODE_CONVENTIONS.md) — architecture boundaries, implementation practices, and testing
-- [Regression Testing](docs/REGRESSION_TESTING.md) — release gates and suite operation
-- [Branching](docs/BRANCHING.md) — protected-branch and promotion workflow
-- [Roadmap](docs/ROADMAP.md) — active product direction
+- [User guide](docs/USER_GUIDE.md) for installation and operator workflows.
+- [Code conventions](docs/CODE_CONVENTIONS.md) for runtime boundaries, TypeScript, IPC, tests, and feature delivery.
+- [Design system](docs/DESIGN_SYSTEM.md) for themes, typography, layout, motion, and accessibility.
+- [Regression testing](docs/REGRESSION_TESTING.md) and the [manual QA checklist](docs/MANUAL_QA_CHECKLIST.md) for release proof.
+- [Roadmap](docs/ROADMAP.md) for the work that remains.
+- [Documentation index](docs/README.md) for the complete maintained set.
 
 ## License
 

@@ -1,14 +1,14 @@
-# Repository Instructions
+# Repository instructions
 
 These instructions apply to the entire Radar repository.
 
-## Required References
+## Required references
 
 - Read and follow `docs/CODE_CONVENTIONS.md` before making code changes.
 - Follow the product and design direction documented in `README.md`, especially the Design section.
 - Use `docs/USER_GUIDE.md` as the canonical user-facing workflow guide.
 
-## Engineering Standards
+## Engineering standards
 
 - Keep renderer, Electron main process, and shared contracts separated by their existing boundaries.
 - Put cross-runtime types and pure helpers in `shared/`; keep renderer code in `src/`; keep filesystem, proxy, browser, replay, and AI provider work in `electron/`.
@@ -19,7 +19,7 @@ These instructions apply to the entire Radar repository.
 - Scope, allowlist, raw-context opt-in, replay caps, and user-confirmed actions are product safety requirements.
 - Add or update focused tests in the same change as behavior changes, especially for security, scope, IPC, provider normalization, and user-visible workflows.
 
-## Feature Mode Contract
+## Feature mode contract
 
 - Design every user-facing feature for two paths: Manual-First human operation and AI-First tool calling.
 - Manual-First is the human mode. It should remain the direct, operator-driven way to use the app, with clear controls, visible state, and no hidden automation.
@@ -29,7 +29,7 @@ These instructions apply to the entire Radar repository.
 - When adding a feature, decide whether AI-First needs a new tool, a new tool parameter, or read-only context exposure. Do not bolt on separate AI-only behavior that bypasses the normal app model.
 - If a feature is not appropriate for AI-First, document why in the change notes and keep Manual-First behavior complete.
 
-## Frontend And Design Standards
+## Frontend and design standards
 
 - Build UI that feels specific to Radar's defensive security workbench context, not a generic SaaS template.
 - Use distinctive typography. Avoid generic font choices such as Arial, Inter, Roboto, or system font stacks unless maintaining an existing narrow surface that already requires them.
@@ -40,18 +40,18 @@ These instructions apply to the entire Radar repository.
 - Do not add decorative effects that obscure evidence, harm selection readability, or make request/response inspection harder.
 - Use `lucide-react` icons for actions and status markers when an appropriate icon exists.
 
-## Documentation Requirements
+## Documentation requirements
 
 After adding or changing a user-facing feature, update documentation in the same change:
 
 - Update `README.md` when the feature changes the product surface, install/run instructions, screenshots, stack, design notes, or high-level workflows.
 - Update `docs/USER_GUIDE.md` when the feature changes how a user installs, launches, configures, navigates, captures, replays, scopes, analyzes, exports, or troubleshoots Radar.
-- When completing a roadmap phase (`docs/PHASE_*.md`), update `README.md` and `docs/USER_GUIDE.md` in the same change so view numbering, workflows, and operator controls match the shipped phase.
+- When completing roadmap work, update `README.md`, `docs/ROADMAP.md`, and `docs/USER_GUIDE.md` in the same change so shipped behavior and remaining work stay distinct.
 - Update `docs/CODE_CONVENTIONS.md` when the change introduces or modifies an engineering convention.
 - If screenshots become outdated, run `pnpm screenshots` and include the refreshed assets.
 - If a feature is intentionally internal-only and has no user-facing behavior, note that no README or user-guide change was needed.
 
-## Verification Checklist
+## Verification checklist
 
 Before considering a change complete:
 

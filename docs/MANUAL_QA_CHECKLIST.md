@@ -1,6 +1,6 @@
-# Radar Manual QA Checklist
+# Radar manual QA checklist
 
-Use this checklist before release builds, demos, screenshot refreshes, and roadmap phase signoff. Start from a clean launch unless the scenario explicitly uses existing local data.
+Use this checklist before a release build, demo, or screenshot refresh. Start from a clean launch unless the scenario needs existing local data.
 
 ## Preflight
 
@@ -14,7 +14,7 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] Confirm the active project is **Radar Demo Project** and the active session is **Seeded Walkthrough**.
 - [ ] Confirm scope includes `https://api.demo.radar.test` and `http://localhost:3000`.
 
-## Persistent Shell
+## Persistent shell
 
 - [ ] Sidebar view numbers run from **01 HTTP(S)** through **12 SSL**.
 - [ ] Project/session controls open the Local Ledger modal.
@@ -160,7 +160,7 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] Radar never installs a root certificate automatically.
 - [ ] Browser launch uses a dedicated profile and does not require a system keychain password on supported macOS setups.
 
-## AI-First Safety
+## AI-First safety
 
 - [ ] The AI Operator defaults to `1040 x 840`, cannot resize below `760 x 640`, and remains clamped to the active display after monitor/work-area changes.
 - [ ] Repeated open requests focus the same companion; no duplicate AI Operator window is created.
@@ -187,7 +187,7 @@ Use this checklist before release builds, demos, screenshot refreshes, and roadm
 - [ ] All six theme changes propagate to both windows with the intended local display/body/mono font roles.
 - [ ] At 80%, 90%, 100%, 125%, 150%, and 200% zoom, both native windows preserve readable hierarchy, visible focus, internally scrollable evidence/feed, and reachable safety controls; 75% remains advisory for visual clarity.
 
-## Local Data
+## Local data
 
 - [ ] Restart preserves projects, sessions, scope, captures, WebSocket frames, findings, workflows, plugins, AI run history, and project-scoped AI run memory.
 - [ ] Loading another project does not merge evidence across projects.
