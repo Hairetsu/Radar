@@ -36,6 +36,9 @@ export function agentTimelineIntents(entries: AgentTimelineEntry[]) {
     if (appliesVisibleToolCall && entry.toolCall?.tool === "sendReplay") {
       intents.push({ type: "load-replay-draft", draft: entry.toolCall.input.draft });
     }
+    if (appliesVisibleToolCall && entry.toolCall?.tool === "runReplayExperiment") {
+      intents.push({ type: "show-view", view: "repeater" });
+    }
 
     const result = entry.toolResult;
     if (!result?.ok) continue;
@@ -43,6 +46,16 @@ export function agentTimelineIntents(entries: AgentTimelineEntry[]) {
     switch (result.tool) {
       case "sendReplay":
         intents.push({ type: "set-replay-response", response: result.data });
+        break;
+      case "runReplayExperiment":
+        intents.push({ type: "show-view", view: "repeater" });
+        intents.push({
+          type: "notice",
+          message: `${result.data.classification}: ${result.data.rationale}`
+        });
+        if (result.data.variants[0]?.result) {
+          intents.push({ type: "set-replay-response", response: result.data.variants[0].result });
+        }
         break;
       case "getCaptures": {
         const firstCapture =

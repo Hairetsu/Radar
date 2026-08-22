@@ -33,6 +33,7 @@ export type RadarAiOperatorApi = AiOperatorWindowApi & {
   steerAgentMission: (id: string, request: AgentMissionSteeringRequest) => Promise<AgentRun | null>;
   updateAgentCapabilities: (id: string, request: AgentCapabilityActionRequest) => Promise<AgentRun | null>;
   stopAgentRun: (id: string) => Promise<AgentRun | null>;
+  stopAgentTraffic: () => Promise<unknown>;
   getAgentRun: (id: string) => Promise<AgentRun | null>;
   listAgentRuns: () => Promise<AgentRun[]>;
   getAgentRunMemory: () => Promise<AgentRunMemoryEntry[]>;

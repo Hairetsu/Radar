@@ -152,7 +152,7 @@ export function AgentOperationCard({
           {call && (
             <div className="grid grid-cols-[78px_minmax(0,1fr)_auto] gap-3 border-t border-rule/70 bg-surface/28 px-3 py-3">
               <div className={cn("flex items-start gap-2 rd-eyebrow", operation.status === "active" ? "text-signal" : "text-muted")}>
-                <span className={cn("mt-0.5 h-2 w-2 rounded-full border bg-ink", operation.status === "active" ? "animate-[stream-glow_1.6s_ease-in-out_infinite] border-signal bg-signal" : "border-muted")} /> Act
+                <span className={cn("mt-0.5 h-2 w-2 rounded-full border bg-ink", operation.status === "active" ? "animate-[stream-glow_1.6s_ease-in-out_infinite] border-signal bg-signal" : "border-muted")} /> {operation.tool === "runReplayExperiment" ? "Mutate" : "Act"}
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5"><StatusBadge tone="move">{operation.tool || "planner"}</StatusBadge><span className="font-mono text-micro text-muted">{call.phase === "tool-call" ? "bounded tool dispatch" : "selected action"}</span></div>
@@ -166,7 +166,7 @@ export function AgentOperationCard({
 
           <div className="grid grid-cols-[78px_minmax(0,1fr)_auto] gap-3 border-t border-rule/70 px-3 py-3">
             <div className={cn("flex items-start gap-2 rd-eyebrow", operation.status === "failed" ? "text-rust" : operation.status === "completed" ? "text-jade" : "text-muted")}>
-              <span className="mt-0.5 h-2 w-2 rounded-full border border-current bg-ink" /> Observe
+              <span className="mt-0.5 h-2 w-2 rounded-full border border-current bg-ink" /> {operation.tool === "runReplayExperiment" ? "Compare" : "Observe"}
             </div>
             <div className="min-w-0">
               {result ? (

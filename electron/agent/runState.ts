@@ -15,6 +15,7 @@ export function normalizedCheckpoint(run: AgentRun): AgentRunCheckpoint {
     stepCount: Math.max(0, Math.round(Number(checkpoint?.stepCount) || 0)),
     replayCount: Math.max(0, Math.round(Number(checkpoint?.replayCount) || 0)),
     workflowRequestCount: Math.max(0, Math.round(Number(checkpoint?.workflowRequestCount) || 0)),
+    probeRequestCount: Math.max(0, Math.round(Number(checkpoint?.probeRequestCount) || 0)),
     elapsedMs: Math.max(0, Math.round(Number(checkpoint?.elapsedMs) || 0)),
     lastResumedAt,
     activeIdentity: String(checkpoint?.activeIdentity || "current").trim().slice(0, 100) || "current",
@@ -46,6 +47,7 @@ export function countersFromRun(run: AgentRun): RunCounters {
     stepCount: checkpoint.stepCount,
     replayCount: checkpoint.replayCount,
     workflowRequestCount: checkpoint.workflowRequestCount,
+    probeRequestCount: checkpoint.probeRequestCount || 0,
     activeIdentity: checkpoint.activeIdentity || "current"
   };
 }
@@ -70,6 +72,7 @@ export function checkpointFromCounters(
     stepCount: counters.stepCount,
     replayCount: counters.replayCount,
     workflowRequestCount: counters.workflowRequestCount,
+    probeRequestCount: counters.probeRequestCount,
     elapsedMs: Math.max(0, Date.now() - counters.startedAt),
     lastResumedAt: nowIso(),
     activeIdentity: counters.activeIdentity,

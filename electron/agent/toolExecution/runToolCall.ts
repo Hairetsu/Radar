@@ -43,6 +43,7 @@ export async function runToolCall({
       profileId: run.profileId,
       replayCount: counters.replayCount,
       workflowRequestCount: counters.workflowRequestCount,
+      probeRequestCount: counters.probeRequestCount,
       stepCount: counters.stepCount,
       startedAt: counters.startedAt
     });
@@ -124,6 +125,7 @@ export async function runToolCall({
     next = withUpdate(next, deps.saveRun, {
       checkpoint: checkpointFromCounters(counters),
       capabilities: finalized.capabilities,
+      assessment: run.assessment ?? next.assessment,
       timeline: [
         ...next.timeline,
         timeline(`Tool result: ${normalizedCall.tool}`, {

@@ -641,6 +641,19 @@ const radarApi = {
   sendReplay: vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", bytes: 0, durationMs: 10 })),
   sendWebSocketReplay: vi.fn(async () => ({ ok: true, durationMs: 10, responsePayload: "" })),
   runBurst: vi.fn(async () => ({ count: 1, concurrency: 1, averageMs: 10, results: [], failures: 0 })),
+  runReplayExperiment: vi.fn(async () => ({
+    experimentId: "exp-test",
+    family: "injection-signal",
+    hypothesis: "mock experiment",
+    sourceCaptureId: "capture-1",
+    tabId: "tab-1",
+    endpointImpact: "read-only",
+    classification: "inconclusive",
+    rationale: "Fixture experiment",
+    requestCost: 2,
+    baselineHistoryId: "hist-1",
+    variants: []
+  })),
   getAiSettings: vi.fn(async () => ({
     provider: "openai",
     model: "gpt-4o-mini",
@@ -700,6 +713,7 @@ const radarApi = {
   recoverAgentRun: vi.fn(async () => null),
   steerAgentMission: vi.fn(async () => null),
   updateAgentCapabilities: vi.fn(async () => null),
+  stopAgentTraffic: vi.fn(async () => ({ stopped: false })),
   stopAgentRun: vi.fn(async () => ({
     id: "agent-test",
     sessionId: "session-test",

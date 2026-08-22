@@ -69,6 +69,8 @@ Use this checklist before a release build, demo, or screenshot refresh. Start fr
 - [ ] Response diff compares two history entries.
 - [ ] Collections save and reload request drafts.
 - [ ] Burst replay obeys count, concurrency, and delay controls.
+- [ ] Read-only experiment controls run CORS, reflection, injection-signal, authorization-omission, or resource-ID families against a selected in-scope capture and record history plus a classification.
+- [ ] Response diff shows JSON field changes when both history entries are JSON.
 
 ## 05 Automate
 
@@ -173,7 +175,8 @@ Use this checklist before a release build, demo, or screenshot refresh. Start fr
 - [ ] `Cmd/Ctrl+Shift+A`, companion **Focus Workspace**, and feed **Reveal in Workspace** move focus only after explicit operator action.
 - [ ] Project, session, active view, browser summary, and selected evidence references synchronize to the companion without raw request bodies, headers, cookies, or storage values.
 - [ ] A companion-selected view/scope proposal/evidence reference applies through the visible workspace and records the expected operator-facing notice.
-- [ ] Run profile and budgets are visible for steps, replay, workflow requests, capture sample, timeout, and raw-context policy.
+- [ ] Run profile and budgets are visible for steps, replay, workflow requests, probe requests, capture sample, timeout, and raw-context policy.
+- [ ] Autonomous Assessment shows the contract deck, **Arm & Run**, an Assessment inspector tab, and **Stop Traffic Now** on both windows during live traffic.
 - [ ] The chronological feed shows the full saved transcript, not only the last few entries.
 - [ ] AI-First tab switches are visible.
 - [ ] Tool cards show rationale summaries, visible targets, tool result state, and policy blocks.

@@ -63,6 +63,7 @@ export function buildDecisionContext({
     stepCount: counters.stepCount,
     replayCount: counters.replayCount,
     workflowRequestCount: counters.workflowRequestCount,
+    probeRequestCount: counters.probeRequestCount,
     availableTools: availableToolNames().filter((tool) =>
       agentRunAllowsTool(run.profileId, run.policy, tool)
     ),

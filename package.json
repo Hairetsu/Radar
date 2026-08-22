@@ -16,6 +16,8 @@
     "demo:dev": "vite --config demo-target/vite.config.ts",
     "demo:build": "tsc -p demo-target/tsconfig.json && vite build --config demo-target/vite.config.ts",
     "demo:test": "vitest run demo-target/server/demoApi.test.ts demo-target/src/formValidation.test.ts",
+    "benchmark:operator": "pnpm build && node scripts/operator-benchmark.mjs",
+    "benchmark:operator:terra": "pnpm build && node scripts/operator-benchmark.mjs --provider codex-local --models gpt-5.6-terra --suite core",
     "build:app": "tsc -p tsconfig.app.json",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "pnpm build:app && pnpm build:electron && vite build",

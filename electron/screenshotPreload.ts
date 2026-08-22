@@ -832,6 +832,19 @@ const radar: RadarApi = {
   }),
   sendWebSocketReplay: async () => ({ ok: true, durationMs: 12, responsePayload: "{\"pong\":true}" }),
   runBurst: async () => ({ count: 1, concurrency: 1, averageMs: 92, failures: 0, results: [] }),
+  runReplayExperiment: async () => ({
+    experimentId: "exp-screenshot",
+    family: "injection-signal" as const,
+    hypothesis: "Screenshot fixture",
+    sourceCaptureId: "capture-screenshot",
+    tabId: "tab-screenshot",
+    endpointImpact: "read-only" as const,
+    classification: "inconclusive" as const,
+    rationale: "Screenshot fixture",
+    requestCost: 2,
+    baselineHistoryId: "hist-screenshot",
+    variants: []
+  }),
   getAiSettings: async () => aiSettings,
   setAiSettings: async (settings) => settings,
   previewAiContext: async () => ({
@@ -930,6 +943,7 @@ const radar: RadarApi = {
     return run;
   },
   updateAgentCapabilities: async (id) => agentRuns.find((item) => item.id === id) || null,
+  stopAgentTraffic: async () => ({ stopped: false }),
   stopAgentRun: async (id) => {
     const run = agentRuns.find((item) => item.id === id);
     if (!run) return null;

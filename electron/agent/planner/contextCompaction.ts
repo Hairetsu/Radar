@@ -193,6 +193,84 @@ function compactToolResult(result: AgentDecisionContext["timeline"][number]["too
     };
   }
 
+  if (result.tool === "getAssessmentCandidates") {
+    return {
+      ...result,
+      data: {
+        remainingProbeRequests: result.data.remainingProbeRequests,
+        families: result.data.families,
+        candidates: result.data.candidates.slice(0, 24).map((candidate) => ({
+          captureId: candidate.captureId,
+          origin: candidate.origin,
+          method: candidate.method,
+          path: candidate.path,
+          endpointImpact: candidate.endpointImpact,
+          identity: candidate.identity,
+          parameterNames: candidate.parameterNames.slice(0, 12),
+          applicableFamilies: candidate.applicableFamilies,
+          priorCoverage: candidate.priorCoverage,
+          rank: candidate.rank
+        }))
+      }
+    };
+  }
+
+  if (result.tool === "runReplayExperiment") {
+    return {
+      ...result,
+      data: {
+        experimentId: result.data.experimentId,
+        family: result.data.family,
+        hypothesis: result.data.hypothesis,
+        sourceCaptureId: result.data.sourceCaptureId,
+        tabId: result.data.tabId,
+        endpointImpact: result.data.endpointImpact,
+        classification: result.data.classification,
+        rationale: clip(result.data.rationale, 400),
+        requestCost: result.data.requestCost,
+        baselineHistoryId: result.data.baselineHistoryId,
+        stopReason: result.data.stopReason,
+        variants: result.data.variants.slice(0, 8).map((variant) => ({
+          historyId: variant.historyId,
+          payload: clip(variant.mutation.payload, 120),
+          status: variant.result.status,
+          durationMs: variant.result.durationMs
+        }))
+      }
+    };
+  }
+
+  if (result.tool === "getAssessmentProgress") {
+    return {
+      ...result,
+      data: {
+        status: result.data.status,
+        stopReason: result.data.stopReason,
+        currentExperimentId: result.data.currentExperimentId,
+        contract: {
+          authorityLevel: result.data.contract.authorityLevel,
+          families: result.data.contract.families,
+          maxProbeRequests: result.data.contract.maxProbeRequests,
+          allowRawContext: result.data.contract.allowRawContext
+        },
+        ledger: {
+          reserved: result.data.ledger.reserved,
+          consumed: result.data.ledger.consumed,
+          receiptCount: result.data.ledger.receipts.length
+        },
+        queue: result.data.queue.slice(-20).map((item) => ({
+          id: item.id,
+          family: item.family,
+          captureId: item.captureId,
+          status: item.status,
+          classification: item.classification,
+          requestCost: item.requestCost,
+          skipReason: item.skipReason
+        }))
+      }
+    };
+  }
+
   if (result.tool === "getStorageState") {
     return {
       ...result,
@@ -288,7 +366,8 @@ export function buildAgentUserPrompt(context: AgentDecisionContext) {
       budgetRemaining: {
         toolCalls: Math.max(context.policy.maxSteps - context.stepCount, 0),
         replay: Math.max(context.policy.maxReplay - context.replayCount, 0),
-        workflowRequests: Math.max(context.policy.maxWorkflowRequests - context.workflowRequestCount, 0)
+        workflowRequests: Math.max(context.policy.maxWorkflowRequests - context.workflowRequestCount, 0),
+        probeRequests: Math.max((context.policy.maxProbeRequests ?? 0) - (context.probeRequestCount ?? 0), 0)
       },
       availableTools: context.availableTools,
       toolSchema: toolSchemas(context.availableTools),

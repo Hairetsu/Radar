@@ -16,6 +16,7 @@ export function toolMayEmitNetwork(call: AgentToolCall) {
     "activateIdentityProfile",
     "verifyIdentityProfile",
     "sendReplay",
+    "runReplayExperiment",
     "runWorkflow"
   ].includes(call.tool);
 }
@@ -68,9 +69,12 @@ export function visibleTargetForTool(call: AgentToolCall): AgentTimelineEntry["t
     case "prepareInterceptEdit":
       return { view: "intercept", evidenceId: "id" in call.input ? call.input.id : undefined };
     case "sendReplay":
+    case "runReplayExperiment":
     case "getReplayContext":
     case "prepareReplayTab":
     case "compareReplayResults":
+    case "getAssessmentCandidates":
+    case "getAssessmentProgress":
       return { view: "repeater" };
     case "getAutomateContext":
     case "prepareAutomateDraft":
@@ -125,6 +129,7 @@ export function isRetryableAgentTool(call: AgentToolCall) {
     "saveAuthState",
     "prepareReplayTab",
     "sendReplay",
+    "runReplayExperiment",
     "runWorkflow"
   ].includes(call.tool);
 }

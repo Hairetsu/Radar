@@ -136,6 +136,7 @@ export function applyCurrentSchema(db: DatabaseSync) {
       checkpoint_json TEXT NOT NULL DEFAULT '{}',
       mission_json TEXT NOT NULL DEFAULT '{}',
       capabilities_json TEXT NOT NULL DEFAULT '{}',
+      assessment_json TEXT NOT NULL DEFAULT '{}',
       error TEXT,
       PRIMARY KEY (session_id, id)
     );
@@ -411,6 +412,9 @@ export function applyCurrentSchema(db: DatabaseSync) {
     }
     if (!agentRunColumns.has("capabilities_json")) {
       db.exec("ALTER TABLE agent_runs ADD COLUMN capabilities_json TEXT NOT NULL DEFAULT '{}'");
+    }
+    if (!agentRunColumns.has("assessment_json")) {
+      db.exec("ALTER TABLE agent_runs ADD COLUMN assessment_json TEXT NOT NULL DEFAULT '{}'");
     }
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_captures_session_agent_run

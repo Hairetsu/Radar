@@ -1,12 +1,39 @@
-import { KeyRound, Pause, Play, RotateCw, Send, Square, UserRound } from "lucide-react";
+import { Ban, KeyRound, Pause, Play, RotateCw, Send, Square, UserRound } from "lucide-react";
 import type { FormEvent } from "react";
+import { defaultAssessmentContract } from "../../shared/agentAssessment.js";
+import type { AgentRunProfileId } from "../../shared/agent-types.js";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
 import { StatusBadge } from "../components/radar/primitives";
 import { cn } from "../lib";
-import type { AgentRunProfileId } from "../../shared/agent-types.js";
 import type { AiOperatorController } from "./useAiOperator";
+
+function AssessmentContractDeck({
+  profileId,
+  families,
+  remaining
+}: {
+  profileId: AgentRunProfileId;
+  families?: string[];
+  remaining?: number;
+}) {
+  if (profileId !== "autonomous-assessment") {
+    return null;
+  }
+  const contract = defaultAssessmentContract();
+  return (
+    <div className="grid gap-1 border border-rule/80 bg-ink/40 px-3 py-2" data-testid="assessmentContractDeck">
+      <span className="rd-eyebrow text-muted">Assessment contract</span>
+      <p className="font-mono text-micro text-copy">
+        {contract.authorityLevel} · {(families || contract.families).join(" · ")} · 1 concurrent · raw off
+      </p>
+      <p className="font-mono text-micro text-muted">
+        {remaining ?? contract.maxProbeRequests} probe requests remaining · {contract.delayMs}ms delay · {Math.round(contract.maxRuntimeMs / 60_000)}m runtime
+      </p>
+    </div>
+  );
+}
 
 export function AgentComposer({ controller }: { controller: AiOperatorController }) {
   const run = controller.activeRun;
@@ -45,6 +72,7 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
             : "Resume"}
       </Button>
       {controller.canContinue && <Button type="button" variant="outline" size="compact" disabled={controller.pending} onClick={() => void controller.continueRun()} data-testid="continueAgentRun"><RotateCw size={12} /> Continue New</Button>}
+      {isLiveRun && <Button type="button" variant="outline" size="compact" disabled={controller.pending} onClick={() => void controller.stopTraffic()} data-testid="stopAgentTraffic"><Ban size={12} /> Stop Traffic Now</Button>}
       <Button type="button" variant="ghost" size="compact" disabled={!controller.canStop || controller.pending} onClick={() => void controller.stopRun()} data-testid="stopAgentRun"><Square size={12} /> Stop</Button>
       {controller.mode === "ai-first" && <Button type="button" variant="ghost" size="compact" disabled={controller.pending} onClick={() => void controller.returnToManual()} data-testid="returnToManual"><UserRound size={12} /> Manual</Button>}
     </>
@@ -62,6 +90,11 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
             </div>
             <div className="flex max-w-full flex-wrap justify-end gap-1">{controller.budgetLabels.slice(0, 4).map((label) => <StatusBadge key={label}>{label}</StatusBadge>)}</div>
           </div>
+          <AssessmentContractDeck
+            profileId={run.profileId}
+            families={run.assessment?.contract.families}
+            remaining={Math.max(0, (run.policy.maxProbeRequests ?? 0) - (run.checkpoint?.probeRequestCount ?? run.assessment?.ledger.consumed ?? 0))}
+          />
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-rule/70 pt-2">
             <div className="flex min-w-0 items-center gap-3 font-mono text-label text-muted" role="status">
               <span className="h-1.5 w-1.5 shrink-0 animate-[stream-glow_1.5s_ease-in-out_infinite] rounded-full bg-signal" />
@@ -91,6 +124,7 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
           disabled={Boolean(controller.runningRun) && !canSteer}
           data-testid="agentGoalInput"
         />
+        <AssessmentContractDeck profileId={controller.profileId} />
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 min-[1200px]:grid-cols-[minmax(200px,0.7fr)_auto_minmax(0,1fr)]">
           <Select variant="compact" value={controller.profileId} onChange={(event) => controller.setProfileId(event.target.value as AgentRunProfileId)} disabled={Boolean(controller.runningRun) || canSteer} data-testid="agentProfileSelect">
             {controller.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
@@ -107,7 +141,16 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
             <span className={cn("h-2 w-2 border border-current", controller.tutorialMode && "bg-signal")} /> Tutorial
           </button>
           <div className="col-span-2 flex min-w-0 flex-wrap justify-start gap-1.5 min-[1200px]:col-span-1 min-[1200px]:justify-end">
-            {!controller.runningRun && !canSteer && <Button type="submit" variant="solid" disabled={controller.pending} data-testid="startAgentRun"><Play size={13} /> {controller.tutorialMode ? "Start Tutorial" : "Start Run"}</Button>}
+            {!controller.runningRun && !canSteer && (
+              <Button type="submit" variant="solid" disabled={controller.pending} data-testid="startAgentRun">
+                <Play size={13} />
+                {controller.tutorialMode
+                  ? "Start Tutorial"
+                  : controller.profileId === "autonomous-assessment"
+                    ? "Arm & Run"
+                    : "Start Run"}
+              </Button>
+            )}
             {canSteer && <Button type="submit" variant="solid" disabled={controller.pending || !controller.goal.trim()} data-testid="steerAgentRun"><Send size={13} /> Add Direction</Button>}
             {lifecycleControls}
           </div>

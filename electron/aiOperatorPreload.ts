@@ -26,6 +26,7 @@ const radarOperator: RadarAiOperatorApi = {
   steerAgentMission: (id, request) => ipcRenderer.invoke("agent:mission:steer", id, request),
   updateAgentCapabilities: (id, request) => ipcRenderer.invoke("agent:capabilities:update", id, request),
   stopAgentRun: (id) => ipcRenderer.invoke("agent:stop", id),
+  stopAgentTraffic: () => ipcRenderer.invoke("agent:stop-traffic"),
   getAgentRun: (id) => ipcRenderer.invoke("agent:get", id),
   listAgentRuns: () => ipcRenderer.invoke("agent:list"),
   getAgentRunMemory: () => ipcRenderer.invoke("agent-memory:list"),

@@ -6,7 +6,7 @@ export const AGENT_CAPABILITY_LIMITS = {
   tools: 12,
   origins: 12,
   methods: 12,
-  paths: 24,
+  paths: 48,
   identities: 12,
   minDurationMs: 60_000,
   maxDurationMs: 60 * 60_000,

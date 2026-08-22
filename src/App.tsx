@@ -162,6 +162,7 @@ export function App() {
               onPause={() => { void workbench.pauseAgentRun(); }}
               onResume={() => { void workbench.resumeAgentRun(); }}
               onStop={() => { void workbench.stopAgentRun(); }}
+              onStopTraffic={() => { void workbench.stopAgentTraffic(); }}
               onReturnToManual={() => workbench.setAppMode("manual-first")}
               onOpenOperator={() => { void window.radar?.openAiOperator("runs"); }}
             />

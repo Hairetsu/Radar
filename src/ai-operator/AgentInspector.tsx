@@ -1,4 +1,4 @@
-import { Database, FileText, GitBranch, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Database, FileText, GitBranch, KeyRound, Plus, ScanLine, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AgentCapabilityLedger } from "../components/AgentCapabilityLedger";
 import { AgentCompletionReport } from "../components/AgentCompletionReport";
@@ -10,11 +10,12 @@ import { EmptyState, StatusBadge } from "../components/radar/primitives";
 import { cn } from "../lib";
 import type { AiOperatorController } from "./useAiOperator";
 
-type InspectorTab = "mission" | "authority" | "findings" | "memory";
+type InspectorTab = "mission" | "authority" | "assessment" | "findings" | "memory";
 
 const tabs: Array<{ id: InspectorTab; label: string; icon: typeof GitBranch }> = [
   { id: "mission", label: "Graph", icon: GitBranch },
   { id: "authority", label: "Leases", icon: KeyRound },
+  { id: "assessment", label: "Assess", icon: ScanLine },
   { id: "findings", label: "Report", icon: FileText },
   { id: "memory", label: "Memory", icon: Database }
 ];
@@ -34,7 +35,7 @@ export function AgentInspector({ controller, className }: { controller: AiOperat
 
   return (
     <aside className={cn("grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border-l border-rule bg-surface/45", className)} data-testid="aiMissionInspector">
-      <div className="grid grid-cols-4 border-b border-rule bg-ink/55">
+      <div className="grid grid-cols-5 border-b border-rule bg-ink/55">
         {tabs.map((item) => {
           const Icon = item.icon;
           return (
@@ -54,6 +55,44 @@ export function AgentInspector({ controller, className }: { controller: AiOperat
       <div className="min-h-0 overflow-y-auto overscroll-contain p-2" data-radar-focus-inset tabIndex={0}>
         {tab === "mission" && <AgentMissionGraph run={controller.activeRun} onSteer={controller.steerMission} />}
         {tab === "authority" && <AgentCapabilityLedger run={controller.activeRun} onUpdate={controller.updateCapabilities} />}
+        {tab === "assessment" && (
+          <section className="border border-rule bg-ink/28" data-testid="aiInspectorAssessment">
+            <div className="flex items-center justify-between border-b border-rule px-3 py-2">
+              <span className="rd-eyebrow text-muted">Assessment</span>
+              <StatusBadge>{controller.activeRun?.assessment?.status || "idle"}</StatusBadge>
+            </div>
+            <div className="grid gap-3 p-3">
+              {!controller.activeRun?.assessment && <EmptyState>No armed assessment contract on this run.</EmptyState>}
+              {controller.activeRun?.assessment && (
+                <>
+                  <p className="font-mono text-micro text-copy">
+                    {controller.activeRun.assessment.contract.authorityLevel} · {controller.activeRun.assessment.contract.families.join(" · ")}
+                  </p>
+                  <p className="font-mono text-micro text-muted">
+                    Consumed {controller.activeRun.assessment.ledger.consumed} / reserved {controller.activeRun.assessment.ledger.reserved} · remaining {Math.max(0, controller.activeRun.assessment.contract.maxProbeRequests - controller.activeRun.assessment.ledger.consumed)}
+                  </p>
+                  {controller.activeRun.assessment.stopReason && (
+                    <p className="font-mono text-micro text-warn">{controller.activeRun.assessment.stopReason}</p>
+                  )}
+                  {!controller.activeRun.assessment.queue.length && <EmptyState>No experiments queued.</EmptyState>}
+                  {controller.activeRun.assessment.queue.map((item) => (
+                    <article key={item.id} className="border border-rule bg-surface/45 p-3" data-testid={`assessmentQueue-${item.id}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="font-display text-body uppercase tracking-data text-bone">{item.family}</h3>
+                        <StatusBadge>{item.status}</StatusBadge>
+                      </div>
+                      <p className="mt-2 text-meta leading-5 text-muted">{item.hypothesis}</p>
+                      <p className="mt-2 font-mono text-micro text-muted">
+                        {item.classification || "unclassified"} · {item.requestCost} requests · {item.captureId}
+                      </p>
+                      {item.skipReason && <p className="mt-1 font-mono text-micro text-muted">{item.skipReason}</p>}
+                    </article>
+                  ))}
+                </>
+              )}
+            </div>
+          </section>
+        )}
         {tab === "findings" && (
           controller.activeRun?.status === "completed" ? (
             <AgentCompletionReport run={controller.activeRun} />

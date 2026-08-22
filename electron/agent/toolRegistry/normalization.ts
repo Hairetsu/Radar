@@ -1,4 +1,5 @@
 import type { AgentToolCall, AgentWorkbenchView } from "../../../shared/agent-types.js";
+import { normalizeReplayExperimentRequest } from "../../../shared/agentAssessment.js";
 import { MAX_AUTOMATE_PAYLOADS, normalizeAutomateRules } from "../../../shared/automate.js";
 import { MAX_REPLAY_BODY, normalizeDraft } from "../../../shared/draft.js";
 import { normalizeAgentRunMemory } from "../../../shared/agentMemory.js";
@@ -211,7 +212,16 @@ export function normalizeAgentToolInput(call: AgentToolCall): AgentToolCall {
         }
       };
     case "getReplayContext":
+    case "getAssessmentCandidates":
+    case "getAssessmentProgress":
       return { tool: call.tool, input: {} };
+    case "runReplayExperiment": {
+      const normalized = normalizeReplayExperimentRequest(input);
+      if (!normalized) {
+        throw new Error("runReplayExperiment requires a capture, approved family, and matching mutation.");
+      }
+      return { tool: call.tool, input: normalized };
+    }
     case "prepareAutomateDraft":
       return {
         tool: call.tool,

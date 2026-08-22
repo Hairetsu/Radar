@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { normalizeAgentRunMemory } from "../../shared/agentMemory.js";
+import { defaultAssessmentContract } from "../../shared/agentAssessment.js";
 import {
   AGENT_RUN_PROFILES,
   agentBudgetLabels,
@@ -300,7 +301,8 @@ export function useAiOperator() {
         goal: decision.goal,
         startUrl: decision.startUrl,
         profileId,
-        ...(tutorialMode ? { tutorialMode: true } : {})
+        ...(tutorialMode ? { tutorialMode: true } : {}),
+        ...(profileId === "autonomous-assessment" ? { assessmentContract: defaultAssessmentContract() } : {})
       });
       replaceRun(run);
       setGoal("");
@@ -359,7 +361,8 @@ export function useAiOperator() {
         startUrl,
         profileId: activeRun.profileId,
         continuationOf: activeRun.id,
-        ...(activeRun.policy.tutorialMode ? { tutorialMode: true } : {})
+        ...(activeRun.policy.tutorialMode ? { tutorialMode: true } : {}),
+        ...(activeRun.profileId === "autonomous-assessment" ? { assessmentContract: defaultAssessmentContract() } : {})
       });
       replaceRun(run);
       setNotice(`Continuation ${run.id.slice(0, 8)} started with a fresh bounded budget.`);
@@ -382,6 +385,19 @@ export function useAiOperator() {
       setPending(false);
     }
   }, [activeRun, replaceRun]);
+
+  const stopTraffic = useCallback(async () => {
+    setPending(true);
+    try {
+      const result = await operatorApi().stopAgentTraffic();
+      const stopped = typeof result === "object" && result && "stopped" in result ? Boolean(result.stopped) : Boolean(result);
+      setNotice(stopped ? "Assessment traffic stopped. The run remains paused until you resume or stop it." : "No in-flight assessment traffic.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Assessment traffic could not be stopped.");
+    } finally {
+      setPending(false);
+    }
+  }, []);
 
   const returnToManual = useCallback(async () => {
     setPending(true);
@@ -657,6 +673,7 @@ export function useAiOperator() {
     resumeRun,
     continueRun,
     stopRun,
+    stopTraffic,
     returnToManual,
     recoverRun,
     steerMission,
