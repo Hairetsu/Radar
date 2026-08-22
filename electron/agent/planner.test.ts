@@ -12,6 +12,9 @@ describe("agent planner", () => {
     expect(AGENT_SYSTEM_PROMPT).toContain("one browser action at a time");
     expect(AGENT_SYSTEM_PROMPT).toContain("review the fresh capturedTraffic");
     expect(AGENT_SYSTEM_PROMPT).not.toContain("parallel, read-only recon workers");
+    expect(AGENT_SYSTEM_PROMPT).toContain("runReplayExperiment");
+    expect(AGENT_SYSTEM_PROMPT).toContain("one experiment at a time");
+    expect(AGENT_SYSTEM_PROMPT).toContain("collect captures first if capturedTraffic is empty");
   });
 
   it("builds a redacted, budgeted planner context", () => {
@@ -32,6 +35,7 @@ describe("agent planner", () => {
       stepCount: 2,
       replayCount: 1,
       workflowRequestCount: 1,
+      probeRequestCount: 0,
       availableTools: ["getCaptures"],
       capturedTraffic: [
         {
@@ -84,7 +88,7 @@ describe("agent planner", () => {
 
     const prompt = JSON.parse(buildAgentUserPrompt(context)) as Record<string, unknown>;
     expect(prompt).toMatchObject({
-      budgetRemaining: { toolCalls: 8, replay: 1, workflowRequests: 2 },
+      budgetRemaining: { toolCalls: 8, replay: 1, workflowRequests: 2, probeRequests: 0 },
       capturedTraffic: [
         {
           requestHeaders: { Authorization: "[REDACTED]" },

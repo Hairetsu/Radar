@@ -231,6 +231,7 @@ const radarOperator: RadarAiOperatorApi = {
   recoverAgentRun: async () => run,
   steerAgentMission: async () => run,
   updateAgentCapabilities: async () => run,
+  stopAgentTraffic: async () => ({ stopped: false }),
   stopAgentRun: async () => {
     run = { ...run, status: "stopped" };
     return run;

@@ -24,7 +24,8 @@ export const DEFAULT_AGENT_POLICY: AgentPolicy = {
   maxReplay: 1,
   maxWorkflowRequests: 1,
   maxCaptureSample: 100,
-  allowRawContext: false
+  allowRawContext: false,
+  maxProbeRequests: 0
 };
 
 const passiveObserveTools: AgentToolName[] = [
@@ -129,6 +130,39 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
     }
   },
   {
+    id: "autonomous-assessment",
+    label: "Autonomous Assessment",
+    description: "Open the managed browser to collect in-scope captures, then run a reviewed read-only experiment contract: baseline, typed mutations, comparison, and coverage without reconstructing authenticated requests from prompt text.",
+    policy: policy({
+      maxRuntimeMs: 10 * 60_000,
+      maxReplay: 2,
+      maxWorkflowRequests: 0,
+      maxSteps: 32,
+      maxCaptureSample: 100,
+      maxProbeRequests: 40
+    }),
+    allowedTools: uniqueTools([
+      ...passiveObserveTools,
+      "openBrowser",
+      "navigateBrowser",
+      "waitForNetworkIdle",
+      "getClickableElements",
+      "clickElement",
+      "prepareReplayTab",
+      "compareReplayResults",
+      "getAssessmentCandidates",
+      "runReplayExperiment",
+      "getAssessmentProgress",
+      "sendReplay"
+    ]),
+    capabilityCeiling: {
+      ...DEFAULT_AGENT_CAPABILITY_CEILING,
+      maxUses: 20,
+      maxRequests: 40,
+      maxConcurrency: 1
+    }
+  },
+  {
     id: "passive-map",
     label: "Passive Map",
     description: "Read scoped traffic, sitemap coverage, local context, and passive evidence without replay or workflow execution.",
@@ -230,6 +264,7 @@ export function normalizeAgentPolicy(input: Partial<AgentPolicy> = {}, profileId
     maxWorkflowRequests: clampNumber(input.maxWorkflowRequests, defaults.maxWorkflowRequests, 0, 100),
     maxCaptureSample: clampNumber(input.maxCaptureSample, defaults.maxCaptureSample, 1, 100),
     allowRawContext: Boolean(input.allowRawContext && defaults.allowRawContext),
+    maxProbeRequests: clampNumber(input.maxProbeRequests, defaults.maxProbeRequests ?? 0, 0, 80),
     ...(input.tutorialMode === true ? { tutorialMode: true } : {})
   };
 }
@@ -252,6 +287,7 @@ export function agentBudgetLabels(policy: AgentPolicy) {
     `steps ${policy.maxSteps}`,
     `replay ${policy.maxReplay}`,
     `workflow ${policy.maxWorkflowRequests}`,
+    `probes ${policy.maxProbeRequests ?? 0}`,
     `captures ${policy.maxCaptureSample}`,
     `timeout ${Math.round(policy.maxRuntimeMs / 1000)}s`,
     policy.allowRawContext ? "raw context allowed" : "raw context off",

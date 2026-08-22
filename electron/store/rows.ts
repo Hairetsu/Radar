@@ -112,6 +112,7 @@ export type AgentRunRow = {
   checkpoint_json: string;
   mission_json: string;
   capabilities_json: string;
+  assessment_json: string;
   error: string | null;
 };
 

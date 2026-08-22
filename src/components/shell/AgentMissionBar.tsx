@@ -1,4 +1,4 @@
-import { ExternalLink, KeyRound, Pause, Play, Square, UserRound } from "lucide-react";
+import { Ban, ExternalLink, KeyRound, Pause, Play, Square, UserRound } from "lucide-react";
 import type { AgentRun, AppMode } from "../../types";
 import { timelineEntryText } from "../../lib";
 import { Button } from "../ui/button";
@@ -18,6 +18,7 @@ export function AgentMissionBar({
   onPause,
   onResume,
   onStop,
+  onStopTraffic,
   onReturnToManual,
   onOpenOperator
 }: {
@@ -27,6 +28,7 @@ export function AgentMissionBar({
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  onStopTraffic?: () => void;
   onReturnToManual: () => void;
   onOpenOperator: () => void;
 }) {
@@ -58,6 +60,7 @@ export function AgentMissionBar({
       {pausable && <Button type="button" variant="ghost" size="compact" onClick={onPause} data-testid="missionPauseAgentRun"><Pause size={12} /> Pause</Button>}
       {capabilityReviewRequired && <Button type="button" variant="outline" size="compact" onClick={onOpenOperator} data-testid="missionReviewCapability"><KeyRound size={12} /> Review Lease</Button>}
       {resumable && <Button type="button" variant="ghost" size="compact" onClick={onResume} data-testid="missionResumeAgentRun"><Play size={12} /> Resume</Button>}
+      {running && onStopTraffic && <Button type="button" variant="outline" size="compact" onClick={onStopTraffic} data-testid="missionStopTraffic"><Ban size={12} /> Stop Traffic</Button>}
       {stoppable && <Button type="button" variant="ghost" size="compact" onClick={onStop} data-testid="missionStopAgentRun"><Square size={12} /> Stop</Button>}
       {mode === "ai-first" && <Button type="button" variant="ghost" size="compact" onClick={onReturnToManual} data-testid="missionReturnToManual"><UserRound size={12} /><span className="max-[720px]:hidden">Manual</span></Button>}
       <Button type="button" variant={operatorVisible ? "ghost" : "outline"} size="compact" onClick={onOpenOperator} data-testid="openAiOperator"><ExternalLink size={12} /><span className="max-[720px]:hidden">AI Operator</span></Button>

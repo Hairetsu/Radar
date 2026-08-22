@@ -82,6 +82,9 @@ The main repository commands are:
 | `pnpm demo:dev` | Start the Harborline training target on `127.0.0.1:3000`. |
 | `pnpm demo:build` | Type-check and build the Harborline frontend. |
 | `pnpm demo:test` | Run the Harborline API fixture tests. |
+| `pnpm benchmark:operator -- --list` | Print benchmark prompts and expected outcomes. |
+| `pnpm benchmark:operator -- --dry-run --models MODEL` | Preview the selected model, case, and profile matrix without provider calls. |
+| `pnpm benchmark:operator:terra` | Run the nine-case core suite with `gpt-5.6-terra` through the signed-in Codex CLI. |
 | `pnpm build` | Build the renderer and Electron processes. |
 | `pnpm test` | Run ESLint, both unit coverage gates, and the production build. |
 | `pnpm test:regression:build` | Build and run the Electron workflow suite. |
@@ -136,6 +139,30 @@ pnpm dev
 Harborline validates every browser form before it sends a request. Submit a normal value first, then edit the captured request in Repeater. The forms reject test strings, unlisted record IDs, unknown document paths, unapproved feed URLs, and markup.
 
 Harborline uses fixed in-memory data. It does not read host files or make outbound requests, even when a request contains a file path or URL.
+
+### Benchmark models and run profiles
+
+The Operator benchmark launches the built Radar application against Harborline with isolated user data and the normal AI-First runtime. The `core` suite covers every shipped run profile once. The runner seeds only legitimate baseline requests, then evaluates whether the model selected the right evidence and tools, retained citations, respected authority, and reached the case-specific expected outcome.
+
+Print the complete prompt and expected-outcome catalog:
+
+```bash
+pnpm benchmark:operator -- --list --suite full
+```
+
+Preview a cross-profile matrix without launching Radar:
+
+```bash
+pnpm benchmark:operator -- \
+  --dry-run \
+  --cases login-capture-replay \
+  --profiles all \
+  --models model-a,model-b
+```
+
+For a real run, choose a provider, set its API key in the matching environment variable, and add `--approve-active` only when you intend the runner to click visible, bounded localhost capability approvals. Without that flag, paused authority remains part of the result. Radar still refuses destructive, `DELETE`, or non-Harborline leases.
+
+Reports are written under `artifacts/operator-benchmark/`. Read [Operator benchmark](OPERATOR_BENCHMARK.md) for provider examples, every expected outcome, the scoring rubric, and full-matrix cost guidance.
 
 ## Know the workspace
 
@@ -373,6 +400,8 @@ Click **Saturate** for a manual burst:
 
 The burst reports the actual count, concurrency, average latency, failures, and last response.
 
+**Read-only experiment** on Repeater uses the same families as Autonomous Assessment. Select an in-scope capture, choose CORS origin, reflection, injection signal, authorization omission, or resource ID, name the mutation parameter when the family needs one, and click **Run experiment**. Radar sends a baseline and sequential variants, stores tab history, and shows the classification plus JSON field changes. Experiments do not use burst replay.
+
 ### Automate
 
 **05 Automate** replaces explicit `{{payload:name}}` markers in the active Repeater draft. Markers can appear in the URL, header values, or body.
@@ -531,7 +560,7 @@ To start:
 2. Choose a run profile.
 3. Review its visible step, replay, workflow, capture, timeout, and raw-context budgets.
 4. Enter a goal with the target origin.
-5. Click **Start Run** or **Start Tutorial**.
+5. Click **Start Run**, **Arm & Run** for Autonomous Assessment, or **Start Tutorial**.
 
 If the goal contains an origin outside saved Scope, Radar places it in the unsaved Scope editor and stops. Review the whole list, click **Commit**, and then start the run again. Radar never saves a goal origin by itself.
 
@@ -541,6 +570,7 @@ Run profiles:
 | --- | --- |
 | **Browser Assessment** | Explore task-relevant in-scope pages and use tightly bounded verification. |
 | **Goal-Driven Assessment** | Pursue the goal with the largest bounded budget: 10 minutes, 40 steps, 10 replays, 10 active workflow requests, and 100 captures. |
+| **Autonomous Assessment** | Open the managed browser to collect in-scope captures, then arm a read-only experiment contract: 40 probe requests, one concurrent send, CORS/reflection/injection/authorization/resource-ID families, visible Repeater history. Forms, identity changes, and workflows stay off. |
 | **Passive Map** | Read captures, sitemap coverage, findings, and local context without sends. |
 | **Auth Review** | Inspect permitted browser and identity context. Raw cookie or storage tools require raw-context opt-in. |
 | **API Hardening** | Review API evidence and prepare Repeater, Automate, or workflow drafts. |
@@ -555,7 +585,8 @@ During the run, the AI Operator shows:
 - **Mission Pulse** for the current goal, selected action, target, and latest result.
 - **Operation Stream** for durable Decide, Act, and Observe records.
 - **Task History** for saved tasks in the active session.
-- **Mission Inspector** for the graph, permissions, report, memory, status, and budgets.
+- **Mission Inspector** for the graph, permissions, assessment queue and remaining probe cost, report, memory, status, and budgets.
+- **Stop Traffic Now** during a live run to abort Radar-owned assessment requests without deleting completed evidence.
 - **Completion Report** for assessed scope, method, evidence-backed observations, findings, limits, and next actions.
 
 The main Radar workspace stays operable and shows the selected view, evidence, prepared draft, or browser effect.

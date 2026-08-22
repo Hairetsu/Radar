@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/Hairetsu/Radar/security/advisories/new
+    about: Private disclosure for Electron, IPC, proxy, plugin, or AI-context issues

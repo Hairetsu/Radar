@@ -17,6 +17,16 @@ import type {
   WorkflowRun
 } from "./domain.js";
 import type { AdvancedTestingSummary } from "./advancedTesting.js";
+import type {
+  AgentAssessmentState,
+  AssessmentCandidate,
+  AssessmentContract,
+  EndpointImpact,
+  ProbeFamilyId,
+  ProbeMutation,
+  EncodingStep,
+  ReplayExperimentResult
+} from "./agentAssessment.js";
 import type { IdentityActivationRecord, IdentityProfile } from "./identityProfiles.js";
 
 export type AppMode = "manual-first" | "ai-first";
@@ -78,6 +88,7 @@ export type AgentRunRecoveryAction =
 export type AgentRunProfileId =
   | "browser-assessment"
   | "goal-driven-assessment"
+  | "autonomous-assessment"
   | "passive-map"
   | "auth-review"
   | "api-hardening"
@@ -118,6 +129,9 @@ export type AgentToolName =
   | "getReplayContext"
   | "prepareReplayTab"
   | "compareReplayResults"
+  | "getAssessmentCandidates"
+  | "runReplayExperiment"
+  | "getAssessmentProgress"
   | "getAutomateContext"
   | "prepareAutomateDraft"
   | "analyzeAutomateResults"
@@ -243,6 +257,21 @@ export type AgentToolCall =
   | { tool: "getReplayContext"; input: Record<string, never> }
   | { tool: "prepareReplayTab"; input: { name?: string; draft: ReplayDraft; environmentId?: string; note?: string } }
   | { tool: "compareReplayResults"; input: { leftHistoryId: string; rightHistoryId: string; tabId?: string } }
+  | { tool: "getAssessmentCandidates"; input: Record<string, never> }
+  | {
+      tool: "runReplayExperiment";
+      input: {
+        captureId: string;
+        family: ProbeFamilyId;
+        hypothesis: string;
+        location: ProbeMutation;
+        values?: string[];
+        encoding?: EncodingStep[];
+        tabId?: string;
+        identity?: string;
+      };
+    }
+  | { tool: "getAssessmentProgress"; input: Record<string, never> }
   | { tool: "getAutomateContext"; input: Record<string, never> }
   | {
       tool: "prepareAutomateDraft";
@@ -367,6 +396,21 @@ export type AgentToolResult =
         bodyLengthDelta: number;
         identical: boolean;
       };
+    }
+  | {
+      tool: "getAssessmentCandidates";
+      ok: true;
+      data: {
+        candidates: AssessmentCandidate[];
+        remainingProbeRequests: number;
+        families: ProbeFamilyId[];
+      };
+    }
+  | { tool: "runReplayExperiment"; ok: true; data: ReplayExperimentResult }
+  | {
+      tool: "getAssessmentProgress";
+      ok: true;
+      data: AgentAssessmentState;
     }
   | {
       tool: "getAutomateContext";
@@ -680,6 +724,7 @@ export type AgentDecisionContext = {
   stepCount: number;
   replayCount: number;
   workflowRequestCount: number;
+  probeRequestCount: number;
   availableTools: AgentToolName[];
   capturedTraffic: AgentCapturedTrafficContext[];
   contextSummary: AgentContextSummary;
@@ -727,6 +772,7 @@ export type AgentRunCheckpoint = {
   stepCount: number;
   replayCount: number;
   workflowRequestCount: number;
+  probeRequestCount?: number;
   elapsedMs: number;
   lastResumedAt: string;
   activeIdentity?: string;
@@ -755,6 +801,7 @@ export type AgentPolicy = {
   maxWorkflowRequests: number;
   maxCaptureSample: number;
   allowRawContext: boolean;
+  maxProbeRequests?: number;
   tutorialMode?: boolean;
 };
 
@@ -775,6 +822,9 @@ export type AgentCapabilityGrant = {
   method: string;
   pathPrefix: string;
   identity: string;
+  probeFamily?: ProbeFamilyId;
+  sourceCaptureIds?: string[];
+  endpointImpact?: EndpointImpact;
 };
 
 export type AgentCapabilityLeaseRequest = {
@@ -820,6 +870,9 @@ export type AgentCapabilityReceipt = {
   requestCost: number;
   payloadBytes: number;
   reason: string;
+  experimentId?: string;
+  probeFamily?: ProbeFamilyId;
+  sourceCaptureId?: string;
   finishedAt?: string;
   outcomeReason?: string;
 };
@@ -850,6 +903,7 @@ export type AgentRunRequest = {
   tutorialMode?: boolean;
   continuationOf?: string;
   policy?: Partial<AgentPolicy>;
+  assessmentContract?: AssessmentContract;
 };
 
 export type AgentRunRecoveryRequest = {
@@ -869,6 +923,7 @@ export type AgentRun = {
   checkpoint?: AgentRunCheckpoint;
   mission?: AgentMission;
   capabilities?: AgentCapabilityState;
+  assessment?: AgentAssessmentState;
   timeline: AgentTimelineEntry[];
   findings: AgentFinding[];
   error?: string;

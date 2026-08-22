@@ -26,8 +26,15 @@ import {
   revokeAgentCapabilityLease,
   revokeGrantedAgentCapabilities
 } from "../../shared/agentCapabilities.js";
+import {
+  createArmedAssessmentState,
+  defaultAssessmentContract,
+  normalizeAssessmentContract
+} from "../../shared/agentAssessment.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { getAgentRunProfile, normalizeAgentRunProfileId } from "../../shared/agentProfiles.js";
+import { assessmentLeaseFromContract } from "./assessment/armContract.js";
+import { stopAssessmentTraffic } from "./assessment/stopController.js";
 import { authFingerprint } from "./capabilityRuntime.js";
 import { runtimeEvidenceCatalog } from "./evidenceContext.js";
 import { executeRunLoop } from "./executionLoop.js";
@@ -378,6 +385,7 @@ export class AgentRuntime {
         stepCount: 0,
         replayCount: 0,
         workflowRequestCount: 0,
+        probeRequestCount: 0,
         elapsedMs: 0,
         lastResumedAt: createdAt,
         activeIdentity: "current"
@@ -400,6 +408,40 @@ export class AgentRuntime {
       ],
       findings: []
     };
+
+    if (profileId === "autonomous-assessment") {
+      const contract = normalizeAssessmentContract(request.assessmentContract) || defaultAssessmentContract();
+      run.assessment = createArmedAssessmentState(contract);
+      const proposed = proposeAgentCapabilityLease(
+        run.capabilities || createAgentCapabilityState(),
+        assessmentLeaseFromContract({
+          contract,
+          allowlist: this.deps.allowlist(),
+          reason: "Arm & Run confirmed the Autonomous Assessment contract."
+        }),
+        createId("lease"),
+        createdAt
+      );
+      if (proposed.ok) {
+        const granted = grantAgentCapabilityLease(proposed.state, proposed.lease.id, {
+          allowlist: this.deps.allowlist(),
+          allowedTools: getAgentRunProfile(profileId).allowedTools,
+          authFingerprint: "current",
+          ceiling: getAgentRunProfile(profileId).capabilityCeiling,
+          now: createdAt
+        });
+        if (granted.ok) {
+          run.capabilities = granted.state;
+          run.timeline = [
+            ...run.timeline,
+            timeline("Assessment contract armed. Matching read-only experiments will not pause for another lease.", {
+              phase: "status",
+              summary: "Arm & Run granted the assessment capability lease"
+            })
+          ];
+        }
+      }
+    }
 
     this.deps.saveRun(run);
     this.queueExecution(run.id);
@@ -612,7 +654,13 @@ export class AgentRuntime {
     return next;
   }
 
+  stopTrafficNow(reason = "Stop Traffic Now") {
+    stopAssessmentTraffic();
+    return this.revokeAllGrantedLeases(reason);
+  }
+
   stop(runId: string) {
+    stopAssessmentTraffic();
     const run = this.deps.loadRun(runId);
     if (!run) {
       return null;

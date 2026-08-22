@@ -9,9 +9,9 @@ export function createAgentRunsRepository(db: DatabaseSync) {
     runImmediateTransaction(db, () => {
       db.prepare(`
         INSERT INTO agent_runs (
-          session_id, id, created_at, updated_at, goal, profile_id, status, policy_json, timeline_json, findings_json, checkpoint_json, mission_json, capabilities_json, error
+          session_id, id, created_at, updated_at, goal, profile_id, status, policy_json, timeline_json, findings_json, checkpoint_json, mission_json, capabilities_json, assessment_json, error
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_id, id) DO UPDATE SET
           updated_at = excluded.updated_at,
           goal = excluded.goal,
@@ -23,6 +23,7 @@ export function createAgentRunsRepository(db: DatabaseSync) {
           checkpoint_json = excluded.checkpoint_json,
           mission_json = excluded.mission_json,
           capabilities_json = excluded.capabilities_json,
+          assessment_json = excluded.assessment_json,
           error = excluded.error
       `).run(
         sessionId,
@@ -38,6 +39,7 @@ export function createAgentRunsRepository(db: DatabaseSync) {
         JSON.stringify(run.checkpoint || {}),
         JSON.stringify(run.mission || {}),
         JSON.stringify(run.capabilities || {}),
+        JSON.stringify(run.assessment || {}),
         run.error ?? null
       );
       db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(run.updatedAt, sessionId);

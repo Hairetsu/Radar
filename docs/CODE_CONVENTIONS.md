@@ -18,6 +18,7 @@ Important owners inside those boundaries:
 - `shared/api/aiOperatorApi.ts` defines the narrower AI Operator contract.
 - `shared/agentMission/` owns Mission Graph normalization, patches, steering, and evidence validation.
 - `shared/agentCapabilities/` owns risk, leases, receipts, and authorization.
+- `shared/agentAssessment/` owns assessment contracts, probe families, mutations, candidate ranking, ledgers, and classification gates.
 - `electron/ipc/` owns IPC registration and boundary normalization by domain.
 - `electron/store/` owns the SQLite schema, migration ledger, row mapping, transactions, and repositories.
 - `electron/capture/` owns session-bound HTTP and WebSocket ledgers and causal attribution.

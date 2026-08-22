@@ -19,7 +19,8 @@ describe("agentProfiles", () => {
       maxReplay: 0,
       maxWorkflowRequests: 0,
       maxCaptureSample: 80,
-      allowRawContext: false
+      allowRawContext: false,
+      maxProbeRequests: 0
     });
     const legacyPolicy = normalizeAgentPolicy({ maxParallelWorkers: 99 } as Parameters<typeof normalizeAgentPolicy>[0] & { maxParallelWorkers: number }, "passive-map");
     expect(legacyPolicy).not.toHaveProperty("maxParallelWorkers");
@@ -39,6 +40,22 @@ describe("agentProfiles", () => {
       maxConcurrency: 1
     });
     expect(getAgentRunProfile("passive-map").capabilityCeiling.maxRiskTier).toBe("navigate");
+  });
+
+  it("arms autonomous assessment with experiment tools and a probe budget", () => {
+    const profile = getAgentRunProfile("autonomous-assessment");
+    expect(profile.policy.maxProbeRequests).toBe(40);
+    expect(profile.allowedTools).toEqual(expect.arrayContaining([
+      "openBrowser",
+      "navigateBrowser",
+      "waitForNetworkIdle",
+      "getAssessmentCandidates",
+      "runReplayExperiment",
+      "getAssessmentProgress",
+      "sendReplay"
+    ]));
+    expect(profile.allowedTools).not.toContain("runWorkflow");
+    expect(profile.allowedTools).not.toContain("submitForm");
   });
 
   it("gives goal-driven assessment the largest bounded active budget", () => {

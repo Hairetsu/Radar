@@ -46,6 +46,13 @@ export type RepeaterViewProps = Pick<
   | "setDelayMs"
   | "runBurst"
   | "runBurstPending"
+  | "experimentFamily"
+  | "setExperimentFamily"
+  | "experimentParam"
+  | "setExperimentParam"
+  | "lastExperiment"
+  | "runExperiment"
+  | "runExperimentPending"
   | "lastResponse"
   | "lastBurst"
   | "diffLeftHistoryId"
@@ -59,7 +66,9 @@ export type RepeaterViewProps = Pick<
   | "saveDraftToCollection"
   | "createReplayEnvironment"
 > &
-  Pick<WorkbenchShellDomain, "setNotice"> &
+  Pick<WorkbenchShellDomain, "setNotice"> & {
+    selectedId?: string;
+  } &
   Pick<
     WebSocketDomain,
     "webSocketReplayDraft" | "setWebSocketReplayDraft" | "sendWebSocketReplay" | "webSocketReplayResult"
@@ -90,6 +99,14 @@ export function RepeaterView({
   setDelayMs,
   runBurst,
   runBurstPending,
+  experimentFamily,
+  setExperimentFamily,
+  experimentParam,
+  setExperimentParam,
+  lastExperiment,
+  runExperiment,
+  runExperimentPending,
+  selectedId,
   lastResponse,
   lastBurst,
   diffLeftHistoryId,
@@ -296,6 +313,43 @@ export function RepeaterView({
               {sendReplayPending ? "Transmitting" : "Transmit"}
             </Button>
           </div>
+          <div className="grid gap-2 border-t border-rule px-5 py-4" data-testid="repeaterExperiment">
+            <span className="rd-eyebrow text-muted">Read-only experiment</span>
+            <div className="grid gap-2 [grid-template-columns:1fr_1fr_auto]">
+              <Select
+                aria-label="Probe family"
+                value={experimentFamily}
+                onChange={(event) => setExperimentFamily(event.target.value as typeof experimentFamily)}
+                data-testid="experimentFamily"
+              >
+                <option value="cors-origin">CORS origin</option>
+                <option value="reflection-context">Reflection</option>
+                <option value="injection-signal">Injection signal</option>
+                <option value="authorization-omission">Auth omission</option>
+                <option value="resource-id">Resource ID</option>
+              </Select>
+              <Input
+                aria-label="Mutation parameter"
+                value={experimentParam}
+                onChange={(event) => setExperimentParam(event.target.value)}
+                placeholder="param"
+                data-testid="experimentParam"
+              />
+              <Button
+                variant="outline"
+                disabled={replayPending}
+                onClick={() => void runExperiment(selectedId || "")}
+                data-testid="runReplayExperiment"
+              >
+                {runExperimentPending ? "Running" : "Run experiment"}
+              </Button>
+            </div>
+            {lastExperiment && (
+              <p className="font-mono text-meta text-muted" data-testid="experimentClassification">
+                {lastExperiment.classification} · {lastExperiment.requestCost} requests · {lastExperiment.rationale}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="min-h-0 overflow-auto">
@@ -434,6 +488,15 @@ export function RepeaterView({
               <pre className="mt-3 max-h-[160px] overflow-auto rounded border border-rule px-3 py-2 text-meta">
                 {replayDiff.bodyTextDiff.join("\n")}
               </pre>
+              {replayDiff.jsonDiffs.length > 0 && (
+                <div className="mt-2 grid gap-1 text-meta text-muted" data-testid="replayJsonDiff">
+                  {replayDiff.jsonDiffs.slice(0, 8).map((entry) => (
+                    <span key={entry.path}>
+                      {entry.path}: {entry.change}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

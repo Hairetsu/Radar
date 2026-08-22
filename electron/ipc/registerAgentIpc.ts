@@ -26,6 +26,7 @@ interface AgentIpcOperations {
     request: AgentCapabilityActionRequest
   ) => AgentRun | Promise<AgentRun | null> | null;
   stop: (id: string) => AgentRun | null;
+  stopTraffic: () => unknown;
   get: (id: string) => AgentRun | null;
   list: () => AgentRun[];
   listMemory: () => AgentRunMemoryEntry[];
@@ -41,6 +42,7 @@ export type AgentIpcAction =
   | "steer-mission"
   | "update-capabilities"
   | "stop"
+  | "stop-traffic"
   | "get"
   | "list"
   | "list-memory"
@@ -96,6 +98,10 @@ export function registerAgentIpc(
   ipcMain.handle("agent:stop", (event, id) => {
     requireAuthorized(operations, event.sender.id, "stop");
     return operations.stop(String(id || ""));
+  });
+  ipcMain.handle("agent:stop-traffic", (event) => {
+    requireAuthorized(operations, event.sender.id, "stop-traffic");
+    return operations.stopTraffic();
   });
   ipcMain.handle("agent:get", (event, id) => {
     requireAuthorized(operations, event.sender.id, "get");

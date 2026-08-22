@@ -16,6 +16,7 @@ interface RepeaterIpcOperations {
   sendWebSocket: (draft: WebSocketReplayDraft) => Promise<unknown>;
   send: (input: unknown) => Promise<unknown>;
   burst: (input: unknown) => Promise<unknown>;
+  experiment: (input: unknown) => Promise<unknown>;
 }
 
 export function registerRepeaterIpc(
@@ -46,4 +47,5 @@ export function registerRepeaterIpc(
   );
   ipcMain.handle("repeater:send", (_event, input) => operations.send(input));
   ipcMain.handle("repeater:burst", (_event, input) => operations.burst(input));
+  ipcMain.handle("repeater:experiment", (_event, input) => operations.experiment(input));
 }

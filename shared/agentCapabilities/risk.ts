@@ -1,4 +1,5 @@
 import type { AgentRiskTier, AgentToolName } from "../agent-types.js";
+import type { EndpointImpact, ProbeFamilyId } from "../agentAssessment.js";
 
 export const AGENT_HTTP_METHODS = [
   "GET",
@@ -21,6 +22,7 @@ const TOOL_RISK: Partial<Record<AgentToolName, AgentRiskTier>> = {
   clickElement: "active",
   submitForm: "active",
   sendReplay: "active",
+  runReplayExperiment: "active",
   runWorkflow: "active"
 };
 
@@ -41,6 +43,10 @@ export type AgentCapabilityUse = {
   payloadBytes: number;
   allowlist: string[];
   authFingerprint?: string;
+  probeFamily?: ProbeFamilyId;
+  sourceCaptureId?: string;
+  endpointImpact?: EndpointImpact;
+  experimentId?: string;
 };
 
 export function agentRiskRank(tier: AgentRiskTier) {
@@ -60,7 +66,7 @@ export function agentCapabilityRiskForUse(use: Pick<AgentCapabilityUse, "tool" |
   if (!base) return null;
   const method = use.method.toUpperCase();
   if (
-    (use.tool === "sendReplay" || use.tool === "runWorkflow") &&
+    (use.tool === "sendReplay" || use.tool === "runReplayExperiment" || use.tool === "runWorkflow") &&
     (method === "DELETE" || !AGENT_HTTP_METHODS.includes(method as (typeof AGENT_HTTP_METHODS)[number]))
   ) {
     return "destructive" as const;

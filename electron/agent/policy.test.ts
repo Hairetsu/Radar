@@ -18,7 +18,8 @@ describe("agent policy", () => {
       maxReplay: 0,
       maxWorkflowRequests: 100,
       maxCaptureSample: 100,
-      allowRawContext: false
+      allowRawContext: false,
+      maxProbeRequests: 0
     });
   });
 

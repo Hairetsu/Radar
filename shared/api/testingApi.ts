@@ -61,4 +61,7 @@ export type TestingApi = {
     delayMs: number;
     environmentId?: string;
   }) => Promise<BurstResult>;
+  runReplayExperiment: (payload: import("../agentAssessment.js").ReplayExperimentRequest) => Promise<
+    import("../agentAssessment.js").ReplayExperimentResult
+  >;
 };

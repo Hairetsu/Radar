@@ -1,3 +1,4 @@
+import { createArmedAssessmentState, normalizeAssessmentContract } from "../../../shared/agentAssessment.js";
 import { normalizeAgentCapabilityState } from "../../../shared/agentCapabilities.js";
 import { normalizeAgentMission } from "../../../shared/agentMission.js";
 import { normalizeAgentTutorialGuidance } from "../../../shared/agentTutorial.js";
@@ -30,6 +31,15 @@ export function toAgentRun(row: AgentRunRow): AgentRun {
     parseJsonObject(row.capabilities_json, null),
     row.created_at
   );
+  const assessmentRecord = parseJsonObject<Record<string, unknown> | null>(row.assessment_json || "{}", null);
+  const assessmentContract = normalizeAssessmentContract(assessmentRecord?.contract ?? assessmentRecord);
+  const assessment = assessmentContract
+    ? {
+        ...createArmedAssessmentState(assessmentContract),
+        ...(assessmentRecord || {}),
+        contract: assessmentContract
+      }
+    : undefined;
   const timeline = parseJsonArray<AgentTimelineEntry>(row.timeline_json).map((entry) => {
     const { tutorial: rawTutorial, ...rest } = entry;
     const tutorial = normalizeAgentTutorialGuidance(rawTutorial);
@@ -55,6 +65,7 @@ export function toAgentRun(row: AgentRunRow): AgentRun {
     findings: parseJsonArray<AgentFinding>(row.findings_json),
     mission,
     capabilities,
+    ...(assessment ? { assessment } : {}),
     ...(checkpoint ? { checkpoint } : {}),
     ...(row.error ? { error: row.error } : {})
   };
