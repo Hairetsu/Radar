@@ -52,7 +52,10 @@ export function createCapabilityReceipt({
     identity: use.identity,
     requestCost: Math.max(0, Math.round(use.requestCost)),
     payloadBytes: Math.max(0, Math.round(use.payloadBytes)),
-    reason
+    reason,
+    ...(use.experimentId ? { experimentId: use.experimentId } : {}),
+    ...(use.probeFamily ? { probeFamily: use.probeFamily } : {}),
+    ...(use.sourceCaptureId ? { sourceCaptureId: use.sourceCaptureId } : {})
   };
 }
 

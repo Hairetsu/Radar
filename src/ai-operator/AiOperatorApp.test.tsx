@@ -66,6 +66,7 @@ function operatorApi(overrides: Partial<RadarAiOperatorApi> = {}): RadarAiOperat
     steerAgentMission: vi.fn(async () => run()),
     updateAgentCapabilities: vi.fn(async () => run()),
     stopAgentRun: vi.fn(async () => run({ status: "stopped" })),
+    stopAgentTraffic: vi.fn(async () => ({ stopped: false })),
     getAgentRun: vi.fn(async () => null),
     listAgentRuns: vi.fn(async () => []),
     getAgentRunMemory: vi.fn(async () => []),

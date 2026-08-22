@@ -1,0 +1,17 @@
+export const ASSESSMENT_CONTRACT_VERSION = 1 as const;
+export const MAX_ASSESSMENT_VARIANTS = 8;
+export const MAX_ASSESSMENT_SEEDS = 40;
+export const MAX_ASSESSMENT_PATHS = 24;
+export const MAX_ASSESSMENT_FAMILIES = 8;
+export const MAX_ASSESSMENT_OBSERVED_IDS = 8;
+export const MAX_MUTATION_VALUE_BYTES = 8_192;
+export const MAX_PROBE_RECEIPTS = 240;
+export const DEFAULT_ASSESSMENT_DELAY_MS = 250;
+export const DEFAULT_ASSESSMENT_TIMEOUT_MS = 15_000;
+export const DEFAULT_ASSESSMENT_PROBE_REQUESTS = 40;
+export const DEFAULT_ASSESSMENT_REQUESTS_PER_ORIGIN = 20;
+export const MIN_ASSESSMENT_DELAY_MS = 50;
+export const MAX_ASSESSMENT_DELAY_MS = 10_000;
+export const READ_ONLY_METHODS = ["GET", "HEAD", "OPTIONS"] as const;
+export const UNTRUSTED_CORS_ORIGIN = "https://radar-untrusted.invalid";
+export const ASSESSMENT_CANARY_PREFIX = "radar-canary-";

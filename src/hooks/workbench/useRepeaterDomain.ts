@@ -46,6 +46,13 @@ export function useRepeaterDomain(ports: RepeaterPort) {
   const [count, setCount] = useState(5);
   const [concurrency, setConcurrency] = useState(1);
   const [delayMs, setDelayMs] = useState(250);
+  const [experimentFamily, setExperimentFamily] = useState<
+    import("../../../shared/agentAssessment.js").ProbeFamilyId
+  >("injection-signal");
+  const [experimentParam, setExperimentParam] = useState("q");
+  const [lastExperiment, setLastExperiment] = useState<
+    import("../../../shared/agentAssessment.js").ReplayExperimentResult | null
+  >(null);
 
   const activeReplayTab = useMemo(
     () => replayTabState.tabs.find((tab) => tab.id === replayTabState.activeTabId) || replayTabState.tabs[0],
@@ -283,7 +290,47 @@ export function useRepeaterDomain(ports: RepeaterPort) {
     [replayEnvironments, saveReplayEnvironments]
   );
 
-  const replayPending = sendReplayMutation.isPending || runBurstMutation.isPending;
+  const runExperimentAction = useCallback(
+    async (captureId: string) => {
+      if (!window.radar?.runReplayExperiment) {
+        ports.setNotice("Run in Electron to execute a Repeater experiment.");
+        return;
+      }
+      if (!captureId) {
+        ports.setNotice("Select an in-scope capture before running an experiment.");
+        return;
+      }
+      try {
+        ports.setNotice("");
+        const location =
+          experimentFamily === "cors-origin"
+            ? { kind: "set-origin" as const, value: "" }
+            : experimentFamily === "authorization-omission"
+              ? { kind: "remove-authorization" as const }
+              : { kind: "replace-query" as const, name: experimentParam || "q", value: "" };
+        const result = await window.radar.runReplayExperiment({
+          captureId,
+          family: experimentFamily,
+          hypothesis: `${experimentFamily} on ${experimentParam || captureId}`,
+          location
+        });
+        setLastExperiment(result);
+        setLastResponse(result.variants[0]?.result || null);
+        const nextTabs = await window.radar.getReplayTabState();
+        if (nextTabs) {
+          setReplayTabState(nextTabs);
+        }
+        ports.setActiveView("repeater");
+        ports.setNotice(`${result.classification}: ${result.rationale}`);
+      } catch (error) {
+        ports.setNotice(error instanceof Error ? error.message : "Experiment failed");
+      }
+    },
+    [experimentFamily, experimentParam, ports]
+  );
+  const runExperimentMutation = useAsyncAction(runExperimentAction);
+
+  const replayPending = sendReplayMutation.isPending || runBurstMutation.isPending || runExperimentMutation.isPending;
 
   return {
     draft,
@@ -328,6 +375,13 @@ export function useRepeaterDomain(ports: RepeaterPort) {
     runBurst: runBurstMutation.run,
     sendReplayPending: sendReplayMutation.isPending,
     runBurstPending: runBurstMutation.isPending,
+    experimentFamily,
+    setExperimentFamily,
+    experimentParam,
+    setExperimentParam,
+    lastExperiment,
+    runExperiment: runExperimentMutation.run,
+    runExperimentPending: runExperimentMutation.isPending,
     replayPending
   };
 }

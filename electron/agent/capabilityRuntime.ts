@@ -112,6 +112,22 @@ export function capabilityUseForCall(
         requestCost: 1,
         payloadBytes: Buffer.byteLength(call.input.draft.body)
       };
+    case "runReplayExperiment": {
+      const capture = deps.getCaptures().find((item) => item.id === call.input.captureId);
+      const variantCount = Math.max(1, call.input.values?.length || 2);
+      return {
+        ...common,
+        identity: call.input.identity || common.identity,
+        tool: call.tool,
+        url: capture?.url || currentUrl,
+        method: capture?.method || "GET",
+        requestCost: 1 + variantCount,
+        payloadBytes: Buffer.byteLength(JSON.stringify(call.input.location)),
+        probeFamily: call.input.family,
+        sourceCaptureId: call.input.captureId,
+        experimentId: call.input.captureId
+      };
+    }
     case "runWorkflow": {
       const definition = deps.listWorkflows().find((workflow) => workflow.id === call.input.workflowId);
       if (definition?.mode === "passive") {
@@ -168,7 +184,10 @@ export function capabilityLeaseRequestForUse(
           origin: url.origin,
           method: use.method.toUpperCase(),
           pathPrefix: `${url.pathname}${url.search}` || "/",
-          identity: use.identity || "current"
+          identity: use.identity || "current",
+          ...(use.probeFamily ? { probeFamily: use.probeFamily } : {}),
+          ...(use.sourceCaptureId ? { sourceCaptureIds: [use.sourceCaptureId] } : {}),
+          ...(use.endpointImpact ? { endpointImpact: use.endpointImpact } : {})
         }
       ],
       durationMs: 2 * 60_000,

@@ -56,6 +56,17 @@ function matchingLeaseReason(lease: AgentCapabilityLease, use: AgentCapabilityUs
       grant.identity === use.identity
   );
   if (!matchingGrant) return "origin, method, path, and identity tuple does not match";
+  if (matchingGrant.probeFamily && matchingGrant.probeFamily !== use.probeFamily) {
+    return "probe family is not leased";
+  }
+  if (matchingGrant.sourceCaptureIds && matchingGrant.sourceCaptureIds.length > 0) {
+    if (!use.sourceCaptureId || !matchingGrant.sourceCaptureIds.includes(use.sourceCaptureId)) {
+      return "source capture is not leased";
+    }
+  }
+  if (matchingGrant.endpointImpact && matchingGrant.endpointImpact !== use.endpointImpact) {
+    return "endpoint impact is not leased";
+  }
   if (use.concurrency > lease.maxConcurrency) return "concurrency exceeds lease";
   if (use.payloadBytes > lease.maxPayloadBytes) return "payload exceeds lease";
   if (lease.usedUses >= lease.maxUses) return "lease uses are exhausted";

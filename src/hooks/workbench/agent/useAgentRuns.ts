@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from "react";
+import { defaultAssessmentContract } from "../../../../shared/agentAssessment.js";
 import { AGENT_RUN_PROFILES, agentBudgetLabels, getAgentRunProfile } from "../../../../shared/agentProfiles.js";
 import { firstUrlFromText, isAllowedTarget, normalizeUrl, originFromUrl } from "../../../lib";
 import type { AgentRun, AgentRunProfileId, AgentRunRecoveryAction } from "../../../types";
@@ -86,7 +87,8 @@ export function useAgentRuns<TPorts extends AgentRunPorts>(portsRef: MutableRefO
       goal,
       startUrl,
       profileId: agentProfileId,
-      ...(agentTutorialMode ? { tutorialMode: true } : {})
+      ...(agentTutorialMode ? { tutorialMode: true } : {}),
+      ...(agentProfileId === "autonomous-assessment" ? { assessmentContract: defaultAssessmentContract() } : {})
     });
     portsRef.current.setAddress(startUrl);
     setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
@@ -110,6 +112,19 @@ export function useAgentRuns<TPorts extends AgentRunPorts>(portsRef: MutableRefO
       setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
     }
   }, [activeAgentRun]);
+
+  const stopAgentTraffic = useCallback(async () => {
+    if (!window.radar?.stopAgentTraffic) {
+      return;
+    }
+    try {
+      const result = await window.radar.stopAgentTraffic();
+      const stopped = typeof result === "object" && result && "stopped" in result ? Boolean(result.stopped) : Boolean(result);
+      portsRef.current.setNotice(stopped ? "Assessment traffic stopped." : "No in-flight assessment traffic.");
+    } catch (error) {
+      portsRef.current.setNotice(error instanceof Error ? error.message : "Assessment traffic could not be stopped.");
+    }
+  }, [portsRef]);
 
   const pauseAgentRun = useCallback(async () => {
     if (!window.radar || !activeAgentRun) {
@@ -177,7 +192,8 @@ export function useAgentRuns<TPorts extends AgentRunPorts>(portsRef: MutableRefO
         startUrl,
         profileId: sourceRun.profileId,
         continuationOf: sourceRun.id,
-        ...(sourceRun.policy.tutorialMode ? { tutorialMode: true } : {})
+        ...(sourceRun.policy.tutorialMode ? { tutorialMode: true } : {}),
+        ...(sourceRun.profileId === "autonomous-assessment" ? { assessmentContract: defaultAssessmentContract() } : {})
       });
       portsRef.current.setAddress(startUrl);
       setAgentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)]);
@@ -255,6 +271,7 @@ export function useAgentRuns<TPorts extends AgentRunPorts>(portsRef: MutableRefO
     resumeAgentRun,
     continueAgentRun,
     stopAgentRun,
+    stopAgentTraffic,
     recoverAgentRun
   };
 }

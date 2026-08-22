@@ -37,7 +37,9 @@ AI-First runs in a separate AI Operator window. One sequential browser operator 
 
 The AI Operator Connection Deck keeps saved credentials isolated by provider. Switching away from a provider and back restores only that provider's saved key and connection settings.
 
-The Goal-Driven Assessment profile gives the agent Radar's largest run budgets and widest non-destructive tool set. It remains inside saved Scope and pauses for capability approval before replay, form submission, identity changes, or active workflows. Raw context stays off. No profile removes these limits.
+The Goal-Driven Assessment profile gives the agent Radar's largest run budgets and widest non-destructive tool set. It remains inside saved Scope and pauses for capability approval before replay, form submission, identity changes, or active workflows. Raw context stays off.
+
+**Autonomous Assessment** can open the managed browser to collect in-scope captures, then arms a read-only experiment contract. After **Arm & Run**, Radar can rank those captures, run a visible Repeater baseline plus typed variants, compare the results, and record coverage. The first families are CORS origin, reflection, injection signal, authorization omission, and resource ID. Raw context stays off. One concurrent request. Forms, identity changes, and workflows stay off. **Stop Traffic Now** aborts in-flight probes without deleting completed evidence. No profile removes these limits.
 
 Actions with side effects need the selected profile, saved Scope, a matching capability grant, and remaining run budget. Radar never grants destructive actions or `DELETE` requests to AI-First.
 
@@ -94,6 +96,32 @@ Harborline's forms accept only normal business values. To test a changed paramet
 
 Harborline uses fixed in-memory data. It does not read host files or make outbound requests, even when a request contains a file path or URL.
 
+## Benchmark the AI Operator
+
+Radar includes a versioned Harborline benchmark with prompts, expected evidence, policy-aware outcomes, and deterministic scoring. The core suite covers every AI-First run profile. Expected answer markers stay in the evaluator and are never sent to the model.
+
+List the complete prompt catalog and expected outcomes:
+
+```bash
+pnpm benchmark:operator -- --list --suite full
+```
+
+Preview a model matrix without launching Radar or calling a provider:
+
+```bash
+pnpm benchmark:operator -- --dry-run --suite core --models model-a,model-b
+```
+
+Run the nine-case core suite with `gpt-5.6-terra` through the signed-in Codex CLI:
+
+```bash
+pnpm benchmark:operator:terra
+```
+
+This preset keeps active capability approval paused. Add `-- --approve-active` when you want the benchmark runner to approve bounded, non-destructive Harborline leases.
+
+The real runner launches isolated Radar sessions against `127.0.0.1:3000`, seeds only normal baseline traffic, preserves Scope and profile caps, and leaves capability approval paused unless you pass `--approve-active`. See the [Operator benchmark guide](docs/OPERATOR_BENCHMARK.md) for provider setup, full cross-profile runs, scoring, and artifacts.
+
 ## Test the app
 
 Run the main gate:
@@ -141,6 +169,7 @@ The stack is Electron 42, React 18, Vite, strict TypeScript, Tailwind CSS v4, SQ
 - [Code conventions](docs/CODE_CONVENTIONS.md) for runtime boundaries, TypeScript, IPC, tests, and feature delivery.
 - [Design system](docs/DESIGN_SYSTEM.md) for themes, typography, layout, motion, and accessibility.
 - [Regression testing](docs/REGRESSION_TESTING.md) and the [manual QA checklist](docs/MANUAL_QA_CHECKLIST.md) for release proof.
+- [Operator benchmark](docs/OPERATOR_BENCHMARK.md) for model and run-profile evaluation against Harborline.
 - [Roadmap](docs/ROADMAP.md) for the work that remains.
 - [Documentation index](docs/README.md) for the complete maintained set.
 

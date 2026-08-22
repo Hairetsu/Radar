@@ -17,6 +17,8 @@ function urlForTool(call: AgentToolCall) {
       return call.input.url;
     case "sendReplay":
       return call.input.draft.url;
+    case "runReplayExperiment":
+      return "";
     case "prepareInterceptEdit":
       return call.input.draft?.url || "";
     case "prepareAutomateDraft":
@@ -33,6 +35,7 @@ export function blockedToolReason({
   profileId,
   replayCount,
   workflowRequestCount,
+  probeRequestCount = 0,
   stepCount,
   startedAt
 }: {
@@ -42,6 +45,7 @@ export function blockedToolReason({
   profileId: AgentRunProfileId;
   replayCount: number;
   workflowRequestCount: number;
+  probeRequestCount?: number;
   stepCount: number;
   startedAt: number;
 }) {
@@ -63,6 +67,13 @@ export function blockedToolReason({
 
   if (call.tool === "sendReplay" && replayCount >= policy.maxReplay) {
     return "Autonomous run exceeded its replay budget.";
+  }
+
+  if (call.tool === "runReplayExperiment") {
+    const remaining = Math.max(0, (policy.maxProbeRequests ?? 0) - probeRequestCount);
+    if (remaining <= 1) {
+      return "Autonomous run exceeded its probe-request budget.";
+    }
   }
 
   if (call.tool === "runWorkflow" && workflowRequestCount >= policy.maxWorkflowRequests) {

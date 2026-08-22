@@ -10,6 +10,7 @@ import type {
 } from "../agent-types.js";
 import { AGENT_CAPABILITY_LIMITS, LEASE_STATUSES, RISK_TIERS } from "./constants.js";
 import { AGENT_HTTP_METHODS, agentRiskRank, agentToolRiskTier } from "./risk.js";
+import { isProbeFamilyId } from "../agentAssessment.js";
 
 export function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -71,10 +72,27 @@ function normalizedGrants(value: unknown) {
     if (!origin || !method || !pathPrefix) {
       continue;
     }
-    const key = `${origin}\n${method}\n${pathPrefix}\n${identity}`;
+    const probeFamily = isProbeFamilyId(input.probeFamily) ? input.probeFamily : undefined;
+    const sourceCaptureIds = uniqueStrings(input.sourceCaptureIds, 40, 120);
+    const endpointImpact =
+      input.endpointImpact === "read-only" ||
+      input.endpointImpact === "authentication" ||
+      input.endpointImpact === "state-changing" ||
+      input.endpointImpact === "unknown"
+        ? input.endpointImpact
+        : undefined;
+    const key = `${origin}\n${method}\n${pathPrefix}\n${identity}\n${probeFamily || ""}\n${endpointImpact || ""}`;
     if (!seen.has(key)) {
       seen.add(key);
-      grants.push({ origin, method, pathPrefix, identity });
+      grants.push({
+        origin,
+        method,
+        pathPrefix,
+        identity,
+        ...(probeFamily ? { probeFamily } : {}),
+        ...(sourceCaptureIds.length > 0 ? { sourceCaptureIds } : {}),
+        ...(endpointImpact ? { endpointImpact } : {})
+      });
     }
   }
   return grants;

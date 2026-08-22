@@ -1,4 +1,5 @@
 import type { AgentToolResult } from "../../../shared/agent-types.js";
+import { executeAssessmentTool } from "./assessmentTools.js";
 import { executeBrowserTool } from "./browserTools.js";
 import { executeEvidenceTool } from "./evidenceTools.js";
 import { executeProjectTool } from "./projectTools.js";
@@ -9,6 +10,7 @@ const toolFamilies: AgentToolFamilyExecutor[] = [
   executeBrowserTool,
   executeEvidenceTool,
   executeTestingTool,
+  executeAssessmentTool,
   executeProjectTool
 ];
 

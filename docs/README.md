@@ -16,11 +16,15 @@ This directory contains the documents that describe the current product, its eng
 
 ## Verify Radar
 
+- [Operator benchmark](OPERATOR_BENCHMARK.md) defines the Harborline model-and-profile evaluation catalog, expected outcomes, scoring, safety boundary, and artifacts.
 - [Regression testing](REGRESSION_TESTING.md) explains the Electron suite, UI matrix, containers, artifacts, and baseline policy.
 - [UI usability release review](UI_USABILITY_REVIEW.md) is the human review record consumed by the release gate.
 
 ## Plan Radar
 
 - [Roadmap](ROADMAP.md) lists the current product and release priorities. It is the only active planning document.
+- [Threat model](THREAT_MODEL.md) describes renderer, IPC, proxy, AI, plugin, and assessment trust boundaries.
+
+The repository [SECURITY.md](../SECURITY.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) cover disclosure and pull requests.
 
 The repository [README](../README.md) is the product overview and source-build entry point.

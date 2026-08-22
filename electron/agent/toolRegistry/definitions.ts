@@ -216,6 +216,31 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
     schema: { leftHistoryId: "history id", rightHistoryId: "history id", tabId: "tab id optional" }
   },
   {
+    name: "getAssessmentCandidates",
+    description: "Rank in-scope captures for Autonomous Assessment with endpoint impact, parameter shapes, identities, prior coverage, and applicable probe families. Omits raw secrets.",
+    safety: "observe",
+    schema: {}
+  },
+  {
+    name: "runReplayExperiment",
+    description: "Run one visible Repeater experiment: baseline plus up to eight sequential family mutations, store history, and return a structured comparison. Does not reconstruct authenticated requests from prompt text.",
+    safety: "replay",
+    schema: {
+      captureId: "durable capture id",
+      family: "cors-origin|reflection-context|injection-signal|authorization-omission|resource-id",
+      hypothesis: "string",
+      location: { kind: "replace-query|remove-query|append-query|replace-json|replace-form|replace-header|replace-cookie|replace-path-segment|remove-authorization|set-origin|set-host|set-method" },
+      values: ["optional reviewed payload"],
+      encoding: ["url|json-escape|base64|case-variation"]
+    }
+  },
+  {
+    name: "getAssessmentProgress",
+    description: "Read the assessment queue, coverage, remaining probe-request budget, and stop reason without sending traffic.",
+    safety: "observe",
+    schema: {}
+  },
+  {
     name: "getAutomateContext",
     description: "Read saved Automate payload sets and bounded session summaries without starting traffic.",
     safety: "observe",

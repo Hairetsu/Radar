@@ -119,4 +119,81 @@ describe("agent timeline intents", () => {
       { type: "show-replay-comparison", data: expect.objectContaining({ statusAfter: 403 }) }
     ]);
   });
+
+  it("opens Repeater when an experiment runs", () => {
+    const intents = agentTimelineIntents([
+      timelineEntry("experiment-call", {
+        phase: "tool-call",
+        toolCall: {
+          tool: "runReplayExperiment",
+          input: {
+            captureId: "capture-1",
+            family: "injection-signal",
+            hypothesis: "Boolean pair on q",
+            location: { kind: "replace-query", name: "q", value: "'" }
+          }
+        }
+      }),
+      timelineEntry("experiment-result", {
+        phase: "tool-result",
+        toolResult: {
+          tool: "runReplayExperiment",
+          ok: true,
+          data: {
+            experimentId: "exp-1",
+            family: "injection-signal",
+            hypothesis: "Boolean pair on q",
+            sourceCaptureId: "capture-1",
+            tabId: "tab-1",
+            endpointImpact: "read-only",
+            classification: "supported",
+            rationale: "Syntax and Boolean pair diverged",
+            requestCost: 3,
+            baselineHistoryId: "hist-0",
+            variants: [
+              {
+                mutation: {
+                  mutation: { kind: "replace-query", name: "q", value: "'" },
+                  originalValueHash: "hash",
+                  payload: "'",
+                  payloadSource: "family-template"
+                },
+                draft: { method: "GET", url: "https://target.example/?q=%27", headers: {}, body: "" },
+                result: {
+                  ok: true,
+                  status: 500,
+                  statusText: "Error",
+                  durationMs: 12,
+                  headers: {},
+                  body: "syntax",
+                  bytes: 6
+                },
+                historyId: "hist-1",
+                comparison: {
+                  statusChanged: true,
+                  statusBefore: 200,
+                  statusAfter: 500,
+                  latencyDeltaMs: 2,
+                  bodyLengthBefore: 2,
+                  bodyLengthAfter: 6,
+                  bodyLengthDelta: 4,
+                  headerDiffs: [],
+                  bodyTextDiff: [],
+                  jsonDiffs: [],
+                  identical: false
+                }
+              }
+            ]
+          }
+        }
+      })
+    ]);
+
+    expect(intents).toEqual([
+      { type: "show-view", view: "repeater" },
+      { type: "show-view", view: "repeater" },
+      { type: "notice", message: "supported: Syntax and Boolean pair diverged" },
+      { type: "set-replay-response", response: expect.objectContaining({ status: 500 }) }
+    ]);
+  });
 });

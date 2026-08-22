@@ -46,6 +46,7 @@ aiContextPreview
 aiCursorApiKey
 aiCursorLogin
 aiIncludeRaw
+aiInspectorAssessment
 aiInspectorFindings
 aiInspectorMemory
 aiMissionInspector
@@ -81,6 +82,7 @@ aiUserPrompt
 appearanceSettingsBackdrop
 appearanceSettingsPanel
 applyProjectBundleImport
+assessmentContractDeck
 attachAutomateEvidence
 attachCaptureEvidence
 automateConcurrency
@@ -182,6 +184,9 @@ draftAdvancedImportWorkflow
 dropIntercept
 evidencePane
 expandAiRunRail
+experimentClassification
+experimentFamily
+experimentParam
 findingAssets
 findingAssignee
 findingComponent
@@ -267,6 +272,7 @@ missionReturnToManual
 missionReviewCapability
 missionStatusSelect
 missionStopAgentRun
+missionStopTraffic
 newAiMission
 newProjectNote
 newSessionBackdrop
@@ -312,9 +318,11 @@ radarShell
 rendererBootstrapError
 repeaterBody
 repeaterEnvironment
+repeaterExperiment
 repeaterHeaders
 repeaterMethod
 repeaterUrl
+replayJsonDiff
 replayNotice
 replayWebSocketFrame
 requestContextMenu
@@ -333,6 +341,7 @@ revealPreviewInWorkspace
 runBurst
 runGlobalSearch
 runPluginApi
+runReplayExperiment
 runSessionDiff
 runWorkflow
 runWorkflowHeader
@@ -367,6 +376,7 @@ startAutomateSessionHeader
 startProxy
 steerAgentRun
 stopAgentRun
+stopAgentTraffic
 stopAutomateSession
 stopProxy
 telemetryTicker

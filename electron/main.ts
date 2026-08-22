@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, shell, webContents, nativeImage, dialog, screen, type Rectangle } from "electron";
+import { app, BrowserWindow, ipcMain, session, shell, webContents, nativeImage, dialog, screen, type Rectangle } from "electron";
 import {
   DEFAULT_ALLOWLIST,
   isAllowedTarget,
@@ -53,6 +53,8 @@ import { registerFindingsIpc } from "./ipc/registerFindingsIpc.js";
 import { registerLocalIpc } from "./ipc/registerLocalIpc.js";
 import { registerProjectIpc } from "./ipc/registerProjectIpc.js";
 import { registerPluginIpc } from "./ipc/registerPluginIpc.js";
+import { runManualReplayExperiment } from "./agent/assessment/manualExperiment.js";
+import { delayWithSignal } from "./agent/assessment/stopController.js";
 import { registerRepeaterIpc } from "./ipc/registerRepeaterIpc.js";
 import { registerWorkflowIpc } from "./ipc/registerWorkflowIpc.js";
 import { registerWindowIpc } from "./ipc/registerWindowIpc.js";
@@ -549,7 +551,8 @@ function createAgentRuntime() {
     listRunMemory: () => activeLocalStore().listAgentRunMemory(activeLocalContext().workspace.id),
     listPlugins: () => activeLocalStore().listPlugins(activeLocalContext().workspace.id),
     runWorkflow: workflowController.run,
-    sendReplay: (draft) => sendRequest(typeof draft === "object" && draft && "draft" in draft ? draft : { draft }),
+    sendReplay: (draft, options) =>
+      sendRequest(typeof draft === "object" && draft && "draft" in draft ? draft : { draft }, options),
     waitForNetworkIdle,
     getPageText,
     getDomSummary,
@@ -658,7 +661,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      webviewTag: true,
+      webviewTag: false,
       sandbox: false
     }
   });
@@ -783,6 +786,36 @@ app.whenReady().then(() => {
     windowCoordinator?.reclampAiOperator();
   });
   createWindow();
+  const devCsp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' ws: wss: http: https:",
+    "object-src 'none'",
+    "frame-src 'none'",
+    "base-uri 'self'"
+  ].join("; ");
+  const prodCsp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' http: https:",
+    "object-src 'none'",
+    "frame-src 'none'",
+    "base-uri 'self'"
+  ].join("; ");
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [process.env.VITE_DEV_SERVER_URL ? devCsp : prodCsp]
+      }
+    });
+  });
 
   app.on("activate", () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -1387,6 +1420,7 @@ registerAgentIpc(ipcMain, {
   steerMission: (id, request) => activeAgentRuntime().steerMission(id, request),
   updateCapabilities: (id, request) => activeAgentRuntime().updateCapabilities(id, request),
   stop: (id) => activeAgentRuntime().stop(id),
+  stopTraffic: () => activeAgentRuntime().stopTrafficNow(),
   get: (id) => activeAgentRuntime().get(id),
   list: () => activeAgentRuntime().list(),
   listMemory: () =>
@@ -1503,5 +1537,20 @@ registerAiIpc(ipcMain, {
   sendWebSocket: sendWebSocketReplay,
   send: (input) =>
     sendRequest(input as Parameters<typeof sendRequest>[0]),
-  burst: sendReplayBurst
+  burst: sendReplayBurst,
+  experiment: (input) =>
+    runManualReplayExperiment({
+      request: input,
+      captures: listHttpCaptures(4000),
+      allowlist: allowlist.slice(),
+      deps: {
+        send: (draft, options) => sendRequest({ draft }, options),
+        getTabState: () => activeLocalStore().getReplayTabState(activeLocalContext().workspace.id),
+        setTabState: (state) =>
+          activeLocalStore().setReplayTabState(activeLocalContext().workspace.id, state),
+        delay: delayWithSignal,
+        now: () => new Date().toISOString(),
+        createId: (prefix) => `${prefix}_${randomUUID()}`
+      }
+    })
 });

@@ -52,7 +52,10 @@ export type AgentRuntimeDeps = {
   listRunMemory: () => AgentRunMemoryEntry[];
   listPlugins: () => InstalledPlugin[];
   runWorkflow: (input: { workflowId: string; inputs?: Record<string, string>; source?: "manual" | "ai" }) => Promise<WorkflowRun>;
-  sendReplay: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
+  sendReplay: (
+    draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string },
+    options?: { timeoutMs?: number; signal?: AbortSignal }
+  ) => Promise<ReplayResult>;
   waitForNetworkIdle: (input: { idleMs?: number; timeoutMs?: number }) => Promise<{ idle: boolean; waitedMs: number }>;
   getPageText: () => Promise<{ url: string; title: string; text: string }>;
   getDomSummary: () => Promise<{
@@ -126,6 +129,7 @@ export type RunCounters = {
   stepCount: number;
   replayCount: number;
   workflowRequestCount: number;
+  probeRequestCount: number;
   activeIdentity: string;
 };
 
