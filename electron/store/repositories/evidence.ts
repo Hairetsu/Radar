@@ -93,6 +93,17 @@ export function createEvidenceRepository(db: DatabaseSync) {
     return rows.map(toCapture);
   };
 
+  const getCapture = (sessionId: string, captureId: string) => {
+    const id = String(captureId || "").trim();
+    if (!sessionId || !id) {
+      return null;
+    }
+    const row = db
+      .prepare("SELECT * FROM captures WHERE session_id = ? AND id = ?")
+      .get(sessionId, id) as CaptureRow | undefined;
+    return row ? toCapture(row) : null;
+  };
+
   const clearCaptures = (sessionId: string) => {
     db.prepare("DELETE FROM captures WHERE session_id = ?").run(sessionId);
     db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
@@ -179,6 +190,7 @@ export function createEvidenceRepository(db: DatabaseSync) {
   return {
     upsertCapture,
     listCaptures,
+    getCapture,
     clearCaptures,
     deleteCapture,
     insertSslEvent,

@@ -17,6 +17,7 @@ const radarOperator: RadarAiOperatorApi = {
   connectAi: (presetId) => ipcRenderer.invoke("ai:connect", presetId),
   probeAiConnection: (settings) => ipcRenderer.invoke("ai:connect:probe", settings),
   loginCursor: () => ipcRenderer.invoke("ai:cursor:login"),
+  loginGrok: () => ipcRenderer.invoke("ai:grok:login"),
   getAiModels: (provider) => ipcRenderer.invoke("ai:models:get", provider),
   refreshAiModels: (settings) => ipcRenderer.invoke("ai:models:refresh", settings),
   startAgentRun: (payload) => ipcRenderer.invoke("agent:start", payload),

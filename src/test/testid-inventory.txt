@@ -37,6 +37,7 @@ aiClearPackets
 aiConnectAnthropic
 aiConnectCodex
 aiConnectCursorCli
+aiConnectGrokCli
 aiConnectOpenAi
 aiConnectOpenRouter
 aiConnectXai
@@ -45,6 +46,8 @@ aiConnectionStatus
 aiContextPreview
 aiCursorApiKey
 aiCursorLogin
+aiGrokApiKey
+aiGrokLogin
 aiIncludeRaw
 aiInspectorAssessment
 aiInspectorFindings

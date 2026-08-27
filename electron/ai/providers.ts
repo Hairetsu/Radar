@@ -2,6 +2,7 @@ import type { AiSettings, AiTaskOutput, AiTaskType } from "../../shared/ai-types
 import { providerBaseUrl } from "../../shared/ai-providers.js";
 import { runCodexCliCompletion } from "./codexCli.js";
 import { runCursorCliCompletion } from "./cursorCli.js";
+import { runGrokCliCompletion } from "./grokCli.js";
 
 const DEFAULT_COMPLETION_TIMEOUT_MS = 60_000;
 
@@ -156,6 +157,17 @@ export async function complete({
 
   if (settings.provider === "cursor-local") {
     const text = await runCursorCliCompletion({
+      model: settings.model,
+      apiKey: settings.apiKey,
+      system,
+      user,
+      timeoutMs
+    });
+    return { text, parsed: extractJson(text) };
+  }
+
+  if (settings.provider === "grok-local") {
+    const text = await runGrokCliCompletion({
       model: settings.model,
       apiKey: settings.apiKey,
       system,

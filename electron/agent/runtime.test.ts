@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
-import { createAgentMission } from "../../shared/agentMission.js";
+import { applyAgentMissionUpdates, createAgentMission } from "../../shared/agentMission.js";
 import type {
   AgentCapabilityLeaseRequest,
   AgentDecision,
@@ -54,6 +54,7 @@ function makeRuntime(
   options: {
     allowlist?: string[];
     captures?: CapturedRequest[];
+    catalogCaptures?: CapturedRequest[];
     interceptQueue?: InterceptQueueItem[];
     replayTabState?: ReturnType<typeof defaultReplayTabState>;
     automatePayloadSets?: AutomatePayloadSet[];
@@ -215,6 +216,10 @@ function makeRuntime(
     openBrowser,
     navigateBrowser,
     getCaptures: () => (options.captures || []).map((item) => ({ ...item, agentRunId: item.agentRunId || activeRunId })),
+    getCaptureById: (id) => {
+      const found = [...(options.captures || []), ...(options.catalogCaptures || [])].find((item) => item.id === id);
+      return found ? { ...found, agentRunId: found.agentRunId || activeRunId } : null;
+    },
     getWebSocketEvents: () => [],
     getInterceptState: () => ({
       config: { requestEnabled: true, responseEnabled: true },
@@ -1172,13 +1177,20 @@ describe("AgentRuntime", () => {
     expect(completed?.error).toBeUndefined();
     expect(completed?.timeline.filter(
       (entry) => entry.summary === "Mission update ignored; action continues"
-    )).toHaveLength(3);
+    )).toHaveLength(2);
     expect(completed?.timeline.filter(
       (entry) => entry.phase === "tool-result" && entry.toolResult?.tool === "getBrowserState"
     )).toHaveLength(2);
     expect(completed?.timeline.some((entry) => entry.phase === "failure")).toBe(false);
+    expect(completed?.timeline.some((entry) => entry.note?.includes("Dropped 1 stale evidence citation"))).toBe(true);
     expect(completed?.mission?.experiments.some((experiment) => experiment.id === "exp-stale")).toBe(false);
-    expect(completed?.mission?.claims.some((claim) => claim.id === "clm-unsupported")).toBe(false);
+    expect(completed?.mission?.claims).toEqual([
+      expect.objectContaining({
+        id: "clm-unsupported",
+        status: "lead",
+        evidenceRefs: []
+      })
+    ]);
   });
 
   it("accepts settled revision-checked steering and rejects live or stale mutations", () => {
@@ -1234,6 +1246,161 @@ describe("AgentRuntime", () => {
         title: "Live mutation"
       })
     ).toThrow("Pause the run");
+  });
+
+  it("steers a paused run after dropping stale mission evidence citations", () => {
+    const mission = createAgentMission("Inspect target", "https://allowed.test", "2026-05-25T00:00:00.000Z");
+    const seeded = applyAgentMissionUpdates(mission, [
+      {
+        kind: "claim",
+        id: "claim-login-form-present",
+        statement: "A login form is present.",
+        status: "supported",
+        confidence: "medium",
+        evidenceRefs: [
+          "capture:chrome_706fe513-ac9e-4b7f-8a29-60e9c8601031_112BD5443D3BE86796A4257476B48BFE",
+          "capture:home"
+        ]
+      }
+    ]);
+    const pausedRun: AgentRun = {
+      id: "agent-stale-evidence",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: "Inspect target",
+      profileId: "passive-map",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission: seeded,
+      timeline: [],
+      findings: []
+    };
+    const { runtime } = makeRuntime(pausedRun, {
+      captures: [capture("home", "https://allowed.test/")]
+    });
+
+    const steered = runtime.steerMission(pausedRun.id, {
+      action: "add-hypothesis",
+      expectedRevision: seeded.revision,
+      statement: "Session cookies may be missing flags.",
+      objectiveId: "obj-primary"
+    });
+
+    expect(steered?.mission?.claims).toEqual([
+      expect.objectContaining({
+        id: "claim-login-form-present",
+        status: "supported",
+        evidenceRefs: ["capture:home"]
+      })
+    ]);
+    expect(steered?.mission?.hypotheses.some((item) => item.statement === "Session cookies may be missing flags.")).toBe(true);
+    expect(steered?.timeline.at(-1)?.note).toContain("Dropped 1 stale evidence citation");
+  });
+
+  it("keeps aged-out capture citations when they still exist in the session store", () => {
+    const agedId = "chrome_706fe513-ac9e-4b7f-8a29-60e9c8601031_59505.77";
+    const mission = createAgentMission("Inspect target", "https://allowed.test", "2026-05-25T00:00:00.000Z");
+    const seeded = applyAgentMissionUpdates(mission, [
+      {
+        kind: "experiment",
+        id: "exp-login-submit",
+        title: "Submit the login form",
+        status: "completed",
+        evidenceRefs: [`capture:${agedId}`]
+      }
+    ]);
+    const pausedRun: AgentRun = {
+      id: "agent-aged-capture",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: "Inspect target",
+      profileId: "passive-map",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission: seeded,
+      timeline: [],
+      findings: []
+    };
+    const { runtime } = makeRuntime(pausedRun, {
+      captures: [],
+      catalogCaptures: [capture(agedId, "https://allowed.test/login")]
+    });
+
+    const steered = runtime.steerMission(pausedRun.id, {
+      action: "add-hypothesis",
+      expectedRevision: seeded.revision,
+      statement: "Login still needs an identity check.",
+      objectiveId: "obj-primary"
+    });
+
+    expect(steered?.mission?.experiments).toEqual([
+      expect.objectContaining({
+        id: "exp-login-submit",
+        evidenceRefs: [`capture:${agedId}`]
+      })
+    ]);
+    expect(steered?.timeline.at(-1)?.note).not.toContain("Dropped");
+  });
+
+  it("resumes a blocked replay by re-planning when no matching capability lease exists", () => {
+    const pausedRun: AgentRun = {
+      id: "agent-replay-stuck",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: "Replay https://allowed.test/account",
+      profileId: "advanced-api-review",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "https://allowed.test/account",
+        targetOrigin: "https://allowed.test",
+        stepCount: 2,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 1000,
+        lastResumedAt: "2026-05-25T00:00:01.000Z",
+        pendingCapabilityCall: {
+          tool: "sendReplay",
+          input: { draft: { method: "GET", url: "https://allowed.test/account", headers: {}, body: "" } }
+        }
+      },
+      capabilities: { revision: 1, leases: [], receipts: [] },
+      timeline: [],
+      findings: []
+    };
+    const { runtime, sendReplay } = makeRuntime(pausedRun, {
+      decideNextAction: async () => ({ action: "finish", rationale: "Replanned without unauthorized replay.", findings: [] })
+    });
+
+    const resumed = runtime.resume(pausedRun.id);
+    expect(resumed?.status).toBe("queued");
+    expect(resumed?.checkpoint?.pendingCapabilityCall).toBeUndefined();
+    expect(resumed?.timeline.at(-1)?.note).toContain("Pending sendReplay was not retried");
+    expect(sendReplay).not.toHaveBeenCalled();
   });
 
   it("marks active runs stopped", () => {

@@ -2,6 +2,7 @@ import type { AiTaskType } from "../../shared/ai-types.js";
 import { describe, expect, it, vi } from "vitest";
 import * as codexCli from "./codexCli.js";
 import * as cursorCli from "./cursorCli.js";
+import * as grokCli from "./grokCli.js";
 import { extractJson, normalizeOutput, complete } from "./providers.js";
 
 describe("providers", () => {
@@ -335,5 +336,15 @@ describe("providers", () => {
       user: "ctx"
     });
     expect((result.parsed as { text: string }).text).toBe("cursor");
+  });
+
+  it("calls grok local provider", async () => {
+    vi.spyOn(grokCli, "runGrokCliCompletion").mockResolvedValue('{"text":"grok"}');
+    const result = await complete({
+      settings: { provider: "grok-local", model: "auto", apiKey: "local", baseUrl: "grok://local" },
+      system: "sys",
+      user: "ctx"
+    });
+    expect((result.parsed as { text: string }).text).toBe("grok");
   });
 });

@@ -724,6 +724,8 @@ describe("localStore", () => {
     expect(reopenedContext.session.id).toBe(context.session.id);
     expect(reopened.getTargets(context.workspace.id)).toEqual(["https://example.com"]);
     expect(reopened.listCaptures(context.session.id, 10)).toEqual([capture]);
+    expect(reopened.getCapture(context.session.id, capture.id)).toEqual(capture);
+    expect(reopened.getCapture(context.session.id, "missing")).toBeNull();
 
     reopened.close();
   });

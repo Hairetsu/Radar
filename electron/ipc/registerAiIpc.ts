@@ -21,6 +21,7 @@ interface AiIpcOperations {
   connect: (presetId: AiConnectPresetId) => Promise<unknown>;
   probe: (settings: AiSettings) => Promise<unknown>;
   cursorLogin: () => Promise<unknown>;
+  grokLogin: () => Promise<unknown>;
   getModels: (provider: AiProviderId | string) => unknown;
   refreshModels: (settings?: AiSettings) => Promise<unknown>;
 }
@@ -98,6 +99,10 @@ export function registerAiIpc(
   ipcMain.handle("ai:cursor:login", (event) => {
     requireAuthorized(operations, event.sender.id, "login");
     return operations.cursorLogin();
+  });
+  ipcMain.handle("ai:grok:login", (event) => {
+    requireAuthorized(operations, event.sender.id, "login");
+    return operations.grokLogin();
   });
   ipcMain.handle("ai:models:get", (event, provider) => {
     requireAuthorized(operations, event.sender.id, "models-read");

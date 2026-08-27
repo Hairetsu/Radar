@@ -39,6 +39,7 @@ export type AiAgentApi = {
     settings: AiSettings
   ) => Promise<AiConnectProbe>;
   loginCursor: () => Promise<AiConnectProbe>;
+  loginGrok: () => Promise<AiConnectProbe>;
   getAiModels: (
     provider: AiSettings["provider"]
   ) => Promise<AiModelOption[]>;

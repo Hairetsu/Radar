@@ -13,9 +13,11 @@ import type {
 import {
   applyAgentMissionSteering,
   applyAgentMissionUpdates,
+  captureIdsFromEvidenceRefs,
   createAgentMission,
+  missionEvidenceRefs,
   missionHasOpenQuestion,
-  validateAgentMissionEvidence
+  reconcileAgentMissionEvidence
 } from "../../shared/agentMission.js";
 import {
   createAgentCapabilityState,
@@ -163,8 +165,8 @@ export class AgentRuntime {
       return "Answer or dismiss the open mission question before resuming this run.";
     }
     const pendingGrant = pendingCapabilityGrant(run);
-    if (pendingGrant) {
-      return capabilityGrantError(pendingGrant.tool, pendingGrant.draft?.name);
+    if (pendingGrant?.draft) {
+      return capabilityGrantError(pendingGrant.tool, pendingGrant.draft.name);
     }
     return null;
   }
@@ -483,13 +485,28 @@ export class AgentRuntime {
       throw new Error(blockReason);
     }
     const checkpoint = elapsedCheckpoint(run);
+    const pendingGrant = pendingCapabilityGrant(run);
+    const clearedUnauthorizedRetry = Boolean(pendingGrant && !pendingGrant.draft);
     stopped.delete(runId);
     requestedRunStatus.delete(runId);
     const next = withUpdate(run, this.deps.saveRun, {
       status: "queued",
       error: undefined,
-      checkpoint: { ...checkpoint, pendingRecovery: undefined, lastResumedAt: nowIso() },
-      timeline: [...run.timeline, timeline("Run queued to resume from its durable checkpoint.", { phase: "status" })]
+      checkpoint: {
+        ...checkpoint,
+        pendingRecovery: undefined,
+        lastResumedAt: nowIso(),
+        ...(clearedUnauthorizedRetry ? { pendingCapabilityCall: undefined } : {})
+      },
+      timeline: [
+        ...run.timeline,
+        timeline(
+          clearedUnauthorizedRetry
+            ? `Run queued to resume. Pending ${pendingGrant?.tool} was not retried because no matching capability lease was granted.`
+            : "Run queued to resume from its durable checkpoint.",
+          { phase: "status" }
+        )
+      ]
     });
     this.queueExecution(runId);
     return next;
@@ -708,18 +725,24 @@ export class AgentRuntime {
     if (!result.ok) {
       throw new Error(result.error);
     }
-    const evidenceErrors = validateAgentMissionEvidence(result.mission, runtimeEvidenceCatalog(this.deps));
-    if (evidenceErrors.length > 0) {
-      throw new Error(`Mission steering failed evidence validation: ${evidenceErrors.join(", ")}`);
-    }
+    const catalog = runtimeEvidenceCatalog(
+      this.deps,
+      captureIdsFromEvidenceRefs(missionEvidenceRefs(result.mission))
+    );
+    const reconciled = reconcileAgentMissionEvidence(result.mission, catalog);
+    const droppedNote = reconciled.droppedRefs.length
+      ? ` Dropped ${reconciled.droppedRefs.length} stale evidence citation${
+          reconciled.droppedRefs.length === 1 ? "" : "s"
+        } that are no longer in the local catalog.`
+      : "";
     return withUpdate(run, this.deps.saveRun, {
-      mission: result.mission,
+      mission: reconciled.mission,
       status: result.shouldPause ? "paused" : run.status,
       timeline: [
         ...run.timeline,
-        timeline(result.summary, {
+        timeline(`${result.summary}${droppedNote}`, {
           phase: "status",
-          summary: `Mission graph advanced to revision ${result.mission.revision}`
+          summary: `Mission graph advanced to revision ${reconciled.mission.revision}`
         })
       ]
     });

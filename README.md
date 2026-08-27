@@ -35,7 +35,7 @@ Manual-First is the normal operator-driven mode. You click every action that sen
 
 AI-First runs in a separate AI Operator window. One sequential browser operator chooses an in-scope step, waits for it to settle, records the result, and then chooses the next step. The workspace stays visible while the companion shows the Mission Pulse, Operation Stream, Task History, Mission Graph, permission requests, and Completion Report.
 
-The AI Operator Connection Deck keeps saved credentials isolated by provider. Switching away from a provider and back restores only that provider's saved key and connection settings.
+The AI Operator Connection Deck keeps saved credentials isolated by provider. Switching away from a provider and back restores only that provider's saved key and connection settings. Local CLI presets (Codex app, Cursor CLI, Grok CLI) use the installed CLI login instead of a Radar-stored cloud key.
 
 The Goal-Driven Assessment profile gives the agent Radar's largest run budgets and widest non-destructive tool set. It remains inside saved Scope and pauses for capability approval before replay, form submission, identity changes, or active workflows. Raw context stays off.
 

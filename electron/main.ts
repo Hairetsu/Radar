@@ -72,7 +72,8 @@ import {
   getAiModels,
   refreshAiModels,
   reconcileSettingsModel,
-  loginCursorCli
+  loginCursorCli,
+  loginGrokCli
 } from "./ai/index.js";
 import { AgentRuntime } from "./agent/runtime.js";
 import { createAiAgentPlanner } from "./agent/planner.js";
@@ -534,7 +535,25 @@ function createAgentRuntime() {
       causalAttribution.update({ navigationId: `nav_${randomUUID()}` });
       return navigateRealChrome(url);
     },
-    getCaptures: () => listHttpCaptures(400),
+    getCaptures: () => listHttpCaptures(2000),
+    getCaptureById: (id) => {
+      const captureId = String(id || "").trim();
+      if (!captureId) {
+        return null;
+      }
+      const hot = captureLedger.captures.get(captureId);
+      if (hot && (hot.url.startsWith("http://") || hot.url.startsWith("https://"))) {
+        return hot;
+      }
+      if (!localStore || !localContext) {
+        return null;
+      }
+      const stored = localStore.getCapture(localContext.session.id, captureId);
+      if (!stored || !(stored.url.startsWith("http://") || stored.url.startsWith("https://"))) {
+        return null;
+      }
+      return stored;
+    },
     getWebSocketEvents: () => listWebSocketEvents(HOT_WEBSOCKET_LIMIT),
     getInterceptState: () => interceptStateSnapshot(),
     getReplayTabState: () => activeLocalStore().getReplayTabState(activeLocalContext().workspace.id),
@@ -1489,6 +1508,11 @@ registerAiIpc(ipcMain, {
   },
   cursorLogin: async () => {
     const probe = await loginCursorCli();
+    publishAiConnection(loadAiSettings(app.getPath("userData")), probe);
+    return probe;
+  },
+  grokLogin: async () => {
+    const probe = await loginGrokCli();
     publishAiConnection(loadAiSettings(app.getPath("userData")), probe);
     return probe;
   },

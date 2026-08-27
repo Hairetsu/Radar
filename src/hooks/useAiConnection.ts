@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isLocalAiProvider } from "../../shared/ai-providers";
 import type { AiConnectPresetId, AiModelOption, AiSettings } from "../ai/types";
 import { DEFAULT_AI_SETTINGS } from "../ai/types";
 import { useAsyncAction } from "./useAsyncAction";
 
 function canRunWithSettings(settings: AiSettings) {
-  return settings.provider === "codex-local" || settings.provider === "cursor-local" || Boolean(settings.apiKey.trim());
+  return isLocalAiProvider(settings.provider) || Boolean(settings.apiKey.trim());
 }
 
 export function useAiConnection() {
@@ -114,9 +115,11 @@ export function useAiConnection() {
         const source =
           next.meta.apiKeySource === "missing"
             ? " — add API key or env var"
-            : next.meta.presetId === "codex" && next.meta.apiKeySource === "local"
+            : next.meta.apiKeySource === "local" && next.meta.presetId === "codex"
               ? " · installed Codex auth"
-              : ` · key from ${next.meta.apiKeySource}`;
+              : next.meta.apiKeySource === "local" && next.meta.presetId === "grok_cli"
+                ? " · installed Grok CLI auth"
+                : ` · key from ${next.meta.apiKeySource}`;
         const note = `${next.meta.label}: ${next.probe.message}${source}`;
         applyProbe(next.probe.ok, note);
         if (!next.probe.ok) {
@@ -158,6 +161,31 @@ export function useAiConnection() {
   }, [applyProbe, refreshModels, settings]);
 
   const loginCursorMutation = useAsyncAction(loginCursorAction);
+
+  const loginGrokAction = useCallback(async () => {
+    if (!window.radar) {
+      setError("Run in Electron to sign in.");
+      return;
+    }
+    try {
+      setError("");
+      const probe = await window.radar.loginGrok();
+      applyProbe(probe.ok, probe.message);
+      if (!probe.ok) {
+        setError(probe.message);
+        return;
+      }
+      if (settings.provider === "grok-local") {
+        await refreshModels(settings);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Grok sign-in failed";
+      applyProbe(false, message);
+      setError(message);
+    }
+  }, [applyProbe, refreshModels, settings]);
+
+  const loginGrokMutation = useAsyncAction(loginGrokAction);
 
   const setSettingsOpen = useCallback((open: boolean) => {
     setSettingsOpenState(open);
@@ -203,9 +231,11 @@ export function useAiConnection() {
     saveSettings: saveMutation.run,
     connectPreset: connectMutation.run,
     loginCursor: loginCursorMutation.run,
+    loginGrok: loginGrokMutation.run,
     probing: probeMutation.isPending,
     saving: saveMutation.isPending,
     connecting: connectMutation.isPending,
-    cursorLoggingIn: loginCursorMutation.isPending
+    cursorLoggingIn: loginCursorMutation.isPending,
+    grokLoggingIn: loginGrokMutation.isPending
   };
 }

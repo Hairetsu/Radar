@@ -57,6 +57,7 @@ function operatorApi(overrides: Partial<RadarAiOperatorApi> = {}): RadarAiOperat
     })),
     probeAiConnection: vi.fn(async () => ({ ok: true, message: "Connected" })),
     loginCursor: vi.fn(async () => ({ ok: true, message: "Signed in" })),
+    loginGrok: vi.fn(async () => ({ ok: true, message: "Signed in" })),
     getAiModels: vi.fn(async () => [{ id: "gpt-4o-mini", label: "gpt-4o-mini" }]),
     refreshAiModels: vi.fn(async () => [{ id: "gpt-4o-mini", label: "gpt-4o-mini" }]),
     startAgentRun: vi.fn(async (request) => run({ goal: request.goal, status: "queued", profileId: request.profileId || "browser-assessment" })),
@@ -557,6 +558,8 @@ describe("AiOperatorApp", () => {
     expect(screen.getByTestId("aiConnectAnthropic")).toBeInTheDocument();
     expect(screen.getByTestId("aiConnectXai")).toBeInTheDocument();
     expect(screen.getByTestId("aiConnectOpenRouter")).toBeInTheDocument();
+    expect(screen.getByTestId("aiConnectGrokCli")).toBeInTheDocument();
+    expect(screen.getByTestId("aiConnectCursorCli")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("aiProvider"), { target: { value: "xai" } });
     await waitFor(() => expect(getAiSettings).toHaveBeenCalledWith("xai"));
@@ -564,5 +567,25 @@ describe("AiOperatorApp", () => {
     expect(screen.getByTestId("aiModel")).toHaveValue("grok-4.5");
     expect(screen.getByTestId("aiProviderEndpoint")).toHaveTextContent("https://api.x.ai/v1");
     expect(screen.getByTestId("aiConnectionStatus")).toHaveTextContent("Save & Test to verify");
+  });
+
+  it("shows Grok CLI login controls for the local grok provider", async () => {
+    const getAiSettings = vi.fn(async (provider?: AiSettings["provider"]) => provider === "grok-local"
+      ? { provider, model: "auto", apiKey: "local", baseUrl: "grok://local" }
+      : { provider: "openai" as const, model: "gpt-4o-mini", apiKey: "openai-saved-secret", baseUrl: "" });
+    const api = operatorApi({ getAiSettings });
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    fireEvent.click(await screen.findByTestId("aiOperatorSettings"));
+    fireEvent.change(screen.getByTestId("aiProvider"), { target: { value: "grok-local" } });
+    await waitFor(() => expect(getAiSettings).toHaveBeenCalledWith("grok-local"));
+    expect(screen.getByTestId("aiGrokLogin")).toBeInTheDocument();
+    expect(screen.getByTestId("aiGrokApiKey")).toBeInTheDocument();
+    expect(screen.queryByTestId("aiApiKey")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("aiProviderEndpoint")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("aiGrokLogin"));
+    await waitFor(() => expect(api.loginGrok).toHaveBeenCalled());
   });
 });

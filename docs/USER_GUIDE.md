@@ -528,13 +528,16 @@ Open **AI Operator**, then open **Connection** in the Mission Inspector.
 | --- | --- |
 | Codex app | Uses the installed Codex or ChatGPT desktop login. |
 | Cursor agent | Uses the installed `agent` CLI login or optional Cursor key. |
+| Grok CLI | Uses the installed Grok Build CLI (`grok login`) or `XAI_API_KEY`. |
 | OpenAI | Uses `OPENAI_API_KEY` or a pasted key. |
 | Anthropic | Uses `ANTHROPIC_API_KEY` or a pasted key. |
-| xAI | Uses `XAI_API_KEY` or a pasted key. |
+| xAI | Uses the xAI HTTP API with `XAI_API_KEY` or a pasted key. |
 | OpenRouter | Uses `OPENROUTER_API_KEY` or a pasted key. |
 | OpenAI-compatible | Uses a custom base URL and an optional bearer key. |
 
 Radar tests the connection and refreshes the model list where the provider supports it. Fixed cloud providers use their official API base URL. Only the OpenAI-compatible provider accepts a custom URL.
+
+Grok CLI uses the installed `grok` binary (`~/.grok/bin/grok`, PATH, or `GROK_CLI_PATH`). **Sign in with Grok** runs `grok login` and reuses `~/.grok/auth.json`. `XAI_API_KEY` is a fallback when no grok.com session is active. Radar runs Grok headless without tools so it returns JSON instead of spending its turn budget on file or shell actions. The xAI HTTP API provider is separate and does not require the CLI.
 
 After **Save & Test**, Radar keeps a separate saved configuration for each provider. Switching providers restores the selected provider's key, model, and base URL without reusing another provider's credential.
 
@@ -729,7 +732,7 @@ For Codex, install ChatGPT or Codex desktop, or set `CODEX_CLI_PATH` before laun
 
 ### An AI-First run does not move
 
-Check the selected Task History item, saved Scope, provider connection, remaining budget, and newest Operation Stream card. A permission draft, operator question, policy block, provider error, or failed tool can pause the task. Fix the stated cause before resuming.
+Check the selected Task History item, saved Scope, provider connection, remaining budget, and newest Operation Stream card. A permission draft, operator question, policy block, provider error, or failed tool can pause the task. Grant the matching capability lease before resuming a replay or form action; Resume does not grant that authority. If a replay was blocked and no draft lease exists, Resume clears the pending retry and re-plans. Mission Graph citations that have aged out of the capture list are dropped instead of blocking steering.
 
 ### An AI command is blocked
 

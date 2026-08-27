@@ -12,6 +12,7 @@ import {
   normalizeAgentMissionPatch,
   normalizeAgentMissionSteeringRequest,
   normalizeAgentMissionUpdates,
+  reconcileAgentMissionEvidence,
   validateAgentMissionEvidence
 } from "./agentMission.js";
 
@@ -550,5 +551,21 @@ describe("agent mission graph", () => {
       "hypothesis hyp-tenant: supported status requires evidence",
       "claim clm-tenant: supported status requires evidence"
     ]);
+
+    const reconciled = reconcileAgentMissionEvidence(patched.mission, new Set(["capture:1"]));
+    expect(reconciled.droppedRefs).toEqual(["capture:missing"]);
+    expect(reconciled.mission.hypotheses.find((item) => item.id === "hyp-tenant")).toMatchObject({
+      status: "open",
+      evidenceRefs: []
+    });
+    expect(reconciled.mission.claims.find((item) => item.id === "clm-tenant")).toMatchObject({
+      status: "lead",
+      evidenceRefs: []
+    });
+    expect(reconciled.mission.coverage.find((item) => item.id === "gap-endpoint")).toMatchObject({
+      status: "untested",
+      evidenceRefs: []
+    });
+    expect(validateAgentMissionEvidence(reconciled.mission, new Set(["capture:1"]))).toEqual([]);
   });
 });

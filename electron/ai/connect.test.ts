@@ -2,6 +2,7 @@ import type { AiConnectPresetId } from "../../shared/ai-types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as codexCli from "./codexCli.js";
 import * as cursorCli from "./cursorCli.js";
+import * as grokCli from "./grokCli.js";
 import { PRESETS, resolvePreset, applyConnectPreset, probeSettings } from "./connect.js";
 
 describe("connect", () => {
@@ -20,6 +21,7 @@ describe("connect", () => {
     expect(PRESETS.codex.label).toBe("Codex");
     expect(PRESETS.codex.provider).toBe("codex-local");
     expect(PRESETS.cursor_cli.provider).toBe("cursor-local");
+    expect(PRESETS.grok_cli.provider).toBe("grok-local");
     expect(PRESETS.openai.provider).toBe("openai");
     expect(PRESETS.anthropic.provider).toBe("anthropic");
     expect(PRESETS.xai.provider).toBe("xai");
@@ -39,6 +41,22 @@ describe("connect", () => {
     expect(resolved.baseUrl).toBe("cursor://local");
     expect(resolved.apiKey).toBe("local");
     expect(resolved.apiKeySource).toBe("local");
+  });
+
+  it("resolves grok preset to local CLI auth", () => {
+    delete process.env.XAI_API_KEY;
+    const resolved = resolvePreset({ presetId: "grok_cli" });
+    expect(resolved.provider).toBe("grok-local");
+    expect(resolved.baseUrl).toBe("grok://local");
+    expect(resolved.apiKey).toBe("local");
+    expect(resolved.apiKeySource).toBe("local");
+  });
+
+  it("reads grok api key from env", () => {
+    process.env.XAI_API_KEY = "grok-env-key";
+    const resolved = resolvePreset({ presetId: "grok_cli", savedApiKey: "" });
+    expect(resolved.apiKey).toBe("grok-env-key");
+    expect(resolved.apiKeySource).toBe("XAI_API_KEY");
   });
 
   it("reads cursor api key from env", () => {
@@ -154,6 +172,13 @@ describe("connect", () => {
     vi.spyOn(cursorCli, "probeCursorCli").mockResolvedValue({ ok: true, message: "Cursor ready" });
     const probe = await probeSettings({ provider: "cursor-local", baseUrl: "cursor://local", apiKey: "local" });
     expect(probe.ok).toBe(true);
+  });
+
+  it("probes grok local provider", async () => {
+    vi.spyOn(grokCli, "probeGrokCli").mockResolvedValue({ ok: true, message: "Grok ready" });
+    const probe = await probeSettings({ provider: "grok-local", baseUrl: "grok://local", apiKey: "local" });
+    expect(probe.ok).toBe(true);
+    expect(grokCli.probeGrokCli).toHaveBeenCalledWith("local");
   });
 
   it("reports unreachable openai-compatible endpoint", async () => {

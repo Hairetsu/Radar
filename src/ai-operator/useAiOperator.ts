@@ -638,6 +638,23 @@ export function useAiOperator() {
     }
   }, [settings]);
 
+  const loginGrok = useCallback(async () => {
+    setConnectionPending(true);
+    try {
+      const probe = await operatorApi().loginGrok();
+      setConnection(connectionSummary(settings, probe.ok, false, probe.message));
+      setConnectionError(probe.ok ? "" : probe.message);
+      if (probe.ok && settings.provider === "grok-local") {
+        const nextModels = await operatorApi().refreshAiModels(settings);
+        setModels(nextModels);
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : "Grok sign-in failed.");
+    } finally {
+      setConnectionPending(false);
+    }
+  }, [settings]);
+
   return {
     localContext,
     workspaceContext,
@@ -700,7 +717,8 @@ export function useAiOperator() {
     probeConnection,
     saveSettings,
     connectPreset,
-    loginCursor
+    loginCursor,
+    loginGrok
   };
 }
 

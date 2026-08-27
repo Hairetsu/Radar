@@ -36,6 +36,7 @@ export type AgentRuntimeDeps = {
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
   getCaptures: () => CapturedRequest[];
+  getCaptureById?: (id: string) => CapturedRequest | null;
   getWebSocketEvents: () => WebSocketEvent[];
   getInterceptState: () => InterceptState;
   getReplayTabState: () => ReplayTabState;

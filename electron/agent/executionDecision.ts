@@ -5,9 +5,11 @@ import type {
 } from "../../shared/agent-types.js";
 import {
   applyAgentMissionPatch,
+  captureIdsFromEvidenceRefs,
   completeAgentMission,
+  missionEvidenceRefs,
   missionHasOpenQuestion,
-  validateAgentMissionEvidence
+  reconcileAgentMissionEvidence
 } from "../../shared/agentMission.js";
 import {
   grantAgentCapabilityLease,
@@ -128,22 +130,15 @@ export function applyDecisionMissionPatch({
       reason: missionResult.error
     });
   }
-  const evidenceErrors = validateAgentMissionEvidence(
-    missionResult.mission,
-    runtimeEvidenceCatalog(deps)
+  const catalog = runtimeEvidenceCatalog(
+    deps,
+    captureIdsFromEvidenceRefs(missionEvidenceRefs(missionResult.mission))
   );
-  if (evidenceErrors.length > 0) {
-    return ignorePlannerMissionPatch({
-      run,
-      deps,
-      operationId,
-      reason: `Mission patch failed evidence validation: ${evidenceErrors.join(", ")}`
-    });
-  }
+  const reconciled = reconcileAgentMissionEvidence(missionResult.mission, catalog);
   if (
     decision.action === "tool" &&
-    missionResult.mission.status !== "active" &&
-    !missionHasOpenQuestion(missionResult.mission)
+    reconciled.mission.status !== "active" &&
+    !missionHasOpenQuestion(reconciled.mission)
   ) {
     return ignorePlannerMissionPatch({
       run,
@@ -153,12 +148,17 @@ export function applyDecisionMissionPatch({
     });
   }
 
+  const droppedNote = reconciled.droppedRefs.length
+    ? ` Dropped ${reconciled.droppedRefs.length} stale evidence citation${
+        reconciled.droppedRefs.length === 1 ? "" : "s"
+      } that are no longer in the local catalog.`
+    : "";
   const nextRun = withUpdate(run, deps.saveRun, {
-    mission: missionResult.mission,
+    mission: reconciled.mission,
     timeline: [
       ...run.timeline,
       timeline(
-        `Mission graph advanced to revision ${missionResult.mission.revision}.`,
+        `Mission graph advanced to revision ${reconciled.mission.revision}.${droppedNote}`,
         {
           operationId,
           phase: "decision",
@@ -170,7 +170,7 @@ export function applyDecisionMissionPatch({
     ]
   });
 
-  if (missionHasOpenQuestion(missionResult.mission)) {
+  if (missionHasOpenQuestion(reconciled.mission)) {
     return {
       run: withUpdate(nextRun, deps.saveRun, {
         status: "paused",

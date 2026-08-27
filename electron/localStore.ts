@@ -417,6 +417,7 @@ export function openLocalStore(userDataPath: string) {
   const {
     upsertCapture,
     listCaptures,
+    getCapture,
     clearCaptures,
     deleteCapture,
     insertSslEvent,
@@ -512,6 +513,7 @@ export function openLocalStore(userDataPath: string) {
     upsertWorkflowRun,
     upsertCapture,
     listCaptures,
+    getCapture,
     deleteCapture,
     clearCaptures,
     insertSslEvent,

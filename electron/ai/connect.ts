@@ -6,6 +6,7 @@ import {
 } from "../../shared/ai-providers.js";
 import { probeCodexCli } from "./codexCli.js";
 import { probeCursorCli } from "./cursorCli.js";
+import { probeGrokCli } from "./grokCli.js";
 
 type PresetConfig = {
   label: string;
@@ -31,6 +32,14 @@ export const PRESETS: Record<AiConnectPresetId, PresetConfig> = {
     baseUrl: "cursor://local",
     model: "auto",
     envKeys: ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"],
+    fallbackApiKey: "local"
+  },
+  grok_cli: {
+    label: "Grok CLI",
+    provider: "grok-local",
+    baseUrl: "grok://local",
+    model: "auto",
+    envKeys: ["XAI_API_KEY"],
     fallbackApiKey: "local"
   },
   openai: {
@@ -114,6 +123,10 @@ export async function probeSettings(settings: ProbeSettingsInput) {
 
   if (settings.provider === "cursor-local") {
     return probeCursorCli();
+  }
+
+  if (settings.provider === "grok-local") {
+    return probeGrokCli(settings.apiKey);
   }
 
   const profile = AI_PROVIDER_PROFILES[settings.provider];
