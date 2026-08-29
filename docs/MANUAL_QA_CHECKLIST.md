@@ -176,7 +176,8 @@ Use this checklist before a release build, demo, or screenshot refresh. Start fr
 - [ ] Project, session, active view, browser summary, and selected evidence references synchronize to the companion without raw request bodies, headers, cookies, or storage values.
 - [ ] A companion-selected view/scope proposal/evidence reference applies through the visible workspace and records the expected operator-facing notice.
 - [ ] Run profile and budgets are visible for steps, replay, workflow requests, probe requests, capture sample, timeout, and raw-context policy.
-- [ ] Autonomous Assessment shows the contract deck, **Arm & Run**, an Assessment inspector tab, and **Stop Traffic Now** on both windows during live traffic.
+- [ ] Autonomous Assessment shows the contract deck, **Start Autonomous**, an Assessment inspector tab, and **Stop Traffic Now** on both windows during live traffic.
+- [ ] **Start Autonomous** binds the read-only contract at the first eligible experiment, runs matching probes without an approval prompt, and stops on the first supported or verification-required result.
 - [ ] The chronological feed shows the full saved transcript, not only the last few entries.
 - [ ] AI-First tab switches are visible.
 - [ ] Tool cards show rationale summaries, visible targets, tool result state, and policy blocks.

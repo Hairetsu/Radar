@@ -14,7 +14,7 @@ describe("agent planner", () => {
     expect(AGENT_SYSTEM_PROMPT).not.toContain("parallel, read-only recon workers");
     expect(AGENT_SYSTEM_PROMPT).toContain("runReplayExperiment");
     expect(AGENT_SYSTEM_PROMPT).toContain("one experiment at a time");
-    expect(AGENT_SYSTEM_PROMPT).toContain("collect captures first if capturedTraffic is empty");
+    expect(AGENT_SYSTEM_PROMPT).toContain("Collect captures first if capturedTraffic is empty");
   });
 
   it("builds a redacted, budgeted planner context", () => {

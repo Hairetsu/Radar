@@ -24,13 +24,14 @@ function AssessmentContractDeck({
   const contract = defaultAssessmentContract();
   return (
     <div className="grid gap-1 border border-rule/80 bg-ink/40 px-3 py-2" data-testid="assessmentContractDeck">
-      <span className="rd-eyebrow text-muted">Assessment contract</span>
+      <span className="rd-eyebrow text-muted">Continuous assessment</span>
       <p className="font-mono text-micro text-copy">
         {contract.authorityLevel} · {(families || contract.families).join(" · ")} · 1 concurrent · raw off
       </p>
       <p className="font-mono text-micro text-muted">
         {remaining ?? contract.maxProbeRequests} probe requests remaining · {contract.delayMs}ms delay · {Math.round(contract.maxRuntimeMs / 60_000)}m runtime
       </p>
+      <p className="font-mono text-micro text-signal">One start · no approval pauses · stops on first supported result</p>
     </div>
   );
 }
@@ -84,7 +85,7 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
         <div className="mx-auto grid max-w-[1100px] gap-2" data-testid="aiOperatorActiveControls">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
             <div className="min-w-[240px] flex-1">
-              <span className="rd-eyebrow text-signal">Live bounded mission</span>
+              <span className="rd-eyebrow text-signal">{run.profileId === "autonomous-assessment" ? "Autonomous loop live" : "Live bounded mission"}</span>
               <p className="mt-1 truncate text-meta text-copy" title={run.goal}>{run.goal}</p>
               <p className="mt-1 font-mono text-micro text-muted">Need to redirect it? Pause &amp; Steer adds reviewed direction without rewriting the original goal.</p>
             </div>
@@ -147,7 +148,7 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
                 {controller.tutorialMode
                   ? "Start Tutorial"
                   : controller.profileId === "autonomous-assessment"
-                    ? "Arm & Run"
+                    ? "Start Autonomous"
                     : "Start Run"}
               </Button>
             )}

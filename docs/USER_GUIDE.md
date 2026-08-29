@@ -85,6 +85,7 @@ The main repository commands are:
 | `pnpm benchmark:operator -- --list` | Print benchmark prompts and expected outcomes. |
 | `pnpm benchmark:operator -- --dry-run --models MODEL` | Preview the selected model, case, and profile matrix without provider calls. |
 | `pnpm benchmark:operator:terra` | Run the nine-case core suite with `gpt-5.6-terra` through the signed-in Codex CLI. |
+| `pnpm benchmark:autonomous` | Run the no-approval Autonomous Assessment acceptance case against Harborline. |
 | `pnpm build` | Build the renderer and Electron processes. |
 | `pnpm test` | Run ESLint, both unit coverage gates, and the production build. |
 | `pnpm test:regression:build` | Build and run the Electron workflow suite. |
@@ -563,7 +564,7 @@ To start:
 2. Choose a run profile.
 3. Review its visible step, replay, workflow, capture, timeout, and raw-context budgets.
 4. Enter a goal with the target origin.
-5. Click **Start Run**, **Arm & Run** for Autonomous Assessment, or **Start Tutorial**.
+5. Click **Start Run**, **Start Autonomous** for Autonomous Assessment, or **Start Tutorial**.
 
 If the goal contains an origin outside saved Scope, Radar places it in the unsaved Scope editor and stops. Review the whole list, click **Commit**, and then start the run again. Radar never saves a goal origin by itself.
 
@@ -573,7 +574,7 @@ Run profiles:
 | --- | --- |
 | **Browser Assessment** | Explore task-relevant in-scope pages and use tightly bounded verification. |
 | **Goal-Driven Assessment** | Pursue the goal with the largest bounded budget: 10 minutes, 40 steps, 10 replays, 10 active workflow requests, and 100 captures. |
-| **Autonomous Assessment** | Open the managed browser to collect in-scope captures, then arm a read-only experiment contract: 40 probe requests, one concurrent send, CORS/reflection/injection/authorization/resource-ID families, visible Repeater history. Forms, identity changes, and workflows stay off. |
+| **Autonomous Assessment** | Open the managed browser to collect in-scope captures, then run a read-only experiment contract with 40 probe requests, one concurrent send, CORS/reflection/injection/authorization/resource-ID families, and visible Repeater history. **Start Autonomous** binds the whole contract to the current browser identity. Matching probes do not pause for approval. Forms, arbitrary replay, identity changes, and workflows stay off. |
 | **Passive Map** | Read captures, sitemap coverage, findings, and local context without sends. |
 | **Auth Review** | Inspect permitted browser and identity context. Raw cookie or storage tools require raw-context opt-in. |
 | **API Hardening** | Review API evidence and prepare Repeater, Automate, or workflow drafts. |
@@ -582,6 +583,16 @@ Run profiles:
 | **Report From Evidence** | Turn local evidence into quality-gated draft findings and run memory. |
 
 No profile is unlimited. Goal-Driven Assessment has the widest non-destructive tool set, but raw context stays off, saved Scope applies, and active actions still need capability approval. If the run exhausts its runtime or step budget before it meets the goal, click **Continue New** to start a new bounded segment with the same goal and profile.
+
+Autonomous Assessment uses a different stop rule. Negative and inconclusive experiments continue to the next ranked capture. A supported or verification-required result ends the run immediately. Radar records later candidates as untested. An action outside the contract is skipped or blocked. It does not open an approval prompt.
+
+To exercise this path on all normal Harborline examples without clicking through the portal, run:
+
+```bash
+pnpm benchmark:autonomous
+```
+
+The preset starts `127.0.0.1:3000` when needed, seeds the normal Harborline requests through Radar's proxy, and runs the Autonomous Assessment acceptance case with the signed-in Codex CLI.
 
 During the run, the AI Operator shows:
 

@@ -306,7 +306,13 @@ export function useAiOperator() {
       });
       replaceRun(run);
       setGoal("");
-      setNotice(tutorialMode ? "Tutorial run started in the visible workspace." : "AI-First run started in the visible workspace.");
+      setNotice(
+        tutorialMode
+          ? "Tutorial run started in the visible workspace."
+          : profileId === "autonomous-assessment"
+            ? "Autonomous assessment started. Radar will not pause for another approval."
+            : "AI-First run started in the visible workspace."
+      );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "AI-First run could not start.");
     } finally {

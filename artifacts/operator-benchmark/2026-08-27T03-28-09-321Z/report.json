@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-27T03:28:09.321Z",
+  "target": "http://127.0.0.1:3000",
+  "provider": "codex-local",
+  "suite": "custom",
+  "approveActive": false,
+  "matrix": [
+    {
+      "id": "gpt-5.6-terra__autonomous-assessment__autonomous-input-differential",
+      "model": "gpt-5.6-terra",
+      "caseId": "autonomous-input-differential",
+      "profileId": "autonomous-assessment"
+    }
+  ],
+  "cases": [
+    {
+      "id": "autonomous-input-differential",
+      "title": "Autonomous read-only input differential",
+      "prompt": "Run a bounded read-only assessment of captured Harborline requests. Rank candidates, establish baselines, try the smallest useful typed mutations, and classify each hypothesis from response differentials. Do not submit forms or invent authenticated requests.",
+      "expected": {
+        "summary": "Uses the assessment contract on captured read-only requests and identifies at least one supported input-handling differential with probe evidence.",
+        "signals": [
+          {
+            "id": "expanded-cargo",
+            "label": "Expanded cargo result set",
+            "matchAny": [
+              "DEMO_NORTHWIND_4K8",
+              "internalRate",
+              "clientToken"
+            ]
+          },
+          {
+            "id": "query-error",
+            "label": "Query error differential",
+            "matchAny": [
+              "SQLITE_ERROR",
+              "unrecognized token",
+              "server error differential"
+            ]
+          },
+          {
+            "id": "assessment-classification",
+            "label": "Assessment classification",
+            "matchAny": [
+              "supported",
+              "contradicted",
+              "inconclusive"
+            ]
+          }
+        ],
+        "minimumSignalCount": 2,
+        "minimumEvidenceRefs": 2,
+        "acceptedGaps": [
+          "POST-only form workflows remain out of this profile's experiment contract."
+        ],
+        "forbiddenClaims": [
+          "the target is vulnerability-free",
+          "exhaustive coverage was achieved",
+          "tested outside saved scope"
+        ]
+      }
+    }
+  ],
+  "results": [
+    {
+      "ok": true,
+      "id": "gpt-5.6-terra__autonomous-assessment__autonomous-input-differential",
+      "model": "gpt-5.6-terra",
+      "provider": "codex-local",
+      "profileId": "autonomous-assessment",
+      "caseId": "autonomous-input-differential",
+      "expectedDisposition": {
+        "kind": "verify",
+        "unavailableTools": [],
+        "explanation": "This profile exposes every required tool group within its sealed policy budget."
+      },
+      "startedAt": "2026-08-27T03:26:50.033Z",
+      "finishedAt": "2026-08-27T03:28:09.051Z",
+      "durationMs": 79018,
+      "run": {
+        "id": "agent_6e0c49f8-854f-495c-b032-dc7d79a26f6c",
+        "status": "failed",
+        "error": "runReplayExperiment requires a capture, approved family, and matching mutation.",
+        "policy": {
+          "maxRuntimeMs": 600000,
+          "maxSteps": 32,
+          "maxReplay": 2,
+          "maxWorkflowRequests": 0,
+          "maxCaptureSample": 100,
+          "allowRawContext": false,
+          "maxProbeRequests": 40
+        },
+        "checkpoint": {
+          "startUrl": "http://127.0.0.1:3000",
+          "targetOrigin": "http://127.0.0.1:3000",
+          "stepCount": 2,
+          "replayCount": 0,
+          "workflowRequestCount": 0,
+          "probeRequestCount": 0,
+          "elapsedMs": 9839,
+          "lastResumedAt": "2026-08-27T03:28:08.793Z",
+          "activeIdentity": "current"
+        },
+        "findings": [],
+        "completionReport": null,
+        "timeline": [
+          {
+            "id": "step_6e388677-35af-4573-9c45-bccc6813a9fc",
+            "createdAt": "2026-08-27T03:26:53.199Z",
+            "phase": "status",
+            "summary": "Queued with autonomous-assessment profile",
+            "note": "Run queued from AI-First goal prompt."
+          },
+          {
+            "id": "step_847a5ae0-2806-4ada-a52e-a2b8d3d718b8",
+            "createdAt": "2026-08-27T03:26:53.199Z",
+            "phase": "status",
+            "summary": "Start Autonomous armed the assessment contract",
+            "note": "Autonomous contract armed. Radar will bind its run-level lease to the current browser identity before the first eligible experiment."
+          },
+          {
+            "id": "step_10c3a9f0-78ca-4539-aa46-e73f30ceb1f0",
+            "createdAt": "2026-08-27T03:26:53.201Z",
+            "phase": "status",
+            "note": "Run started. Scope and policy checks are active."
+          },
+          {
+            "id": "step_50b1fb45-d8c2-4601-9291-34a94538df17",
+            "createdAt": "2026-08-27T03:27:02.497Z",
+            "phase": "decision",
+            "summary": "2 mission updates",
+            "note": "Mission graph advanced to revision 1."
+          },
+          {
+            "id": "step_e2f4a6ff-dd38-40cf-ae55-770c24532725",
+            "createdAt": "2026-08-27T03:27:02.498Z",
+            "phase": "decision",
+            "summary": "openBrowser can continue autonomously within saved Scope",
+            "note": "Scoped navigation authorized by Start Run."
+          },
+          {
+            "id": "step_49928f6c-b598-4eec-8fa3-8cbb5bdd6188",
+            "createdAt": "2026-08-27T03:27:02.499Z",
+            "phase": "decision",
+            "summary": "Captured traffic is empty. Opening the scoped start URL is the required first step to collect in-scope evidence before ranking candidates or running any bounded replay experiment.",
+            "note": "Agent selected openBrowser: Captured traffic is empty. Opening the scoped start URL is the required first step to collect in-scope evidence before ranking candidates or running any bounded replay experiment.",
+            "tool": "openBrowser"
+          },
+          {
+            "id": "step_1ce02a19-3e40-49c3-9e2b-19fe17d67085",
+            "createdAt": "2026-08-27T03:27:02.499Z",
+            "phase": "decision",
+            "summary": "navigate openBrowser / allowed",
+            "note": "Capability allowed: Action allowed; capability lease is now exhausted."
+          },
+          {
+            "id": "step_faf34f75-94e0-477e-8b63-b3b78be198ee",
+            "createdAt": "2026-08-27T03:27:02.499Z",
+            "phase": "tool-call",
+            "summary": "openBrowser requested",
+            "note": "Tool call: openBrowser",
+            "tool": "openBrowser"
+          },
+          {
+            "id": "step_a4bc0bec-6ce1-42e1-baca-cf326b864f0a",
+            "createdAt": "2026-08-27T03:27:11.125Z",
+            "phase": "tool-result",
+            "summary": "openBrowser completed",
+            "note": "Tool result: openBrowser",
+            "tool": "openBrowser",
+            "ok": true
+          },
+          {
+            "id": "step_819a59a7-ce2c-44ab-845d-f35ddd3e6aa7",
+            "createdAt": "2026-08-27T03:27:32.443Z",
+            "phase": "decision",
+            "summary": "Mission update ignored; action continues",
+            "note": "Planner mission update ignored: The planner returned an invalid mission patch. The selected action will continue without changing the Mission Graph."
+          },
+          {
+            "id": "step_bf7a0b77-c547-49e3-92fb-2de76e74ccdd",
+            "createdAt": "2026-08-27T03:27:32.444Z",
+            "phase": "decision",
+            "summary": "Scoped captures now exist. Rank the eligible captured requests before selecting one bounded baseline-and-mutation experiment.",
+            "note": "Agent selected getAssessmentCandidates: Scoped captures now exist. Rank the eligible captured requests before selecting one bounded baseline-and-mutation experiment.",
+            "tool": "getAssessmentCandidates"
+          },
+          {
+            "id": "step_87095b1a-efd3-45a8-8c58-244cf63903cc",
+            "createdAt": "2026-08-27T03:27:32.444Z",
+            "phase": "tool-call",
+            "summary": "getAssessmentCandidates requested",
+            "note": "Tool call: getAssessmentCandidates",
+            "tool": "getAssessmentCandidates"
+          },
+          {
+            "id": "step_da1e3bff-fa49-4ef7-ac43-ae3d80c328e5",
+            "createdAt": "2026-08-27T03:27:32.448Z",
+            "phase": "tool-result",
+            "summary": "getAssessmentCandidates completed",
+            "note": "Tool result: getAssessmentCandidates",
+            "tool": "getAssessmentCandidates",
+            "ok": true
+          },
+          {
+            "id": "step_e3c9f2f3-806b-417f-a645-211dccd0e776",
+            "createdAt": "2026-08-27T03:28:08.794Z",
+            "phase": "failure",
+            "summary": "runReplayExperiment requires a capture, approved family, and matching mutation.",
+            "note": "Run failed: runReplayExperiment requires a capture, approved family, and matching mutation."
+          }
+        ]
+      },
+      "evaluation": {
+        "outcome": "run-failed",
+        "score": 10,
+        "expectedDisposition": "verify",
+        "observedSignals": [],
+        "missingSignals": [
+          "expanded-cargo",
+          "query-error",
+          "assessment-classification"
+        ],
+        "evidenceRefs": [],
+        "usedTools": [
+          "openBrowser",
+          "getAssessmentCandidates"
+        ],
+        "unavailableTools": [],
+        "forbiddenClaims": [],
+        "notes": [
+          "Uses the assessment contract on captured read-only requests and identifies at least one supported input-handling differential with probe evidence.",
+          "One or more expected signals were not observed.",
+          "The run did not meet the minimum evidence-reference count."
+        ]
+      }
+    }
+  ]
+}

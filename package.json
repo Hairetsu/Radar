@@ -18,6 +18,7 @@
     "demo:test": "vitest run demo-target/server/demoApi.test.ts demo-target/src/formValidation.test.ts",
     "benchmark:operator": "pnpm build && node scripts/operator-benchmark.mjs",
     "benchmark:operator:terra": "pnpm build && node scripts/operator-benchmark.mjs --provider codex-local --models gpt-5.6-terra --suite core",
+    "benchmark:autonomous": "pnpm build && node scripts/operator-benchmark.mjs --provider codex-local --models gpt-5.6-terra --cases autonomous-input-differential --profiles autonomous-assessment",
     "build:app": "tsc -p tsconfig.app.json",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "pnpm build:app && pnpm build:electron && vite build",

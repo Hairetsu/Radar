@@ -12,6 +12,7 @@ import {
   agentCapabilityRiskForUse,
   type AgentCapabilityUse
 } from "../../shared/agentCapabilities.js";
+import { classifyEndpointImpact } from "../../shared/agentAssessment.js";
 import type { AgentRuntimeDeps, RunCounters } from "./runtimeTypes.js";
 
 function sortedRecord(input: Record<string, string>) {
@@ -125,6 +126,9 @@ export function capabilityUseForCall(
         payloadBytes: Buffer.byteLength(JSON.stringify(call.input.location)),
         probeFamily: call.input.family,
         sourceCaptureId: call.input.captureId,
+        endpointImpact: capture
+          ? classifyEndpointImpact({ method: capture.method, path: capture.path })
+          : "unknown",
         experimentId: call.input.captureId
       };
     }

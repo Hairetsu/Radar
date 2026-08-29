@@ -150,6 +150,7 @@ export type AgentAssessmentState = {
   status: "draft" | "armed" | "running" | "paused" | "stopped" | "completed";
   queue: AssessmentExperimentSummary[];
   ledger: ProbeLedger;
+  authorityLeaseId?: string;
   currentExperimentId?: string;
   stopReason?: string;
 };

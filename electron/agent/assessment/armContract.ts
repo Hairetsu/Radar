@@ -4,10 +4,19 @@ import { getProbeFamily, type AssessmentContract } from "../../../shared/agentAs
 export function assessmentLeaseFromContract(input: {
   contract: AssessmentContract;
   allowlist: string[];
+  origins?: string[];
   reason: string;
 }): AgentCapabilityLeaseRequest {
+  const origins = [...new Set((input.origins || input.allowlist).flatMap((value) => {
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "http:" || parsed.protocol === "https:" ? [parsed.origin] : [];
+    } catch {
+      return [];
+    }
+  }))].slice(0, 2);
   const grants = [];
-  for (const origin of input.allowlist.slice(0, 8)) {
+  for (const origin of origins) {
     for (const family of input.contract.families) {
       const definition = getProbeFamily(family);
       for (const method of definition.allowedMethods) {
@@ -30,7 +39,7 @@ export function assessmentLeaseFromContract(input: {
   return {
     name: "Assessment contract",
     riskTier: "active",
-    tools: ["runReplayExperiment", "sendReplay"],
+    tools: ["runReplayExperiment"],
     grants: grants.slice(0, 48),
     durationMs: input.contract.maxRuntimeMs,
     maxUses: 20,

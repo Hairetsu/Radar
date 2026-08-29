@@ -70,6 +70,7 @@ export const executeAssessmentTool: AgentToolFamilyExecutor = async ({ call, run
         throw new Error(reserved.reason);
       }
       const experimentId = createId("experiment");
+      const authorityLeaseId = run.assessment?.authorityLeaseId;
       const queue = [
         ...(run.assessment?.queue || []),
         {
@@ -84,6 +85,7 @@ export const executeAssessmentTool: AgentToolFamilyExecutor = async ({ call, run
       ];
       run.assessment = {
         contract,
+        authorityLeaseId,
         status: "running",
         queue,
         ledger: reserved.ledger,
@@ -139,6 +141,7 @@ export const executeAssessmentTool: AgentToolFamilyExecutor = async ({ call, run
         ];
         run.assessment = {
           contract,
+          authorityLeaseId,
           status: "armed",
           currentExperimentId: undefined,
           queue: queue.map((item) =>
@@ -162,6 +165,7 @@ export const executeAssessmentTool: AgentToolFamilyExecutor = async ({ call, run
       } catch (error) {
         run.assessment = {
           contract,
+          authorityLeaseId,
           status: "armed",
           currentExperimentId: undefined,
           queue: queue.map((item) =>

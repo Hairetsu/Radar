@@ -18,6 +18,8 @@ import type {
   InstalledPlugin,
   InterceptQueueItem,
   ProjectNote,
+  ReplayDraft,
+  ReplayResult,
   SavedView,
   WorkflowDefinition,
   WorkflowRun
@@ -72,6 +74,7 @@ function makeRuntime(
     openBrowser?: (url: string) => Promise<BrowserState>;
     navigateBrowser?: (url: string) => Promise<BrowserState>;
     getStorageState?: () => Promise<AgentStorageState>;
+    sendReplay?: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
     leaseRequest?: AgentCapabilityLeaseRequest;
   } = {}
@@ -97,7 +100,10 @@ function makeRuntime(
         engine: "chrome" as const
       }))
   );
-  const sendReplay = vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", bytes: 0, durationMs: 1 }));
+  const sendReplay = vi.fn(
+    options.sendReplay ||
+      (async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", bytes: 0, durationMs: 1 }))
+  );
   const waitForNetworkIdle = vi.fn(async () => ({ idle: true, waitedMs: 10 }));
   const getPageText = vi.fn(async () => ({ url: "https://hairetsu.com", title: "Hairetsu", text: "Welcome" }));
   const getDomSummary = vi.fn(async () => ({
@@ -452,6 +458,129 @@ describe("AgentRuntime", () => {
     );
     expect(runs.get(run.id)?.timeline.some((entry) => entry.summary === "Lesson checkpoint — waiting for operator")).toBe(false);
     expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Auth state changed unexpectedly"))).toBe(false);
+  });
+
+  it("runs an armed assessment experiment without a capability approval pause", async () => {
+    const searchCapture = capture(
+      "capture-search",
+      "http://127.0.0.1:3000/api/cargo/search?q=Orion",
+      {
+        mimeType: "application/json",
+        type: "xhr",
+        responseBody: '{"items":[]}'
+      }
+    );
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: {
+          tool: "runReplayExperiment",
+          input: {
+            captureId: searchCapture.id,
+            family: "injection-signal",
+            hypothesis: "Cargo search may treat input as query syntax.",
+            location: { kind: "replace-query", name: "q", value: "" }
+          }
+        },
+        rationale: "Run the next experiment inside the contract armed by Start Autonomous."
+      },
+      { action: "finish", rationale: "The bounded experiment completed.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["http://127.0.0.1:3000"],
+      captures: [searchCapture],
+      getStorageState: async () => ({
+        url: "http://127.0.0.1:3000",
+        origin: "http://127.0.0.1:3000",
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {}
+      }),
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Assess http://127.0.0.1:3000 until Radar finds a supported result.",
+      startUrl: "http://127.0.0.1:3000",
+      profileId: "autonomous-assessment"
+    });
+
+    await vi.waitFor(() => {
+      expect(["paused", "completed"]).toContain(runs.get(run.id)?.status);
+    });
+    expect(
+      runs.get(run.id)?.status,
+      runs.get(run.id)?.timeline.map((entry) => entry.note || entry.summary).join("\n")
+    ).toBe("completed");
+    expect(runs.get(run.id)?.capabilities?.leases.some((lease) => lease.status === "draft")).toBe(false);
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Capability lease review required"))).toBe(false);
+    expect(runs.get(run.id)?.assessment?.authorityLeaseId).toBeTruthy();
+    expect(runs.get(run.id)?.assessment?.queue).toEqual([
+      expect.objectContaining({
+        captureId: searchCapture.id,
+        family: "injection-signal",
+        status: "completed"
+      })
+    ]);
+  });
+
+  it("stops autonomous assessment at the first supported experiment result", async () => {
+    const searchCapture = capture(
+      "capture-search-stop",
+      "http://127.0.0.1:3000/api/cargo/search?q=Orion",
+      { mimeType: "application/json", type: "xhr", responseBody: '{"items":[]}' }
+    );
+    const { runtime, runs, decideNextAction } = makeRuntime(undefined, {
+      allowlist: ["http://127.0.0.1:3000"],
+      captures: [searchCapture],
+      getStorageState: async () => ({
+        url: "http://127.0.0.1:3000",
+        origin: "http://127.0.0.1:3000",
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {}
+      }),
+      sendReplay: async (value) => {
+        const draft = "draft" in value ? value.draft : value;
+        const query = new URL(draft.url).searchParams.get("q") || "";
+        if (query === "'") {
+          return { ok: true, status: 500, statusText: "Error", headers: {}, body: "SQL syntax error", bytes: 16, durationMs: 2 };
+        }
+        if (query.includes("OR")) {
+          return { ok: true, status: 200, statusText: "OK", headers: {}, body: '{"items":[1,2,3]}', bytes: 19, durationMs: 2 };
+        }
+        return { ok: true, status: 200, statusText: "OK", headers: {}, body: '{"items":[]}', bytes: 12, durationMs: 1 };
+      },
+      decideNextAction: async () => ({
+        action: "tool",
+        call: {
+          tool: "runReplayExperiment",
+          input: {
+            captureId: searchCapture.id,
+            family: "injection-signal",
+            hypothesis: "Cargo search may treat input as query syntax.",
+            location: { kind: "replace-query", name: "q", value: "" }
+          }
+        }
+      })
+    });
+
+    const run = runtime.start({
+      goal: "Assess http://127.0.0.1:3000 until Radar finds a supported result.",
+      startUrl: "http://127.0.0.1:3000",
+      profileId: "autonomous-assessment"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(decideNextAction).toHaveBeenCalledTimes(1);
+    expect(runs.get(run.id)?.assessment?.queue).toEqual([
+      expect.objectContaining({ classification: "verification-required", status: "completed" })
+    ]);
+    expect(runs.get(run.id)?.timeline.at(-1)?.completionReport).toMatchObject({
+      outcome: "observations-only",
+      observations: [expect.objectContaining({ title: "Injection signals", status: "lead" })]
+    });
+    expect(runs.get(run.id)?.capabilities?.leases.some((lease) => lease.status === "granted")).toBe(false);
   });
 
   it("keeps successful in-scope navigation redirects out of recovery", async () => {

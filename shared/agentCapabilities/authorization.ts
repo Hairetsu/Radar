@@ -48,23 +48,36 @@ function matchingLeaseReason(lease: AgentCapabilityLease, use: AgentCapabilityUs
   if (agentRiskRank(lease.riskTier) < agentRiskRank(tier)) return "risk tier is too low";
   if (!lease.tools.includes(use.tool)) return "tool is not leased";
   const normalizedMethod = use.method.toUpperCase();
-  const matchingGrant = lease.grants.find(
+  const tupleGrants = lease.grants.filter(
     (grant) =>
       grant.origin === origin &&
       grant.method === normalizedMethod &&
       path.startsWith(grant.pathPrefix) &&
       grant.identity === use.identity
   );
-  if (!matchingGrant) return "origin, method, path, and identity tuple does not match";
-  if (matchingGrant.probeFamily && matchingGrant.probeFamily !== use.probeFamily) {
-    return "probe family is not leased";
-  }
-  if (matchingGrant.sourceCaptureIds && matchingGrant.sourceCaptureIds.length > 0) {
-    if (!use.sourceCaptureId || !matchingGrant.sourceCaptureIds.includes(use.sourceCaptureId)) {
+  if (tupleGrants.length === 0) return "origin, method, path, and identity tuple does not match";
+  const matchingGrant = tupleGrants.find(
+    (grant) =>
+      (!grant.probeFamily || grant.probeFamily === use.probeFamily) &&
+      (!grant.sourceCaptureIds ||
+        grant.sourceCaptureIds.length === 0 ||
+        Boolean(use.sourceCaptureId && grant.sourceCaptureIds.includes(use.sourceCaptureId))) &&
+      (!grant.endpointImpact || grant.endpointImpact === use.endpointImpact)
+  );
+  if (!matchingGrant) {
+    if (tupleGrants.every((grant) => grant.probeFamily && grant.probeFamily !== use.probeFamily)) {
+      return "probe family is not leased";
+    }
+    if (
+      tupleGrants.every(
+        (grant) =>
+          grant.sourceCaptureIds &&
+          grant.sourceCaptureIds.length > 0 &&
+          (!use.sourceCaptureId || !grant.sourceCaptureIds.includes(use.sourceCaptureId))
+      )
+    ) {
       return "source capture is not leased";
     }
-  }
-  if (matchingGrant.endpointImpact && matchingGrant.endpointImpact !== use.endpointImpact) {
     return "endpoint impact is not leased";
   }
   if (use.concurrency > lease.maxConcurrency) return "concurrency exceeds lease";

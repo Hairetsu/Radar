@@ -39,7 +39,7 @@ The AI Operator Connection Deck keeps saved credentials isolated by provider. Sw
 
 The Goal-Driven Assessment profile gives the agent Radar's largest run budgets and widest non-destructive tool set. It remains inside saved Scope and pauses for capability approval before replay, form submission, identity changes, or active workflows. Raw context stays off.
 
-**Autonomous Assessment** can open the managed browser to collect in-scope captures, then arms a read-only experiment contract. After **Arm & Run**, Radar can rank those captures, run a visible Repeater baseline plus typed variants, compare the results, and record coverage. The first families are CORS origin, reflection, injection signal, authorization omission, and resource ID. Raw context stays off. One concurrent request. Forms, identity changes, and workflows stay off. **Stop Traffic Now** aborts in-flight probes without deleting completed evidence. No profile removes these limits.
+**Autonomous Assessment** can open the managed browser to collect in-scope captures, then run a read-only experiment contract. **Start Autonomous** is the only approval action. Radar binds the contract to the current browser identity before the first probe, then ranks captures and runs visible Repeater baselines plus typed variants without another approval pause. Negative and inconclusive results move to the next candidate. The first supported or verification-required result stops the run with a Completion Report and retained Repeater history. The first families are CORS origin, reflection, injection signal, authorization omission, and resource ID. Raw context stays off. One concurrent request. Forms, arbitrary replay, identity changes, and workflows stay off. **Stop Traffic Now** aborts in-flight probes without deleting completed evidence.
 
 Actions with side effects need the selected profile, saved Scope, a matching capability grant, and remaining run budget. Radar never grants destructive actions or `DELETE` requests to AI-First.
 
@@ -117,6 +117,14 @@ Run the nine-case core suite with `gpt-5.6-terra` through the signed-in Codex CL
 ```bash
 pnpm benchmark:operator:terra
 ```
+
+Run the hands-off Autonomous Assessment acceptance case against Harborline:
+
+```bash
+pnpm benchmark:autonomous
+```
+
+The autonomous preset starts Harborline when needed, seeds every normal demo request through Radar's proxy, starts the read-only contract, and requires no capability approval clicks.
 
 This preset keeps active capability approval paused. Add `-- --approve-active` when you want the benchmark runner to approve bounded, non-destructive Harborline leases.
 

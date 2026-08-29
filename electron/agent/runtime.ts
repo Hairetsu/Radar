@@ -35,7 +35,6 @@ import {
 } from "../../shared/agentAssessment.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { getAgentRunProfile, normalizeAgentRunProfileId } from "../../shared/agentProfiles.js";
-import { assessmentLeaseFromContract } from "./assessment/armContract.js";
 import { stopAssessmentTraffic } from "./assessment/stopController.js";
 import { authFingerprint } from "./capabilityRuntime.js";
 import { runtimeEvidenceCatalog } from "./evidenceContext.js";
@@ -414,35 +413,13 @@ export class AgentRuntime {
     if (profileId === "autonomous-assessment") {
       const contract = normalizeAssessmentContract(request.assessmentContract) || defaultAssessmentContract();
       run.assessment = createArmedAssessmentState(contract);
-      const proposed = proposeAgentCapabilityLease(
-        run.capabilities || createAgentCapabilityState(),
-        assessmentLeaseFromContract({
-          contract,
-          allowlist: this.deps.allowlist(),
-          reason: "Arm & Run confirmed the Autonomous Assessment contract."
-        }),
-        createId("lease"),
-        createdAt
-      );
-      if (proposed.ok) {
-        const granted = grantAgentCapabilityLease(proposed.state, proposed.lease.id, {
-          allowlist: this.deps.allowlist(),
-          allowedTools: getAgentRunProfile(profileId).allowedTools,
-          authFingerprint: "current",
-          ceiling: getAgentRunProfile(profileId).capabilityCeiling,
-          now: createdAt
-        });
-        if (granted.ok) {
-          run.capabilities = granted.state;
-          run.timeline = [
-            ...run.timeline,
-            timeline("Assessment contract armed. Matching read-only experiments will not pause for another lease.", {
-              phase: "status",
-              summary: "Arm & Run granted the assessment capability lease"
-            })
-          ];
-        }
-      }
+      run.timeline = [
+        ...run.timeline,
+        timeline("Autonomous contract armed. Radar will bind its run-level lease to the current browser identity before the first eligible experiment.", {
+          phase: "status",
+          summary: "Start Autonomous armed the assessment contract"
+        })
+      ];
     }
 
     this.deps.saveRun(run);

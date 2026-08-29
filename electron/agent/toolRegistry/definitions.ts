@@ -229,7 +229,13 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
       captureId: "durable capture id",
       family: "cors-origin|reflection-context|injection-signal|authorization-omission|resource-id",
       hypothesis: "string",
-      location: { kind: "replace-query|remove-query|append-query|replace-json|replace-form|replace-header|replace-cookie|replace-path-segment|remove-authorization|set-origin|set-host|set-method" },
+      location: {
+        kind: "replace-query|remove-query|append-query|replace-json|replace-form|replace-header|replace-cookie|replace-path-segment|remove-authorization|set-origin|set-host|set-method",
+        name: "required for query, form, header, or cookie mutations; use a candidate parameterNames value",
+        path: "required for replace-json",
+        index: "required for replace-path-segment",
+        value: "optional placeholder; Radar supplies family payloads"
+      },
       values: ["optional reviewed payload"],
       encoding: ["url|json-escape|base64|case-variation"]
     }

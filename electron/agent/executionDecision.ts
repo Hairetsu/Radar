@@ -24,6 +24,7 @@ import {
   capabilityLeaseRequestForUse,
   capabilityUseForCall
 } from "./capabilityRuntime.js";
+import { assessmentLeaseFromContract } from "./assessment/armContract.js";
 import {
   findingFromDecision,
   runtimeEvidenceCatalog
@@ -224,6 +225,84 @@ export async function applyDecisionLease({
     )
   ) {
     return { run, paused: false };
+  }
+
+  const assessmentCall = decision.call.tool === "runReplayExperiment"
+    ? decision.call
+    : null;
+  if (
+    run.profileId === "autonomous-assessment" &&
+    assessmentCall &&
+    run.assessment &&
+    !run.assessment.authorityLeaseId
+  ) {
+    const capture = deps.getCaptures().find((item) => item.id === assessmentCall.input.captureId);
+    const selectedOrigin = capture ? (() => {
+      try {
+        return new URL(capture.url).origin;
+      } catch {
+        return "";
+      }
+    })() : "";
+    const contractOrigins = [...new Set([
+      selectedOrigin,
+      ...deps.getCaptures()
+        .filter((item) => item.allowed && isAllowedTarget(item.url, deps.allowlist()))
+        .flatMap((item) => {
+          try {
+            return [new URL(item.url).origin];
+          } catch {
+            return [];
+          }
+        })
+    ].filter(Boolean))];
+    const proposed = proposeAgentCapabilityLease(
+      capabilityStateFromRun(run),
+      assessmentLeaseFromContract({
+        contract: run.assessment.contract,
+        allowlist: deps.allowlist(),
+        origins: contractOrigins,
+        reason: "Start Autonomous confirmed the bounded assessment contract."
+      }),
+      createId("lease"),
+      nowIso()
+    );
+    if (proposed.ok) {
+      const granted = grantAgentCapabilityLease(proposed.state, proposed.lease.id, {
+        allowlist: deps.allowlist(),
+        allowedTools: profile.allowedTools,
+        ceiling: profile.capabilityCeiling,
+        authFingerprint,
+        now: nowIso()
+      });
+      if (
+        granted.ok &&
+        hasMatchingAgentCapabilityLease(
+          granted.state,
+          { ...capabilityUse, authFingerprint }
+        )
+      ) {
+        return {
+          run: withUpdate(run, deps.saveRun, {
+            assessment: {
+              ...run.assessment,
+              authorityLeaseId: granted.lease.id
+            },
+            capabilities: granted.state,
+            timeline: [
+              ...run.timeline,
+              timeline("The autonomous contract is bound to the current browser identity. Matching experiments can continue without approval prompts.", {
+                operationId,
+                phase: "decision",
+                summary: "Assessment contract bound for continuous execution",
+                target: visibleTargetForTool(decision.call)
+              })
+            ]
+          }),
+          paused: false
+        };
+      }
+    }
   }
 
   const leaseRequest = capabilityLeaseRequestForUse(

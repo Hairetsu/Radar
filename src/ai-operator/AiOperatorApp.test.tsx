@@ -208,6 +208,32 @@ describe("AiOperatorApp", () => {
     })));
   });
 
+  it("starts continuous autonomous assessment without another approval step", async () => {
+    const api = operatorApi();
+    Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
+    render(<AiOperatorApp />);
+
+    const profileSelect = await screen.findByTestId("agentProfileSelect");
+    fireEvent.change(profileSelect, { target: { value: "autonomous-assessment" } });
+
+    expect(screen.getByTestId("assessmentContractDeck")).toHaveTextContent("no approval pauses");
+    expect(screen.getByTestId("assessmentContractDeck")).toHaveTextContent("stops on first supported result");
+    expect(screen.getByTestId("startAgentRun")).toHaveTextContent("Start Autonomous");
+
+    fireEvent.change(screen.getByTestId("agentGoalInput"), {
+      target: { value: "Assess https://target.test until Radar finds a supported result" }
+    });
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+
+    await waitFor(() => expect(api.startAgentRun).toHaveBeenCalledWith(expect.objectContaining({
+      profileId: "autonomous-assessment",
+      assessmentContract: expect.objectContaining({
+        authorityLevel: "read-only-probes",
+        maxConcurrency: 1
+      })
+    })));
+  });
+
   it("prepares an out-of-scope origin in the visible workspace without starting", async () => {
     const api = operatorApi();
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });

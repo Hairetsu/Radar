@@ -81,6 +81,7 @@ describe("agent capability leases", () => {
       ["clickElement", "active"],
       ["submitForm", "active"],
       ["sendReplay", "active"],
+      ["runReplayExperiment", "active"],
       ["runWorkflow", "active"],
       ["getCaptures", null],
       ["prepareReplayTab", null]
@@ -411,6 +412,61 @@ describe("agent capability leases", () => {
       "2026-07-10T12:00:10.000Z"
     );
     expect(mixed).toMatchObject({ allowed: false, reason: expect.stringContaining("No granted") });
+  });
+
+  it("matches the full probe-family tuple when grants share an origin and path", () => {
+    const proposed = proposeAgentCapabilityLease(
+      createAgentCapabilityState(),
+      request({
+        name: "Autonomous assessment contract",
+        tools: ["runReplayExperiment"],
+        grants: [
+          {
+            origin: "https://api.target.test",
+            method: "GET",
+            pathPrefix: "/",
+            identity: "current",
+            probeFamily: "cors-origin",
+            endpointImpact: "read-only"
+          },
+          {
+            origin: "https://api.target.test",
+            method: "GET",
+            pathPrefix: "/",
+            identity: "current",
+            probeFamily: "injection-signal",
+            endpointImpact: "read-only"
+          }
+        ],
+        maxUses: 10,
+        maxRequests: 20
+      }),
+      "lease-assessment",
+      NOW
+    );
+    if (!proposed.ok) throw new Error(proposed.error);
+    const granted = grantAgentCapabilityLease(proposed.state, proposed.lease.id, {
+      allowlist: ["https://api.target.test"],
+      allowedTools: ["runReplayExperiment"],
+      authFingerprint: "auth-fp",
+      now: NOW
+    });
+    if (!granted.ok) throw new Error(granted.error);
+
+    expect(hasMatchingAgentCapabilityLease(granted.state, {
+      tool: "runReplayExperiment",
+      url: "https://api.target.test/v1/search?q=orion",
+      method: "GET",
+      identity: "current",
+      requestCost: 3,
+      concurrency: 1,
+      payloadBytes: 64,
+      allowlist: ["https://api.target.test"],
+      authFingerprint: "auth-fp",
+      probeFamily: "injection-signal",
+      sourceCaptureId: "capture-search",
+      endpointImpact: "read-only"
+    }, "2026-07-10T12:00:10.000Z")).toBe(true);
   });
 
   it("fails closed on expiry, saved-scope drift, auth drift, payload, concurrency, and request caps", () => {
