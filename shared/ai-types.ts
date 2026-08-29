@@ -7,9 +7,17 @@ export type AiProviderId =
   | "openrouter"
   | "openai-compatible"
   | "codex-local"
-  | "cursor-local";
+  | "cursor-local"
+  | "grok-local";
 
-export type AiConnectPresetId = "codex" | "cursor_cli" | "openai" | "anthropic" | "xai" | "openrouter";
+export type AiConnectPresetId =
+  | "codex"
+  | "cursor_cli"
+  | "grok_cli"
+  | "openai"
+  | "anthropic"
+  | "xai"
+  | "openrouter";
 
 export type AiWorkView =
   | "traffic"

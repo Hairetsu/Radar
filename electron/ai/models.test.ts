@@ -10,6 +10,10 @@ vi.mock("./codexCli.js", () => ({
   listCodexCliModels: vi.fn(async () => [{ id: "auto", label: "auto" }])
 }));
 
+vi.mock("./grokCli.js", () => ({
+  listGrokCliModels: vi.fn(async () => [{ id: "grok-4.6", label: "grok-4.6" }])
+}));
+
 describe("models", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -33,6 +37,14 @@ describe("models", () => {
       baseUrl: "cursor://local"
     };
     await expect(fetchAiModels(cursorSettings)).resolves.toEqual([{ id: "cursor-model", label: "cursor-model" }]);
+
+    const grokSettings: AiSettings = {
+      provider: "grok-local",
+      model: "auto",
+      apiKey: "local",
+      baseUrl: "grok://local"
+    };
+    await expect(fetchAiModels(grokSettings)).resolves.toEqual([{ id: "grok-4.6", label: "grok-4.6" }]);
   });
 
   it("fetches anthropic models with provider-specific authentication", async () => {

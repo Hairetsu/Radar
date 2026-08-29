@@ -80,12 +80,13 @@ export function createWorkbenchHydrationPorts(
     },
     browser: { replace: browser.setBrowserState },
     intercept: {
-      replace: (state, rules, matchReplaceRules) => {
+      replace: (state, rules, matchReplaceRules, clientOverrides) => {
         intercept.setInterceptState(state);
         intercept.setInterceptRules(rules);
         intercept.setInterceptRulesText(JSON.stringify(rules, null, 2));
         intercept.setMatchReplaceRules(matchReplaceRules);
         intercept.setMatchReplaceRulesText(JSON.stringify(matchReplaceRules, null, 2));
+        intercept.setClientOverrides(clientOverrides);
       },
       refreshState: intercept.setInterceptState
     },

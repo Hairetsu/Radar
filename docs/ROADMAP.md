@@ -39,7 +39,7 @@ Radar currently includes:
 
 ### Decision
 
-Radar should add an **Autonomous Assessment** profile. After one explicit start confirmation, the profile can plan experiments, generate bounded payloads, send them through Repeater or Automate, compare the results, verify promising signals, and create draft findings. It can continue without another prompt while every action stays inside the assessment contract that the operator approved.
+Radar has an **Autonomous Assessment** profile. After one explicit start action, the profile plans typed read-only experiments, sends them through Repeater, compares the results, and stops at the first supported or verification-required result. It continues without another approval prompt while every action stays inside the armed assessment contract.
 
 "Autonomous" does not mean unrestricted. Radar remains the authority, request builder, dispatcher, recorder, and stop controller. The model chooses hypotheses and experiments. It never receives a general HTTP client, a shell, silent Scope expansion, or authority to improvise business-side effects.
 
@@ -58,7 +58,7 @@ The first autonomy release should close these gaps. Adding more payload strings 
 
 ### What the operator approves
 
-Before Radar sends an autonomous probe, the operator reviews an assessment contract. **Arm & Run** confirms that contract and creates one run-level capability lease. Matching actions do not pause for more approval. An action that needs more authority stays queued and asks for a contract change.
+Before Radar sends an autonomous probe, the operator reviews an assessment contract. **Start Autonomous** confirms that contract. Radar binds one run-level capability lease to the current browser identity before the first eligible experiment. Matching actions do not pause for more approval. An action outside the contract fails closed and remains a coverage gap instead of opening an approval prompt.
 
 The contract contains:
 
@@ -263,7 +263,7 @@ The planner remains provider-independent. Deterministic candidate extraction, re
 
 ### Ship the smallest useful slices
 
-1. **Autonomous Repeater core.** Shipped: contract deck, probe-request ledger, candidate extraction, `runReplayExperiment`, visible Repeater history, checkpoints, and stop controls for CORS, reflection, injection-signal, authorization-omission, and resource-ID families.
+1. **Autonomous Repeater core.** Shipped: no-approval contract binding, stop-on-first-result execution, contract deck, probe-request ledger, candidate extraction, `runReplayExperiment`, visible Repeater history, checkpoints, and stop controls for CORS, reflection, injection-signal, authorization-omission, and resource-ID families.
 2. **Autonomous Automate.** Add the local probe-family registry, `runAutomateExperiment`, live progress, clustering, adaptive follow-up within the same family, and path-traversal probes. Keep one concurrent request and a 25-request cap.
 3. **Verification and follow-up.** Add family-specific gates, a separate verification pass, assessment digests, promptable completed runs, normal Findings drafts, negative coverage, and finding-to-regression workflow creation.
 4. **Higher-risk opt-ins.** Add authentication tampering, SSRF targets, short timing checks, safe DOM canaries, and operator-provided callback correlation. Each family gets its own contract field and regression target.
@@ -341,7 +341,7 @@ Radar is pre-1.0 and its installers are not yet fully signed. Public trust work 
 
 The next AI and evidence milestone is independent verification and finding-to-regression.
 
-- Let an operator ask for a separate verification pass over one draft finding.
+- Expand finding follow-up into a read-only verification pass that records supporting, contradicting, and missing evidence without rewriting the original observation.
 - Keep the verifier read-only until a narrowly scoped repro needs explicit authority.
 - Record supporting, contradicting, and missing evidence without rewriting the original observation.
 - Make negative results visible and useful.
@@ -367,6 +367,7 @@ Success means a finding can move from observation to independent check to repeat
 - Add a setup wizard for external browsers, CLIs, mobile devices, emulators, and desktop clients.
 - Add intercept queue search, grouping, and hold-next controls.
 - Add match/replace rule testing, import/export, hit counts, and affected-capture links.
+- Deepen client file overrides with per-file diffs, MIME-specific editors, and hit counts.
 - Add WebSocket match/replace only after the evidence and cancellation model is clear.
 
 ### Repeater

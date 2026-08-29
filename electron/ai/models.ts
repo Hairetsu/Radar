@@ -3,6 +3,7 @@ import { pickValidModel } from "../../shared/ai-models.js";
 import { AI_PROVIDER_PROFILES, isAiProviderId, providerBaseUrl } from "../../shared/ai-providers.js";
 import { listCodexCliModels } from "./codexCli.js";
 import { listCursorCliModels } from "./cursorCli.js";
+import { listGrokCliModels } from "./grokCli.js";
 
 export type AiModelStore = {
   saveAiModels: (provider: string, models: AiModelOption[]) => AiModelOption[];
@@ -69,6 +70,8 @@ export async function fetchAiModels(settings: AiSettings): Promise<AiModelOption
       return listCursorCliModels();
     case "codex-local":
       return listCodexCliModels();
+    case "grok-local":
+      return listGrokCliModels(settings.apiKey);
     case "anthropic":
     case "xai":
     case "openrouter":

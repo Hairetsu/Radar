@@ -249,3 +249,4 @@ export async function connectPreset({
 export { loadSettings, saveSettings, snapshotAudit, probeSettings, loadSkills, upsertSkill, deleteSkill };
 export { fetchAiModels, getAiModels, refreshAiModels, reconcileSettingsModel } from "./models.js";
 export { loginCursorCli, readCursorAuthInfo } from "./cursorCli.js";
+export { loginGrokCli, readGrokAuthInfo } from "./grokCli.js";

@@ -19,6 +19,7 @@ const TOOL_RISK: Partial<Record<AgentToolName, AgentRiskTier>> = {
   activateIdentityProfile: "reversible",
   verifyIdentityProfile: "navigate",
   fillInput: "reversible",
+  applyClientValidationBypass: "active",
   clickElement: "active",
   submitForm: "active",
   sendReplay: "active",

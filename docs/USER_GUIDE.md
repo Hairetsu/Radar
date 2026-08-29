@@ -85,6 +85,7 @@ The main repository commands are:
 | `pnpm benchmark:operator -- --list` | Print benchmark prompts and expected outcomes. |
 | `pnpm benchmark:operator -- --dry-run --models MODEL` | Preview the selected model, case, and profile matrix without provider calls. |
 | `pnpm benchmark:operator:terra` | Run the nine-case core suite with `gpt-5.6-terra` through the signed-in Codex CLI. |
+| `pnpm benchmark:autonomous` | Run the no-approval Autonomous Assessment acceptance case against Harborline. |
 | `pnpm build` | Build the renderer and Electron processes. |
 | `pnpm test` | Run ESLint, both unit coverage gates, and the production build. |
 | `pnpm test:regression:build` | Build and run the Electron workflow suite. |
@@ -369,6 +370,8 @@ The rules editor accepts JSON records that can match stage, method, host, path, 
 
 The match/replace editor accepts request or response rules for a named header or body. Radar records which rules changed a capture.
 
+**Client files** replaces a captured HTML, JavaScript, or CSS response with an edited copy. Use this when the browser UI blocks a test string that Repeater already sent successfully, such as a SQL payload rejected by client-side validation. Open HTTP(S), select the client file, and click **Override client file**, or right-click the capture. Radar saves the override against that host and path, strips cache headers, and delivers the edited body on the next load. Click **Relax validation** to pass `return invalid(...)` validators and remove `maxLength`, `required`, and `pattern` constraints, then **Save file** and reload the Radar Browser.
+
 Select a queued item and edit its method, URL, status, headers, or body. Then choose:
 
 - **Forward** to release the selected item, including your edits.
@@ -376,7 +379,7 @@ Select a queued item and edit its method, URL, status, headers, or body. Then ch
 - **Reset** to restore the original values in the editor.
 - **Resume All** to release the current queue without more edits.
 
-AI-First can inspect the queue and prepare an edit in these visible controls. It cannot forward, drop, or resume queued traffic.
+AI-First can inspect the queue and prepare an edit in these visible controls. It cannot forward, drop, or resume queued traffic. Profiles that already allow form interaction can list client file overrides and apply a validation bypass from a captured client file. That action still needs a capability grant, stays visible in Intercept, and does not send the payload by itself. Reload the Radar Browser after the override is saved, then fill the form.
 
 ## Replay requests
 
@@ -528,13 +531,16 @@ Open **AI Operator**, then open **Connection** in the Mission Inspector.
 | --- | --- |
 | Codex app | Uses the installed Codex or ChatGPT desktop login. |
 | Cursor agent | Uses the installed `agent` CLI login or optional Cursor key. |
+| Grok CLI | Uses the installed Grok Build CLI (`grok login`) or `XAI_API_KEY`. |
 | OpenAI | Uses `OPENAI_API_KEY` or a pasted key. |
 | Anthropic | Uses `ANTHROPIC_API_KEY` or a pasted key. |
-| xAI | Uses `XAI_API_KEY` or a pasted key. |
+| xAI | Uses the xAI HTTP API with `XAI_API_KEY` or a pasted key. |
 | OpenRouter | Uses `OPENROUTER_API_KEY` or a pasted key. |
 | OpenAI-compatible | Uses a custom base URL and an optional bearer key. |
 
 Radar tests the connection and refreshes the model list where the provider supports it. Fixed cloud providers use their official API base URL. Only the OpenAI-compatible provider accepts a custom URL.
+
+Grok CLI uses the installed `grok` binary (`~/.grok/bin/grok`, PATH, or `GROK_CLI_PATH`). **Sign in with Grok** runs `grok login` and reuses `~/.grok/auth.json`. `XAI_API_KEY` is a fallback when no grok.com session is active. Radar runs Grok headless without tools so it returns JSON instead of spending its turn budget on file or shell actions. The xAI HTTP API provider is separate and does not require the CLI.
 
 After **Save & Test**, Radar keeps a separate saved configuration for each provider. Switching providers restores the selected provider's key, model, and base URL without reusing another provider's credential.
 
@@ -560,7 +566,7 @@ To start:
 2. Choose a run profile.
 3. Review its visible step, replay, workflow, capture, timeout, and raw-context budgets.
 4. Enter a goal with the target origin.
-5. Click **Start Run**, **Arm & Run** for Autonomous Assessment, or **Start Tutorial**.
+5. Click **Start Run**, **Start Autonomous** for Autonomous Assessment, or **Start Tutorial**.
 
 If the goal contains an origin outside saved Scope, Radar places it in the unsaved Scope editor and stops. Review the whole list, click **Commit**, and then start the run again. Radar never saves a goal origin by itself.
 
@@ -570,7 +576,7 @@ Run profiles:
 | --- | --- |
 | **Browser Assessment** | Explore task-relevant in-scope pages and use tightly bounded verification. |
 | **Goal-Driven Assessment** | Pursue the goal with the largest bounded budget: 10 minutes, 40 steps, 10 replays, 10 active workflow requests, and 100 captures. |
-| **Autonomous Assessment** | Open the managed browser to collect in-scope captures, then arm a read-only experiment contract: 40 probe requests, one concurrent send, CORS/reflection/injection/authorization/resource-ID families, visible Repeater history. Forms, identity changes, and workflows stay off. |
+| **Autonomous Assessment** | Open the managed browser to collect in-scope captures, then run a read-only experiment contract with 40 probe requests, one concurrent send, CORS/reflection/injection/authorization/resource-ID families, and visible Repeater history. **Start Autonomous** binds the whole contract to the current browser identity. Matching probes do not pause for approval. Forms, arbitrary replay, identity changes, and workflows stay off. |
 | **Passive Map** | Read captures, sitemap coverage, findings, and local context without sends. |
 | **Auth Review** | Inspect permitted browser and identity context. Raw cookie or storage tools require raw-context opt-in. |
 | **API Hardening** | Review API evidence and prepare Repeater, Automate, or workflow drafts. |
@@ -579,6 +585,18 @@ Run profiles:
 | **Report From Evidence** | Turn local evidence into quality-gated draft findings and run memory. |
 
 No profile is unlimited. Goal-Driven Assessment has the widest non-destructive tool set, but raw context stays off, saved Scope applies, and active actions still need capability approval. If the run exhausts its runtime or step budget before it meets the goal, click **Continue New** to start a new bounded segment with the same goal and profile.
+
+When a run finishes with a draft finding, click **Follow up** on that finding. Radar loads a new prompt anchored to the finding, its evidence, and its uncertainties. Edit the prompt, then start a new bounded run. The follow-up gets a fresh budget and does not inherit capability leases. It can answer from the source finding first, then collect new evidence if the prompt asks for a retest.
+
+Autonomous Assessment uses a different stop rule. Negative and inconclusive experiments continue to the next ranked capture. A supported or verification-required result ends the run immediately. Radar records later candidates as untested. An action outside the contract is skipped or blocked. It does not open an approval prompt.
+
+To exercise this path on all normal Harborline examples without clicking through the portal, run:
+
+```bash
+pnpm benchmark:autonomous
+```
+
+The preset starts `127.0.0.1:3000` when needed, seeds the normal Harborline requests through Radar's proxy, and runs the Autonomous Assessment acceptance case with the signed-in Codex CLI.
 
 During the run, the AI Operator shows:
 
@@ -729,7 +747,7 @@ For Codex, install ChatGPT or Codex desktop, or set `CODEX_CLI_PATH` before laun
 
 ### An AI-First run does not move
 
-Check the selected Task History item, saved Scope, provider connection, remaining budget, and newest Operation Stream card. A permission draft, operator question, policy block, provider error, or failed tool can pause the task. Fix the stated cause before resuming.
+Check the selected Task History item, saved Scope, provider connection, remaining budget, and newest Operation Stream card. A permission draft, operator question, policy block, provider error, or failed tool can pause the task. Grant the matching capability lease before resuming a replay or form action; Resume does not grant that authority. If a replay was blocked and no draft lease exists, Resume clears the pending retry and re-plans. Mission Graph citations that have aged out of the capture list are dropped instead of blocking steering.
 
 ### An AI command is blocked
 

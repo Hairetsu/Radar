@@ -19,7 +19,10 @@ export {
   type AgentMissionSteeringResult
 } from "./agentMission/steering.js";
 export {
+  captureIdsFromEvidenceRefs,
+  missionEvidenceRefs,
   missionHasOpenQuestion,
+  reconcileAgentMissionEvidence,
   validateAgentMissionEvidence,
   validateAgentMissionReferences
 } from "./agentMission/validation.js";

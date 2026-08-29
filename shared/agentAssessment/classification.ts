@@ -12,6 +12,35 @@ function bodyContains(body: string, needle: string) {
   return Boolean(needle) && body.includes(needle);
 }
 
+function jsonValueShape(value: unknown, depth = 0): unknown {
+  if (depth >= 6) return "nested";
+  if (value === null) return "null";
+  if (Array.isArray(value)) {
+    const itemShapes = [...new Set(value.slice(0, 8).map((item) => JSON.stringify(jsonValueShape(item, depth + 1))))];
+    return { array: itemShapes.map((item) => JSON.parse(item) as unknown) };
+  }
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, jsonValueShape(item, depth + 1)])
+    );
+  }
+  return typeof value;
+}
+
+function responseBodyShape(body: string) {
+  try {
+    return `json:${JSON.stringify(jsonValueShape(JSON.parse(body) as unknown))}`;
+  } catch {
+    return `text:${body
+      .replace(/[\p{L}\p{N}]+/gu, "value")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 400)}`;
+  }
+}
+
 export function classifyReplayExperiment(input: {
   family: ProbeFamilyId;
   baselineStatus: number;
@@ -72,8 +101,12 @@ export function classifyReplayExperiment(input: {
       if (!syntax || !booleanVariant) {
         return { classification: "inconclusive", rationale: "Injection families require a syntax-error and Boolean pair." };
       }
-      const syntaxChanged = syntax.status !== input.baselineStatus || syntax.body !== input.baselineBody;
-      const booleanChanged = booleanVariant.status !== syntax.status || booleanVariant.body !== syntax.body;
+      const syntaxChanged =
+        syntax.status !== input.baselineStatus ||
+        responseBodyShape(syntax.body) !== responseBodyShape(input.baselineBody);
+      const booleanChanged =
+        booleanVariant.status !== syntax.status ||
+        responseBodyShape(booleanVariant.body) !== responseBodyShape(syntax.body);
       if (syntaxChanged && booleanChanged) {
         return {
           classification: "verification-required",

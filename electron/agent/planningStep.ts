@@ -9,6 +9,7 @@ import {
 import {
   fallbackAgentTutorialGuidance
 } from "../../shared/agentTutorial.js";
+import { findingFollowUpDigest } from "../../shared/agentFollowUp.js";
 import {
   capturedTrafficContext,
   runCaptures,
@@ -52,6 +53,12 @@ export function buildDecisionContext({
     activeAllowlist,
     ""
   );
+  const source = run.source;
+  const sourceRun = source?.kind === "finding-follow-up" ? deps.loadRun(source.sourceRunId) : null;
+  const findingFollowUp =
+    source?.kind === "finding-follow-up" && sourceRun
+      ? findingFollowUpDigest(sourceRun, source.sourceFindingId) || undefined
+      : undefined;
   return {
     goal: run.goal,
     startUrl: counters.startUrl,
@@ -80,7 +87,8 @@ export function buildDecisionContext({
     mission: missionFromRun(run),
     capabilities: capabilityStateFromRun(run),
     tutorialMode: Boolean(run.policy.tutorialMode),
-    timeline: run.timeline.slice(-16)
+    timeline: run.timeline.slice(-16),
+    ...(findingFollowUp ? { findingFollowUp } : {})
   };
 }
 

@@ -71,7 +71,7 @@ describe("assessment runner", () => {
       allowlist: ["http://127.0.0.1:3000"],
       reason: "Arm & Run"
     });
-    expect(lease.tools).toEqual(["runReplayExperiment", "sendReplay"]);
+    expect(lease.tools).toEqual(["runReplayExperiment"]);
     expect(lease.maxConcurrency).toBe(1);
     expect(lease.grants.some((grant) => grant.probeFamily === "injection-signal")).toBe(true);
     expect(lease.grants[0]?.sourceCaptureIds).toEqual(["cap-search"]);

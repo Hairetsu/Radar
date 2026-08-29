@@ -12,6 +12,8 @@ Each matrix entry receives a fresh Radar user-data directory and a fresh session
 
 Active capability leases remain visible and paused by default. Add `--approve-active` to explicitly authorize the runner to click the visible approval control for bounded, non-destructive leases. The runner still refuses a lease when it contains another origin, a `DELETE` method, or the destructive risk tier.
 
+Autonomous Assessment is the exception. **Start Autonomous** binds its complete read-only experiment contract at first use. The autonomous case never needs `--approve-active`.
+
 ## Prompt catalog and expected outcomes
 
 Run this command to print the complete, versioned prompt and expected outcome for every case:
@@ -61,6 +63,16 @@ Run all nine core cases with `gpt-5.6-terra` and the signed-in Codex CLI:
 ```bash
 pnpm benchmark:operator:terra
 ```
+
+### Run the autonomous acceptance case
+
+Run the hands-off Harborline case with `gpt-5.6-terra` through the signed-in Codex CLI:
+
+```bash
+pnpm benchmark:autonomous
+```
+
+The runner seeds all normal Harborline requests through Radar's proxy, then starts Autonomous Assessment. Radar continues across negative and inconclusive experiments and stops at the first supported or verification-required result. No approval control is clicked.
 
 The preset passes `--provider codex-local`, `--models gpt-5.6-terra`, and `--suite core` to the benchmark runner. It uses the existing Codex app login and stores no additional API key.
 

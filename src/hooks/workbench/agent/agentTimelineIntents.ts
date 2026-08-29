@@ -16,6 +16,7 @@ export type AgentTimelineIntent =
   | { type: "select-capture"; captureId: string }
   | { type: "set-intercept-queue"; queue: ToolResultData<"getInterceptQueue">["queue"] }
   | { type: "prepare-intercept-edit"; data: ToolResultData<"prepareInterceptEdit"> }
+  | { type: "prepare-client-override"; data: ToolResultData<"applyClientValidationBypass"> }
   | { type: "prepare-traffic-query"; data: ToolResultData<"prepareTrafficQuery"> }
   | { type: "show-sitemap" }
   | { type: "prepare-replay-tab"; data: ToolResultData<"prepareReplayTab"> }
@@ -68,6 +69,12 @@ export function agentTimelineIntents(entries: AgentTimelineEntry[]) {
         break;
       case "prepareInterceptEdit":
         intents.push({ type: "prepare-intercept-edit", data: result.data });
+        break;
+      case "getClientOverrides":
+        intents.push({ type: "show-view", view: "intercept" });
+        break;
+      case "applyClientValidationBypass":
+        intents.push({ type: "prepare-client-override", data: result.data });
         break;
       case "prepareTrafficQuery":
         intents.push({ type: "prepare-traffic-query", data: result.data });

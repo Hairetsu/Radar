@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultReplayTabState } from "../../shared/replayTabs.js";
-import { createAgentMission } from "../../shared/agentMission.js";
+import { applyAgentMissionUpdates, createAgentMission } from "../../shared/agentMission.js";
 import type {
   AgentCapabilityLeaseRequest,
   AgentDecision,
@@ -14,10 +14,13 @@ import type {
   AutomateSession,
   BrowserState,
   CapturedRequest,
+  ClientOverride,
   Finding,
   InstalledPlugin,
   InterceptQueueItem,
   ProjectNote,
+  ReplayDraft,
+  ReplayResult,
   SavedView,
   WorkflowDefinition,
   WorkflowRun
@@ -54,7 +57,9 @@ function makeRuntime(
   options: {
     allowlist?: string[];
     captures?: CapturedRequest[];
+    catalogCaptures?: CapturedRequest[];
     interceptQueue?: InterceptQueueItem[];
+    clientOverrides?: ClientOverride[];
     replayTabState?: ReturnType<typeof defaultReplayTabState>;
     automatePayloadSets?: AutomatePayloadSet[];
     automateSessions?: AutomateSession[];
@@ -71,6 +76,7 @@ function makeRuntime(
     openBrowser?: (url: string) => Promise<BrowserState>;
     navigateBrowser?: (url: string) => Promise<BrowserState>;
     getStorageState?: () => Promise<AgentStorageState>;
+    sendReplay?: (draft: ReplayDraft | { draft: ReplayDraft; environmentId?: string }) => Promise<ReplayResult>;
     decideNextAction?: (context: AgentDecisionContext) => Promise<AgentDecision>;
     leaseRequest?: AgentCapabilityLeaseRequest;
   } = {}
@@ -96,7 +102,10 @@ function makeRuntime(
         engine: "chrome" as const
       }))
   );
-  const sendReplay = vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", bytes: 0, durationMs: 1 }));
+  const sendReplay = vi.fn(
+    options.sendReplay ||
+      (async () => ({ ok: true, status: 200, statusText: "OK", headers: {}, body: "", bytes: 0, durationMs: 1 }))
+  );
   const waitForNetworkIdle = vi.fn(async () => ({ idle: true, waitedMs: 10 }));
   const getPageText = vi.fn(async () => ({ url: "https://hairetsu.com", title: "Hairetsu", text: "Welcome" }));
   const getDomSummary = vi.fn(async () => ({
@@ -215,11 +224,20 @@ function makeRuntime(
     openBrowser,
     navigateBrowser,
     getCaptures: () => (options.captures || []).map((item) => ({ ...item, agentRunId: item.agentRunId || activeRunId })),
+    getCaptureById: (id) => {
+      const found = [...(options.captures || []), ...(options.catalogCaptures || [])].find((item) => item.id === id);
+      return found ? { ...found, agentRunId: found.agentRunId || activeRunId } : null;
+    },
     getWebSocketEvents: () => [],
     getInterceptState: () => ({
       config: { requestEnabled: true, responseEnabled: true },
       queue: options.interceptQueue || []
     }),
+    getClientOverrides: () => options.clientOverrides || [],
+    setClientOverrides: (overrides) => {
+      options.clientOverrides = overrides;
+      return overrides;
+    },
     getReplayTabState: () => options.replayTabState || defaultReplayTabState(),
     setReplayTabState: (state) => state,
     listReplayEnvironments: () => [],
@@ -447,6 +465,129 @@ describe("AgentRuntime", () => {
     );
     expect(runs.get(run.id)?.timeline.some((entry) => entry.summary === "Lesson checkpoint — waiting for operator")).toBe(false);
     expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Auth state changed unexpectedly"))).toBe(false);
+  });
+
+  it("runs an armed assessment experiment without a capability approval pause", async () => {
+    const searchCapture = capture(
+      "capture-search",
+      "http://127.0.0.1:3000/api/cargo/search?q=Orion",
+      {
+        mimeType: "application/json",
+        type: "xhr",
+        responseBody: '{"items":[]}'
+      }
+    );
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: {
+          tool: "runReplayExperiment",
+          input: {
+            captureId: searchCapture.id,
+            family: "injection-signal",
+            hypothesis: "Cargo search may treat input as query syntax.",
+            location: { kind: "replace-query", name: "q", value: "" }
+          }
+        },
+        rationale: "Run the next experiment inside the contract armed by Start Autonomous."
+      },
+      { action: "finish", rationale: "The bounded experiment completed.", findings: [] }
+    ];
+    const { runtime, runs } = makeRuntime(undefined, {
+      allowlist: ["http://127.0.0.1:3000"],
+      captures: [searchCapture],
+      getStorageState: async () => ({
+        url: "http://127.0.0.1:3000",
+        origin: "http://127.0.0.1:3000",
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {}
+      }),
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    });
+
+    const run = runtime.start({
+      goal: "Assess http://127.0.0.1:3000 until Radar finds a supported result.",
+      startUrl: "http://127.0.0.1:3000",
+      profileId: "autonomous-assessment"
+    });
+
+    await vi.waitFor(() => {
+      expect(["paused", "completed"]).toContain(runs.get(run.id)?.status);
+    });
+    expect(
+      runs.get(run.id)?.status,
+      runs.get(run.id)?.timeline.map((entry) => entry.note || entry.summary).join("\n")
+    ).toBe("completed");
+    expect(runs.get(run.id)?.capabilities?.leases.some((lease) => lease.status === "draft")).toBe(false);
+    expect(runs.get(run.id)?.timeline.some((entry) => entry.note?.includes("Capability lease review required"))).toBe(false);
+    expect(runs.get(run.id)?.assessment?.authorityLeaseId).toBeTruthy();
+    expect(runs.get(run.id)?.assessment?.queue).toEqual([
+      expect.objectContaining({
+        captureId: searchCapture.id,
+        family: "injection-signal",
+        status: "completed"
+      })
+    ]);
+  });
+
+  it("stops autonomous assessment at the first supported experiment result", async () => {
+    const searchCapture = capture(
+      "capture-search-stop",
+      "http://127.0.0.1:3000/api/cargo/search?q=Orion",
+      { mimeType: "application/json", type: "xhr", responseBody: '{"items":[]}' }
+    );
+    const { runtime, runs, decideNextAction } = makeRuntime(undefined, {
+      allowlist: ["http://127.0.0.1:3000"],
+      captures: [searchCapture],
+      getStorageState: async () => ({
+        url: "http://127.0.0.1:3000",
+        origin: "http://127.0.0.1:3000",
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {}
+      }),
+      sendReplay: async (value) => {
+        const draft = "draft" in value ? value.draft : value;
+        const query = new URL(draft.url).searchParams.get("q") || "";
+        if (query === "'") {
+          return { ok: true, status: 500, statusText: "Error", headers: {}, body: "SQL syntax error", bytes: 16, durationMs: 2 };
+        }
+        if (query.includes("OR")) {
+          return { ok: true, status: 200, statusText: "OK", headers: {}, body: '{"items":[1,2,3]}', bytes: 19, durationMs: 2 };
+        }
+        return { ok: true, status: 200, statusText: "OK", headers: {}, body: '{"items":[]}', bytes: 12, durationMs: 1 };
+      },
+      decideNextAction: async () => ({
+        action: "tool",
+        call: {
+          tool: "runReplayExperiment",
+          input: {
+            captureId: searchCapture.id,
+            family: "injection-signal",
+            hypothesis: "Cargo search may treat input as query syntax.",
+            location: { kind: "replace-query", name: "q", value: "" }
+          }
+        }
+      })
+    });
+
+    const run = runtime.start({
+      goal: "Assess http://127.0.0.1:3000 until Radar finds a supported result.",
+      startUrl: "http://127.0.0.1:3000",
+      profileId: "autonomous-assessment"
+    });
+
+    await vi.waitFor(() => expect(runs.get(run.id)?.status).toBe("completed"));
+    expect(decideNextAction).toHaveBeenCalledTimes(1);
+    expect(runs.get(run.id)?.assessment?.queue).toEqual([
+      expect.objectContaining({ classification: "verification-required", status: "completed" })
+    ]);
+    expect(runs.get(run.id)?.timeline.at(-1)?.completionReport).toMatchObject({
+      outcome: "observations-only",
+      observations: [expect.objectContaining({ title: "Injection signals", status: "lead" })]
+    });
+    expect(runs.get(run.id)?.capabilities?.leases.some((lease) => lease.status === "granted")).toBe(false);
   });
 
   it("keeps successful in-scope navigation redirects out of recovery", async () => {
@@ -1172,13 +1313,20 @@ describe("AgentRuntime", () => {
     expect(completed?.error).toBeUndefined();
     expect(completed?.timeline.filter(
       (entry) => entry.summary === "Mission update ignored; action continues"
-    )).toHaveLength(3);
+    )).toHaveLength(2);
     expect(completed?.timeline.filter(
       (entry) => entry.phase === "tool-result" && entry.toolResult?.tool === "getBrowserState"
     )).toHaveLength(2);
     expect(completed?.timeline.some((entry) => entry.phase === "failure")).toBe(false);
+    expect(completed?.timeline.some((entry) => entry.note?.includes("Dropped 1 stale evidence citation"))).toBe(true);
     expect(completed?.mission?.experiments.some((experiment) => experiment.id === "exp-stale")).toBe(false);
-    expect(completed?.mission?.claims.some((claim) => claim.id === "clm-unsupported")).toBe(false);
+    expect(completed?.mission?.claims).toEqual([
+      expect.objectContaining({
+        id: "clm-unsupported",
+        status: "lead",
+        evidenceRefs: []
+      })
+    ]);
   });
 
   it("accepts settled revision-checked steering and rejects live or stale mutations", () => {
@@ -1234,6 +1382,161 @@ describe("AgentRuntime", () => {
         title: "Live mutation"
       })
     ).toThrow("Pause the run");
+  });
+
+  it("steers a paused run after dropping stale mission evidence citations", () => {
+    const mission = createAgentMission("Inspect target", "https://allowed.test", "2026-05-25T00:00:00.000Z");
+    const seeded = applyAgentMissionUpdates(mission, [
+      {
+        kind: "claim",
+        id: "claim-login-form-present",
+        statement: "A login form is present.",
+        status: "supported",
+        confidence: "medium",
+        evidenceRefs: [
+          "capture:chrome_706fe513-ac9e-4b7f-8a29-60e9c8601031_112BD5443D3BE86796A4257476B48BFE",
+          "capture:home"
+        ]
+      }
+    ]);
+    const pausedRun: AgentRun = {
+      id: "agent-stale-evidence",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: "Inspect target",
+      profileId: "passive-map",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission: seeded,
+      timeline: [],
+      findings: []
+    };
+    const { runtime } = makeRuntime(pausedRun, {
+      captures: [capture("home", "https://allowed.test/")]
+    });
+
+    const steered = runtime.steerMission(pausedRun.id, {
+      action: "add-hypothesis",
+      expectedRevision: seeded.revision,
+      statement: "Session cookies may be missing flags.",
+      objectiveId: "obj-primary"
+    });
+
+    expect(steered?.mission?.claims).toEqual([
+      expect.objectContaining({
+        id: "claim-login-form-present",
+        status: "supported",
+        evidenceRefs: ["capture:home"]
+      })
+    ]);
+    expect(steered?.mission?.hypotheses.some((item) => item.statement === "Session cookies may be missing flags.")).toBe(true);
+    expect(steered?.timeline.at(-1)?.note).toContain("Dropped 1 stale evidence citation");
+  });
+
+  it("keeps aged-out capture citations when they still exist in the session store", () => {
+    const agedId = "chrome_706fe513-ac9e-4b7f-8a29-60e9c8601031_59505.77";
+    const mission = createAgentMission("Inspect target", "https://allowed.test", "2026-05-25T00:00:00.000Z");
+    const seeded = applyAgentMissionUpdates(mission, [
+      {
+        kind: "experiment",
+        id: "exp-login-submit",
+        title: "Submit the login form",
+        status: "completed",
+        evidenceRefs: [`capture:${agedId}`]
+      }
+    ]);
+    const pausedRun: AgentRun = {
+      id: "agent-aged-capture",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: "Inspect target",
+      profileId: "passive-map",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      mission: seeded,
+      timeline: [],
+      findings: []
+    };
+    const { runtime } = makeRuntime(pausedRun, {
+      captures: [],
+      catalogCaptures: [capture(agedId, "https://allowed.test/login")]
+    });
+
+    const steered = runtime.steerMission(pausedRun.id, {
+      action: "add-hypothesis",
+      expectedRevision: seeded.revision,
+      statement: "Login still needs an identity check.",
+      objectiveId: "obj-primary"
+    });
+
+    expect(steered?.mission?.experiments).toEqual([
+      expect.objectContaining({
+        id: "exp-login-submit",
+        evidenceRefs: [`capture:${agedId}`]
+      })
+    ]);
+    expect(steered?.timeline.at(-1)?.note).not.toContain("Dropped");
+  });
+
+  it("resumes a blocked replay by re-planning when no matching capability lease exists", () => {
+    const pausedRun: AgentRun = {
+      id: "agent-replay-stuck",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      goal: "Replay https://allowed.test/account",
+      profileId: "advanced-api-review",
+      status: "paused",
+      policy: {
+        maxRuntimeMs: 120000,
+        maxSteps: 8,
+        maxReplay: 1,
+        maxWorkflowRequests: 1,
+        maxCaptureSample: 20,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "https://allowed.test/account",
+        targetOrigin: "https://allowed.test",
+        stepCount: 2,
+        replayCount: 0,
+        workflowRequestCount: 0,
+        elapsedMs: 1000,
+        lastResumedAt: "2026-05-25T00:00:01.000Z",
+        pendingCapabilityCall: {
+          tool: "sendReplay",
+          input: { draft: { method: "GET", url: "https://allowed.test/account", headers: {}, body: "" } }
+        }
+      },
+      capabilities: { revision: 1, leases: [], receipts: [] },
+      timeline: [],
+      findings: []
+    };
+    const { runtime, sendReplay } = makeRuntime(pausedRun, {
+      decideNextAction: async () => ({ action: "finish", rationale: "Replanned without unauthorized replay.", findings: [] })
+    });
+
+    const resumed = runtime.resume(pausedRun.id);
+    expect(resumed?.status).toBe("queued");
+    expect(resumed?.checkpoint?.pendingCapabilityCall).toBeUndefined();
+    expect(resumed?.timeline.at(-1)?.note).toContain("Pending sendReplay was not retried");
+    expect(sendReplay).not.toHaveBeenCalled();
   });
 
   it("marks active runs stopped", () => {
@@ -1746,6 +2049,48 @@ describe("AgentRuntime", () => {
     expect(sendReplay).not.toHaveBeenCalled();
   });
 
+  it("applies a client validation bypass from a captured script", async () => {
+    const script = capture("cap-form", "https://hairetsu.com/src/formValidation.ts", {
+      mimeType: "text/javascript",
+      type: "Script",
+      responseBody: "return invalid(\"blocked\");"
+    });
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: { tool: "applyClientValidationBypass", input: { captureId: "cap-form" } }
+      },
+      { action: "finish", rationale: "Client validation is relaxed.", findings: [] }
+    ];
+    const options = {
+      allowlist: ["https://hairetsu.com"],
+      captures: [script],
+      clientOverrides: [] as ClientOverride[],
+      leaseRequest: browserLease(
+        ["applyClientValidationBypass"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/src/formValidation.ts", identity: "current" }]
+      ),
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    };
+    const { runtime, runs } = makeRuntime(undefined, options);
+
+    const run = runtime.start({
+      goal: "Bypass client validation on hairetsu.com",
+      startUrl: "https://hairetsu.com",
+      profileId: "browser-assessment"
+    });
+    await grantNextDraftAndResume(runtime, run.id);
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const applied = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "applyClientValidationBypass")?.toolResult;
+    expect(applied?.ok && applied.data.override.body).toBe("return valid();");
+    expect(applied?.ok && applied.data.changes).toContain("Passed client validator returns");
+    expect(options.clientOverrides[0]?.relaxApplied).toBe(true);
+  });
+
   it("fails instead of falling back when the agent cannot choose an action", async () => {
     const { runtime, runs, openBrowser } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
@@ -1951,6 +2296,91 @@ describe("AgentRuntime", () => {
     expect(continuation.goal).toBe(exhaustedRun.goal);
     expect(continuation.policy.maxRuntimeMs).toBe(600000);
     expect(continuation.timeline[0]?.note).toContain(`Continuation queued from ${exhaustedRun.id}`);
+  });
+
+  it("starts a finding follow-up with a new prompt and the source finding digest", async () => {
+    const sourceRun: AgentRun = {
+      id: "run-source",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:02:00.000Z",
+      goal: "Inspect Harborline cargo search",
+      profileId: "browser-assessment",
+      status: "completed",
+      policy: {
+        maxRuntimeMs: 600000,
+        maxSteps: 40,
+        maxReplay: 3,
+        maxWorkflowRequests: 3,
+        maxCaptureSample: 100,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "http://127.0.0.1:3000/",
+        targetOrigin: "http://127.0.0.1:3000",
+        stepCount: 8,
+        replayCount: 1,
+        workflowRequestCount: 0,
+        elapsedMs: 12_000,
+        lastResumedAt: "2026-05-25T00:02:00.000Z"
+      },
+      timeline: [],
+      findings: [
+        {
+          id: "finding-sqli",
+          createdAt: "2026-05-25T00:01:00.000Z",
+          title: "Cargo search accepts a Boolean bypass",
+          confidence: "medium",
+          evidenceRefs: ["capture:search-1"],
+          notes: "Repeater variants changed the result set.",
+          affectedAssets: ["http://127.0.0.1:3000/api/cargo/search"],
+          reproductionNotes: "Replay q with a Boolean pair.",
+          severityRationale: "Unauthorized cargo rows were returned.",
+          remediation: "Parameterize the cargo lookup.",
+          uncertainties: ["Browser form validation still blocks the payload."]
+        }
+      ]
+    };
+    const { runtime, decideNextAction } = makeRuntime(sourceRun, {
+      allowlist: ["http://127.0.0.1:3000"],
+      decideNextAction: async (context) => {
+        expect(context.goal).toContain("Verify the cargo search finding");
+        expect(context.findingFollowUp?.finding.id).toBe("finding-sqli");
+        expect(context.findingFollowUp?.sourceRunId).toBe("run-source");
+        return { action: "finish", rationale: "Follow-up complete.", findings: [] };
+      }
+    });
+
+    const followUp = runtime.start({
+      goal: "Verify the cargo search finding at http://127.0.0.1:3000/api/cargo/search",
+      profileId: "goal-driven-assessment",
+      source: { kind: "finding-follow-up", sourceRunId: "run-source", sourceFindingId: "finding-sqli" }
+    });
+    expect(followUp.id).not.toBe(sourceRun.id);
+    expect(followUp.profileId).toBe("goal-driven-assessment");
+    expect(followUp.source).toEqual({
+      kind: "finding-follow-up",
+      sourceRunId: "run-source",
+      sourceFindingId: "finding-sqli"
+    });
+    expect(followUp.timeline[0]?.note).toContain("Cargo search accepts a Boolean bypass");
+    expect(() =>
+      runtime.start({
+        goal: "Verify missing",
+        continuationOf: sourceRun.id,
+        source: { kind: "finding-follow-up", sourceRunId: "run-source", sourceFindingId: "finding-sqli" }
+      })
+    ).toThrow("cannot also be a finding follow-up");
+    expect(() =>
+      runtime.start({
+        goal: "Verify missing",
+        source: { kind: "finding-follow-up", sourceRunId: "run-source", sourceFindingId: "missing" }
+      })
+    ).toThrow("source finding");
+
+    await vi.waitFor(() => {
+      expect(decideNextAction).toHaveBeenCalled();
+    });
   });
 
   it("rejects planner findings without evidence references", async () => {

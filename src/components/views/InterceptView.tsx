@@ -1,4 +1,4 @@
-import { Eraser, FileLock2, Replace, Send, Trash2 } from "lucide-react";
+import { Eraser, FileCode2, FileLock2, Replace, Send, ShieldOff, Trash2 } from "lucide-react";
 import type { InterceptDomain } from "../../hooks/workbench/useInterceptDomain";
 import { cn } from "../../lib";
 import { EmptyState, FieldLabel, StatusBadge } from "../radar/primitives";
@@ -13,8 +13,13 @@ export type InterceptViewProps = Pick<
   | "interceptState"
   | "interceptRules"
   | "matchReplaceRules"
+  | "clientOverrides"
+  | "interceptPane"
+  | "setInterceptPane"
   | "selectedInterceptItem"
   | "selectInterceptItem"
+  | "selectedClientOverride"
+  | "selectClientOverride"
   | "interceptRulesText"
   | "setInterceptRulesText"
   | "saveInterceptRules"
@@ -29,6 +34,20 @@ export type InterceptViewProps = Pick<
   | "setInterceptDraft"
   | "interceptHeadersText"
   | "setInterceptHeadersText"
+  | "clientOverrideName"
+  | "setClientOverrideName"
+  | "clientOverrideHost"
+  | "setClientOverrideHost"
+  | "clientOverridePath"
+  | "setClientOverridePath"
+  | "clientOverrideEnabled"
+  | "setClientOverrideEnabled"
+  | "clientOverrideBody"
+  | "setClientOverrideBody"
+  | "clientOverrideRelaxApplied"
+  | "saveSelectedClientOverride"
+  | "deleteSelectedClientOverride"
+  | "relaxSelectedClientOverride"
   | "forwardIntercept"
   | "dropIntercept"
 >;
@@ -37,8 +56,13 @@ export function InterceptView({
   interceptState,
   interceptRules,
   matchReplaceRules,
+  clientOverrides,
+  interceptPane,
+  setInterceptPane,
   selectedInterceptItem,
   selectInterceptItem,
+  selectedClientOverride,
+  selectClientOverride,
   interceptRulesText,
   setInterceptRulesText,
   saveInterceptRules,
@@ -53,18 +77,35 @@ export function InterceptView({
   setInterceptDraft,
   interceptHeadersText,
   setInterceptHeadersText,
+  clientOverrideName,
+  setClientOverrideName,
+  clientOverrideHost,
+  setClientOverrideHost,
+  clientOverridePath,
+  setClientOverridePath,
+  clientOverrideEnabled,
+  setClientOverrideEnabled,
+  clientOverrideBody,
+  setClientOverrideBody,
+  clientOverrideRelaxApplied,
+  saveSelectedClientOverride,
+  deleteSelectedClientOverride,
+  relaxSelectedClientOverride,
   forwardIntercept,
   dropIntercept
 }: InterceptViewProps) {
+  const clientFilesPane = interceptPane === "client-files";
+
   return (
     <div className="grid min-h-0 [grid-template-columns:minmax(0,0.95fr)_minmax(420px,1.05fr)] max-[1180px]:grid-cols-1 max-[1180px]:auto-rows-[minmax(520px,auto)]">
       <div className="grid min-h-0 overflow-auto border-r border-rule [grid-template-rows:auto_minmax(132px,1fr)_minmax(340px,0.9fr)] max-[1180px]:border-r-0 max-[1180px]:border-b">
-        <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(4,minmax(0,1fr))]">
+        <div className="grid gap-px border-b border-rule bg-rule [grid-template-columns:repeat(5,minmax(0,1fr))]">
           {[
             ["Mode", interceptState.config.requestEnabled ? "request" : "standby"],
             ["Queued", interceptState.queue.length],
             ["Rules", interceptRules.length],
-            ["Rewrites", matchReplaceRules.length]
+            ["Rewrites", matchReplaceRules.length],
+            ["Files", clientOverrides.length]
           ].map(([label, value]) => (
             <div key={label} className="radar-card-gradient px-4 py-3">
               <span className="block rd-eyebrow text-muted">
@@ -93,7 +134,10 @@ export function InterceptView({
               key={item.id}
               variant="ghost"
               className={interceptRowClass(item.id === selectedInterceptItem?.id)}
-              onClick={() => selectInterceptItem(item.id)}
+              onClick={() => {
+                setInterceptPane("queue");
+                selectInterceptItem(item.id);
+              }}
               data-selected={item.id === selectedInterceptItem?.id ? "true" : "false"}
               data-testid={`interceptRow-${item.id}`}
               data-component="interceptRow"
@@ -165,160 +209,318 @@ export function InterceptView({
         </div>
       </div>
 
-      <div className="grid min-h-0 min-w-0 radar-detail-pane [grid-template-rows:auto_minmax(0,1fr)_auto]">
+      <div className="grid min-h-0 min-w-0 radar-detail-pane [grid-template-rows:auto_auto_minmax(0,1fr)_auto]">
         <div className="flex items-center justify-between gap-3 border-b border-rule px-4 py-2">
           <div className="min-w-0">
             <span className="block rd-eyebrow text-rust">
-              {selectedInterceptItem?.stage === "response" ? "Queued Response Editor" : "Queued Request Editor"}
+              {clientFilesPane
+                ? "Client File Override"
+                : selectedInterceptItem?.stage === "response"
+                  ? "Queued Response Editor"
+                  : "Queued Request Editor"}
             </span>
             <strong className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rd-label text-bone">
-              {selectedInterceptItem
-                ? `${selectedInterceptItem.host}${selectedInterceptItem.path}`
-                : "No queued item selected"}
+              {clientFilesPane
+                ? selectedClientOverride
+                  ? `${selectedClientOverride.host}${selectedClientOverride.path}`
+                  : "No client file selected"
+                : selectedInterceptItem
+                  ? `${selectedInterceptItem.host}${selectedInterceptItem.path}`
+                  : "No queued item selected"}
             </strong>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            <StatusBadge tone={selectedInterceptItem ? "warn" : "ghost"}>
-              {selectedInterceptItem?.ruleHits?.length
-                ? `${selectedInterceptItem.ruleHits.length} rule`
-                : selectedInterceptItem
-                  ? "paused"
-                  : "idle"}
-            </StatusBadge>
-            {selectedInterceptItem?.rewrites?.length ? (
-              <StatusBadge tone="warn">{selectedInterceptItem.rewrites.length} rewrite</StatusBadge>
-            ) : null}
+            <Button
+              variant={clientFilesPane ? "outline" : "solid"}
+              type="button"
+              onClick={() => setInterceptPane("queue")}
+              data-testid="interceptPaneQueue"
+              data-component="interceptPaneQueue"
+            >
+              Queue
+            </Button>
+            <Button
+              variant={clientFilesPane ? "solid" : "outline"}
+              type="button"
+              onClick={() => setInterceptPane("client-files")}
+              data-testid="interceptPaneClientFiles"
+              data-component="interceptPaneClientFiles"
+            >
+              <FileCode2 size={14} strokeWidth={1.7} />
+              Client files
+            </Button>
           </div>
         </div>
 
-        <div className="min-h-0 overflow-auto">
-          {selectedInterceptItem?.stage === "response" ? (
-            <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:110px_minmax(0,1fr)]">
-              <Input
-                variant="compact"
-                type="number"
-                min={100}
-                max={599}
-                value={interceptResponseStatus}
-                disabled={!selectedInterceptItem}
-                onChange={(event) => setInterceptResponseStatus(Number(event.target.value))}
-                aria-label="Intercept response status"
-                data-testid="interceptStatus"
-                data-component="interceptStatus"
-              />
-              <Input
-                value={interceptResponseStatusText}
-                disabled={!selectedInterceptItem}
-                onChange={(event) => setInterceptResponseStatusText(event.target.value)}
+        {clientFilesPane ? (
+          <>
+            <div className="min-h-0 overflow-auto border-b border-rule radar-traffic-list" data-testid="clientOverrideList">
+              {clientOverrides.length === 0 ? (
+                <EmptyState>
+                  <FileCode2 size={18} strokeWidth={1.4} />
+                  <span>Override a captured HTML, JavaScript, or CSS file from HTTP(S)</span>
+                </EmptyState>
+              ) : (
+                clientOverrides.map((override) => (
+                  <Button
+                    key={override.id}
+                    variant="ghost"
+                    className={interceptRowClass(override.id === selectedClientOverride?.id)}
+                    onClick={() => selectClientOverride(override.id)}
+                    data-selected={override.id === selectedClientOverride?.id ? "true" : "false"}
+                    data-testid={`clientOverrideRow-${override.id}`}
+                    data-component="clientOverrideRow"
+                  >
+                    <StatusBadge tone={override.enabled ? "warn" : "ghost"}>
+                      {override.enabled ? "on" : "off"}
+                    </StatusBadge>
+                    <span className={cn(ellipsisMono, "font-medium text-bone")}>{override.name}</span>
+                    <span className={ellipsisMono}>{override.path}</span>
+                  </Button>
+                ))
+              )}
+            </div>
+            <div className="min-h-0 overflow-auto">
+              <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:minmax(0,1fr)_88px]">
+                <Input
+                  value={clientOverrideName}
+                  disabled={!selectedClientOverride}
+                  onChange={(event) => setClientOverrideName(event.target.value)}
+                  spellCheck={false}
+                  aria-label="Client file name"
+                  data-testid="clientOverrideName"
+                  data-component="clientOverrideName"
+                />
+                <label className="flex items-center gap-2 font-mono text-label uppercase tracking-data text-muted">
+                  <input
+                    type="checkbox"
+                    checked={clientOverrideEnabled}
+                    disabled={!selectedClientOverride}
+                    onChange={(event) => setClientOverrideEnabled(event.target.checked)}
+                    data-testid="clientOverrideEnabled"
+                    data-component="clientOverrideEnabled"
+                  />
+                  Enabled
+                </label>
+              </div>
+              <div className="grid items-center gap-2 px-5 pb-2 [grid-template-columns:minmax(140px,0.4fr)_minmax(0,1fr)]">
+                <Input
+                  value={clientOverrideHost}
+                  disabled={!selectedClientOverride}
+                  onChange={(event) => setClientOverrideHost(event.target.value)}
+                  spellCheck={false}
+                  aria-label="Client file host"
+                  data-testid="clientOverrideHost"
+                  data-component="clientOverrideHost"
+                />
+                <Input
+                  value={clientOverridePath}
+                  disabled={!selectedClientOverride}
+                  onChange={(event) => setClientOverridePath(event.target.value)}
+                  spellCheck={false}
+                  aria-label="Client file path"
+                  data-testid="clientOverridePath"
+                  data-component="clientOverridePath"
+                />
+              </div>
+              {clientOverrideRelaxApplied ? (
+                <div className="px-5 pb-2">
+                  <StatusBadge tone="warn">validation relaxed</StatusBadge>
+                </div>
+              ) : null}
+              <FieldLabel htmlFor="clientOverrideBody">Edited client file</FieldLabel>
+              <Textarea
+                id="clientOverrideBody"
+                variant="code"
+                className="h-[280px]"
+                value={clientOverrideBody}
+                disabled={!selectedClientOverride}
+                onChange={(event) => setClientOverrideBody(event.target.value)}
                 spellCheck={false}
-                aria-label="Intercept response status text"
-                data-testid="interceptStatusText"
-                data-component="interceptStatusText"
+                data-testid="clientOverrideBody"
+                data-component="clientOverrideBody"
               />
             </div>
-          ) : (
-            <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:110px_minmax(0,1fr)]">
-              <Select
-                variant="method"
-                value={interceptDraft.method}
-                disabled={!selectedInterceptItem}
-                onChange={(event) =>
-                  setInterceptDraft({ ...interceptDraft, method: event.target.value })
-                }
-                aria-label="Intercept request method"
-                data-testid="interceptMethod"
-                data-component="interceptMethod"
+            <div className="flex flex-wrap gap-2 border-t border-rule radar-form-gradient px-5 py-4">
+              <Button
+                variant="solid"
+                type="button"
+                disabled={!selectedClientOverride}
+                onClick={() => void saveSelectedClientOverride()}
+                data-testid="saveClientOverride"
+                data-component="saveClientOverride"
               >
-                {["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
-                  <option key={method}>{method}</option>
-                ))}
-              </Select>
-              <Input
-                value={interceptDraft.url}
+                <FileCode2 size={14} strokeWidth={1.8} />
+                Save file
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                disabled={!selectedClientOverride}
+                onClick={relaxSelectedClientOverride}
+                data-testid="relaxClientValidation"
+                data-component="relaxClientValidation"
+              >
+                <ShieldOff size={14} strokeWidth={1.8} />
+                Relax validation
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                disabled={!selectedClientOverride}
+                onClick={() => void deleteSelectedClientOverride()}
+                data-testid="deleteClientOverride"
+                data-component="deleteClientOverride"
+              >
+                <Trash2 size={14} strokeWidth={1.8} />
+                Delete
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-end gap-2 border-b border-rule px-4 py-2">
+              <StatusBadge tone={selectedInterceptItem ? "warn" : "ghost"}>
+                {selectedInterceptItem?.ruleHits?.length
+                  ? `${selectedInterceptItem.ruleHits.length} rule`
+                  : selectedInterceptItem
+                    ? "paused"
+                    : "idle"}
+              </StatusBadge>
+              {selectedInterceptItem?.rewrites?.length ? (
+                <StatusBadge tone="warn">{selectedInterceptItem.rewrites.length} rewrite</StatusBadge>
+              ) : null}
+            </div>
+            <div className="min-h-0 overflow-auto">
+              {selectedInterceptItem?.stage === "response" ? (
+                <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:110px_minmax(0,1fr)]">
+                  <Input
+                    variant="compact"
+                    type="number"
+                    min={100}
+                    max={599}
+                    value={interceptResponseStatus}
+                    disabled={!selectedInterceptItem}
+                    onChange={(event) => setInterceptResponseStatus(Number(event.target.value))}
+                    aria-label="Intercept response status"
+                    data-testid="interceptStatus"
+                    data-component="interceptStatus"
+                  />
+                  <Input
+                    value={interceptResponseStatusText}
+                    disabled={!selectedInterceptItem}
+                    onChange={(event) => setInterceptResponseStatusText(event.target.value)}
+                    spellCheck={false}
+                    aria-label="Intercept response status text"
+                    data-testid="interceptStatusText"
+                    data-component="interceptStatusText"
+                  />
+                </div>
+              ) : (
+                <div className="grid items-center gap-2 px-5 pb-2 pt-5 [grid-template-columns:110px_minmax(0,1fr)]">
+                  <Select
+                    variant="method"
+                    value={interceptDraft.method}
+                    disabled={!selectedInterceptItem}
+                    onChange={(event) =>
+                      setInterceptDraft({ ...interceptDraft, method: event.target.value })
+                    }
+                    aria-label="Intercept request method"
+                    data-testid="interceptMethod"
+                    data-component="interceptMethod"
+                  >
+                    {["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
+                      <option key={method}>{method}</option>
+                    ))}
+                  </Select>
+                  <Input
+                    value={interceptDraft.url}
+                    disabled={!selectedInterceptItem}
+                    onChange={(event) =>
+                      setInterceptDraft({ ...interceptDraft, url: event.target.value })
+                    }
+                    spellCheck={false}
+                    aria-label="Intercept request URL"
+                    data-testid="interceptUrl"
+                    data-component="interceptUrl"
+                  />
+                </div>
+              )}
+
+              <FieldLabel htmlFor="interceptHeaders">
+                {selectedInterceptItem?.stage === "response" ? "Response Headers" : "Request Headers"}
+              </FieldLabel>
+              <Textarea
+                id="interceptHeaders"
+                variant="code"
+                className="h-[170px]"
+                value={interceptHeadersText}
+                disabled={!selectedInterceptItem}
+                onChange={(event) => setInterceptHeadersText(event.target.value)}
+                spellCheck={false}
+                data-testid="interceptHeaders"
+                data-component="interceptHeaders"
+              />
+
+              <FieldLabel htmlFor="interceptBody">
+                {selectedInterceptItem?.stage === "response" ? "Response Body" : "Request Body"}
+              </FieldLabel>
+              <Textarea
+                id="interceptBody"
+                variant="code"
+                className="h-[220px]"
+                value={interceptDraft.body}
                 disabled={!selectedInterceptItem}
                 onChange={(event) =>
-                  setInterceptDraft({ ...interceptDraft, url: event.target.value })
+                  setInterceptDraft({ ...interceptDraft, body: event.target.value })
                 }
                 spellCheck={false}
-                aria-label="Intercept request URL"
-                data-testid="interceptUrl"
-                data-component="interceptUrl"
+                data-testid="interceptBody"
+                data-component="interceptBody"
               />
             </div>
-          )}
 
-          <FieldLabel htmlFor="interceptHeaders">
-            {selectedInterceptItem?.stage === "response" ? "Response Headers" : "Request Headers"}
-          </FieldLabel>
-          <Textarea
-            id="interceptHeaders"
-            variant="code"
-            className="h-[170px]"
-            value={interceptHeadersText}
-            disabled={!selectedInterceptItem}
-            onChange={(event) => setInterceptHeadersText(event.target.value)}
-            spellCheck={false}
-            data-testid="interceptHeaders"
-            data-component="interceptHeaders"
-          />
-
-          <FieldLabel htmlFor="interceptBody">
-            {selectedInterceptItem?.stage === "response" ? "Response Body" : "Request Body"}
-          </FieldLabel>
-          <Textarea
-            id="interceptBody"
-            variant="code"
-            className="h-[220px]"
-            value={interceptDraft.body}
-            disabled={!selectedInterceptItem}
-            onChange={(event) =>
-              setInterceptDraft({ ...interceptDraft, body: event.target.value })
-            }
-            spellCheck={false}
-            data-testid="interceptBody"
-            data-component="interceptBody"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-2 border-t border-rule radar-form-gradient px-5 py-4">
-          <Button
-            variant="solid"
-            type="button"
-            disabled={!selectedInterceptItem}
-            onClick={() => void forwardIntercept()}
-            data-testid="forwardIntercept"
-            data-component="forwardIntercept"
-          >
-            <Send size={14} strokeWidth={1.8} />
-            Forward
-          </Button>
-          <Button
-            variant="outline"
-            type="button"
-            disabled={!selectedInterceptItem}
-            onClick={() => void dropIntercept()}
-            data-testid="dropIntercept"
-            data-component="dropIntercept"
-          >
-            <Trash2 size={14} strokeWidth={1.8} />
-            Drop
-          </Button>
-          <Button
-            variant="outline"
-            type="button"
-            disabled={!selectedInterceptItem}
-            onClick={() => {
-              if (selectedInterceptItem) {
-                selectInterceptItem(selectedInterceptItem.id);
-              }
-            }}
-            data-testid="resetInterceptDraft"
-            data-component="resetInterceptDraft"
-          >
-            <Eraser size={14} strokeWidth={1.7} />
-            Reset
-          </Button>
-        </div>
+            <div className="flex flex-wrap gap-2 border-t border-rule radar-form-gradient px-5 py-4">
+              <Button
+                variant="solid"
+                type="button"
+                disabled={!selectedInterceptItem}
+                onClick={() => void forwardIntercept()}
+                data-testid="forwardIntercept"
+                data-component="forwardIntercept"
+              >
+                <Send size={14} strokeWidth={1.8} />
+                Forward
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                disabled={!selectedInterceptItem}
+                onClick={() => void dropIntercept()}
+                data-testid="dropIntercept"
+                data-component="dropIntercept"
+              >
+                <Trash2 size={14} strokeWidth={1.8} />
+                Drop
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                disabled={!selectedInterceptItem}
+                onClick={() => {
+                  if (selectedInterceptItem) {
+                    selectInterceptItem(selectedInterceptItem.id);
+                  }
+                }}
+                data-testid="resetInterceptDraft"
+                data-component="resetInterceptDraft"
+              >
+                <Eraser size={14} strokeWidth={1.7} />
+                Reset
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

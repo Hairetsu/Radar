@@ -64,6 +64,9 @@ afterEach(() => {
   vi.mocked(window.radar!.getMatchReplaceRules).mockResolvedValue([]);
   vi.mocked(window.radar!.setMatchReplaceRules).mockClear();
   vi.mocked(window.radar!.setMatchReplaceRules).mockImplementation(async (rules) => rules);
+  vi.mocked(window.radar!.getClientOverrides).mockResolvedValue([]);
+  vi.mocked(window.radar!.setClientOverrides).mockClear();
+  vi.mocked(window.radar!.setClientOverrides).mockImplementation(async (overrides) => overrides);
   vi.mocked(window.radar!.getProxyProfiles).mockResolvedValue([]);
   vi.mocked(window.radar!.saveProxyProfile).mockClear();
   vi.mocked(window.radar!.saveProxyProfile).mockResolvedValue([]);
@@ -1296,6 +1299,74 @@ describe("App", () => {
         expect.objectContaining({ id: "rewrite-token", name: "Swap Token", target: "header" })
       ]);
     });
+  });
+
+  it("edits a client file override and relaxes validation in the intercept view", async () => {
+    vi.mocked(window.radar!.getClientOverrides).mockResolvedValue([
+      {
+        id: "client-form",
+        name: "formValidation.ts",
+        enabled: true,
+        host: "127.0.0.1:3000",
+        path: "/src/formValidation.ts",
+        mimeType: "text/javascript",
+        body: "return invalid(\"blocked\");",
+        captureId: "cap-form",
+        relaxApplied: false,
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-intercept"));
+    fireEvent.click(await screen.findByTestId("interceptPaneClientFiles"));
+    expect(await screen.findByTestId("clientOverrideRow-client-form")).toHaveAttribute("data-selected", "true");
+    expect(screen.getByTestId("clientOverrideBody")).toHaveValue("return invalid(\"blocked\");");
+
+    fireEvent.click(screen.getByTestId("relaxClientValidation"));
+    expect(screen.getByTestId("clientOverrideBody")).toHaveValue("return valid();");
+    fireEvent.click(screen.getByTestId("saveClientOverride"));
+
+    await waitFor(() => {
+      expect(window.radar!.setClientOverrides).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: "client-form",
+          body: "return valid();",
+          relaxApplied: true
+        })
+      ]);
+    });
+  });
+
+  it("creates a client file override from an HTTP capture", async () => {
+    vi.mocked(window.radar!.getTargets).mockResolvedValue(["http://127.0.0.1:3000"]);
+    vi.mocked(window.radar!.getCaptures).mockResolvedValue([
+      capture("cap-form", "http://127.0.0.1:3000/src/formValidation.ts", {
+        mimeType: "text/javascript",
+        type: "Script",
+        allowed: true,
+        responseBody: "return invalid(\"blocked\");"
+      })
+    ]);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByTestId("view-traffic"));
+    fireEvent.click(await screen.findByTestId("trafficRow-cap-form"));
+    fireEvent.click(await screen.findByTestId("cloneToClientOverride"));
+
+    await waitFor(() => {
+      expect(window.radar!.setClientOverrides).toHaveBeenCalledWith([
+        expect.objectContaining({
+          host: "127.0.0.1:3000",
+          path: "/src/formValidation.ts",
+          body: "return invalid(\"blocked\");"
+        })
+      ]);
+    });
+    expect(await screen.findByTestId("clientOverrideBody")).toHaveValue("return invalid(\"blocked\");");
   });
 
   it("saves proxy profile notes from the SSL view", async () => {

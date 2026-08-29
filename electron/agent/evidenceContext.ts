@@ -173,11 +173,26 @@ export function findingFromDecision(input: AgentDecisionFinding, evidenceCatalog
   return normalizeAgentFindingWithGate(input, createId("finding"), nowIso(), evidenceCatalog);
 }
 
-export function runtimeEvidenceCatalog(deps: AgentRuntimeDeps) {
+export function runtimeEvidenceCatalog(deps: AgentRuntimeDeps, extraCaptureIds: string[] = []) {
   const allowlist = deps.allowlist();
   const replayTabState = deps.getReplayTabState();
+  const captures = [...deps.getCaptures()];
+  const seen = new Set(captures.map((capture) => capture.id));
+  if (deps.getCaptureById) {
+    for (const id of extraCaptureIds) {
+      if (!id || seen.has(id)) {
+        continue;
+      }
+      const capture = deps.getCaptureById(id);
+      if (!capture) {
+        continue;
+      }
+      captures.push(capture);
+      seen.add(capture.id);
+    }
+  }
   return buildAgentEvidenceCatalog({
-    captures: deps.getCaptures().filter((capture) => isAllowedTarget(capture.url, allowlist)),
+    captures: captures.filter((capture) => isAllowedTarget(capture.url, allowlist)),
     webSocketEvents: deps.getWebSocketEvents().filter((event) => isAllowedTarget(event.url, allowlist)),
     replayTabState: {
       ...replayTabState,

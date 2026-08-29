@@ -51,11 +51,13 @@ describe("agentProfiles", () => {
       "waitForNetworkIdle",
       "getAssessmentCandidates",
       "runReplayExperiment",
-      "getAssessmentProgress",
-      "sendReplay"
+      "getAssessmentProgress"
     ]));
     expect(profile.allowedTools).not.toContain("runWorkflow");
     expect(profile.allowedTools).not.toContain("submitForm");
+    expect(profile.allowedTools).not.toContain("sendReplay");
+    expect(profile.allowedTools).not.toContain("clickElement");
+    expect(profile.capabilityCeiling.maxDurationMs).toBe(600_000);
   });
 
   it("gives goal-driven assessment the largest bounded active budget", () => {
@@ -71,6 +73,7 @@ describe("agentProfiles", () => {
     });
     expect(profile.allowedTools).toEqual(expect.arrayContaining([
       "submitForm",
+      "applyClientValidationBypass",
       "sendReplay",
       "runWorkflow",
       "saveAuthState",

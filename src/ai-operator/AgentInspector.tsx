@@ -95,7 +95,7 @@ export function AgentInspector({ controller, className }: { controller: AiOperat
         )}
         {tab === "findings" && (
           controller.activeRun?.status === "completed" ? (
-            <AgentCompletionReport run={controller.activeRun} />
+            <AgentCompletionReport run={controller.activeRun} onFollowUpFinding={controller.composeFindingFollowUp} />
           ) : <section className="border border-rule bg-ink/28" data-testid="aiInspectorFindings">
             <div className="flex items-center justify-between border-b border-rule px-3 py-2">
               <span className="rd-eyebrow text-muted">Draft Findings</span>
@@ -108,6 +108,9 @@ export function AgentInspector({ controller, className }: { controller: AiOperat
                   <div className="flex items-center justify-between gap-2"><h3 className="font-display text-body uppercase tracking-data text-bone">{finding.title}</h3><StatusBadge>{finding.confidence}</StatusBadge></div>
                   <p className="mt-2 text-meta leading-5 text-muted">{finding.notes}</p>
                   <p className="mt-2 select-text break-all font-mono text-micro text-muted">{finding.evidenceRefs.join(" · ")}</p>
+                  {(controller.activeRun?.status === "failed" || controller.activeRun?.status === "stopped") && (
+                    <Button type="button" variant="outline" size="compact" className="mt-2" onClick={() => controller.composeFindingFollowUp(finding)} data-testid={`followUpFinding-${finding.id}`}>Follow up</Button>
+                  )}
                 </article>
               ))}
             </div>

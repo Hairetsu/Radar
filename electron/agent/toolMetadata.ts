@@ -66,8 +66,18 @@ export function visibleTargetForTool(call: AgentToolCall): AgentTimelineEntry["t
     case "getCaptures":
       return { view: "traffic" };
     case "getInterceptQueue":
+    case "getClientOverrides":
     case "prepareInterceptEdit":
-      return { view: "intercept", evidenceId: "id" in call.input ? call.input.id : undefined };
+    case "applyClientValidationBypass":
+      return {
+        view: "intercept",
+        evidenceId:
+          "captureId" in call.input
+            ? call.input.captureId
+            : "id" in call.input
+              ? call.input.id
+              : undefined
+      };
     case "sendReplay":
     case "runReplayExperiment":
     case "getReplayContext":

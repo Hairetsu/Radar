@@ -130,6 +130,28 @@ describe("agentAssessment", () => {
     });
     expect(ranked.map((item) => item.captureId)).toEqual(["cap-search"]);
     expect(ranked[0]?.applicableFamilies).toEqual(expect.arrayContaining(["injection-signal", "reflection-context"]));
+    expect(ranked[0]?.applicableFamilies).not.toContain("authorization-omission");
+  });
+
+  it("offers only families that have a usable captured mutation source", () => {
+    const contract = defaultAssessmentContract();
+    const ranked = rankAssessmentCandidates({
+      contract,
+      covered: [],
+      captures: [
+        capture({ id: "cap-summary", url: "http://127.0.0.1:3000/api/ops/summary", path: "/api/ops/summary" }),
+        capture({
+          id: "cap-invoice",
+          url: "http://127.0.0.1:3000/api/billing/invoices/INV-1007",
+          path: "/api/billing/invoices/INV-1007",
+          requestHeaders: { Cookie: "harbor_session=redacted" }
+        })
+      ]
+    });
+    expect(ranked.find((item) => item.captureId === "cap-summary")?.applicableFamilies).toEqual(["cors-origin"]);
+    expect(ranked.find((item) => item.captureId === "cap-invoice")?.applicableFamilies).toEqual(
+      expect.arrayContaining(["cors-origin", "authorization-omission", "resource-id"])
+    );
   });
 
   it("reserves the full experiment cost instead of hiding variants behind one request", () => {
@@ -172,6 +194,32 @@ describe("agentAssessment", () => {
       ]
     });
     expect(cors.classification).toBe("verification-required");
+  });
+
+  it("does not treat echoed probe text in the same error shape as an injection differential", () => {
+    const result = classifyReplayExperiment({
+      family: "injection-signal",
+      baselineStatus: 200,
+      baselineBody: '{"name":"Q3 manifest","contents":"cargo"}',
+      variants: [
+        {
+          payload: "'",
+          status: 404,
+          body: JSON.stringify({ error: "File not found: '" }),
+          headers: {},
+          comparison: diff({ identical: false, statusChanged: true })
+        },
+        {
+          payload: "' OR '1'='1",
+          status: 404,
+          body: JSON.stringify({ error: "File not found: ' OR '1'='1" }),
+          headers: {},
+          comparison: diff({ identical: false, statusChanged: true })
+        }
+      ]
+    });
+
+    expect(result.classification).toBe("inconclusive");
   });
 
   it("builds family mutations from a capture location and rejects mismatched kinds", () => {

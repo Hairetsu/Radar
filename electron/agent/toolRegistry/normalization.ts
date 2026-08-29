@@ -112,6 +112,7 @@ export function normalizeAgentToolInput(call: AgentToolCall): AgentToolCall {
         }
       };
     case "getInterceptQueue":
+    case "getClientOverrides":
       return {
         tool: call.tool,
         input: {
@@ -155,6 +156,14 @@ export function normalizeAgentToolInput(call: AgentToolCall): AgentToolCall {
             : undefined,
           response: hasObjectKeys(input.response) ? normalizeResponseDraft(input.response) : undefined,
           note: String(input.note || "").slice(0, 240)
+        }
+      };
+    case "applyClientValidationBypass":
+      return {
+        tool: call.tool,
+        input: {
+          captureId: String(input.captureId || "").trim(),
+          name: String(input.name || "").trim().slice(0, 80)
         }
       };
     case "clickElement":

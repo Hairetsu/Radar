@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 
-export const LOCAL_STORE_SCHEMA_VERSION = 21;
+export const LOCAL_STORE_SCHEMA_VERSION = 23;
 
 const SCHEMA_VERSION = String(LOCAL_STORE_SCHEMA_VERSION);
 

@@ -45,6 +45,24 @@ export type MatchReplaceHit = {
   detail: string;
 };
 
+export type ClientOverride = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  host: string;
+  path: string;
+  mimeType: string;
+  body: string;
+  captureId: string;
+  relaxApplied: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ClientOverrideSummary = Omit<ClientOverride, "body"> & {
+  bodyChars: number;
+};
+
 export type CapturedRequest = {
   id: string;
   startedAt: string;

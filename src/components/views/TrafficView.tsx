@@ -5,11 +5,13 @@ import {
   ArrowUpWideNarrow,
   Copy,
   Eraser,
+  FileCode2,
   FileText,
   Repeat2,
   Search,
   Square
 } from "lucide-react";
+import { isOverridableClientCapture } from "../../../shared/clientOverrides";
 import type { FindingsDomain } from "../../hooks/workbench/useFindingsDomain";
 import { TRAFFIC_SORT_FIELDS, type TrafficDomain } from "../../hooks/workbench/useTrafficDomain";
 import type { WorkbenchShellDomain } from "../../hooks/workbench/useWorkbenchShell";
@@ -67,6 +69,7 @@ export type TrafficViewProps = Pick<
   activeDetail: "request" | "response";
   setActiveDetail: Dispatch<SetStateAction<"request" | "response">>;
   cloneToRepeater: (capture: CapturedRequest | null) => void;
+  cloneToClientOverride: (capture: CapturedRequest | null) => void;
   createFindingFromCapture: FindingsDomain["createFindingFromCapture"];
   saveEvidenceAnnotation: (annotation: EvidenceAnnotation) => Promise<void>;
   getEvidenceAnnotation: (evidenceId: string, kind: EvidenceAnnotation["kind"]) => EvidenceAnnotation;
@@ -104,6 +107,7 @@ export function TrafficView({
   activeDetail,
   setActiveDetail,
   cloneToRepeater,
+  cloneToClientOverride,
   createFindingFromCapture,
   saveEvidenceAnnotation,
   getEvidenceAnnotation,
@@ -437,6 +441,18 @@ export function TrafficView({
               data-component="cloneToRepeater"
             >
               <Repeat2 size={14} strokeWidth={1.7} />
+            </Button>
+            <Button
+              variant="ghost"
+              className={detailActionClass}
+              onClick={() => cloneToClientOverride(selected)}
+              disabled={!selected || !isOverridableClientCapture(selected)}
+              title="Override client file"
+              aria-label="Override client file"
+              data-testid="cloneToClientOverride"
+              data-component="cloneToClientOverride"
+            >
+              <FileCode2 size={14} strokeWidth={1.7} />
             </Button>
             <Button
               variant="ghost"

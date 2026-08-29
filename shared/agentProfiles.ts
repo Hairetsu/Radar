@@ -68,6 +68,7 @@ const browserReviewTools: AgentToolName[] = [
 const prepareReviewTools: AgentToolName[] = [
   ...browserReviewTools,
   "getInterceptQueue",
+  "getClientOverrides",
   "prepareInterceptEdit",
   "prepareReplayTab",
   "compareReplayResults",
@@ -77,6 +78,7 @@ const prepareReviewTools: AgentToolName[] = [
 
 const activeReviewTools: AgentToolName[] = [
   ...prepareReviewTools,
+  "applyClientValidationBypass",
   "sendReplay",
   "runWorkflow"
 ];
@@ -132,7 +134,7 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
   {
     id: "autonomous-assessment",
     label: "Autonomous Assessment",
-    description: "Open the managed browser to collect in-scope captures, then run a reviewed read-only experiment contract: baseline, typed mutations, comparison, and coverage without reconstructing authenticated requests from prompt text.",
+    description: "Run captured read-only experiments continuously after one start action, stop at the first supported result, and never pause for another approval.",
     policy: policy({
       maxRuntimeMs: 10 * 60_000,
       maxReplay: 2,
@@ -147,16 +149,15 @@ export const AGENT_RUN_PROFILES: AgentRunProfile[] = [
       "navigateBrowser",
       "waitForNetworkIdle",
       "getClickableElements",
-      "clickElement",
       "prepareReplayTab",
       "compareReplayResults",
       "getAssessmentCandidates",
       "runReplayExperiment",
-      "getAssessmentProgress",
-      "sendReplay"
+      "getAssessmentProgress"
     ]),
     capabilityCeiling: {
       ...DEFAULT_AGENT_CAPABILITY_CEILING,
+      maxDurationMs: 10 * 60_000,
       maxUses: 20,
       maxRequests: 40,
       maxConcurrency: 1

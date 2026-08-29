@@ -8,6 +8,7 @@ import { formatHeaders } from "../../lib";
 import type { AgentDomain } from "./useAgentDomain";
 import type { AutomateDomain } from "./useAutomateDomain";
 import type { FindingsDomain } from "./useFindingsDomain";
+import type { InterceptDomain } from "./useInterceptDomain";
 import type { RepeaterDomain } from "./useRepeaterDomain";
 import type { WorkbenchShellDomain } from "./useWorkbenchShell";
 
@@ -16,13 +17,15 @@ export function useWorkbenchCrossDomainActions({
   repeater,
   findings,
   automate,
-  agent
+  agent,
+  intercept
 }: {
   shell: WorkbenchShellDomain;
   repeater: RepeaterDomain;
   findings: FindingsDomain;
   automate: AutomateDomain;
   agent: AgentDomain;
+  intercept: InterceptDomain;
 }) {
   const promoteAutomateResultToFinding = useCallback(
     () =>
@@ -79,6 +82,19 @@ export function useWorkbenchCrossDomainActions({
     },
     [repeater, shell]
   );
+  const cloneToClientOverride = useCallback(
+    (capture: CapturedRequest | null) => {
+      if (!capture) {
+        return;
+      }
+      void intercept.createClientOverrideFromCapture(capture).then((created) => {
+        if (created) {
+          shell.setActiveView("intercept");
+        }
+      });
+    },
+    [intercept, shell]
+  );
   const setAppMode = useCallback(
     (mode: AppMode) => {
       shell.setAppMode(mode);
@@ -103,6 +119,7 @@ export function useWorkbenchCrossDomainActions({
     attachSelectedAutomateResultToFinding,
     applyAiDraft,
     cloneToRepeater,
+    cloneToClientOverride,
     setAppMode
   };
 }

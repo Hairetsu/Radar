@@ -22,6 +22,7 @@ describe("registerAiIpc", () => {
       connect: vi.fn(async () => ({})),
       probe: vi.fn(async () => ({})),
       cursorLogin: vi.fn(async () => ({})),
+      grokLogin: vi.fn(async () => ({})),
       getModels: vi.fn(() => []),
       refreshModels: vi.fn(async () => [])
     });

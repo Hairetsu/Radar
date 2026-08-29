@@ -69,6 +69,13 @@ export function useRequestContextMenu(workbench: RadarWorkbench) {
     setRequestMenu(null);
   };
 
+  const cloneToClientOverride = () => {
+    if (capture) {
+      workbench.cloneToClientOverride(capture);
+    }
+    setRequestMenu(null);
+  };
+
   const addToScope = async () => {
     if (capture) {
       await workbench.addTarget(capture.url);
@@ -93,6 +100,7 @@ export function useRequestContextMenu(workbench: RadarWorkbench) {
       onCopyExport: copyExport,
       onCopyUrl: copyUrl,
       onCloneToRepeater: cloneToRepeater,
+      onCloneToClientOverride: cloneToClientOverride,
       onAddToScope: addToScope,
       onDelete: deleteRequest
     }

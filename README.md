@@ -33,13 +33,13 @@ Projects also contain sessions, notes, saved views, local run memory, bundle exp
 
 Manual-First is the normal operator-driven mode. You click every action that sends, mutates, exports, installs, or approves something. The command palette can summarize evidence and prepare drafts, but it does not transmit them.
 
-AI-First runs in a separate AI Operator window. One sequential browser operator chooses an in-scope step, waits for it to settle, records the result, and then chooses the next step. The workspace stays visible while the companion shows the Mission Pulse, Operation Stream, Task History, Mission Graph, permission requests, and Completion Report.
+AI-First runs in a separate AI Operator window. One sequential browser operator chooses an in-scope step, waits for it to settle, records the result, and then chooses the next step. The workspace stays visible while the companion shows the Mission Pulse, Operation Stream, Task History, Mission Graph, permission requests, and Completion Report. A completed draft finding can start a follow-up run from **Follow up** without copying the finding into a new prompt by hand.
 
-The AI Operator Connection Deck keeps saved credentials isolated by provider. Switching away from a provider and back restores only that provider's saved key and connection settings.
+The AI Operator Connection Deck keeps saved credentials isolated by provider. Switching away from a provider and back restores only that provider's saved key and connection settings. Local CLI presets (Codex app, Cursor CLI, Grok CLI) use the installed CLI login instead of a Radar-stored cloud key.
 
 The Goal-Driven Assessment profile gives the agent Radar's largest run budgets and widest non-destructive tool set. It remains inside saved Scope and pauses for capability approval before replay, form submission, identity changes, or active workflows. Raw context stays off.
 
-**Autonomous Assessment** can open the managed browser to collect in-scope captures, then arms a read-only experiment contract. After **Arm & Run**, Radar can rank those captures, run a visible Repeater baseline plus typed variants, compare the results, and record coverage. The first families are CORS origin, reflection, injection signal, authorization omission, and resource ID. Raw context stays off. One concurrent request. Forms, identity changes, and workflows stay off. **Stop Traffic Now** aborts in-flight probes without deleting completed evidence. No profile removes these limits.
+**Autonomous Assessment** can open the managed browser to collect in-scope captures, then run a read-only experiment contract. **Start Autonomous** is the only approval action. Radar binds the contract to the current browser identity before the first probe, then ranks captures and runs visible Repeater baselines plus typed variants without another approval pause. Negative and inconclusive results move to the next candidate. The first supported or verification-required result stops the run with a Completion Report and retained Repeater history. The first families are CORS origin, reflection, injection signal, authorization omission, and resource ID. Raw context stays off. One concurrent request. Forms, arbitrary replay, identity changes, and workflows stay off. **Stop Traffic Now** aborts in-flight probes without deleting completed evidence.
 
 Actions with side effects need the selected profile, saved Scope, a matching capability grant, and remaining run budget. Radar never grants destructive actions or `DELETE` requests to AI-First.
 
@@ -92,7 +92,7 @@ pnpm demo:dev
 
 Open `http://127.0.0.1:3000` in the Radar Browser. Sign in with operator ID `operator` and password `harbor-2026`. Use Harborline as a black-box target: browse the freight workflows, inspect the captured requests, and decide which requests merit controlled replay.
 
-Harborline's forms accept only normal business values. To test a changed parameter, capture a valid request and edit the copy in Radar Repeater. The browser does not send test strings, unlisted record IDs, unknown document paths, unapproved feed URLs, or markup.
+Harborline's forms accept only normal business values. To test a changed parameter, capture a valid request and edit the copy in Radar Repeater. To submit the same test string through the Harborline UI, override the captured client file in Intercept (for `pnpm demo:dev`, `/src/formValidation.ts`), click **Relax validation**, save, and reload the Radar Browser. The unmodified browser does not send test strings, unlisted record IDs, unknown document paths, unapproved feed URLs, or markup.
 
 Harborline uses fixed in-memory data. It does not read host files or make outbound requests, even when a request contains a file path or URL.
 
@@ -117,6 +117,14 @@ Run the nine-case core suite with `gpt-5.6-terra` through the signed-in Codex CL
 ```bash
 pnpm benchmark:operator:terra
 ```
+
+Run the hands-off Autonomous Assessment acceptance case against Harborline:
+
+```bash
+pnpm benchmark:autonomous
+```
+
+The autonomous preset starts Harborline when needed, seeds every normal demo request through Radar's proxy, starts the read-only contract, and requires no capability approval clicks.
 
 This preset keeps active capability approval paused. Add `-- --approve-active` when you want the benchmark runner to approve bounded, non-destructive Harborline leases.
 

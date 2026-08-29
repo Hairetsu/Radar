@@ -1,11 +1,12 @@
 import type { DatabaseSync } from "node:sqlite";
 import { DEFAULT_ALLOWLIST, normalizeTargetRules } from "../../../shared/allowlist.js";
-import type { InterceptRule, MatchReplaceRule, ProxyProfile, SavedFilter } from "../../../shared/domain.js";
+import { MAX_CLIENT_OVERRIDES } from "../../../shared/clientOverrides.js";
+import type { ClientOverride, InterceptRule, MatchReplaceRule, ProxyProfile, SavedFilter } from "../../../shared/domain.js";
 import { defaultProxyProfiles, normalizeProxyProfile } from "../../../shared/proxyProfiles.js";
 import { normalizeSavedFilters } from "../../../shared/savedFilters.js";
 import { nowIso } from "../ids.js";
 import { parseJsonObject } from "../json.js";
-import type { InterceptRuleRow, MatchReplaceRuleRow, ProxyProfileRow } from "../rows.js";
+import type { ClientOverrideRow, InterceptRuleRow, MatchReplaceRuleRow, ProxyProfileRow } from "../rows.js";
 
 export function createWorkspaceSettingsRepository(db: DatabaseSync) {
   const setTargets = (workspaceId: string, targets: string[]) => {
@@ -92,6 +93,33 @@ export function createWorkspaceSettingsRepository(db: DatabaseSync) {
     return next;
   };
 
+  const listClientOverrides = (workspaceId: string) => {
+    const rows = db
+      .prepare("SELECT override_json FROM workspace_client_overrides WHERE workspace_id = ? ORDER BY position ASC")
+      .all(workspaceId) as ClientOverrideRow[];
+    return rows
+      .map((row) => parseJsonObject<ClientOverride | null>(row.override_json, null))
+      .filter((override): override is ClientOverride => Boolean(override));
+  };
+
+  const setClientOverrides = (workspaceId: string, overrides: ClientOverride[]) => {
+    const next = overrides.slice(0, MAX_CLIENT_OVERRIDES);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM workspace_client_overrides WHERE workspace_id = ?").run(workspaceId);
+      const insert = db.prepare(
+        "INSERT INTO workspace_client_overrides (workspace_id, position, override_json) VALUES (?, ?, ?)"
+      );
+      next.forEach((override, index) => insert.run(workspaceId, index, JSON.stringify(override)));
+      db.prepare("UPDATE workspaces SET updated_at = ? WHERE id = ?").run(nowIso(), workspaceId);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return next;
+  };
+
   const listProxyProfiles = (workspaceId: string): ProxyProfile[] => {
     const rows = db
       .prepare("SELECT profile_id, notes, updated_at FROM workspace_proxy_profiles WHERE workspace_id = ?")
@@ -156,6 +184,8 @@ export function createWorkspaceSettingsRepository(db: DatabaseSync) {
     setInterceptRules,
     listMatchReplaceRules,
     setMatchReplaceRules,
+    listClientOverrides,
+    setClientOverrides,
     listProxyProfiles,
     saveProxyProfile,
     listSavedFilters,
