@@ -10,6 +10,7 @@ describe("aiProvider", () => {
     expect(isAiProviderId("openai-compatible")).toBe(true);
     expect(isAiProviderId("codex-local")).toBe(true);
     expect(isAiProviderId("cursor-local")).toBe(true);
+    expect(isAiProviderId("grok-local")).toBe(true);
   });
 
   it("rejects unknown provider ids", () => {

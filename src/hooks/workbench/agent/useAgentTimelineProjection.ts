@@ -4,6 +4,7 @@ import type {
   AgentRun,
   AppMode,
   BurstResult,
+  ClientOverride,
   InterceptQueueItem,
   InterceptState,
   ReplayDraft,
@@ -11,6 +12,7 @@ import type {
   ReplayTabState,
   WorkflowDefinition
 } from "../../../types";
+import type { InterceptPane } from "../useInterceptDomain";
 import type { WorkView } from "../viewMeta";
 import { agentTimelineIntents, type AgentTimelineIntent } from "./agentTimelineIntents";
 
@@ -32,6 +34,9 @@ export interface AgentTimelineProjectionPorts {
   setInterceptResponseStatus: (status: number) => void;
   setInterceptResponseStatusText: (text: string) => void;
   hydrateInterceptDraft: (item: InterceptQueueItem) => void;
+  setInterceptPane: (pane: InterceptPane) => void;
+  setClientOverrides: Dispatch<SetStateAction<ClientOverride[]>>;
+  hydrateClientOverrideDraft: (override: ClientOverride) => void;
   setTrafficSearch: (search: string) => void;
   setReplayTabState: (state: ReplayTabState) => void;
   setAutomatePayloadText: (text: string) => void;
@@ -66,6 +71,18 @@ export function applyAgentTimelineIntent(intent: AgentTimelineIntent, ports: Age
       ports.setInterceptState((current) => ({ ...current, queue: intent.queue }));
       const firstItem = intent.queue[0];
       if (firstItem) ports.hydrateInterceptDraft(firstItem);
+      return;
+    }
+    case "prepare-client-override": {
+      const { override, note } = intent.data;
+      ports.setActiveView("intercept");
+      ports.setInterceptPane("client-files");
+      ports.setClientOverrides((current) => {
+        const next = current.filter((item) => !(item.host === override.host && item.path === override.path));
+        return [...next, override];
+      });
+      ports.hydrateClientOverrideDraft(override);
+      ports.setNotice(note);
       return;
     }
     case "prepare-intercept-edit": {

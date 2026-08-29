@@ -27,7 +27,7 @@ Use this checklist before a release build, demo, or screenshot refresh. Start fr
 - [ ] Handoff package preview includes reviewed findings by default, can opt into draft findings, and exports only referenced evidence.
 - [ ] **Open AI Operator** and `Cmd/Ctrl+Shift+A` open or focus one non-modal companion window without starting a run or changing Manual-First mode.
 - [ ] AI connection summary is visible in the workspace; its settings action focuses **AI Operator → Connection** instead of opening a workspace overlay.
-- [ ] AI-First profile selector and budget chips render in the AI Operator before a run starts.
+- [ ] After a completed run with a draft finding, **Follow up** loads a prompt chip and starts a new linked run from that finding.
 - [ ] Bottom telemetry counts match visible request, WebSocket, TLS, and proxy state.
 
 ## 01 HTTP(S)
@@ -37,7 +37,7 @@ Use this checklist before a release build, demo, or screenshot refresh. Start fr
 - [ ] Saved filter chips can be applied and cleared.
 - [ ] Selecting a row shows request, response, TLS, tags, and comments.
 - [ ] Multi-select supports bulk tag, export, and delete without affecting unselected rows.
-- [ ] Context menu can copy cURL/raw/URL and send a request to Repeater.
+- [ ] Context menu can copy cURL/raw/URL, send a request to Repeater, and override a captured HTML or JavaScript file.
 - [ ] Clear captures requires the explicit eraser action and does not clear WebSocket frames.
 
 ## 02 WebSocket
@@ -54,6 +54,7 @@ Use this checklist before a release build, demo, or screenshot refresh. Start fr
 - [ ] Request and response intercept toggles update visible queue state.
 - [ ] Intercept rules save, reload, and render valid JSON.
 - [ ] Match/replace rules save, reload, and render valid JSON.
+- [ ] Client file overrides can be created from an HTML or JavaScript capture, relaxed, saved, and delivered after a browser reload.
 - [ ] Queued proxy requests can be edited and forwarded.
 - [ ] Queued proxy requests can be dropped.
 - [ ] Resume all clears queued items.
@@ -176,7 +177,8 @@ Use this checklist before a release build, demo, or screenshot refresh. Start fr
 - [ ] Project, session, active view, browser summary, and selected evidence references synchronize to the companion without raw request bodies, headers, cookies, or storage values.
 - [ ] A companion-selected view/scope proposal/evidence reference applies through the visible workspace and records the expected operator-facing notice.
 - [ ] Run profile and budgets are visible for steps, replay, workflow requests, probe requests, capture sample, timeout, and raw-context policy.
-- [ ] Autonomous Assessment shows the contract deck, **Arm & Run**, an Assessment inspector tab, and **Stop Traffic Now** on both windows during live traffic.
+- [ ] Autonomous Assessment shows the contract deck, **Start Autonomous**, an Assessment inspector tab, and **Stop Traffic Now** on both windows during live traffic.
+- [ ] **Start Autonomous** binds the read-only contract at the first eligible experiment, runs matching probes without an approval prompt, and stops on the first supported or verification-required result.
 - [ ] The chronological feed shows the full saved transcript, not only the last few entries.
 - [ ] AI-First tab switches are visible.
 - [ ] Tool cards show rationale summaries, visible targets, tool result state, and policy blocks.

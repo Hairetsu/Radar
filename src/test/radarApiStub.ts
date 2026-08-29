@@ -214,6 +214,8 @@ const radarApi = {
   setInterceptRules: vi.fn(async (rules) => rules),
   getMatchReplaceRules: vi.fn(async () => []),
   setMatchReplaceRules: vi.fn(async (rules) => rules),
+  getClientOverrides: vi.fn(async () => []),
+  setClientOverrides: vi.fn(async (overrides) => overrides),
   getSslEvents: vi.fn(async () => []),
   getWebSocketEvents: vi.fn(async () => []),
   queryWebSocketEvents: vi.fn(async () => ({ ok: true, events: [] })),
@@ -680,6 +682,7 @@ const radarApi = {
     probe: { ok: true, message: "mock" }
   })),
   loginCursor: vi.fn(async () => ({ ok: true, message: "Linked as test@example.com" })),
+  loginGrok: vi.fn(async () => ({ ok: true, message: "Linked as test@example.com" })),
   getAiModels: vi.fn(async () => [{ id: "auto", label: "auto" }]),
   refreshAiModels: vi.fn(async () => [{ id: "auto", label: "auto" }]),
   startAgentRun: vi.fn(async (payload) => ({

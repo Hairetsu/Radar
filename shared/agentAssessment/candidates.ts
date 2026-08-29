@@ -36,13 +36,53 @@ function parameterNames(capture: CapturedRequest) {
   return [...names].slice(0, 12);
 }
 
-function applicableFamilies(contract: AssessmentContract, capture: CapturedRequest): ProbeFamilyId[] {
+function hasAuthorizationMaterial(capture: CapturedRequest) {
+  return Object.keys(capture.requestHeaders).some((name) =>
+    ["authorization", "cookie", "x-api-key", "x-auth-token"].includes(name.toLowerCase())
+  );
+}
+
+function hasResourceIdentifier(capture: CapturedRequest, parameters: string[]) {
+  if (parameters.some((name) => /(id|account|invoice|resource|shipment|tenant|user)/i.test(name))) {
+    return true;
+  }
+  return capture.path
+    .split("?")[0]
+    .split("/")
+    .filter(Boolean)
+    .some((segment) => /^\d+$/.test(segment) || /^[a-z]+-\d+$/i.test(segment) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment));
+}
+
+function applicableFamilies(
+  contract: AssessmentContract,
+  capture: CapturedRequest,
+  parameters: string[]
+): ProbeFamilyId[] {
   const method = capture.method.toUpperCase();
   const impact = classifyEndpointImpact({ method, path: capture.path });
   if (!impactAllowsReadOnlyProbes(impact)) {
     return [];
   }
-  return contract.families.filter((family) => contractAllowsFamily(contract, family) && familyAllowsMethod(family, method));
+  return contract.families.filter((family) => {
+    if (!contractAllowsFamily(contract, family) || !familyAllowsMethod(family, method)) {
+      return false;
+    }
+    switch (family) {
+      case "cors-origin":
+        return true;
+      case "reflection-context":
+      case "injection-signal":
+        return parameters.length > 0;
+      case "authorization-omission":
+        return hasAuthorizationMaterial(capture);
+      case "resource-id":
+        return hasResourceIdentifier(capture, parameters);
+      default: {
+        const _exhaustive: never = family;
+        return _exhaustive;
+      }
+    }
+  });
 }
 
 export function rankAssessmentCandidates(input: {
@@ -69,13 +109,13 @@ export function rankAssessmentCandidates(input: {
     if (!contractAllowsPath(input.contract, capture.path)) {
       continue;
     }
-    const families = applicableFamilies(input.contract, capture);
+    const params = parameterNames(capture);
+    const families = applicableFamilies(input.contract, capture, params);
     if (families.length === 0) {
       continue;
     }
     const priorCoverage = coverage.get(capture.id) || [];
     const uncovered = families.filter((family) => !priorCoverage.includes(family)).length;
-    const params = parameterNames(capture);
     candidates.push({
       captureId: capture.id,
       origin,

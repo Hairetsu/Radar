@@ -214,6 +214,7 @@ const radarOperator: RadarAiOperatorApi = {
   }),
   probeAiConnection: async () => ({ ok: true, message: "Connected" }),
   loginCursor: async () => ({ ok: true, message: "Linked" }),
+  loginGrok: async () => ({ ok: true, message: "Linked" }),
   getAiModels: async () => [{ id: "auto", label: "auto" }],
   refreshAiModels: async () => [{ id: "auto", label: "auto" }],
   startAgentRun: async (request) => {

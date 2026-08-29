@@ -12,6 +12,7 @@ import {
   agentCapabilityRiskForUse,
   type AgentCapabilityUse
 } from "../../shared/agentCapabilities.js";
+import { classifyEndpointImpact } from "../../shared/agentAssessment.js";
 import type { AgentRuntimeDeps, RunCounters } from "./runtimeTypes.js";
 
 function sortedRecord(input: Record<string, string>) {
@@ -76,6 +77,18 @@ export function capabilityUseForCall(
         requestCost: 0,
         payloadBytes: Buffer.byteLength(call.input.value)
       };
+    case "applyClientValidationBypass": {
+      const capture = deps.getCaptureById?.(call.input.captureId);
+      return {
+        ...common,
+        tool: call.tool,
+        url: capture?.url || currentUrl,
+        method: "GET",
+        requestCost: 0,
+        payloadBytes: Buffer.byteLength(capture?.responseBody || ""),
+        sourceCaptureId: call.input.captureId
+      };
+    }
     case "submitForm":
       return { ...common, tool: call.tool, url: currentUrl, method: "POST", requestCost: 1, payloadBytes: 0 };
     case "saveAuthState":
@@ -125,6 +138,9 @@ export function capabilityUseForCall(
         payloadBytes: Buffer.byteLength(JSON.stringify(call.input.location)),
         probeFamily: call.input.family,
         sourceCaptureId: call.input.captureId,
+        endpointImpact: capture
+          ? classifyEndpointImpact({ method: capture.method, path: capture.path })
+          : "unknown",
         experimentId: call.input.captureId
       };
     }

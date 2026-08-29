@@ -72,7 +72,8 @@ import {
   getAiModels,
   refreshAiModels,
   reconcileSettingsModel,
-  loginCursorCli
+  loginCursorCli,
+  loginGrokCli
 } from "./ai/index.js";
 import { AgentRuntime } from "./agent/runtime.js";
 import { createAiAgentPlanner } from "./agent/planner.js";
@@ -283,7 +284,11 @@ const interceptController = createInterceptController({
   saveMatchReplaceRules: (rules) =>
     localStore && localContext
       ? localStore.setMatchReplaceRules(localContext.workspace.id, rules)
-      : rules
+      : rules,
+  saveClientOverrides: (overrides) =>
+    localStore && localContext
+      ? localStore.setClientOverrides(localContext.workspace.id, overrides)
+      : overrides
 });
 const interceptStateSnapshot = interceptController.state;
 const queueInterceptRequest = interceptController.queueRequest;
@@ -321,7 +326,8 @@ function hydrateActiveLocalState() {
   allowlist = localStore.getTargets(localContext.workspace.id);
   interceptController.hydrateRules(
     localStore.listInterceptRules(localContext.workspace.id),
-    localStore.listMatchReplaceRules(localContext.workspace.id)
+    localStore.listMatchReplaceRules(localContext.workspace.id),
+    localStore.listClientOverrides(localContext.workspace.id)
   );
   captureLedger.hydrate(
     localStore.listCaptures(localContext.session.id, HOT_CAPTURE_LIMIT).reverse(),
@@ -534,9 +540,29 @@ function createAgentRuntime() {
       causalAttribution.update({ navigationId: `nav_${randomUUID()}` });
       return navigateRealChrome(url);
     },
-    getCaptures: () => listHttpCaptures(400),
+    getCaptures: () => listHttpCaptures(2000),
+    getCaptureById: (id) => {
+      const captureId = String(id || "").trim();
+      if (!captureId) {
+        return null;
+      }
+      const hot = captureLedger.captures.get(captureId);
+      if (hot && (hot.url.startsWith("http://") || hot.url.startsWith("https://"))) {
+        return hot;
+      }
+      if (!localStore || !localContext) {
+        return null;
+      }
+      const stored = localStore.getCapture(localContext.session.id, captureId);
+      if (!stored || !(stored.url.startsWith("http://") || stored.url.startsWith("https://"))) {
+        return null;
+      }
+      return stored;
+    },
     getWebSocketEvents: () => listWebSocketEvents(HOT_WEBSOCKET_LIMIT),
     getInterceptState: () => interceptStateSnapshot(),
+    getClientOverrides: interceptController.getClientOverrides,
+    setClientOverrides: interceptController.setClientOverrides,
     getReplayTabState: () => activeLocalStore().getReplayTabState(activeLocalContext().workspace.id),
     setReplayTabState: (state) => activeLocalStore().setReplayTabState(activeLocalContext().workspace.id, state),
     listReplayEnvironments: () => activeLocalStore().listReplayEnvironments(activeLocalContext().workspace.id),
@@ -1291,7 +1317,9 @@ registerInterceptIpc(ipcMain, {
   getRules: interceptController.getRules,
   setRules: interceptController.setRules,
   getMatchReplaceRules: interceptController.getMatchReplaceRules,
-  setMatchReplaceRules: interceptController.setMatchReplaceRules
+  setMatchReplaceRules: interceptController.setMatchReplaceRules,
+  getClientOverrides: interceptController.getClientOverrides,
+  setClientOverrides: interceptController.setClientOverrides
 });
 
 registerAutomateIpc(ipcMain, {
@@ -1489,6 +1517,11 @@ registerAiIpc(ipcMain, {
   },
   cursorLogin: async () => {
     const probe = await loginCursorCli();
+    publishAiConnection(loadAiSettings(app.getPath("userData")), probe);
+    return probe;
+  },
+  grokLogin: async () => {
+    const probe = await loginGrokCli();
     publishAiConnection(loadAiSettings(app.getPath("userData")), probe);
     return probe;
   },

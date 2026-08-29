@@ -24,6 +24,7 @@ export type RadarAiOperatorApi = AiOperatorWindowApi & {
   connectAi: (presetId: AiConnectPresetId) => Promise<AiConnectResult>;
   probeAiConnection: (settings: AiSettings) => Promise<AiConnectProbe>;
   loginCursor: () => Promise<AiConnectProbe>;
+  loginGrok: () => Promise<AiConnectProbe>;
   getAiModels: (provider: AiSettings["provider"]) => Promise<AiModelOption[]>;
   refreshAiModels: (settings: AiSettings) => Promise<AiModelOption[]>;
   startAgentRun: (payload: AgentRunRequest) => Promise<AgentRun>;

@@ -139,6 +139,48 @@ function compactToolResult(result: AgentDecisionContext["timeline"][number]["too
     };
   }
 
+  if (result.tool === "getClientOverrides") {
+    return {
+      tool: result.tool,
+      ok: true,
+      data: {
+        overrides: result.data.overrides.slice(0, 20).map((override) => ({
+          id: override.id,
+          name: override.name,
+          enabled: override.enabled,
+          host: override.host,
+          path: override.path,
+          mimeType: override.mimeType,
+          captureId: override.captureId,
+          relaxApplied: override.relaxApplied,
+          bodyChars: override.bodyChars
+        }))
+      }
+    };
+  }
+
+  if (result.tool === "applyClientValidationBypass") {
+    return {
+      tool: result.tool,
+      ok: true,
+      data: {
+        override: {
+          id: result.data.override.id,
+          name: result.data.override.name,
+          enabled: result.data.override.enabled,
+          host: result.data.override.host,
+          path: result.data.override.path,
+          mimeType: result.data.override.mimeType,
+          captureId: result.data.override.captureId,
+          relaxApplied: result.data.override.relaxApplied,
+          bodyChars: result.data.override.body.length
+        },
+        changes: result.data.changes,
+        note: result.data.note
+      }
+    };
+  }
+
   if (result.tool === "prepareInterceptEdit") {
     return {
       tool: result.tool,
@@ -376,6 +418,7 @@ export function buildAgentUserPrompt(context: AgentDecisionContext) {
       runMemory: context.runMemory,
       mission: compactMission(context.mission),
       capabilities: compactCapabilities(context.capabilities),
+      findingFollowUp: context.findingFollowUp,
       timeline: context.timeline.map((entry) => ({
         id: entry.id,
         note: entry.note,

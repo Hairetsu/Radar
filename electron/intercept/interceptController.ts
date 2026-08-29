@@ -2,9 +2,14 @@ import { randomUUID } from "node:crypto";
 import type { CompletedRequest } from "mockttp";
 import { isAllowedTarget } from "../../shared/allowlist.js";
 import { proxyRequestToCapture } from "../../shared/capture.js";
+import {
+  applyClientOverrides,
+  normalizeClientOverrides
+} from "../../shared/clientOverrides.js";
 import type {
   CapturedRequest,
   CaptureInterceptRecord,
+  ClientOverride,
   InterceptConfig,
   InterceptQueueItem,
   InterceptResponseDraft,
@@ -79,6 +84,7 @@ type InterceptControllerOptions = {
   bindCaptureToSession: (capture: CapturedRequest, sessionId: string) => CapturedRequest;
   saveInterceptRules: (rules: InterceptRule[]) => InterceptRule[];
   saveMatchReplaceRules: (rules: MatchReplaceRule[]) => MatchReplaceRule[];
+  saveClientOverrides: (overrides: ClientOverride[]) => ClientOverride[];
 };
 
 function parseCaptureUrlParts(url: string) {
@@ -125,12 +131,14 @@ export function createInterceptController({
   bindCaptureToCurrentSession,
   bindCaptureToSession,
   saveInterceptRules,
-  saveMatchReplaceRules
+  saveMatchReplaceRules,
+  saveClientOverrides
 }: InterceptControllerOptions) {
   const queue = new Map<string, PendingIntercept>();
   let config: InterceptConfig = { requestEnabled: false, responseEnabled: false };
   let interceptRules: InterceptRule[] = [];
   let matchReplaceRules: MatchReplaceRule[] = [];
+  let clientOverrides: ClientOverride[] = [];
 
   function state(): InterceptState {
     return {
@@ -201,6 +209,16 @@ export function createInterceptController({
   function applyScopedMatchReplace(capture: CapturedRequest, stage: "request" | "response") {
     if (!capture.allowed) return { capture, hits: [], changed: false };
     return applyMatchReplaceRules(matchReplaceRules, capture, stage);
+  }
+
+  function transformResponse(capture: CapturedRequest) {
+    const rewriteResult = applyScopedMatchReplace(capture, "response");
+    const overrideResult = applyClientOverrides(clientOverrides, rewriteResult.capture);
+    return {
+      capture: overrideResult.capture,
+      hits: [...rewriteResult.hits, ...overrideResult.hits],
+      changed: rewriteResult.changed || overrideResult.changed
+    };
   }
 
   function resolveItem(
@@ -357,7 +375,7 @@ export function createInterceptController({
     capture.statusText = response.statusMessage || "";
     capture.responseHeaders = safeJsonHeaders(response.headers || {});
     capture.responseBody = bodyText;
-    const rewriteResult = applyScopedMatchReplace(capture, "response");
+    const rewriteResult = transformResponse(capture);
     capture = rewriteResult.capture;
     if (rewriteResult.changed) rememberCapture(capture);
     const rewriteTransform = rewriteResult.changed
@@ -435,9 +453,14 @@ export function createInterceptController({
     },
     queueRequest,
     queueResponse,
-    hydrateRules(nextInterceptRules: InterceptRule[], nextMatchReplaceRules: MatchReplaceRule[]) {
+    hydrateRules(
+      nextInterceptRules: InterceptRule[],
+      nextMatchReplaceRules: MatchReplaceRule[],
+      nextClientOverrides: ClientOverride[] = []
+    ) {
       interceptRules = nextInterceptRules;
       matchReplaceRules = nextMatchReplaceRules;
+      clientOverrides = nextClientOverrides;
     },
     getRules: () => interceptRules,
     setRules(value: unknown) {
@@ -448,6 +471,11 @@ export function createInterceptController({
     setMatchReplaceRules(value: unknown) {
       matchReplaceRules = saveMatchReplaceRules(normalizeMatchReplaceRules(value));
       return matchReplaceRules;
+    },
+    getClientOverrides: () => clientOverrides,
+    setClientOverrides(value: unknown) {
+      clientOverrides = saveClientOverrides(normalizeClientOverrides(value));
+      return clientOverrides;
     }
   };
 }

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { completionReportForRun } from "../../shared/agentReport.js";
 import type { AgentFinding, AgentRun } from "../types";
+import { Button } from "./ui/button";
 import { EmptyState, StatusBadge } from "./radar/primitives";
 
 function EvidenceRefs({ refs }: { refs: string[] }) {
@@ -34,7 +35,15 @@ function ReportList({ entries }: { entries: string[] }) {
   );
 }
 
-function FindingDetail({ finding, index }: { finding: AgentFinding; index: number }) {
+function FindingDetail({
+  finding,
+  index,
+  onFollowUp
+}: {
+  finding: AgentFinding;
+  index: number;
+  onFollowUp?: (finding: AgentFinding) => void;
+}) {
   return (
     <article className="relative overflow-hidden border border-sand/35 bg-sand/[0.045] p-4" data-testid={`agentCompletionFinding-${finding.id}`}>
       <span className="absolute right-2 top-1 font-display text-[42px] font-black leading-none text-sand/[0.07]">{String(index + 1).padStart(2, "0")}</span>
@@ -71,11 +80,29 @@ function FindingDetail({ finding, index }: { finding: AgentFinding; index: numbe
         </div>
       )}
       <EvidenceRefs refs={finding.evidenceRefs} />
+      {onFollowUp ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          className="relative mt-3"
+          onClick={() => onFollowUp(finding)}
+          data-testid={`followUpFinding-${finding.id}`}
+        >
+          Follow up
+        </Button>
+      ) : null}
     </article>
   );
 }
 
-export function AgentCompletionReport({ run }: { run: AgentRun }) {
+export function AgentCompletionReport({
+  run,
+  onFollowUpFinding
+}: {
+  run: AgentRun;
+  onFollowUpFinding?: (finding: AgentFinding) => void;
+}) {
   const report = completionReportForRun(run);
   if (!report) return null;
   const outcomeLabel = report.outcome === "draft-findings"
@@ -155,7 +182,9 @@ export function AgentCompletionReport({ run }: { run: AgentRun }) {
               <p className="mt-2 text-meta leading-5 text-muted">This is a bounded-assessment result, not proof that the target has no vulnerabilities. Review the observations and limitations below.</p>
             </div>
           ) : (
-            <div className="grid gap-3">{run.findings.map((finding, index) => <FindingDetail key={finding.id} finding={finding} index={index} />)}</div>
+            <div className="grid gap-3">{run.findings.map((finding, index) => (
+              <FindingDetail key={finding.id} finding={finding} index={index} onFollowUp={onFollowUpFinding} />
+            ))}</div>
           )}
         </section>
 

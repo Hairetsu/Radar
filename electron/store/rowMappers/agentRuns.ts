@@ -2,6 +2,7 @@ import { createArmedAssessmentState, normalizeAssessmentContract } from "../../.
 import { normalizeAgentCapabilityState } from "../../../shared/agentCapabilities.js";
 import { normalizeAgentMission } from "../../../shared/agentMission.js";
 import { normalizeAgentTutorialGuidance } from "../../../shared/agentTutorial.js";
+import { normalizeAgentRunSource } from "../../../shared/agentFollowUp.js";
 import type {
   AgentFinding,
   AgentPolicy,
@@ -40,6 +41,7 @@ export function toAgentRun(row: AgentRunRow): AgentRun {
         contract: assessmentContract
       }
     : undefined;
+  const source = normalizeAgentRunSource(parseJsonObject(row.source_json || "{}", null));
   const timeline = parseJsonArray<AgentTimelineEntry>(row.timeline_json).map((entry) => {
     const { tutorial: rawTutorial, ...rest } = entry;
     const tutorial = normalizeAgentTutorialGuidance(rawTutorial);
@@ -67,6 +69,7 @@ export function toAgentRun(row: AgentRunRow): AgentRun {
     capabilities,
     ...(assessment ? { assessment } : {}),
     ...(checkpoint ? { checkpoint } : {}),
+    ...(source ? { source } : {}),
     ...(row.error ? { error: row.error } : {})
   };
 }

@@ -2,6 +2,7 @@ import type {
   AgentDecision,
   AgentRun
 } from "../../shared/agent-types.js";
+import { getProbeFamily } from "../../shared/agentAssessment.js";
 import {
   applyAgentMissionUpdates
 } from "../../shared/agentMission.js";
@@ -25,6 +26,7 @@ import {
   tutorialPausesAfter,
   visibleTargetForTool
 } from "./toolMetadata.js";
+import { completeAgentRun } from "./executionDecision.js";
 
 type PostToolResult = {
   run: AgentRun;
@@ -123,6 +125,63 @@ export async function settleToolStep({
             }
           )
         ]
+      }),
+      ended: true
+    };
+  }
+
+  if (
+    run.profileId === "autonomous-assessment" &&
+    lastToolEntry?.toolResult?.ok &&
+    lastToolEntry.toolResult.tool === "runReplayExperiment" &&
+    (lastToolEntry.toolResult.data.classification === "supported" ||
+      lastToolEntry.toolResult.data.classification === "verification-required")
+  ) {
+    const result = lastToolEntry.toolResult.data;
+    const family = getProbeFamily(result.family);
+    const replayEvidence = [
+      `capture:${result.sourceCaptureId}`,
+      `replay:${result.baselineHistoryId}`,
+      ...result.variants.map((variant) => `replay:${variant.historyId}`)
+    ];
+    const untestedCount = Math.max(
+      0,
+      (run.assessment?.queue.length || 0) -
+        (run.assessment?.queue.filter((item) => item.status === "completed").length || 0)
+    );
+    return {
+      run: completeAgentRun({
+        run,
+        counters,
+        decision: {
+          action: "finish",
+          rationale: `Autonomous assessment stopped at the first ${result.classification} result.`,
+          findings: [],
+          report: {
+            executiveSummary: `${family.label} produced the first ${result.classification} result. Radar stopped the continuous run and retained the full baseline and variant history for review.`,
+            scopeSummary: `The run stayed inside saved Scope and the armed read-only assessment contract for ${new URL(result.variants[0]?.draft.url || run.checkpoint?.startUrl || "http://localhost").origin}.`,
+            methodology: [
+              "Ranked retained in-scope captures by uncovered probe family and usable mutation source.",
+              `Ran one visible Repeater baseline and ${result.variants.length} sequential typed variant${result.variants.length === 1 ? "" : "s"} for ${family.label}.`,
+              "Stopped when the first supported signal met the autonomous stop condition."
+            ],
+            observations: [{
+              title: family.label,
+              detail: result.rationale,
+              status: result.classification === "supported" ? "supported" : "lead",
+              confidence: result.classification === "supported" ? "medium" : "low",
+              evidenceRefs: replayEvidence
+            }],
+            limitations: [
+              "The stop-on-first-result rule leaves later candidates untested.",
+              ...(untestedCount > 0 ? [`${untestedCount} queued experiment${untestedCount === 1 ? " was" : "s were"} not run.`] : [])
+            ],
+            recommendations: ["Review the retained Repeater comparison before deciding whether a separate confirming assessment is needed."]
+          }
+        },
+        deps,
+        tutorial: undefined,
+        operationId
       }),
       ended: true
     };

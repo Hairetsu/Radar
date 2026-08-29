@@ -12,6 +12,7 @@ import type {
   AutomateSession,
   BrowserState,
   CapturedRequest,
+  ClientOverride,
   Finding,
   InstalledPlugin,
   InterceptState,
@@ -36,8 +37,11 @@ export type AgentRuntimeDeps = {
   openBrowser: (url: string) => Promise<BrowserState>;
   navigateBrowser: (url: string) => Promise<BrowserState>;
   getCaptures: () => CapturedRequest[];
+  getCaptureById?: (id: string) => CapturedRequest | null;
   getWebSocketEvents: () => WebSocketEvent[];
   getInterceptState: () => InterceptState;
+  getClientOverrides: () => ClientOverride[];
+  setClientOverrides: (overrides: ClientOverride[]) => ClientOverride[];
   getReplayTabState: () => ReplayTabState;
   setReplayTabState: (state: ReplayTabState) => ReplayTabState;
   listReplayEnvironments: () => ReplayEnvironment[];

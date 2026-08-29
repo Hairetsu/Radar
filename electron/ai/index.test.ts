@@ -5,6 +5,7 @@ import type { CapturedRequest, WebSocketEvent } from "../../shared/domain.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearAudit } from "./audit.js";
 import * as cursorCli from "./cursorCli.js";
+import * as grokCli from "./grokCli.js";
 import { previewContext, runAiTask, connectPreset } from "./index.js";
 import { saveSettings } from "./settings.js";
 import { upsertSkill } from "./skills.js";
@@ -203,6 +204,16 @@ describe("ai index", () => {
     const result = await connectPreset({ userDataPath: tmpDir, presetId: "cursor_cli" });
     expect(result.meta.presetId).toBe("cursor_cli");
     expect(result.settings.provider).toBe("cursor-local");
+  });
+
+  it("connects grok cli preset and saves settings", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-ai-"));
+    vi.spyOn(grokCli, "probeGrokCli").mockResolvedValue({ ok: true, message: "Grok ready" });
+
+    const result = await connectPreset({ userDataPath: tmpDir, presetId: "grok_cli" });
+    expect(result.meta.presetId).toBe("grok_cli");
+    expect(result.settings.provider).toBe("grok-local");
+    expect(result.settings.baseUrl).toBe("grok://local");
   });
 
   it("quick connects with the key saved for the preset provider", async () => {

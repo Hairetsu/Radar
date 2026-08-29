@@ -13,9 +13,11 @@ import type {
 import {
   applyAgentMissionSteering,
   applyAgentMissionUpdates,
+  captureIdsFromEvidenceRefs,
   createAgentMission,
+  missionEvidenceRefs,
   missionHasOpenQuestion,
-  validateAgentMissionEvidence
+  reconcileAgentMissionEvidence
 } from "../../shared/agentMission.js";
 import {
   createAgentCapabilityState,
@@ -31,9 +33,9 @@ import {
   defaultAssessmentContract,
   normalizeAssessmentContract
 } from "../../shared/agentAssessment.js";
+import { normalizeAgentRunSource } from "../../shared/agentFollowUp.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { getAgentRunProfile, normalizeAgentRunProfileId } from "../../shared/agentProfiles.js";
-import { assessmentLeaseFromContract } from "./assessment/armContract.js";
 import { stopAssessmentTraffic } from "./assessment/stopController.js";
 import { authFingerprint } from "./capabilityRuntime.js";
 import { runtimeEvidenceCatalog } from "./evidenceContext.js";
@@ -163,8 +165,8 @@ export class AgentRuntime {
       return "Answer or dismiss the open mission question before resuming this run.";
     }
     const pendingGrant = pendingCapabilityGrant(run);
-    if (pendingGrant) {
-      return capabilityGrantError(pendingGrant.tool, pendingGrant.draft?.name);
+    if (pendingGrant?.draft) {
+      return capabilityGrantError(pendingGrant.tool, pendingGrant.draft.name);
     }
     return null;
   }
@@ -337,29 +339,45 @@ export class AgentRuntime {
 
   start(request: AgentRunRequest) {
     const continuationOf = String(request.continuationOf || "").trim().slice(0, 128);
-    const sourceRun = continuationOf ? this.deps.loadRun(continuationOf) : null;
-    if (continuationOf && !sourceRun) {
-      throw new Error("The source run for this continuation no longer exists.");
+    const requestedSource = normalizeAgentRunSource(request.source);
+    if (continuationOf && requestedSource && requestedSource.kind !== "continuation") {
+      throw new Error("A budget continuation cannot also be a finding follow-up.");
+    }
+    const source = requestedSource || (continuationOf
+      ? { kind: "continuation" as const, sourceRunId: continuationOf }
+      : undefined);
+    const sourceRun = source ? this.deps.loadRun(source.sourceRunId) : null;
+    if (source && !sourceRun) {
+      throw new Error("The source run for this follow-up no longer exists.");
     }
     if (sourceRun && sourceRun.sessionId !== this.deps.currentSessionId()) {
-      throw new Error("A continuation must remain in the source run's local session.");
+      throw new Error("A follow-up must remain in the source run's local session.");
     }
     if (sourceRun && (sourceRun.status === "queued" || sourceRun.status === "running")) {
-      throw new Error("An active run cannot be used as a continuation source.");
+      throw new Error("An active run cannot be used as a follow-up source.");
     }
-    const goal = String(sourceRun?.goal || request.goal || "").trim();
+    const sourceFinding = source?.kind === "finding-follow-up"
+      ? sourceRun?.findings.find((item) => item.id === source.sourceFindingId)
+      : undefined;
+    if (source?.kind === "finding-follow-up" && !sourceFinding) {
+      throw new Error("The source finding for this follow-up no longer exists.");
+    }
+    const isContinuation = source?.kind === "continuation";
+    const goal = String((isContinuation ? sourceRun?.goal : undefined) || request.goal || "").trim();
     if (!goal) {
       throw new Error("Agent goal is required.");
     }
 
     const createdAt = nowIso();
-    const profileId = sourceRun?.profileId || normalizeAgentRunProfileId(request.profileId);
+    const profileId = isContinuation && sourceRun
+      ? sourceRun.profileId
+      : normalizeAgentRunProfileId(request.profileId);
     const startUrl = firstUrlFromText(goal) || request.startUrl || sourceRun?.checkpoint?.startUrl || "";
     const profilePolicy = normalizeAgentPolicy({}, profileId);
-    const tutorialMode = sourceRun?.policy.tutorialMode === true ||
+    const tutorialMode = (isContinuation && sourceRun?.policy.tutorialMode === true) ||
       request.tutorialMode === true ||
       request.policy?.tutorialMode === true;
-    const policy = normalizeAgentPolicy(sourceRun
+    const policy = normalizeAgentPolicy(isContinuation && sourceRun
       ? {
           maxRuntimeMs: profilePolicy.maxRuntimeMs,
           maxSteps: Math.min(sourceRun.policy.maxSteps, profilePolicy.maxSteps),
@@ -394,53 +412,36 @@ export class AgentRuntime {
       capabilities: createAgentCapabilityState(),
       timeline: [
         timeline(
-          continuationOf
-            ? `Continuation queued from ${continuationOf}; the source transcript remains preserved.`
-            : "Run queued from AI-First goal prompt.",
+          source?.kind === "finding-follow-up" && sourceFinding
+            ? `Follow-up queued from draft finding "${sourceFinding.title}" on run ${source.sourceRunId}.`
+            : source?.kind === "continuation"
+              ? `Continuation queued from ${source.sourceRunId}; the source transcript remains preserved.`
+              : "Run queued from AI-First goal prompt.",
           {
             phase: "status",
-            summary: continuationOf
-              ? `Continuation queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`
-              : `Queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`,
+            summary: source?.kind === "finding-follow-up"
+              ? `Finding follow-up queued with ${profileId} profile`
+              : source?.kind === "continuation"
+                ? `Continuation queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`
+                : `Queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`,
             ...(policy.tutorialMode ? { tutorial: tutorialOrientation() } : {})
           }
         )
       ],
-      findings: []
+      findings: [],
+      ...(source ? { source } : {})
     };
 
     if (profileId === "autonomous-assessment") {
       const contract = normalizeAssessmentContract(request.assessmentContract) || defaultAssessmentContract();
       run.assessment = createArmedAssessmentState(contract);
-      const proposed = proposeAgentCapabilityLease(
-        run.capabilities || createAgentCapabilityState(),
-        assessmentLeaseFromContract({
-          contract,
-          allowlist: this.deps.allowlist(),
-          reason: "Arm & Run confirmed the Autonomous Assessment contract."
-        }),
-        createId("lease"),
-        createdAt
-      );
-      if (proposed.ok) {
-        const granted = grantAgentCapabilityLease(proposed.state, proposed.lease.id, {
-          allowlist: this.deps.allowlist(),
-          allowedTools: getAgentRunProfile(profileId).allowedTools,
-          authFingerprint: "current",
-          ceiling: getAgentRunProfile(profileId).capabilityCeiling,
-          now: createdAt
-        });
-        if (granted.ok) {
-          run.capabilities = granted.state;
-          run.timeline = [
-            ...run.timeline,
-            timeline("Assessment contract armed. Matching read-only experiments will not pause for another lease.", {
-              phase: "status",
-              summary: "Arm & Run granted the assessment capability lease"
-            })
-          ];
-        }
-      }
+      run.timeline = [
+        ...run.timeline,
+        timeline("Autonomous contract armed. Radar will bind its run-level lease to the current browser identity before the first eligible experiment.", {
+          phase: "status",
+          summary: "Start Autonomous armed the assessment contract"
+        })
+      ];
     }
 
     this.deps.saveRun(run);
@@ -483,13 +484,28 @@ export class AgentRuntime {
       throw new Error(blockReason);
     }
     const checkpoint = elapsedCheckpoint(run);
+    const pendingGrant = pendingCapabilityGrant(run);
+    const clearedUnauthorizedRetry = Boolean(pendingGrant && !pendingGrant.draft);
     stopped.delete(runId);
     requestedRunStatus.delete(runId);
     const next = withUpdate(run, this.deps.saveRun, {
       status: "queued",
       error: undefined,
-      checkpoint: { ...checkpoint, pendingRecovery: undefined, lastResumedAt: nowIso() },
-      timeline: [...run.timeline, timeline("Run queued to resume from its durable checkpoint.", { phase: "status" })]
+      checkpoint: {
+        ...checkpoint,
+        pendingRecovery: undefined,
+        lastResumedAt: nowIso(),
+        ...(clearedUnauthorizedRetry ? { pendingCapabilityCall: undefined } : {})
+      },
+      timeline: [
+        ...run.timeline,
+        timeline(
+          clearedUnauthorizedRetry
+            ? `Run queued to resume. Pending ${pendingGrant?.tool} was not retried because no matching capability lease was granted.`
+            : "Run queued to resume from its durable checkpoint.",
+          { phase: "status" }
+        )
+      ]
     });
     this.queueExecution(runId);
     return next;
@@ -708,18 +724,24 @@ export class AgentRuntime {
     if (!result.ok) {
       throw new Error(result.error);
     }
-    const evidenceErrors = validateAgentMissionEvidence(result.mission, runtimeEvidenceCatalog(this.deps));
-    if (evidenceErrors.length > 0) {
-      throw new Error(`Mission steering failed evidence validation: ${evidenceErrors.join(", ")}`);
-    }
+    const catalog = runtimeEvidenceCatalog(
+      this.deps,
+      captureIdsFromEvidenceRefs(missionEvidenceRefs(result.mission))
+    );
+    const reconciled = reconcileAgentMissionEvidence(result.mission, catalog);
+    const droppedNote = reconciled.droppedRefs.length
+      ? ` Dropped ${reconciled.droppedRefs.length} stale evidence citation${
+          reconciled.droppedRefs.length === 1 ? "" : "s"
+        } that are no longer in the local catalog.`
+      : "";
     return withUpdate(run, this.deps.saveRun, {
-      mission: result.mission,
+      mission: reconciled.mission,
       status: result.shouldPause ? "paused" : run.status,
       timeline: [
         ...run.timeline,
-        timeline(result.summary, {
+        timeline(`${result.summary}${droppedNote}`, {
           phase: "status",
-          summary: `Mission graph advanced to revision ${result.mission.revision}`
+          summary: `Mission graph advanced to revision ${reconciled.mission.revision}`
         })
       ]
     });

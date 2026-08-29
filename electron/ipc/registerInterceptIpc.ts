@@ -20,6 +20,8 @@ interface InterceptIpcOperations {
   setRules: (rules: unknown) => unknown;
   getMatchReplaceRules: () => unknown;
   setMatchReplaceRules: (rules: unknown) => unknown;
+  getClientOverrides: () => unknown;
+  setClientOverrides: (overrides: unknown) => unknown;
 }
 
 export function registerInterceptIpc(
@@ -66,5 +68,9 @@ export function registerInterceptIpc(
   );
   ipcMain.handle("match-replace:rules:set", (_event, rules) =>
     operations.setMatchReplaceRules(rules)
+  );
+  ipcMain.handle("client-overrides:get", () => operations.getClientOverrides());
+  ipcMain.handle("client-overrides:set", (_event, overrides) =>
+    operations.setClientOverrides(overrides)
   );
 }

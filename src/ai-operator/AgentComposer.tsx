@@ -1,4 +1,4 @@
-import { Ban, KeyRound, Pause, Play, RotateCw, Send, Square, UserRound } from "lucide-react";
+import { Ban, KeyRound, Pause, Play, RotateCw, Send, Square, UserRound, X } from "lucide-react";
 import type { FormEvent } from "react";
 import { defaultAssessmentContract } from "../../shared/agentAssessment.js";
 import type { AgentRunProfileId } from "../../shared/agent-types.js";
@@ -24,13 +24,14 @@ function AssessmentContractDeck({
   const contract = defaultAssessmentContract();
   return (
     <div className="grid gap-1 border border-rule/80 bg-ink/40 px-3 py-2" data-testid="assessmentContractDeck">
-      <span className="rd-eyebrow text-muted">Assessment contract</span>
+      <span className="rd-eyebrow text-muted">Continuous assessment</span>
       <p className="font-mono text-micro text-copy">
         {contract.authorityLevel} · {(families || contract.families).join(" · ")} · 1 concurrent · raw off
       </p>
       <p className="font-mono text-micro text-muted">
         {remaining ?? contract.maxProbeRequests} probe requests remaining · {contract.delayMs}ms delay · {Math.round(contract.maxRuntimeMs / 60_000)}m runtime
       </p>
+      <p className="font-mono text-micro text-signal">One start · no approval pauses · stops on first supported result</p>
     </div>
   );
 }
@@ -84,7 +85,7 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
         <div className="mx-auto grid max-w-[1100px] gap-2" data-testid="aiOperatorActiveControls">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
             <div className="min-w-[240px] flex-1">
-              <span className="rd-eyebrow text-signal">Live bounded mission</span>
+              <span className="rd-eyebrow text-signal">{run.profileId === "autonomous-assessment" ? "Autonomous loop live" : "Live bounded mission"}</span>
               <p className="mt-1 truncate text-meta text-copy" title={run.goal}>{run.goal}</p>
               <p className="mt-1 font-mono text-micro text-muted">Need to redirect it? Pause &amp; Steer adds reviewed direction without rewriting the original goal.</p>
             </div>
@@ -118,12 +119,29 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
         <Textarea
           value={controller.goal}
           onChange={(event) => controller.setGoal(event.target.value)}
-          placeholder={canSteer ? "Tell the agent what to prioritize, avoid, or investigate next. The original goal stays in the audit trail." : "Inspect https://target.test for authorization, session, and API hardening issues."}
+          placeholder={
+            canSteer
+              ? "Tell the agent what to prioritize, avoid, or investigate next. The original goal stays in the audit trail."
+              : controller.followUp
+                ? "What should Radar do with this finding next? Verify, expand, or retest it."
+                : "Inspect https://target.test for authorization, session, and API hardening issues."
+          }
           className="min-h-[76px] resize-none"
           autoFocus={!run}
           disabled={Boolean(controller.runningRun) && !canSteer}
           data-testid="agentGoalInput"
         />
+        {controller.followUp && (
+          <div className="flex min-w-0 items-center justify-between gap-2 border border-signal/40 bg-signal/10 px-3 py-2" data-testid="findingFollowUpChip">
+            <div className="min-w-0">
+              <span className="rd-eyebrow text-signal">Based on finding</span>
+              <p className="truncate font-mono text-micro text-copy" title={controller.followUp.title}>{controller.followUp.title}</p>
+            </div>
+            <Button type="button" variant="ghost" size="compact" onClick={() => controller.clearFollowUp()} aria-label="Clear finding follow-up" data-testid="clearFindingFollowUp">
+              <X size={12} />
+            </Button>
+          </div>
+        )}
         <AssessmentContractDeck profileId={controller.profileId} />
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 min-[1200px]:grid-cols-[minmax(200px,0.7fr)_auto_minmax(0,1fr)]">
           <Select variant="compact" value={controller.profileId} onChange={(event) => controller.setProfileId(event.target.value as AgentRunProfileId)} disabled={Boolean(controller.runningRun) || canSteer} data-testid="agentProfileSelect">
@@ -147,7 +165,7 @@ export function AgentComposer({ controller }: { controller: AiOperatorController
                 {controller.tutorialMode
                   ? "Start Tutorial"
                   : controller.profileId === "autonomous-assessment"
-                    ? "Arm & Run"
+                    ? "Start Autonomous"
                     : "Start Run"}
               </Button>
             )}

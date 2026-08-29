@@ -21,7 +21,9 @@ describe("agent tools", () => {
         "waitForNetworkIdle",
         "getCaptures",
         "getInterceptQueue",
+        "getClientOverrides",
         "prepareInterceptEdit",
+        "applyClientValidationBypass",
         "sendReplay",
         "getReplayContext",
         "prepareReplayTab",
@@ -67,6 +69,19 @@ describe("agent tools", () => {
     expect(normalizeAgentToolCall({ tool: "getInterceptQueue", input: { limit: 999 } })).toEqual({
       tool: "getInterceptQueue",
       input: { limit: 100 }
+    });
+    expect(normalizeAgentToolCall({ tool: "getClientOverrides", input: { limit: 999 } })).toEqual({
+      tool: "getClientOverrides",
+      input: { limit: 100 }
+    });
+    expect(
+      normalizeAgentToolCall({
+        tool: "applyClientValidationBypass",
+        input: { captureId: " cap-form ", name: "  formValidation.ts  " }
+      })
+    ).toEqual({
+      tool: "applyClientValidationBypass",
+      input: { captureId: "cap-form", name: "formValidation.ts" }
     });
     expect(
       normalizeAgentToolCall({

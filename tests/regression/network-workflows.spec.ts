@@ -162,6 +162,21 @@ test("[REG-INT-007] @network applies real scoped match/replace transformations",
   expect(received.body).toBe('{"role":"auditor"}');
 });
 
+test("[REG-INT-009] @network delivers an edited client file override", async ({ radarPage: page, targetLab, proxyPort }) => {
+  await setScope(page, [targetLab.origin]);
+  await startProxy(page, proxyPort);
+  await sendThroughRadarProxy(proxyPort, `${targetLab.origin}/api/echo`);
+  await openView(page, "traffic");
+  await page.locator('[data-testid^="trafficRow-"]').filter({ hasText: "/api/echo" }).click();
+  await page.getByTestId("cloneToClientOverride").click();
+  await expect(page.getByTestId("clientOverrideBody")).toBeVisible();
+  await page.getByTestId("clientOverrideBody").fill('{"overridden":true}');
+  await page.getByTestId("saveClientOverride").click();
+  await expect(page.getByText("Saved client file override", { exact: false })).toBeVisible();
+  const second = await sendThroughRadarProxy(proxyPort, `${targetLab.origin}/api/echo`);
+  expect(second.body).toBe('{"overridden":true}');
+});
+
 test("[REG-SSL-001] @network starts and stops the isolated proxy and releases its port", async ({ radarPage: page, proxyPort }) => {
   await startProxy(page, proxyPort);
   await expect(page.getByText(`http://127.0.0.1:${proxyPort}`, { exact: false }).first()).toBeVisible();

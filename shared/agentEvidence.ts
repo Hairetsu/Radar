@@ -68,6 +68,15 @@ function validSegmentCount(kind: AgentEvidenceKind, count: number) {
   return count === 1 || count === 2;
 }
 
+export function captureIdFromEvidenceRef(value: unknown) {
+  const ref = typeof value === "string" ? value.trim() : "";
+  if (!ref.startsWith("capture:")) {
+    return null;
+  }
+  const id = ref.slice("capture:".length);
+  return validSegment(id) ? id : null;
+}
+
 export function canonicalAgentEvidenceKey(kind: AgentEvidenceKind, ...segments: string[]) {
   if (!validSegmentCount(kind, segments.length) || segments.some((segment) => !validSegment(segment))) {
     return null;

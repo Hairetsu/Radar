@@ -3,16 +3,20 @@ import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_PROFILES,
   isAiProviderId,
+  isLocalAiProvider,
   providerBaseUrl
 } from "./ai-providers.js";
 
 describe("ai-providers", () => {
   it("exposes first-class cloud and local providers", () => {
     expect(AI_PROVIDER_IDS).toEqual(
-      expect.arrayContaining(["openai", "anthropic", "xai", "openrouter", "codex-local"])
+      expect.arrayContaining(["openai", "anthropic", "xai", "openrouter", "codex-local", "cursor-local", "grok-local"])
     );
     expect(AI_PROVIDER_PROFILES.xai.baseUrl).toBe("https://api.x.ai/v1");
     expect(AI_PROVIDER_PROFILES.openrouter.baseUrl).toBe("https://openrouter.ai/api/v1");
+    expect(AI_PROVIDER_PROFILES["grok-local"].baseUrl).toBe("grok://local");
+    expect(isLocalAiProvider("grok-local")).toBe(true);
+    expect(isLocalAiProvider("xai")).toBe(false);
   });
 
   it("recognizes only configured provider ids", () => {

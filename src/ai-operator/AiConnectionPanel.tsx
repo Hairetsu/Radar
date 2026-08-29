@@ -27,11 +27,12 @@ export function AiConnectionPanel({ controller }: { controller: AiOperatorContro
           <FieldLabel className="px-0 pt-0">Quick Connect</FieldLabel>
           <div className="grid gap-2 sm:grid-cols-2">
             <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("codex")} data-testid="aiConnectCodex"><SquareTerminal size={13} /> Codex app</Button>
+            <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("cursor_cli")} data-testid="aiConnectCursorCli"><SquareTerminal size={13} /> Cursor CLI</Button>
+            <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("grok_cli")} data-testid="aiConnectGrokCli"><SquareTerminal size={13} /> Grok CLI</Button>
             <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("openai")} data-testid="aiConnectOpenAi"><KeyRound size={13} /> OpenAI key</Button>
             <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("anthropic")} data-testid="aiConnectAnthropic"><KeyRound size={13} /> Anthropic key</Button>
             <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("xai")} data-testid="aiConnectXai"><KeyRound size={13} /> xAI / Grok key</Button>
             <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("openrouter")} data-testid="aiConnectOpenRouter"><Braces size={13} /> OpenRouter key</Button>
-            <Button type="button" variant="outline" className="justify-start" disabled={controller.connectionPending} onClick={() => void controller.connectPreset("cursor_cli")} data-testid="aiConnectCursorCli"><SquareTerminal size={13} /> Cursor CLI</Button>
           </div>
 
           <FieldLabel className="px-0">Provider And Model</FieldLabel>
@@ -46,6 +47,7 @@ export function AiConnectionPanel({ controller }: { controller: AiOperatorContro
               <option value="openrouter">OpenRouter</option>
               <option value="codex-local">Codex app</option>
               <option value="cursor-local">Cursor agent</option>
+              <option value="grok-local">Grok CLI</option>
               <option value="openai-compatible">OpenAI-compatible</option>
             </Select>
             <Select value={settings.model} onChange={(event) => controller.setSettings({ ...settings, model: event.target.value })} data-testid="aiModel">
@@ -58,6 +60,12 @@ export function AiConnectionPanel({ controller }: { controller: AiOperatorContro
             <div className="grid gap-2">
               <Button type="button" variant="outline" disabled={controller.connectionPending} onClick={() => void controller.loginCursor()} data-testid="aiCursorLogin"><LogIn size={13} /> Sign in with Cursor</Button>
               <Input type="password" value={settings.apiKey === "local" ? "" : settings.apiKey} onChange={(event) => controller.setSettings({ ...settings, apiKey: event.target.value.trim() || "local" })} placeholder="Optional API key" data-testid="aiCursorApiKey" />
+            </div>
+          ) : settings.provider === "grok-local" ? (
+            <div className="grid gap-2">
+              <Button type="button" variant="outline" disabled={controller.connectionPending} onClick={() => void controller.loginGrok()} data-testid="aiGrokLogin"><LogIn size={13} /> Sign in with Grok</Button>
+              <Input type="password" value={settings.apiKey === "local" ? "" : settings.apiKey} onChange={(event) => controller.setSettings({ ...settings, apiKey: event.target.value.trim() || "local" })} placeholder="Optional XAI_API_KEY" data-testid="aiGrokApiKey" />
+              <p className="font-mono text-micro leading-5 text-muted">Uses the installed Grok Build CLI login. XAI_API_KEY is a fallback when no grok.com session is active.</p>
             </div>
           ) : settings.provider === "codex-local" ? (
             <p className="radar-note border px-3 py-2 font-mono text-label leading-5 text-muted">Uses the installed Codex app login. Radar does not store a separate API key.</p>
@@ -72,7 +80,7 @@ export function AiConnectionPanel({ controller }: { controller: AiOperatorContro
           )}
 
           {settings.provider === "openai-compatible" && <Input value={settings.baseUrl} onChange={(event) => controller.setSettings({ ...settings, baseUrl: event.target.value })} placeholder="http://127.0.0.1:11434/v1" data-testid="aiBaseUrl" />}
-          {settings.provider !== "codex-local" && settings.provider !== "cursor-local" && settings.provider !== "openai-compatible" && (
+          {settings.provider !== "codex-local" && settings.provider !== "cursor-local" && settings.provider !== "grok-local" && settings.provider !== "openai-compatible" && (
             <p className="radar-note border px-3 py-2 font-mono text-micro leading-5 text-muted" data-testid="aiProviderEndpoint">{profile.label} · {profile.baseUrl}</p>
           )}
 

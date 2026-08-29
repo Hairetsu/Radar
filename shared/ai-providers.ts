@@ -71,6 +71,15 @@ export const AI_PROVIDER_PROFILES: Record<AiProviderId, AiProviderProfile> = {
     apiKeyPlaceholder: "Optional API key",
     environmentKey: "CURSOR_API_KEY",
     auth: "local"
+  },
+  "grok-local": {
+    label: "Grok Build CLI",
+    shortLabel: "Grok CLI",
+    baseUrl: "grok://local",
+    defaultModel: "auto",
+    apiKeyPlaceholder: "Optional API key",
+    environmentKey: "XAI_API_KEY",
+    auth: "local"
   }
 };
 
@@ -85,6 +94,10 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
 
 export function isAiProviderId(value: unknown): value is AiProviderId {
   return typeof value === "string" && Object.hasOwn(AI_PROVIDER_PROFILES, value);
+}
+
+export function isLocalAiProvider(provider: AiProviderId) {
+  return AI_PROVIDER_PROFILES[provider].auth === "local";
 }
 
 export function providerBaseUrl(settings: Pick<AiSettings, "provider" | "baseUrl">) {

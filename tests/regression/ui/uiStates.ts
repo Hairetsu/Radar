@@ -52,6 +52,7 @@ export const VIEW_REQUIRED_CONTROLS: Record<WorkbenchView, RequiredControl[]> = 
     { selector: byTestId("detailTabRequest"), label: "request detail tab", focus: true },
     { selector: byTestId("detailTabResponse"), label: "response detail tab", focus: true },
     { selector: byTestId("cloneToRepeater"), label: "clone to Repeater", focus: true },
+    { selector: byTestId("cloneToClientOverride"), label: "override client file", focus: true },
     { selector: byTestId("captureTags"), label: "capture tags", focus: true },
     { selector: byTestId("captureComment"), label: "capture comment", focus: true }
   ],
@@ -75,7 +76,8 @@ export const VIEW_REQUIRED_CONTROLS: Record<WorkbenchView, RequiredControl[]> = 
     { selector: byTestId("interceptBody"), label: "intercept body", focus: true },
     { selector: byTestId("forwardIntercept"), label: "forward intercept", focus: true },
     { selector: byTestId("dropIntercept"), label: "drop intercept", focus: true },
-    { selector: byTestId("resetInterceptDraft"), label: "reset intercept", focus: true }
+    { selector: byTestId("resetInterceptDraft"), label: "reset intercept", focus: true },
+    { selector: byTestId("interceptPaneClientFiles"), label: "client files pane", focus: true }
   ],
   repeater: [
     { selector: "[data-testid^='repeaterTab-']", label: "Repeater tab", focus: true },
