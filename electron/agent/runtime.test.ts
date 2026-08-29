@@ -14,6 +14,7 @@ import type {
   AutomateSession,
   BrowserState,
   CapturedRequest,
+  ClientOverride,
   Finding,
   InstalledPlugin,
   InterceptQueueItem,
@@ -58,6 +59,7 @@ function makeRuntime(
     captures?: CapturedRequest[];
     catalogCaptures?: CapturedRequest[];
     interceptQueue?: InterceptQueueItem[];
+    clientOverrides?: ClientOverride[];
     replayTabState?: ReturnType<typeof defaultReplayTabState>;
     automatePayloadSets?: AutomatePayloadSet[];
     automateSessions?: AutomateSession[];
@@ -231,6 +233,11 @@ function makeRuntime(
       config: { requestEnabled: true, responseEnabled: true },
       queue: options.interceptQueue || []
     }),
+    getClientOverrides: () => options.clientOverrides || [],
+    setClientOverrides: (overrides) => {
+      options.clientOverrides = overrides;
+      return overrides;
+    },
     getReplayTabState: () => options.replayTabState || defaultReplayTabState(),
     setReplayTabState: (state) => state,
     listReplayEnvironments: () => [],
@@ -2042,6 +2049,48 @@ describe("AgentRuntime", () => {
     expect(sendReplay).not.toHaveBeenCalled();
   });
 
+  it("applies a client validation bypass from a captured script", async () => {
+    const script = capture("cap-form", "https://hairetsu.com/src/formValidation.ts", {
+      mimeType: "text/javascript",
+      type: "Script",
+      responseBody: "return invalid(\"blocked\");"
+    });
+    const decisions: AgentDecision[] = [
+      {
+        action: "tool",
+        call: { tool: "applyClientValidationBypass", input: { captureId: "cap-form" } }
+      },
+      { action: "finish", rationale: "Client validation is relaxed.", findings: [] }
+    ];
+    const options = {
+      allowlist: ["https://hairetsu.com"],
+      captures: [script],
+      clientOverrides: [] as ClientOverride[],
+      leaseRequest: browserLease(
+        ["applyClientValidationBypass"],
+        [{ origin: "https://hairetsu.com", method: "GET", pathPrefix: "/src/formValidation.ts", identity: "current" }]
+      ),
+      decideNextAction: async () => decisions.shift() || { action: "finish", rationale: "Done.", findings: [] }
+    };
+    const { runtime, runs } = makeRuntime(undefined, options);
+
+    const run = runtime.start({
+      goal: "Bypass client validation on hairetsu.com",
+      startUrl: "https://hairetsu.com",
+      profileId: "browser-assessment"
+    });
+    await grantNextDraftAndResume(runtime, run.id);
+
+    await vi.waitFor(() => {
+      expect(runs.get(run.id)?.status).toBe("completed");
+    });
+
+    const applied = runs.get(run.id)?.timeline.find((entry) => entry.toolResult?.tool === "applyClientValidationBypass")?.toolResult;
+    expect(applied?.ok && applied.data.override.body).toBe("return valid();");
+    expect(applied?.ok && applied.data.changes).toContain("Passed client validator returns");
+    expect(options.clientOverrides[0]?.relaxApplied).toBe(true);
+  });
+
   it("fails instead of falling back when the agent cannot choose an action", async () => {
     const { runtime, runs, openBrowser } = makeRuntime(undefined, {
       allowlist: ["https://hairetsu.com"],
@@ -2247,6 +2296,91 @@ describe("AgentRuntime", () => {
     expect(continuation.goal).toBe(exhaustedRun.goal);
     expect(continuation.policy.maxRuntimeMs).toBe(600000);
     expect(continuation.timeline[0]?.note).toContain(`Continuation queued from ${exhaustedRun.id}`);
+  });
+
+  it("starts a finding follow-up with a new prompt and the source finding digest", async () => {
+    const sourceRun: AgentRun = {
+      id: "run-source",
+      sessionId: "session-test",
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:02:00.000Z",
+      goal: "Inspect Harborline cargo search",
+      profileId: "browser-assessment",
+      status: "completed",
+      policy: {
+        maxRuntimeMs: 600000,
+        maxSteps: 40,
+        maxReplay: 3,
+        maxWorkflowRequests: 3,
+        maxCaptureSample: 100,
+        allowRawContext: false
+      },
+      checkpoint: {
+        startUrl: "http://127.0.0.1:3000/",
+        targetOrigin: "http://127.0.0.1:3000",
+        stepCount: 8,
+        replayCount: 1,
+        workflowRequestCount: 0,
+        elapsedMs: 12_000,
+        lastResumedAt: "2026-05-25T00:02:00.000Z"
+      },
+      timeline: [],
+      findings: [
+        {
+          id: "finding-sqli",
+          createdAt: "2026-05-25T00:01:00.000Z",
+          title: "Cargo search accepts a Boolean bypass",
+          confidence: "medium",
+          evidenceRefs: ["capture:search-1"],
+          notes: "Repeater variants changed the result set.",
+          affectedAssets: ["http://127.0.0.1:3000/api/cargo/search"],
+          reproductionNotes: "Replay q with a Boolean pair.",
+          severityRationale: "Unauthorized cargo rows were returned.",
+          remediation: "Parameterize the cargo lookup.",
+          uncertainties: ["Browser form validation still blocks the payload."]
+        }
+      ]
+    };
+    const { runtime, decideNextAction } = makeRuntime(sourceRun, {
+      allowlist: ["http://127.0.0.1:3000"],
+      decideNextAction: async (context) => {
+        expect(context.goal).toContain("Verify the cargo search finding");
+        expect(context.findingFollowUp?.finding.id).toBe("finding-sqli");
+        expect(context.findingFollowUp?.sourceRunId).toBe("run-source");
+        return { action: "finish", rationale: "Follow-up complete.", findings: [] };
+      }
+    });
+
+    const followUp = runtime.start({
+      goal: "Verify the cargo search finding at http://127.0.0.1:3000/api/cargo/search",
+      profileId: "goal-driven-assessment",
+      source: { kind: "finding-follow-up", sourceRunId: "run-source", sourceFindingId: "finding-sqli" }
+    });
+    expect(followUp.id).not.toBe(sourceRun.id);
+    expect(followUp.profileId).toBe("goal-driven-assessment");
+    expect(followUp.source).toEqual({
+      kind: "finding-follow-up",
+      sourceRunId: "run-source",
+      sourceFindingId: "finding-sqli"
+    });
+    expect(followUp.timeline[0]?.note).toContain("Cargo search accepts a Boolean bypass");
+    expect(() =>
+      runtime.start({
+        goal: "Verify missing",
+        continuationOf: sourceRun.id,
+        source: { kind: "finding-follow-up", sourceRunId: "run-source", sourceFindingId: "finding-sqli" }
+      })
+    ).toThrow("cannot also be a finding follow-up");
+    expect(() =>
+      runtime.start({
+        goal: "Verify missing",
+        source: { kind: "finding-follow-up", sourceRunId: "run-source", sourceFindingId: "missing" }
+      })
+    ).toThrow("source finding");
+
+    await vi.waitFor(() => {
+      expect(decideNextAction).toHaveBeenCalled();
+    });
   });
 
   it("rejects planner findings without evidence references", async () => {

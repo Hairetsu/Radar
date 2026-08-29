@@ -9,15 +9,18 @@ import {
   getAgentRunProfile
 } from "../../shared/agentProfiles.js";
 import { firstUrlFromText, normalizeUrl, originFromUrl } from "../../shared/url.js";
+import { findingFollowUpSeedPrompt } from "../../shared/agentFollowUp.js";
 import type {
   AgentCapabilityAction,
   AgentCapabilityActionRequest,
+  AgentFinding,
   AgentMissionSteeringAction,
   AgentMissionSteeringRequest,
   AgentRun,
   AgentRunMemoryEntry,
   AgentRunProfileId,
   AgentRunRecoveryAction,
+  AgentRunSource,
   AppMode
 } from "../../shared/agent-types.js";
 import type { AiSettings, AiConnectPresetId, AiModelOption, AiProviderId } from "../../shared/ai-types.js";
@@ -66,6 +69,7 @@ export function useAiOperator() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState("");
   const [composingNewMission, setComposingNewMission] = useState(false);
+  const [followUp, setFollowUp] = useState<Extract<AgentRunSource, { kind: "finding-follow-up" }> & { title: string } | null>(null);
   const [goal, setGoalState] = useState("");
   const [profileId, setProfileId] = useState<AgentRunProfileId>("browser-assessment");
   const [tutorialMode, setTutorialMode] = useState(false);
@@ -222,6 +226,7 @@ export function useAiOperator() {
   );
   const selectRun = useCallback((runId: string) => {
     setComposingNewMission(false);
+    setFollowUp(null);
     setSelectedRunId(runId);
   }, []);
   const beginNewMission = useCallback(() => {
@@ -231,10 +236,43 @@ export function useAiOperator() {
       return;
     }
     setComposingNewMission(true);
+    setFollowUp(null);
     setSelectedRunId("");
     setGoal("");
     setNotice("New bounded mission ready. Nothing runs until Start Run is submitted.");
   }, [runningRun, selectRun, setGoal]);
+  const composeFindingFollowUp = useCallback((finding: AgentFinding) => {
+    if (runningRun) {
+      selectRun(runningRun.id);
+      setNotice("An AI-First run is already active. Pause or stop it before following up on a finding.");
+      return;
+    }
+    if (!activeRun) {
+      setNotice("Select a completed run before following up on a finding.");
+      return;
+    }
+    if (activeRun.status === "queued" || activeRun.status === "running") {
+      setNotice("Wait until the current run finishes before following up on a finding.");
+      return;
+    }
+    if (!activeRun.findings.some((item) => item.id === finding.id)) {
+      setNotice("That draft finding is not on the selected run.");
+      return;
+    }
+    setFollowUp({
+      kind: "finding-follow-up",
+      sourceRunId: activeRun.id,
+      sourceFindingId: finding.id,
+      title: finding.title
+    });
+    setGoal(
+      findingFollowUpSeedPrompt(
+        finding,
+        firstUrlFromText(finding.affectedAssets.join(" ")) || activeRun.checkpoint?.startUrl || firstUrlFromText(activeRun.goal)
+      )
+    );
+    setNotice(`Follow-up loaded from "${finding.title}". Edit the prompt, then start a new bounded run.`);
+  }, [activeRun, runningRun, selectRun, setGoal]);
   const selectedProfile = useMemo(() => getAgentRunProfile(profileId), [profileId]);
   const budgetLabels = useMemo(
     () => agentBudgetLabels(activeRun?.policy || selectedProfile.policy),
@@ -301,24 +339,29 @@ export function useAiOperator() {
         goal: decision.goal,
         startUrl: decision.startUrl,
         profileId,
+        ...(followUp ? { source: { kind: "finding-follow-up", sourceRunId: followUp.sourceRunId, sourceFindingId: followUp.sourceFindingId } } : {}),
         ...(tutorialMode ? { tutorialMode: true } : {}),
         ...(profileId === "autonomous-assessment" ? { assessmentContract: defaultAssessmentContract() } : {})
       });
+      const followUpTitle = followUp?.title;
       replaceRun(run);
+      setFollowUp(null);
       setGoal("");
       setNotice(
-        tutorialMode
-          ? "Tutorial run started in the visible workspace."
-          : profileId === "autonomous-assessment"
-            ? "Autonomous assessment started. Radar will not pause for another approval."
-            : "AI-First run started in the visible workspace."
+        followUpTitle
+          ? `Follow-up started from "${followUpTitle}".`
+          : tutorialMode
+            ? "Tutorial run started in the visible workspace."
+            : profileId === "autonomous-assessment"
+              ? "Autonomous assessment started. Radar will not pause for another approval."
+              : "AI-First run started in the visible workspace."
       );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "AI-First run could not start.");
     } finally {
       setPending(false);
     }
-  }, [dispatchWorkspaceIntent, goal, profileId, replaceRun, runningRun, selectRun, setGoal, tutorialMode, workspaceContext]);
+  }, [dispatchWorkspaceIntent, followUp, goal, profileId, replaceRun, runningRun, selectRun, setGoal, tutorialMode, workspaceContext]);
 
   const pauseRun = useCallback(async () => {
     if (!activeRun) return;
@@ -673,6 +716,9 @@ export function useAiOperator() {
     selectedRunId,
     setSelectedRunId: selectRun,
     beginNewMission,
+    followUp,
+    composeFindingFollowUp,
+    clearFollowUp: () => setFollowUp(null),
     goal,
     setGoal,
     profileId,

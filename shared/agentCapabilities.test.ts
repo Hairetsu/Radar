@@ -78,6 +78,7 @@ describe("agent capability leases", () => {
       ["saveAuthState", "reversible"],
       ["loadAuthState", "reversible"],
       ["fillInput", "reversible"],
+      ["applyClientValidationBypass", "active"],
       ["clickElement", "active"],
       ["submitForm", "active"],
       ["sendReplay", "active"],

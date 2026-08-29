@@ -341,7 +341,7 @@ Radar is pre-1.0 and its installers are not yet fully signed. Public trust work 
 
 The next AI and evidence milestone is independent verification and finding-to-regression.
 
-- Let an operator ask for a separate verification pass over one draft finding.
+- Expand finding follow-up into a read-only verification pass that records supporting, contradicting, and missing evidence without rewriting the original observation.
 - Keep the verifier read-only until a narrowly scoped repro needs explicit authority.
 - Record supporting, contradicting, and missing evidence without rewriting the original observation.
 - Make negative results visible and useful.
@@ -367,6 +367,7 @@ Success means a finding can move from observation to independent check to repeat
 - Add a setup wizard for external browsers, CLIs, mobile devices, emulators, and desktop clients.
 - Add intercept queue search, grouping, and hold-next controls.
 - Add match/replace rule testing, import/export, hit counts, and affected-capture links.
+- Deepen client file overrides with per-file diffs, MIME-specific editors, and hit counts.
 - Add WebSocket match/replace only after the evidence and cancellation model is clear.
 
 ### Repeater

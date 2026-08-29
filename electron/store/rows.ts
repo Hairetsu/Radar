@@ -113,6 +113,7 @@ export type AgentRunRow = {
   mission_json: string;
   capabilities_json: string;
   assessment_json: string;
+  source_json: string | null;
   error: string | null;
 };
 
@@ -128,6 +129,10 @@ export type InterceptRuleRow = {
 
 export type MatchReplaceRuleRow = {
   rule_json: string;
+};
+
+export type ClientOverrideRow = {
+  override_json: string;
 };
 
 export type ProxyProfileRow = {

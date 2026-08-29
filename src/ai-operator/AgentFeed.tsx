@@ -144,7 +144,9 @@ export function AgentFeed({ controller }: { controller: AiOperatorController }) 
           <div className="grid min-h-full w-full content-start gap-3 p-3 min-[1120px]:p-4">
             {run?.policy.tutorialMode && <AgentTutorialGuide run={run} />}
 
-            {run?.status === "completed" && <AgentCompletionReport run={run} />}
+            {run?.status === "completed" && (
+              <AgentCompletionReport run={run} onFollowUpFinding={controller.composeFindingFollowUp} />
+            )}
 
             {!run && (
               <div className="min-h-[260px] border border-rule bg-surface/45 p-6">

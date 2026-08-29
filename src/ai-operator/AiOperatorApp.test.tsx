@@ -351,7 +351,10 @@ describe("AiOperatorApp", () => {
         }
       }]
     });
-    const api = operatorApi({ listAgentRuns: vi.fn(async () => [completed]) });
+    const api = operatorApi({
+      listAgentRuns: vi.fn(async () => [completed]),
+      getTargets: vi.fn(async () => ["https://target.test", "https://analytics.target.test"])
+    });
     Object.defineProperty(window, "radarOperator", { value: api, writable: true, configurable: true });
 
     render(<AiOperatorApp />);
@@ -366,6 +369,17 @@ describe("AiOperatorApp", () => {
     expect(report).toHaveTextContent("Add Vary: Origin whenever the response depends on Origin.");
     expect(report).toHaveTextContent("Authenticated and stateful application paths were not available.");
     expect(report).toHaveTextContent("Retest with an authorized authenticated identity.");
+    fireEvent.click(screen.getByTestId("followUpFinding-finding-complete"));
+    expect(screen.getByTestId("findingFollowUpChip")).toHaveTextContent("Credentialed CORS response lacks cache variance");
+    expect((screen.getByTestId("agentGoalInput") as HTMLTextAreaElement).value).toContain("Follow up on draft finding");
+    fireEvent.click(screen.getByTestId("startAgentRun"));
+    await waitFor(() => expect(api.startAgentRun).toHaveBeenCalledWith(expect.objectContaining({
+      source: {
+        kind: "finding-follow-up",
+        sourceRunId: "run-test",
+        sourceFindingId: "finding-complete"
+      }
+    })));
   });
 
   it("opens pending authority with once and approve-all choices and disables resume until review", async () => {

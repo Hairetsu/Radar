@@ -68,6 +68,9 @@ function createPorts() {
     setInterceptResponseStatus: vi.fn(),
     setInterceptResponseStatusText: vi.fn(),
     hydrateInterceptDraft: vi.fn(),
+    setInterceptPane: vi.fn(),
+    setClientOverrides: vi.fn(),
+    hydrateClientOverrideDraft: vi.fn(),
     setTrafficSearch: vi.fn(),
     setReplayTabState: vi.fn(),
     setAutomatePayloadText: vi.fn(),
@@ -148,6 +151,40 @@ describe("agent timeline projection", () => {
     expect(ports.setInterceptResponseStatus).toHaveBeenCalledWith(403);
     expect(ports.setInterceptResponseStatus).toHaveBeenCalledWith(200);
     expect(ports.interceptDraftItemRef.current).toBe("intercept-2");
+  });
+
+  it("applies a client file override into the intercept client-files pane", () => {
+    const { ports } = createPorts();
+    const override = {
+      id: "client-form",
+      name: "formValidation.ts",
+      enabled: true,
+      host: "127.0.0.1:3000",
+      path: "/src/formValidation.ts",
+      mimeType: "text/javascript",
+      body: "return valid();",
+      captureId: "cap-form",
+      relaxApplied: true,
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z"
+    };
+    applyAgentTimelineIntent(
+      {
+        type: "prepare-client-override",
+        data: {
+          override,
+          changes: ["Passed client validator returns"],
+          note: "Reload the Radar Browser to deliver the edited file."
+        }
+      },
+      ports
+    );
+
+    expect(ports.setActiveView).toHaveBeenCalledWith("intercept");
+    expect(ports.setInterceptPane).toHaveBeenCalledWith("client-files");
+    expect(ports.setClientOverrides).toHaveBeenCalled();
+    expect(ports.hydrateClientOverrideDraft).toHaveBeenCalledWith(override);
+    expect(ports.setNotice).toHaveBeenCalledWith("Reload the Radar Browser to deliver the edited file.");
   });
 
   it("applies prepared Automate and Workflow drafts plus analysis notices", () => {

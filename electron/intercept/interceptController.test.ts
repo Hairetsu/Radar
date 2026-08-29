@@ -2,6 +2,7 @@ import type { CompletedRequest } from "mockttp";
 import { describe, expect, it, vi } from "vitest";
 import type {
   CapturedRequest,
+  ClientOverride,
   InterceptRule,
   MatchReplaceRule
 } from "../../shared/domain.js";
@@ -24,6 +25,7 @@ function createController() {
   const captures = new Map<string, CapturedRequest>();
   const saveInterceptRules = vi.fn((rules: InterceptRule[]) => rules);
   const saveMatchReplaceRules = vi.fn((rules: MatchReplaceRule[]) => rules);
+  const saveClientOverrides = vi.fn((overrides: ClientOverride[]) => overrides);
   const controller = createInterceptController({
     currentSessionId: () => "session-1",
     allowlist: () => ["https://target.example"],
@@ -32,9 +34,10 @@ function createController() {
     bindCaptureToCurrentSession: vi.fn(),
     bindCaptureToSession: (capture) => capture,
     saveInterceptRules,
-    saveMatchReplaceRules
+    saveMatchReplaceRules,
+    saveClientOverrides
   });
-  return { controller, captures, saveInterceptRules, saveMatchReplaceRules };
+  return { controller, captures, saveInterceptRules, saveMatchReplaceRules, saveClientOverrides };
 }
 
 async function queuedRequest(controller: ReturnType<typeof createInterceptController>) {
@@ -107,5 +110,55 @@ describe("intercept controller", () => {
     expect(rewrites[0]).toEqual(expect.objectContaining({ target: "body", match: "user" }));
     expect(saveInterceptRules).toHaveBeenCalledWith(rules);
     expect(saveMatchReplaceRules).toHaveBeenCalledWith(rewrites);
+  });
+
+  it("applies a client file override to an in-scope response without pausing", async () => {
+    const { controller, captures, saveClientOverrides } = createController();
+    const overrides = controller.setClientOverrides([
+      {
+        name: "app.js",
+        host: "target.example",
+        path: "/app.js",
+        body: "window.validate = () => true;"
+      }
+    ]);
+    expect(saveClientOverrides).toHaveBeenCalledWith(overrides);
+
+    const result = await controller.queueResponse(
+      {
+        id: "script-1",
+        statusCode: 200,
+        statusMessage: "OK",
+        headers: { etag: "abc", "content-type": "application/javascript" },
+        body: { getText: async () => "window.validate = () => false;" }
+      },
+      proxyRequest("script-1", "https://target.example/app.js")
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        body: "window.validate = () => true;",
+        headers: expect.objectContaining({ "Cache-Control": "no-store" })
+      })
+    );
+    expect(captures.get("script-1")?.rewrites?.[0]?.detail).toBe("client-file: target.example/app.js");
+  });
+
+  it("does not rewrite an out-of-scope client file", async () => {
+    const { controller } = createController();
+    controller.setClientOverrides([
+      { name: "app.js", host: "outside.example", path: "/app.js", body: "stolen" }
+    ]);
+    await expect(
+      controller.queueResponse(
+        {
+          id: "script-2",
+          statusCode: 200,
+          headers: {},
+          body: { getText: async () => "original" }
+        },
+        proxyRequest("script-2", "https://outside.example/app.js")
+      )
+    ).resolves.toBeUndefined();
   });
 });

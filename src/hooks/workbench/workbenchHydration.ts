@@ -11,6 +11,7 @@ import type {
   EvidenceAnnotation,
   Finding,
   InstalledPlugin,
+  ClientOverride,
   InterceptRule,
   InterceptState,
   MatchReplaceRule,
@@ -50,7 +51,8 @@ export interface WorkbenchHydrationPorts {
     replace: (
       state: InterceptState,
       rules: InterceptRule[],
-      matchReplaceRules: MatchReplaceRule[]
+      matchReplaceRules: MatchReplaceRule[],
+      clientOverrides: ClientOverride[]
     ) => void;
     refreshState: (state: InterceptState) => void;
   };
@@ -93,6 +95,7 @@ export interface WorkbenchSnapshot {
   interceptState: InterceptState;
   interceptRules: InterceptRule[];
   matchReplaceRules: MatchReplaceRule[];
+  clientOverrides: ClientOverride[];
   agentRuns: AgentRun[];
   agentRunMemory: AgentRunMemoryEntry[];
   evidenceAnnotations: EvidenceAnnotation[];
@@ -158,6 +161,14 @@ async function loadMatchReplaceRules() {
   }
 }
 
+async function loadClientOverrides() {
+  try {
+    return await (window.radar?.getClientOverrides?.() ?? []);
+  } catch {
+    return [];
+  }
+}
+
 async function loadProxyProfiles() {
   try {
     return await (window.radar?.getProxyProfiles?.() ?? []);
@@ -181,6 +192,7 @@ export async function loadWorkbenchSnapshot(): Promise<WorkbenchSnapshot | null>
     interceptState,
     interceptRules,
     matchReplaceRules,
+    clientOverrides,
     agentRuns,
     agentRunMemory,
     evidenceAnnotations,
@@ -205,6 +217,7 @@ export async function loadWorkbenchSnapshot(): Promise<WorkbenchSnapshot | null>
     loadInterceptState(),
     loadInterceptRules(),
     loadMatchReplaceRules(),
+    loadClientOverrides(),
     window.radar.listAgentRuns(),
     window.radar.getAgentRunMemory?.() ?? [],
     window.radar.getEvidenceAnnotations?.() ?? [],
@@ -230,6 +243,7 @@ export async function loadWorkbenchSnapshot(): Promise<WorkbenchSnapshot | null>
     interceptState,
     interceptRules,
     matchReplaceRules,
+    clientOverrides,
     agentRuns,
     agentRunMemory,
     evidenceAnnotations,
@@ -306,7 +320,8 @@ export function applyWorkbenchSnapshot(
   ports.intercept.replace(
     snapshot.interceptState,
     snapshot.interceptRules,
-    snapshot.matchReplaceRules
+    snapshot.matchReplaceRules,
+    snapshot.clientOverrides
   );
   ports.agents.replace(snapshot.agentRuns, snapshot.agentRunMemory);
   ports.findings.replace(snapshot.findings, snapshot.evidenceAnnotations);

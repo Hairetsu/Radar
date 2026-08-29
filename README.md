@@ -33,7 +33,7 @@ Projects also contain sessions, notes, saved views, local run memory, bundle exp
 
 Manual-First is the normal operator-driven mode. You click every action that sends, mutates, exports, installs, or approves something. The command palette can summarize evidence and prepare drafts, but it does not transmit them.
 
-AI-First runs in a separate AI Operator window. One sequential browser operator chooses an in-scope step, waits for it to settle, records the result, and then chooses the next step. The workspace stays visible while the companion shows the Mission Pulse, Operation Stream, Task History, Mission Graph, permission requests, and Completion Report.
+AI-First runs in a separate AI Operator window. One sequential browser operator chooses an in-scope step, waits for it to settle, records the result, and then chooses the next step. The workspace stays visible while the companion shows the Mission Pulse, Operation Stream, Task History, Mission Graph, permission requests, and Completion Report. A completed draft finding can start a follow-up run from **Follow up** without copying the finding into a new prompt by hand.
 
 The AI Operator Connection Deck keeps saved credentials isolated by provider. Switching away from a provider and back restores only that provider's saved key and connection settings. Local CLI presets (Codex app, Cursor CLI, Grok CLI) use the installed CLI login instead of a Radar-stored cloud key.
 
@@ -92,7 +92,7 @@ pnpm demo:dev
 
 Open `http://127.0.0.1:3000` in the Radar Browser. Sign in with operator ID `operator` and password `harbor-2026`. Use Harborline as a black-box target: browse the freight workflows, inspect the captured requests, and decide which requests merit controlled replay.
 
-Harborline's forms accept only normal business values. To test a changed parameter, capture a valid request and edit the copy in Radar Repeater. The browser does not send test strings, unlisted record IDs, unknown document paths, unapproved feed URLs, or markup.
+Harborline's forms accept only normal business values. To test a changed parameter, capture a valid request and edit the copy in Radar Repeater. To submit the same test string through the Harborline UI, override the captured client file in Intercept (for `pnpm demo:dev`, `/src/formValidation.ts`), click **Relax validation**, save, and reload the Radar Browser. The unmodified browser does not send test strings, unlisted record IDs, unknown document paths, unapproved feed URLs, or markup.
 
 Harborline uses fixed in-memory data. It does not read host files or make outbound requests, even when a request contains a file path or URL.
 

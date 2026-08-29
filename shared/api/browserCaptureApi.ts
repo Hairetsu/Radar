@@ -1,6 +1,7 @@
 import type {
   BrowserState,
   CapturedRequest,
+  ClientOverride,
   InterceptConfig,
   InterceptResponseDraft,
   InterceptRule,
@@ -64,6 +65,10 @@ export type BrowserCaptureApi = {
   setMatchReplaceRules: (
     rules: MatchReplaceRule[]
   ) => Promise<MatchReplaceRule[]>;
+  getClientOverrides: () => Promise<ClientOverride[]>;
+  setClientOverrides: (
+    overrides: ClientOverride[]
+  ) => Promise<ClientOverride[]>;
   getSslEvents: () => Promise<SslEvent[]>;
   getWebSocketEvents: () => Promise<WebSocketEvent[]>;
   queryWebSocketEvents: (

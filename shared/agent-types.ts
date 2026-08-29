@@ -4,6 +4,8 @@ import type {
   AutomateRule,
   AutomateSession,
   CapturedRequest,
+  ClientOverride,
+  ClientOverrideSummary,
   Finding,
   InstalledPlugin,
   InterceptQueueItem,
@@ -103,7 +105,9 @@ export type AgentToolName =
   | "navigateBrowser"
   | "getCaptures"
   | "getInterceptQueue"
+  | "getClientOverrides"
   | "prepareInterceptEdit"
+  | "applyClientValidationBypass"
   | "sendReplay"
   | "waitForNetworkIdle"
   | "getPageText"
@@ -228,10 +232,12 @@ export type AgentToolCall =
   | { tool: "navigateBrowser"; input: { url: string } }
   | { tool: "getCaptures"; input: { limit?: number; targetOrigin?: string } }
   | { tool: "getInterceptQueue"; input: { limit?: number } }
+  | { tool: "getClientOverrides"; input: { limit?: number } }
   | {
       tool: "prepareInterceptEdit";
       input: { id: string; draft?: ReplayDraft; response?: InterceptResponseDraft; note?: string };
     }
+  | { tool: "applyClientValidationBypass"; input: { captureId: string; name?: string } }
   | { tool: "sendReplay"; input: { draft: ReplayDraft } }
   | { tool: "waitForNetworkIdle"; input: { idleMs?: number; timeoutMs?: number } }
   | { tool: "getPageText"; input: Record<string, never> }
@@ -311,9 +317,23 @@ export type AgentToolResult =
   | { tool: "getCaptures"; ok: true; data: { captures: CapturedRequest[] } }
   | { tool: "getInterceptQueue"; ok: true; data: { queue: InterceptQueueItem[] } }
   | {
+      tool: "getClientOverrides";
+      ok: true;
+      data: { overrides: ClientOverrideSummary[] };
+    }
+  | {
       tool: "prepareInterceptEdit";
       ok: true;
       data: { item: InterceptQueueItem; draft?: ReplayDraft; response?: InterceptResponseDraft; note: string };
+    }
+  | {
+      tool: "applyClientValidationBypass";
+      ok: true;
+      data: {
+        override: ClientOverride;
+        changes: string[];
+        note: string;
+      };
     }
   | { tool: "sendReplay"; ok: true; data: ReplayResult }
   | { tool: "waitForNetworkIdle"; ok: true; data: { idle: boolean; waitedMs: number } }
@@ -733,6 +753,7 @@ export type AgentDecisionContext = {
   capabilities: AgentCapabilityState;
   tutorialMode: boolean;
   timeline: AgentTimelineEntry[];
+  findingFollowUp?: AgentFindingFollowUpDigest;
 };
 
 export type AgentTimelineEntry = {
@@ -896,12 +917,32 @@ export type AgentCapabilityAction =
 
 export type AgentCapabilityActionRequest = { expectedRevision: number } & AgentCapabilityAction;
 
+export type AgentRunSource =
+  | { kind: "continuation"; sourceRunId: string }
+  | { kind: "finding-follow-up"; sourceRunId: string; sourceFindingId: string };
+
+export type AgentFindingFollowUpDigest = {
+  kind: "finding-follow-up";
+  sourceRunId: string;
+  sourceGoal: string;
+  sourceStatus: AgentRunStatus;
+  finding: AgentFinding;
+  completionSummary: string;
+  relatedObservations: Array<{
+    title: string;
+    status: string;
+    confidence: string;
+    evidenceRefs: string[];
+  }>;
+};
+
 export type AgentRunRequest = {
   goal: string;
   startUrl?: string;
   profileId?: AgentRunProfileId;
   tutorialMode?: boolean;
   continuationOf?: string;
+  source?: AgentRunSource;
   policy?: Partial<AgentPolicy>;
   assessmentContract?: AssessmentContract;
 };
@@ -926,6 +967,7 @@ export type AgentRun = {
   assessment?: AgentAssessmentState;
   timeline: AgentTimelineEntry[];
   findings: AgentFinding[];
+  source?: AgentRunSource;
   error?: string;
 };
 

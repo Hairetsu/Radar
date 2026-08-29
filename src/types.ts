@@ -88,6 +88,8 @@ export type {
   LocalSession,
   LocalSessionSummary,
   LocalWorkspace,
+  ClientOverride,
+  ClientOverrideSummary,
   MatchReplaceHit,
   MatchReplaceRule,
   MatchReplaceStage,

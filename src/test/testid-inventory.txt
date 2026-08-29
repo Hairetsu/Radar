@@ -151,9 +151,17 @@ causalEvidenceLedger
 causalUnmatched
 clearAdvancedImport
 clearCaptures
+clearFindingFollowUp
 clearTrafficFilters
 clearWebSocketEvents
 clearWebSocketFilters
+clientOverrideBody
+clientOverrideEnabled
+clientOverrideHost
+clientOverrideList
+clientOverrideName
+clientOverridePath
+cloneToClientOverride
 cloneToRepeater
 closeAgentEvidencePreview
 closeGlobalSearch
@@ -176,6 +184,7 @@ createLocalSession
 createProfile
 createReplayTab
 createSessionFromPanel
+deleteClientOverride
 deleteFinding
 deleteProjectNote
 deleteWorkflow
@@ -198,6 +207,7 @@ findingConfidence
 findingEditor
 findingEvidence
 findingFilters
+findingFollowUpChip
 findingFromTraffic
 findingFromWebSocket
 findingImpact
@@ -250,6 +260,8 @@ installPluginHeader
 interceptBody
 interceptHeaders
 interceptMethod
+interceptPaneClientFiles
+interceptPaneQueue
 interceptQueue
 interceptRulesText
 interceptStatus
@@ -318,6 +330,7 @@ projectNoteBody
 projectNoteTitle
 proxyProfileNotes
 radarShell
+relaxClientValidation
 rendererBootstrapError
 repeaterBody
 repeaterEnvironment
@@ -333,6 +346,7 @@ requestContextMenuOverlay
 requestMenuAddScope
 requestMenuCopyUrl
 requestMenuDelete
+requestMenuToClientOverride
 requestMenuToRepeater
 resetInterceptDraft
 resumeAgentRun
@@ -350,6 +364,7 @@ runWorkflow
 runWorkflowHeader
 saveAdvancedImportCollection
 saveCaptureAnnotation
+saveClientOverride
 saveCurrentView
 saveFinding
 saveInterceptRules

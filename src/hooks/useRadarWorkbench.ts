@@ -58,7 +58,10 @@ export function useRadarWorkbench() {
     setInterceptResponseStatus,
     setInterceptResponseStatusText,
     hydrateInterceptDraft,
-    interceptDraftItemRef
+    hydrateClientOverrideDraft,
+    interceptDraftItemRef,
+    setInterceptPane,
+    setClientOverrides
   } = interceptDomain;
 
   const findingsDomain = useFindingsDomain({
@@ -181,6 +184,9 @@ export function useRadarWorkbench() {
     setInterceptResponseStatus,
     setInterceptResponseStatusText,
     hydrateInterceptDraft,
+    setInterceptPane,
+    setClientOverrides,
+    hydrateClientOverrideDraft,
     setTrafficSearch,
     setReplayTabState,
     setAutomatePayloadText,
@@ -237,7 +243,8 @@ export function useRadarWorkbench() {
     repeater: repeaterDomain,
     findings: findingsDomain,
     automate: automateDomain,
-    agent: agentDomain
+    agent: agentDomain,
+    intercept: interceptDomain
   });
 
   useWorkbenchKeyboardShortcuts({

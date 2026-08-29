@@ -370,6 +370,8 @@ The rules editor accepts JSON records that can match stage, method, host, path, 
 
 The match/replace editor accepts request or response rules for a named header or body. Radar records which rules changed a capture.
 
+**Client files** replaces a captured HTML, JavaScript, or CSS response with an edited copy. Use this when the browser UI blocks a test string that Repeater already sent successfully, such as a SQL payload rejected by client-side validation. Open HTTP(S), select the client file, and click **Override client file**, or right-click the capture. Radar saves the override against that host and path, strips cache headers, and delivers the edited body on the next load. Click **Relax validation** to pass `return invalid(...)` validators and remove `maxLength`, `required`, and `pattern` constraints, then **Save file** and reload the Radar Browser.
+
 Select a queued item and edit its method, URL, status, headers, or body. Then choose:
 
 - **Forward** to release the selected item, including your edits.
@@ -377,7 +379,7 @@ Select a queued item and edit its method, URL, status, headers, or body. Then ch
 - **Reset** to restore the original values in the editor.
 - **Resume All** to release the current queue without more edits.
 
-AI-First can inspect the queue and prepare an edit in these visible controls. It cannot forward, drop, or resume queued traffic.
+AI-First can inspect the queue and prepare an edit in these visible controls. It cannot forward, drop, or resume queued traffic. Profiles that already allow form interaction can list client file overrides and apply a validation bypass from a captured client file. That action still needs a capability grant, stays visible in Intercept, and does not send the payload by itself. Reload the Radar Browser after the override is saved, then fill the form.
 
 ## Replay requests
 
@@ -583,6 +585,8 @@ Run profiles:
 | **Report From Evidence** | Turn local evidence into quality-gated draft findings and run memory. |
 
 No profile is unlimited. Goal-Driven Assessment has the widest non-destructive tool set, but raw context stays off, saved Scope applies, and active actions still need capability approval. If the run exhausts its runtime or step budget before it meets the goal, click **Continue New** to start a new bounded segment with the same goal and profile.
+
+When a run finishes with a draft finding, click **Follow up** on that finding. Radar loads a new prompt anchored to the finding, its evidence, and its uncertainties. Edit the prompt, then start a new bounded run. The follow-up gets a fresh budget and does not inherit capability leases. It can answer from the source finding first, then collect new evidence if the prompt asks for a retest.
 
 Autonomous Assessment uses a different stop rule. Negative and inconclusive experiments continue to the next ranked capture. A supported or verification-required result ends the run immediately. Radar records later candidates as untested. An action outside the contract is skipped or blocked. It does not open an approval prompt.
 

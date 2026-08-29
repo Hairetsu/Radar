@@ -68,6 +68,7 @@ const browserReviewTools: AgentToolName[] = [
 const prepareReviewTools: AgentToolName[] = [
   ...browserReviewTools,
   "getInterceptQueue",
+  "getClientOverrides",
   "prepareInterceptEdit",
   "prepareReplayTab",
   "compareReplayResults",
@@ -77,6 +78,7 @@ const prepareReviewTools: AgentToolName[] = [
 
 const activeReviewTools: AgentToolName[] = [
   ...prepareReviewTools,
+  "applyClientValidationBypass",
   "sendReplay",
   "runWorkflow"
 ];

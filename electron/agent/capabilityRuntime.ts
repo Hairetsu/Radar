@@ -77,6 +77,18 @@ export function capabilityUseForCall(
         requestCost: 0,
         payloadBytes: Buffer.byteLength(call.input.value)
       };
+    case "applyClientValidationBypass": {
+      const capture = deps.getCaptureById?.(call.input.captureId);
+      return {
+        ...common,
+        tool: call.tool,
+        url: capture?.url || currentUrl,
+        method: "GET",
+        requestCost: 0,
+        payloadBytes: Buffer.byteLength(capture?.responseBody || ""),
+        sourceCaptureId: call.input.captureId
+      };
+    }
     case "submitForm":
       return { ...common, tool: call.tool, url: currentUrl, method: "POST", requestCost: 1, payloadBytes: 0 };
     case "saveAuthState":

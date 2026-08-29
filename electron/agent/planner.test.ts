@@ -15,6 +15,8 @@ describe("agent planner", () => {
     expect(AGENT_SYSTEM_PROMPT).toContain("runReplayExperiment");
     expect(AGENT_SYSTEM_PROMPT).toContain("one experiment at a time");
     expect(AGENT_SYSTEM_PROMPT).toContain("Collect captures first if capturedTraffic is empty");
+    expect(AGENT_SYSTEM_PROMPT).toContain("applyClientValidationBypass");
+    expect(AGENT_SYSTEM_PROMPT).toContain("When findingFollowUp is present");
   });
 
   it("builds a redacted, budgeted planner context", () => {
@@ -73,6 +75,27 @@ describe("agent planner", () => {
       mission: createAgentMission("Inspect the scoped target", "https://target.example/"),
       capabilities: createAgentCapabilityState(),
       tutorialMode: false,
+      findingFollowUp: {
+        kind: "finding-follow-up",
+        sourceRunId: "run-source",
+        sourceGoal: "Inspect Harborline cargo search",
+        sourceStatus: "completed",
+        finding: {
+          id: "finding-sqli",
+          createdAt: "2026-05-25T00:01:00.000Z",
+          title: "Cargo search accepts a Boolean bypass",
+          confidence: "medium",
+          evidenceRefs: ["capture:search-1"],
+          notes: "Repeater variants changed the result set.",
+          affectedAssets: ["http://127.0.0.1:3000/api/cargo/search"],
+          reproductionNotes: "Replay q with a Boolean pair.",
+          severityRationale: "Unauthorized cargo rows were returned.",
+          remediation: "Parameterize the cargo lookup.",
+          uncertainties: ["Browser form validation still blocks the payload."]
+        },
+        completionSummary: "Cargo search returned extra rows.",
+        relatedObservations: []
+      },
       timeline: [
         {
           id: "timeline-1",
@@ -101,6 +124,13 @@ describe("agent planner", () => {
     expect(prompt.toolSchema).toEqual({
       getCaptures: expect.objectContaining({ safety: "observe" })
     });
+    expect(prompt.findingFollowUp).toEqual(
+      expect.objectContaining({
+        kind: "finding-follow-up",
+        sourceRunId: "run-source",
+        finding: expect.objectContaining({ id: "finding-sqli" })
+      })
+    );
   });
   it("normalizes tool decisions", () => {
     expect(

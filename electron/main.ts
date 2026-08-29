@@ -284,7 +284,11 @@ const interceptController = createInterceptController({
   saveMatchReplaceRules: (rules) =>
     localStore && localContext
       ? localStore.setMatchReplaceRules(localContext.workspace.id, rules)
-      : rules
+      : rules,
+  saveClientOverrides: (overrides) =>
+    localStore && localContext
+      ? localStore.setClientOverrides(localContext.workspace.id, overrides)
+      : overrides
 });
 const interceptStateSnapshot = interceptController.state;
 const queueInterceptRequest = interceptController.queueRequest;
@@ -322,7 +326,8 @@ function hydrateActiveLocalState() {
   allowlist = localStore.getTargets(localContext.workspace.id);
   interceptController.hydrateRules(
     localStore.listInterceptRules(localContext.workspace.id),
-    localStore.listMatchReplaceRules(localContext.workspace.id)
+    localStore.listMatchReplaceRules(localContext.workspace.id),
+    localStore.listClientOverrides(localContext.workspace.id)
   );
   captureLedger.hydrate(
     localStore.listCaptures(localContext.session.id, HOT_CAPTURE_LIMIT).reverse(),
@@ -556,6 +561,8 @@ function createAgentRuntime() {
     },
     getWebSocketEvents: () => listWebSocketEvents(HOT_WEBSOCKET_LIMIT),
     getInterceptState: () => interceptStateSnapshot(),
+    getClientOverrides: interceptController.getClientOverrides,
+    setClientOverrides: interceptController.setClientOverrides,
     getReplayTabState: () => activeLocalStore().getReplayTabState(activeLocalContext().workspace.id),
     setReplayTabState: (state) => activeLocalStore().setReplayTabState(activeLocalContext().workspace.id, state),
     listReplayEnvironments: () => activeLocalStore().listReplayEnvironments(activeLocalContext().workspace.id),
@@ -1310,7 +1317,9 @@ registerInterceptIpc(ipcMain, {
   getRules: interceptController.getRules,
   setRules: interceptController.setRules,
   getMatchReplaceRules: interceptController.getMatchReplaceRules,
-  setMatchReplaceRules: interceptController.setMatchReplaceRules
+  setMatchReplaceRules: interceptController.setMatchReplaceRules,
+  getClientOverrides: interceptController.getClientOverrides,
+  setClientOverrides: interceptController.setClientOverrides
 });
 
 registerAutomateIpc(ipcMain, {

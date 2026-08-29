@@ -137,6 +137,7 @@ export function applyCurrentSchema(db: DatabaseSync) {
       mission_json TEXT NOT NULL DEFAULT '{}',
       capabilities_json TEXT NOT NULL DEFAULT '{}',
       assessment_json TEXT NOT NULL DEFAULT '{}',
+      source_json TEXT NOT NULL DEFAULT '{}',
       error TEXT,
       PRIMARY KEY (session_id, id)
     );
@@ -152,6 +153,13 @@ export function applyCurrentSchema(db: DatabaseSync) {
       workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
       position INTEGER NOT NULL,
       rule_json TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, position)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_client_overrides (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      override_json TEXT NOT NULL,
       PRIMARY KEY (workspace_id, position)
     );
 
@@ -415,6 +423,9 @@ export function applyCurrentSchema(db: DatabaseSync) {
     }
     if (!agentRunColumns.has("assessment_json")) {
       db.exec("ALTER TABLE agent_runs ADD COLUMN assessment_json TEXT NOT NULL DEFAULT '{}'");
+    }
+    if (!agentRunColumns.has("source_json")) {
+      db.exec("ALTER TABLE agent_runs ADD COLUMN source_json TEXT NOT NULL DEFAULT '{}'");
     }
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_captures_session_agent_run

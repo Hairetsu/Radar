@@ -146,6 +146,12 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
     schema: { limit: "number optional" }
   },
   {
+    name: "getClientOverrides",
+    description: "List saved client file overrides that replace HTML, JavaScript, or CSS responses in the Radar Browser.",
+    safety: "observe",
+    schema: { limit: "number optional" }
+  },
+  {
     name: "prepareInterceptEdit",
     description: "Prepare request or response edits for a queued intercept item; the operator must still forward or drop manually.",
     safety: "prepare",
@@ -155,6 +161,12 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
       response: { status: "number", statusText: "string", headers: {}, body: "" },
       note: "string optional"
     }
+  },
+  {
+    name: "applyClientValidationBypass",
+    description: "Create or update a visible client file override from a captured HTML or JavaScript response and relax client-side validation so the browser can submit test values. Reload the Radar Browser after this tool.",
+    safety: "prepare",
+    schema: { captureId: "capture id", name: "string optional" }
   },
   {
     name: "sendReplay",

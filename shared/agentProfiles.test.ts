@@ -73,6 +73,7 @@ describe("agentProfiles", () => {
     });
     expect(profile.allowedTools).toEqual(expect.arrayContaining([
       "submitForm",
+      "applyClientValidationBypass",
       "sendReplay",
       "runWorkflow",
       "saveAuthState",

@@ -853,6 +853,33 @@ describe("localStore", () => {
     reopened.close();
   });
 
+  it("persists client file overrides per workspace", () => {
+    const store = makeStore();
+    const context = store.getActiveContext();
+    const overrides = [
+      {
+        id: "client-form",
+        name: "formValidation.ts",
+        enabled: true,
+        host: "127.0.0.1:3000",
+        path: "/src/formValidation.ts",
+        mimeType: "text/javascript",
+        body: "export function validateShipmentQuery() { return { kind: \"valid\" }; }",
+        captureId: "cap-form",
+        relaxApplied: true,
+        createdAt: "2026-05-25T00:00:00.000Z",
+        updatedAt: "2026-05-25T00:00:00.000Z"
+      }
+    ];
+
+    store.setClientOverrides(context.workspace.id, overrides);
+    store.close();
+
+    const reopened = openLocalStore(tmpDir);
+    expect(reopened.listClientOverrides(context.workspace.id)).toEqual(overrides);
+    reopened.close();
+  });
+
   it("persists proxy profile notes per workspace", () => {
     const store = makeStore();
     const context = store.getActiveContext();
@@ -1513,7 +1540,12 @@ describe("localStore", () => {
           remediation: "Add Strict-Transport-Security after confirming HTTPS-only operation.",
           uncertainties: ["Review manually."]
         }
-      ]
+      ],
+      source: {
+        kind: "finding-follow-up",
+        sourceRunId: "agent-source",
+        sourceFindingId: "finding-1"
+      }
     };
 
     store.upsertAgentRun(context.session.id, run);

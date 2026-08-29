@@ -1,5 +1,11 @@
 import type { AgentToolResult } from "../../../shared/agent-types.js";
 import { isAllowedTarget } from "../../../shared/allowlist.js";
+import {
+  clientOverrideFromCapture,
+  isOverridableClientCapture,
+  relaxClientValidation,
+  summarizeClientOverride
+} from "../../../shared/clientOverrides.js";
 import { normalizeDraft } from "../../../shared/draft.js";
 import { buildSitemap } from "../../../shared/sitemap.js";
 import { parseTrafficQuery } from "../../../shared/trafficQuery.js";
@@ -33,6 +39,57 @@ export const executeEvidenceTool: AgentToolFamilyExecutor = async ({ run, call, 
             tool: call.tool,
             ok: true,
             data: { queue: state.queue.slice(0, call.input.limit || run.policy.maxCaptureSample) }
+          };
+          break;
+        }
+        case "getClientOverrides": {
+          result = {
+            tool: call.tool,
+            ok: true,
+            data: {
+              overrides: deps.getClientOverrides().slice(0, call.input.limit || 20).map(summarizeClientOverride)
+            }
+          };
+          break;
+        }
+        case "applyClientValidationBypass": {
+          const capture = deps.getCaptureById?.(call.input.captureId);
+          if (!capture) {
+            throw new Error("Capture was not found.");
+          }
+          if (!capture.allowed || !isAllowedTarget(capture.url, deps.allowlist())) {
+            throw new Error(`Client file override is out of scope: ${capture.url}`);
+          }
+          if (!isOverridableClientCapture(capture)) {
+            throw new Error("Capture is not an editable HTML, JavaScript, or CSS client file.");
+          }
+          const created = clientOverrideFromCapture(capture);
+          if (!created) {
+            throw new Error("Could not create a client file override from this capture.");
+          }
+          const relaxed = relaxClientValidation(created.body);
+          if (relaxed.changes.length === 0) {
+            throw new Error("No client validation constraints were found in this file.");
+          }
+          const override = {
+            ...created,
+            name: call.input.name || created.name,
+            body: relaxed.body,
+            relaxApplied: true
+          };
+          const existing = deps.getClientOverrides().filter(
+            (item) => !(item.host === override.host && item.path === override.path)
+          );
+          const saved = deps.setClientOverrides([...existing, override]);
+          const current = saved.find((item) => item.host === override.host && item.path === override.path) || override;
+          result = {
+            tool: call.tool,
+            ok: true,
+            data: {
+              override: current,
+              changes: relaxed.changes,
+              note: `${relaxed.changes.join(". ")}. Reload the Radar Browser to deliver the edited file.`
+            }
           };
           break;
         }

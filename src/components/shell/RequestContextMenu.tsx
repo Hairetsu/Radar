@@ -9,6 +9,7 @@ import {
   Terminal,
   Trash2
 } from "lucide-react";
+import { isOverridableClientCapture } from "../../../shared/clientOverrides";
 import {
   cn,
   REQUEST_EXPORT_LABELS,
@@ -33,6 +34,7 @@ export type RequestContextMenuProps = {
   onCopyExport: (format: RequestExportFormat) => void | Promise<void>;
   onCopyUrl: () => void | Promise<void>;
   onCloneToRepeater: () => void;
+  onCloneToClientOverride: () => void;
   onAddToScope: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
 };
@@ -45,6 +47,7 @@ export function RequestContextMenu({
   onCopyExport,
   onCopyUrl,
   onCloneToRepeater,
+  onCloneToClientOverride,
   onAddToScope,
   onDelete
 }: RequestContextMenuProps) {
@@ -156,6 +159,18 @@ export function RequestContextMenu({
           >
             <Repeat2 size={13} strokeWidth={1.7} />
             To Repeater
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={requestMenuActionClass}
+            onClick={onCloneToClientOverride}
+            disabled={!isOverridableClientCapture(requestMenuCapture)}
+            data-testid="requestMenuToClientOverride"
+            data-component="requestMenuToClientOverride"
+          >
+            <FileCode2 size={13} strokeWidth={1.7} />
+            Override Client File
           </button>
           <button
             type="button"

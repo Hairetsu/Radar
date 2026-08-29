@@ -33,6 +33,7 @@ import {
   defaultAssessmentContract,
   normalizeAssessmentContract
 } from "../../shared/agentAssessment.js";
+import { normalizeAgentRunSource } from "../../shared/agentFollowUp.js";
 import { firstUrlFromText, originFromUrl } from "../../shared/url.js";
 import { getAgentRunProfile, normalizeAgentRunProfileId } from "../../shared/agentProfiles.js";
 import { stopAssessmentTraffic } from "./assessment/stopController.js";
@@ -338,29 +339,45 @@ export class AgentRuntime {
 
   start(request: AgentRunRequest) {
     const continuationOf = String(request.continuationOf || "").trim().slice(0, 128);
-    const sourceRun = continuationOf ? this.deps.loadRun(continuationOf) : null;
-    if (continuationOf && !sourceRun) {
-      throw new Error("The source run for this continuation no longer exists.");
+    const requestedSource = normalizeAgentRunSource(request.source);
+    if (continuationOf && requestedSource && requestedSource.kind !== "continuation") {
+      throw new Error("A budget continuation cannot also be a finding follow-up.");
+    }
+    const source = requestedSource || (continuationOf
+      ? { kind: "continuation" as const, sourceRunId: continuationOf }
+      : undefined);
+    const sourceRun = source ? this.deps.loadRun(source.sourceRunId) : null;
+    if (source && !sourceRun) {
+      throw new Error("The source run for this follow-up no longer exists.");
     }
     if (sourceRun && sourceRun.sessionId !== this.deps.currentSessionId()) {
-      throw new Error("A continuation must remain in the source run's local session.");
+      throw new Error("A follow-up must remain in the source run's local session.");
     }
     if (sourceRun && (sourceRun.status === "queued" || sourceRun.status === "running")) {
-      throw new Error("An active run cannot be used as a continuation source.");
+      throw new Error("An active run cannot be used as a follow-up source.");
     }
-    const goal = String(sourceRun?.goal || request.goal || "").trim();
+    const sourceFinding = source?.kind === "finding-follow-up"
+      ? sourceRun?.findings.find((item) => item.id === source.sourceFindingId)
+      : undefined;
+    if (source?.kind === "finding-follow-up" && !sourceFinding) {
+      throw new Error("The source finding for this follow-up no longer exists.");
+    }
+    const isContinuation = source?.kind === "continuation";
+    const goal = String((isContinuation ? sourceRun?.goal : undefined) || request.goal || "").trim();
     if (!goal) {
       throw new Error("Agent goal is required.");
     }
 
     const createdAt = nowIso();
-    const profileId = sourceRun?.profileId || normalizeAgentRunProfileId(request.profileId);
+    const profileId = isContinuation && sourceRun
+      ? sourceRun.profileId
+      : normalizeAgentRunProfileId(request.profileId);
     const startUrl = firstUrlFromText(goal) || request.startUrl || sourceRun?.checkpoint?.startUrl || "";
     const profilePolicy = normalizeAgentPolicy({}, profileId);
-    const tutorialMode = sourceRun?.policy.tutorialMode === true ||
+    const tutorialMode = (isContinuation && sourceRun?.policy.tutorialMode === true) ||
       request.tutorialMode === true ||
       request.policy?.tutorialMode === true;
-    const policy = normalizeAgentPolicy(sourceRun
+    const policy = normalizeAgentPolicy(isContinuation && sourceRun
       ? {
           maxRuntimeMs: profilePolicy.maxRuntimeMs,
           maxSteps: Math.min(sourceRun.policy.maxSteps, profilePolicy.maxSteps),
@@ -395,19 +412,24 @@ export class AgentRuntime {
       capabilities: createAgentCapabilityState(),
       timeline: [
         timeline(
-          continuationOf
-            ? `Continuation queued from ${continuationOf}; the source transcript remains preserved.`
-            : "Run queued from AI-First goal prompt.",
+          source?.kind === "finding-follow-up" && sourceFinding
+            ? `Follow-up queued from draft finding "${sourceFinding.title}" on run ${source.sourceRunId}.`
+            : source?.kind === "continuation"
+              ? `Continuation queued from ${source.sourceRunId}; the source transcript remains preserved.`
+              : "Run queued from AI-First goal prompt.",
           {
             phase: "status",
-            summary: continuationOf
-              ? `Continuation queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`
-              : `Queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`,
+            summary: source?.kind === "finding-follow-up"
+              ? `Finding follow-up queued with ${profileId} profile`
+              : source?.kind === "continuation"
+                ? `Continuation queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`
+                : `Queued with ${profileId} profile${policy.tutorialMode ? " in Tutorial Mode" : ""}`,
             ...(policy.tutorialMode ? { tutorial: tutorialOrientation() } : {})
           }
         )
       ],
-      findings: []
+      findings: [],
+      ...(source ? { source } : {})
     };
 
     if (profileId === "autonomous-assessment") {
